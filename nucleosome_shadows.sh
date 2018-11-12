@@ -37,10 +37,14 @@ samtools index pe_sorted.bam
 
 samtools view -H pe_bt2.bam  | fgrep PG
 
+ln -s /home/sorjuela/ScienceCloud/test1_pe.bam
+samtools view -s 0.05 -b test1_pe.bam > sorjuela.bam
+
+bam=sorjuela.bam
 
 source $VIRTENVS/methtuple/bin/activate
 
-methtuple -m 2 --methylation-type CG pe_bt2.bam
+methtuple -m 2 --methylation-type CG $bam
 
 deactivate
 
@@ -48,7 +52,9 @@ deactivate
 # chr	strand	pos1	pos2	MM	MU	UM	UU
 # 1      2       3       4      5       6      7        8
 
-fn=pe_bt2.CG.2.tsv
+# fn=pe_bt2.CG.2.tsv
+fn=sorjuela.CG.2.tsv
+
 sed '1d' $fn | \
     awk 'BEGIN {OFS=FS="\t"}{
       print $1,$3,$4,"MM"$5";MU"$6";UM"$7";UU"$8,$5/($5+$6+$7+$8)*1000,$2
