@@ -62,7 +62,7 @@ function get_agreement_score {
     sed '1d' $fn | \
 
         awk 'BEGIN {OFS=FS="\t"}{
-      print $1,$3,$4,"MM"$5";MU"$6";UM"$7";UU"$8,$5/($5+$6+$7+$8)*1000,$2
+      print $1,$3,$4,"MM"$5";MU"$6";UM"$7";UU"$8,$5+$8/($5+$6+$7+$8)*1000,$2
      }' | "$BEDTOOLS" sort > "$(basename $fn .tsv)"_scored.bed
 }
 
@@ -74,7 +74,7 @@ function get_methylation {
     
     sed '1d' $fn | \
         awk 'BEGIN {OFS=FS="\t"}{
-      print $1,$3,$4,"MM"$5";MU"$6";UM"$7";UU"$8,((2*$5)+$6+$7)/(2*($5+$6+$7+$8))*1000,$2
+      print $1,$3,$4,"MM"$5";MU"$6";UM"$7";UU"$8,(($5+(0.5*$6)+(0.5*$7))/($5+$6+$7+$8))*1000,$2
      }' | "$BEDTOOLS" sort > "$(basename $fn .tsv)"_meth.bed    
 }
 
@@ -116,8 +116,21 @@ function call_metilene {
     metilene_input="$3"
     
     $METILENE -t $NTHREADS -d 0.1 -m 10 -a "$agreement_tag" -b "$background_tag" \
-              "$metilene_input" > no_filtering.file
+              "$metilene_input" > "$metilene_input".output
 
+}
+
+function postprocess_metilene {
+    agreement_tag="$1"
+    background_tag="$2"
+    dmr_input="$3"
+    
+    perl "${METILENE_OUTPUT}" \
+         -q "$dmr_input" \
+         -c 5 \
+         -d 0.05 \
+         -a "$agreement_tag" \
+         -b "$background_tag" 
 }
 
 sample=sorjuela
@@ -130,6 +143,8 @@ fn="$sample".CG.2.tsv
 get_agreement_score $fn
 get_methylation $fn
 
-prepare_metilene_input "$sample"_scored.bed "$sample"_meth.bed "$sample"
+prepare_metilene_input "$sample".CG.2_scored.bed "$sample".CG.2_meth.bed "$sample"
 
-call_metilene agreement methylation "$sample"_metilene
+call_metilene agreement background "$sample"_metilene
+
+postprocess_metilene agreement background "$sample"_metilene.output

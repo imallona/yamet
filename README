@@ -1,0 +1,6 @@
+challenges
+
+- which score to use?
+- will we compare the agreement to the methylation to call DMRs and remove effect of fully meth, fully unmeth stuff? this is a triangular distribution anyway
+- will we collapse stranded information before calling DMRs?
+- why some positions have NA for both agreement and wt after running the metilene_input script?
