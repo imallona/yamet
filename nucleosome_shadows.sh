@@ -141,6 +141,7 @@ run_methtuple "$bam"
 fn="$sample".CG.2.tsv
 
 get_agreement_score $fn
+
 get_methylation $fn
 
 prepare_metilene_input "$sample".CG.2_scored.bed "$sample".CG.2_meth.bed "$sample"
@@ -148,3 +149,127 @@ prepare_metilene_input "$sample".CG.2_scored.bed "$sample".CG.2_meth.bed "$sampl
 call_metilene agreement background "$sample"_metilene
 
 postprocess_metilene agreement background "$sample"_metilene.output
+
+awk '{OFS=FS="\t"; print "chr"$1,$2,$3,"foo",$4*1000}' metilene_qval.0.05.bedgraph | \
+    grep -P "^(chr[0-9]{1,2})\t" | fgrep - > minus.bedgraph
+
+awk '{OFS=FS="\t"; print "chr"$1,$2,$3,"foo",$4*1000}' metilene_qval.0.05.bedgraph | \
+    grep -P "^(chr[0-9]{1,2})\t" | fgrep -v - > plus.bedgraph 
+
+echo 'track type=bedGraph name="plus" description="plus" visibility=full color=200,100,0 altColor=0,100,200 priority=20' > foo
+
+cat foo plus.bedgraph > plus2.bedgraph
+
+echo 'track type=bedGraph name="minus" description="minus" visibility=full color=200,100,0 altColor=0,100,200 priority=20' > foo
+
+cat foo minus.bedgraph > minus2.bedgraph
+
+
+## let's correlate the values with ctcf from encode (assuming it's colon! and not sure the
+# bam file is hg19)
+
+# https://www.encodeproject.org/experiments/ENCSR236YGF/ 
+cat << EOF >> ctcf_colon.url
+https://www.encodeproject.org/metadata/type=Experiment&files.file_type=bed+narrowPeak/metadata.tsv -X GET -H "Accept: text/tsv" -H "Content-Type: application/json" --data '{"elements": ["/experiments/ENCSR236YGF/"]}'
+https://www.encodeproject.org/files/ENCFF719EWH/@@download/ENCFF719EWH.bed.gz
+https://www.encodeproject.org/files/ENCFF302QQX/@@download/ENCFF302QQX.bed.gz
+https://www.encodeproject.org/files/ENCFF559LUB/@@download/ENCFF559LUB.bed.gz
+https://www.encodeproject.org/files/ENCFF654IUM/@@download/ENCFF654IUM.bed.gz
+EOF
+
+xargs -L 1 curl -O -L < ctcf_colon.url
+
+gunzip *bed.gz
+
+for fn in $(find -name "*ENC*bed")
+do
+    $BEDTOOLS sort -i $fn > foo
+    mv foo $fn
+done
+
+$BEDTOOLS sort -i plus.bedgraph > foo
+mv foo plus.bedgraph
+
+"$BEDTOOLS" jaccard -a plus.bedgraph \
+            -b ENC*.bed
+
+$BEDTOOLS sort -i minus.bedgraph > foo
+mv foo minus.bedgraph
+
+"$BEDTOOLS" jaccard -a minus.bedgraph \
+            -b ENC*.bed
+
+
+
+for fn in $(find -name "*ENC*bed")
+do
+    "$BEDTOOLS" reldist \
+                -a plus.bedgraph \
+                -b $fn > "$fn"_plus.reldist
+done
+
+
+for fn in $(find -name "*ENC*bed")
+do
+    "$BEDTOOLS" reldist \
+                -a minus.bedgraph \
+                -b $fn > "$fn"_minus.reldist
+done
+
+
+## note that EWH and QQX are peaks and LUB and IUM are inputs
+
+
+## what if dnase encode data?
+cat << EOF >> dnasei_colon.url
+https://www.encodeproject.org/metadata/type=Experiment&files.file_type=bed+broadPeak&files.file_type=bed+narrowPeak/metadata.tsv -X GET -H "Accept: text/tsv" -H "Content-Type: application/json" --data '{"elements": ["/experiments/ENCSR462XTM/"]}'
+https://www.encodeproject.org/files/ENCFF071XTK/@@download/ENCFF071XTK.bed.gz
+https://www.encodeproject.org/files/ENCFF421NEH/@@download/ENCFF421NEH.bed.gz
+https://www.encodeproject.org/files/ENCFF330CTT/@@download/ENCFF330CTT.bed.gz
+https://www.encodeproject.org/files/ENCFF006EIZ/@@download/ENCFF006EIZ.bed.gz
+https://www.encodeproject.org/files/ENCFF722LRQ/@@download/ENCFF722LRQ.bed.gz
+https://www.encodeproject.org/files/ENCFF257QKM/@@download/ENCFF257QKM.bed.gz
+https://www.encodeproject.org/files/ENCFF756XIR/@@download/ENCFF756XIR.bed.gz
+https://www.encodeproject.org/files/ENCFF113TVH/@@download/ENCFF113TVH.bed.gz
+EOF
+
+
+
+xargs -L 1 curl -O -L < dnasei_colon.url
+
+gunzip *bed.gz
+
+for fn in $(find -name "*ENC*bed")
+do
+    $BEDTOOLS sort -i $fn > foo
+    mv foo $fn
+done
+
+$BEDTOOLS sort -i plus.bedgraph > foo
+mv foo plus.bedgraph
+
+"$BEDTOOLS" jaccard -a plus.bedgraph \
+            -b ENC*.bed
+
+$BEDTOOLS sort -i minus.bedgraph > foo
+mv foo minus.bedgraph
+
+"$BEDTOOLS" jaccard -a minus.bedgraph \
+            -b ENC*.bed
+
+
+
+for fn in $(find -name "*ENC*bed")
+do
+    "$BEDTOOLS" reldist \
+                -a plus.bedgraph \
+                -b $fn > "$fn"_plus.reldist
+done
+
+
+for fn in $(find -name "*ENC*bed")
+do
+    "$BEDTOOLS" reldist \
+                -a minus.bedgraph \
+                -b $fn > "$fn"_minus.reldist
+done
