@@ -6,20 +6,34 @@
 ## 12th nov 2018
 
 library('latex2exp')
+library(entropy)
 
 WD <- file.path('/home/imallona', 'cg_shadows', 'data')
 fn <- file.path(WD, 'sorjuela.CG.2.tsv')
+
+beta2m <- function(beta) {
+    m <- log2(beta/(1 - beta))
+    m
+}
+
 
 d <- read.table(fn, header = TRUE, nrows = 500000)
 summary(d)
 d$coverage <- d$MM + d$UM + d$MU + d$UU
 d$beta <- (d$MM + 0.5*d$UM + 0.5*d$MU) / d$coverage
+d$m <- beta2m(d$beta)
 
 d$score1 <- (d$MM + d$UU) / d$coverage
 d$score2 <- (d$MM) / d$coverage
-d$score3 <- (2*d$MM + d$UU) / d$coverage
 
-targets <- c('coverage', 'beta', 'score1', 'score2', 'score3')
+d$discordant <- d$MU + d$UM
+## d$score3 <- (2*d$MM + d$UU) / d$coverage
+d$entropy_four <- apply(d[,c('MM','MU', 'UM', 'UU')], 1, entropy)
+d$entropy_three <- apply(d[,c('MM','discordant', 'UU')], 1, entropy)
+
+head(d$entropy)
+
+targets <- c('coverage', 'beta', 'm', 'score1', 'score2', 'entropy_four', 'entropy_three')
 
 
 png(file.path(WD, 'exploratory_1.png'), width = 700, height = 700)
@@ -27,6 +41,11 @@ png(file.path(WD, 'exploratory_1.png'), width = 700, height = 700)
 plot(d[,targets])
 dev.off()
 
+
+
+
+
+    
 pdf(file.path(WD, 'exploratory_2.pdf'), width = 14)
 
 
@@ -190,8 +209,42 @@ legend("topright",
 ## plot(y = d$score1[1:NPLOT], x = 1:NPLOT, type = 'l')
 ## lines(y = d$beta[1:NPLOT], x = 1:NPLOT, type = 'l',  col = 'blue')
     
+## highlighting dnameth
 
 
+## jittering (not qvalue adjusted)
+## checking the soundness of a dmr approach
+
+png('exploratory_3.png')
+d$dmr <- d$score1 - d$beta
+d$dmr_color <- 'black'
+d$dmr_color[d$dmr >= 0.1] <- 'blue'
+d$dmr_color[d$dmr < -0.1] <- 'red'
+
+plot(y = jitter(d$score1),
+     x = jitter(d$beta),
+     ylab = 'score1 with jitter',
+     xlab = TeX('$ \\beta = \\frac{MM + .5*MU + .5*UM}{cov}$ with jitter'),
+     main = TeX('$score1= \\frac{MM + UU}{cov}$'),
+     col = d$dmr_color)
+
+
+legend("bottomleft",
+       legend = c('nochange', TeX('$score1 \\geq \\beta$'), TeX('$score1 < \\beta$')),
+       col = c('black', 'blue', 'red'),
+       pch = 1,
+       ## xjust = 1, yjust = 1,
+       title = "Scores")
+dev.off()
+
+
+## entropy measures
+
+  
+d$entropy <- apply(d[,c('MM','MU', 'UM', 'UU')], 2, entropy)
+head(d$entropy)
+
+plot(d[,c(targets, 'entropy')])
 
 ## set.seed(1)
 ## n = 500
