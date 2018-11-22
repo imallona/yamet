@@ -7,6 +7,7 @@
 
 library('latex2exp')
 library(entropy)
+library(Cairo)
 
 WD <- file.path('/home/imallona', 'cg_shadows', 'data')
 fn <- file.path(WD, 'sorjuela.CG.2.tsv')
@@ -31,14 +32,27 @@ d$discordant <- d$MU + d$UM
 d$entropy_four <- apply(d[,c('MM','MU', 'UM', 'UU')], 1, entropy)
 d$entropy_three <- apply(d[,c('MM','discordant', 'UU')], 1, entropy)
 
+d$distance <- d$pos2 - d$pos1
+d$log10dist <- log10(d$distance)
 head(d$entropy)
 
-targets <- c('coverage', 'beta', 'm', 'score1', 'score2', 'entropy_four', 'entropy_three')
+## targets <- c('coverage', 'distance', 'beta',
+##              'm', 'score1', 'score2',
+##              'entropy_four', 'entropy_three')
 
+targets <- c('coverage',
+             'distance', 'log10dist',
+             'beta',
+             'm',
+             'score1',
+             ## 'score2',
+             'entropy_four')#,
+             ## 'entropy_three')
 
-png(file.path(WD, 'exploratory_1.png'), width = 700, height = 700)
+png(file.path(WD, 'exploratory_1.png'), width = 700,
+         height = 700)
 
-plot(d[,targets])
+plot(d[,targets], pch = 20)#, col = rgb(0, 0, 1, 0.5))
 dev.off()
 
 
