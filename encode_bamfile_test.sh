@@ -7,7 +7,7 @@
 
 export HOME=/home/imallona
 export TASK="cg_shadows"
-export WD="$HOME"/"$TASK"
+export WD="$HOME"/mnt/nfs/"$TASK"
 
 export SOFT="$HOME"/soft
 export VIRTENVS="$HOME"/virtenvs
@@ -19,7 +19,7 @@ export METILENE_OUTPUT="$SOFT"/metilene/metilene_v0.2-7/metilene_output.pl
 
 export SAMTOOLS=/usr/local/bin/samtools
 
-NTHREADS=12
+NTHREADS=20
 
 mkdir -p $WD/data
 cd $_
@@ -127,6 +127,20 @@ function postprocess_metilene {
          -b "$background_tag" 
 }
 
+function filter_by_coverage {
+    fn="$1"
+    mincov="$2"
+
+    
+awk -v mincov="$mincov" '
+NR==1{next}
+{
+  if (($5+$6+$7+$8) >= mincov) print $0
+
+
+}' $fn
+
+}
 
 ## unnormalized Shannon entropies (could return E/log(4) to be normalized)
 function test_entropy_string {
@@ -213,7 +227,7 @@ print $1,$3,$4,"MM"$5";MU"$6";UM"$7";UU"$8,E,$2
 }
 
 function collapse_strands {
-    #todo
+    echo 'todo'
 }
 
 sample=ENCFF857QML
@@ -222,8 +236,9 @@ mkdir -p $sample
 
 cd $_
 
+echo Uncomment to retrieve data
 # 78 GB
-wget https://www.encodeproject.org/files/ENCFF857QML/@@download/ENCFF857QML.bam
+# wget https://www.encodeproject.org/files/ENCFF857QML/@@download/ENCFF857QML.bam
 
 bam="$sample".bam
 
@@ -235,9 +250,8 @@ run_methtuple "$bam"
 
 fn="$sample".CG.2.tsv
 
-## todo remove sampling
-sample="mini"
-fn="$sample".CG.2.tsv
+filter_by_coverage $fn 5 > foo
+mv -f foo $fn
 
 get_entropy $fn
 

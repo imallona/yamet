@@ -8,8 +8,13 @@
 library('latex2exp')
 library(entropy)
 library(Cairo)
+## library(MASS)
+library(ggplot2)
+library(RColorBrewer)
 
-NROWS <- 1e6
+NROWS <- 10e6
+MINCOVERAGE <- 5 ## this is enforced at the bash script!
+
 WD <- file.path('/home/imallona', 'cg_shadows', 'data', 'ENCFF857QML')
 meth_fn <- file.path(WD, 'mini.CG.2_meth_colored.bed')
 entropy_fn <- file.path(WD, 'mini.CG.2_entropy_colored.bed')
@@ -19,9 +24,15 @@ beta2m <- function(beta) {
     m
 }
 
+add.alpha <- function(col, alpha=1){
+ 
+  apply(sapply(col, col2rgb)/255, 2, 
+                     function(x) rgb(x[1], x[2], x[3], alpha = alpha))  
+}
+
 
 d <- list (entropy = read.table(entropy_fn,
-                                colClasses = c(rep("NULL", 3), "factor", "numeric",
+                                colClasses = c("NULL", "integer", "integer", "factor", "numeric",
                                                "NULL", "factor"),
                                 nrows = NROWS),
            meth = read.table(meth_fn,
@@ -56,10 +67,10 @@ TssF")$V1
 
 
                                 
-colnames(d$entropy) <- c('code', 'entropy', 'hmm')
+colnames(d$entropy) <- c('start', 'end', 'code', 'entropy', 'hmm')
 colnames(d$meth) <- c('beta', 'hmm')
 d$meth$beta <- d$meth$beta/1000
-
+d$entropy$distance <- d$entropy$end - d$entropy$start
 ## d$entropy$mm <- sapply(strsplit(as.character(d$entropy$code), ';'),
 ##                        function(x) return(gsub('MM', '', x)))
 
@@ -74,6 +85,10 @@ d$entropy$uu <- as.numeric(tmp[4,])
 
 rm(tmp)
 
+d$coverage <- d$mm + d$um + d$mu + d$uu
+
+d <- d[d$coverage > MINCOVERAGE,]
+
 for (color in colors) {
     d$entropy[,color] <- NA
     d$entropy[,color] <- grepl(color, as.character(d$entropy$hmm))
@@ -84,6 +99,101 @@ for (color in colors) {
 
 d$entropy$in_boundary <- apply(d$entropy[,as.character(colors)], 1, function(x) sum(x) > 1)
 table(d$entropy$in_boundary)
+
+
+d$entropy$beta <- d$meth$beta 
+d <- d$entropy
+d$log10dist <- log10(d$distance)
+
+
+targets <- c('coverage',
+             'distance',
+             'log10dist',
+             'beta',
+             'entropy')
+
+
+
+png(file.path(WD, 'exploratory_1.png'), width = 700,
+         height = 700)
+
+plot(d[,targets], pch = 20,
+     col = add.alpha(ifelse(d$in_boundary, 'darkred', 'black' ), 0.5))
+dev.off()
+
+
+targets <-  c('coverage',
+             'log10dist',
+             'beta',
+             'entropy')
+
+entropy_max <- max(d$entropy)
+
+
+rf <- colorRampPalette(rev(brewer.pal(11,'Spectral')))
+r <- rf(32)
+
+
+for (color in colors) {
+
+    curr <- d[d[,color],]
+    png(file.path(WD, sprintf('exploratory_1_%s.png', color)),
+        width = 700,
+        height = 700)
+
+    plot(curr[,targets],
+         pch = 20,
+         col = add.alpha(ifelse(curr[,"in_boundary"], 'red', 'black'), 0.5),
+         main = color)
+    
+    dev.off()
+
+    
+    png(file.path(WD, sprintf('exploratory_2_%s.png', color)),
+        width = 400,
+        height = 400)
+        
+    plot(x = curr$beta,
+         y = curr$entropy,
+         xlim = c(0,1),
+         ylim = c(0, entropy_max),
+         pch = 20,
+         col = add.alpha(ifelse(curr[,"in_boundary"], 'red', 'black'), 0.5),
+         main = color)
+    
+    dev.off()
+
+    p <- ggplot(curr[,c('beta', 'entropy')], aes(beta, entropy))
+
+    h3 <- p + stat_bin2d(bins=25) + scale_fill_gradientn(colours=r) + xlim(-0.1, 1.1) +
+        ylim(-0.1, entropy_max + 0.1)
+    
+    ggsave(h3, file = file.path(WD, sprintf('exploratory_3_%s.png', color)))
+    
+  
+}
+
+
+
+## stacked boxplots
+
+## which is the proportion of 0 entropy for each HMM?
+
+d$unmethylated <- d$beta < 0.2
+d$methylated <- d$beta >= 0.8
+d$zero_entropy <- d$entropy == 0
+
+
+tapply(d$entropy$entropy, d$entropy$hmm, function(x) quantile(x, probs = 0.99))
+
+
+
+
+## # Log scaling
+## h3 <- p + stat_bin2d(bins=25) + scale_fill_gradientn(colours=r, trans="log")
+## h3
+
+
 
 ## wide to long?
 
@@ -96,12 +206,6 @@ stripchart(d$entropy$entropy~ d$entropy$hmm, jitter = 0.1,
            vertical = TRUE,
            pch = 21)
 
-
-myFun <- function(x) {
-  c(min = min(x), max = max(x), 
-    mean = mean(x), median = median(x), 
-    std = sd(x))
-}
 
 tapply(d$entropy$entropy, d$entropy$hmm, function(x) quantile(x, probs = 0.99))
 
@@ -124,7 +228,7 @@ d$entropy_three <- apply(d[,c('MM','discordant', 'UU')], 1, entropy)
 
 d$distance <- d$pos2 - d$pos1
 d$log10dist <- log10(d$distance)
-head(d$entropy)
+d$m <- beta2m(d$beta)
 
 ## targets <- c('coverage', 'distance', 'beta',
 ##              'm', 'score1', 'score2',
@@ -134,10 +238,7 @@ targets <- c('coverage',
              'distance', 'log10dist',
              'beta',
              'm',
-             'score1',
-             ## 'score2',
-             'entropy_four')#,
-             ## 'entropy_three')
+             'entropy')
 
 png(file.path(WD, 'exploratory_1.png'), width = 700,
          height = 700)
