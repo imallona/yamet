@@ -3,6 +3,8 @@
 ## methtuples to look for nucleosome positioning
 ## 29th june 2018
 
+## @todo parallelize by chromosome!
+
 export HOME=/home/imallona
 export TASK="cg_shadows"
 export WD="$HOME"/"$TASK"
@@ -128,7 +130,7 @@ function postprocess_metilene {
 
 ## unnormalized Shannon entropies (could return E/log(4) to be normalized)
 function test_entropy_string {
-
+    
  cat << EOF > /tmp/forentropy2
 header
 1 2 3 4
@@ -166,6 +168,53 @@ rm -f /tmp/forentropy2
 }
 
 
+## parses run_methtupleoutputs to get meth betavalues
+## @param the methtuple path
+## output writes a bed6 (score column goes to 0 to 1000)
+function get_methylation {
+    fn="$1"
+    
+    sed '1d' $fn | \
+        awk 'BEGIN {OFS=FS="\t"}{
+      print $1,$3,$4,"MM"$5";MU"$6";UM"$7";UU"$8,(($5+(0.5*$6)+(0.5*$7))/($5+$6+$7+$8))*1000,$2
+     }' | "$BEDTOOLS" sort > "$(basename $fn .tsv)"_meth.bed    
+}
+
+
+
+## parses run_methtupleoutputs to get entropyvalues
+## @param the methtuple path
+## output writes almost a bed6 (score column is the entropy and DOES NOT go from 0 to 1000)
+## chr     strand  pos1    pos2    MM      MU      UM      UU
+    
+function get_entropy {
+    ## entropy
+    fn="$1"
+awk '
+BEGIN {OFS=FS="\t"}
+NR==1{next}
+{
+  H["MM"] = $5
+  H["UU"] = $8
+  H["UM"] = $7
+  H["MU"] = $6
+  N  = ($5+$6+$7+$8)
+  E = 0
+  p = ""
+  for (i in H) {
+    if (H[i] != 0) {
+      p = H[i]/N;
+      E -=  p * log(p);
+    }
+  }
+print $1,$3,$4,"MM"$5";MU"$6";UM"$7";UU"$8,E,$2
+
+}' $fn | "$BEDTOOLS" sort > "$(basename $fn .tsv)"_entropy.bed    
+}
+
+function collapse_strands {
+    #todo
+}
 
 sample=ENCFF857QML
 
@@ -186,7 +235,45 @@ run_methtuple "$bam"
 
 fn="$sample".CG.2.tsv
 
-get_agreement_score $fn
+## todo remove sampling
+sample="mini"
+fn="$sample".CG.2.tsv
+
+get_entropy $fn
 
 get_methylation $fn
+
+## get chromatin colors and look for association
+
+echo 'Retrieving chromatin colors'
+
+mysql --user=genome --host=genome-mysql.cse.ucsc.edu  \
+      --skip-column-names \
+      -A -e \
+      'SELECT chrom, chromStart, chromEnd, name 
+     FROM hg19.wgEncodeAwgSegmentationChromhmmH1hesc;' | \
+    "$BEDTOOLS" sort  > h1_hmm.bed
+
+# for color in "$(cut -f 4 h1_hmm.bed | sort | uniq)"
+# do
+#     grep "$color" h1_hmm.bed > curr.bed
+
+#     "$BEDTOOLS" jaccard -a  \
+#             -b curr.bed
+        
+# done
+
+# ## get top quartiles for entropy and dnameth
+# ## https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1003181
+## mind the strand collapsing at the groupbystep
+$BEDTOOLS intersect -wa -wb \
+          -a "$sample".CG.2_entropy.bed \
+          -b h1_hmm.bed | \
+    $BEDTOOLS groupby -g 1-6 -c 10 -o concat > "$sample".CG.2_entropy_colored.bed
+
+
+$BEDTOOLS intersect -wa -wb \
+          -a "$sample".CG.2_meth.bed \
+          -b h1_hmm.bed | \
+    $BEDTOOLS groupby -g 1-6 -c 10 -o concat > "$sample".CG.2_meth_colored.bed
 
