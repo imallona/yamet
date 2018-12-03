@@ -4,6 +4,7 @@
 ## 29th june 2018
 
 ## @todo parallelize by chromosome!
+## Data from https://www.encodeproject.org/experiments/ENCSR617FKV/
 
 export HOME=/home/imallona
 export TASK="cg_shadows"
@@ -259,14 +260,24 @@ get_methylation $fn
 
 ## get chromatin colors and look for association
 
-echo 'Retrieving chromatin colors'
+echo 'Retrieving chromatin colors this is wrong because shouldn"t be hg19'
 
 mysql --user=genome --host=genome-mysql.cse.ucsc.edu  \
       --skip-column-names \
       -A -e \
       'SELECT chrom, chromStart, chromEnd, name 
      FROM hg19.wgEncodeAwgSegmentationChromhmmH1hesc;' | \
-    "$BEDTOOLS" sort  > h1_hmm.bed
+    "$BEDTOOLS" sort  > hg19_h1_hmm.bed
+
+
+## @todo add liftOver here!! ############
+
+wget http://hgdownload.cse.ucsc.edu/goldenPath/hg19/liftOver/hg19ToHg38.over.chain.gz
+gunzip hg19ToHg38.over.chain.gz
+
+
+
+
 
 # for color in "$(cut -f 4 h1_hmm.bed | sort | uniq)"
 # do
