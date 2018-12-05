@@ -181,14 +181,104 @@ for (color in colors) {
 
 ## stacked boxplots
 
-## which is the proportion of 0 entropy for each HMM?
+## which is the proportion of 0 entropy for each HMM discarding boundaries?
+
+
 
 d$unmethylated <- d$beta < 0.2
 d$methylated <- d$beta >= 0.8
 d$zero_entropy <- d$entropy == 0
 
 
-tapply(d$entropy$entropy, d$entropy$hmm, function(x) quantile(x, probs = 0.99))
+non_boundary <- list(median = tapply(d[!d$in_boundary, 'entropy'],
+                                     as.factor(as.character(d[!d$in_boundary, 'hmm'])),
+                                     function(x) quantile(x, probs = 0.5)),
+                     lower = tapply(d[!d$in_boundary, 'entropy'],
+                                     as.factor(as.character(d[!d$in_boundary, 'hmm'])),
+                                  function(x) quantile(x, probs = 0.25)),
+                     upper = tapply(d[!d$in_boundary, 'entropy'],
+                                     as.factor(as.character(d[!d$in_boundary, 'hmm'])),
+                                  function(x) quantile(x, probs = 0.755)))
+
+## sort by median, plot
+sorted <- names(sort(non_boundary$median))
+
+png('quantiles_entropy_no_boundaries.png')
+
+par(cex.axis = 1.4,
+    cex.lab = 1.4,
+    cex.main = 1.4,
+    cex.sub = 1.4,
+    pty = "s",
+    mar=c(5.1,4.1,4.1,2.1),
+    oma = c(1, 0, 0, 0))
+
+plot(non_boundary$lower[sorted], pch = 20,
+     ylim = c(0, max(unlist(non_boundary))),
+     ylab = 'entropy',
+     xaxt = "n",
+     xlab = "",
+     main = 'non boundaries, any meth level')
+
+points(non_boundary$median[sorted], pch = 20, col = 'red')
+points(non_boundary$upper[sorted], pch = 20)
+
+segments(y0 = non_boundary$lower[sorted],
+         y1 = non_boundary$upper[sorted],
+         x0 = 1:length(non_boundary$lower),
+         x1 = 1:length(non_boundary$lower))
+
+axis(1, at = 1:length(sorted), labels = sorted, las = 2)
+
+dev.off()
+
+
+
+non_boundary <- list(median = tapply(d[!d$in_boundary, 'beta'],
+                                     as.factor(as.character(d[!d$in_boundary, 'hmm'])),
+                                     function(x) quantile(x, probs = 0.5)),
+                     lower = tapply(d[!d$in_boundary, 'beta'],
+                                     as.factor(as.character(d[!d$in_boundary, 'hmm'])),
+                                  function(x) quantile(x, probs = 0.25)),
+                     upper = tapply(d[!d$in_boundary, 'beta'],
+                                     as.factor(as.character(d[!d$in_boundary, 'hmm'])),
+                                  function(x) quantile(x, probs = 0.755)))
+
+
+
+png('quantiles_methylation_no_boundaries.png')
+
+par(cex.axis = 1.4,
+    cex.lab = 1.4,
+    cex.main = 1.4,
+    cex.sub = 1.4,
+    pty = "s",
+    mar=c(5.1,4.1,4.1,2.1),
+    oma = c(1, 0, 0, 0))
+
+plot(non_boundary$lower[sorted], pch = 20,
+     ylim = c(0, max(unlist(non_boundary))),
+     ylab = 'methylation',
+     xaxt = "n",
+     xlab = "",
+     main = 'non boundaries, any entropy level')
+
+points(non_boundary$median[sorted], pch = 20, col = 'red')
+points(non_boundary$upper[sorted], pch = 20)
+segments(y0 = non_boundary$lower[sorted],
+         y1 = non_boundary$upper[sorted],
+         x0 = 1:length(non_boundary$lower),
+         x1 = 1:length(non_boundary$lower))
+
+axis(1, at = 1:length(sorted), labels = sorted, las = 2)
+
+dev.off()
+
+
+## stratify by dnameth!
+
+
+stop('till here')
 
 
 
