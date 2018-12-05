@@ -11,6 +11,7 @@ library(Cairo)
 ## library(MASS)
 library(ggplot2)
 library(RColorBrewer)
+library(reshape2)
 
 NROWS <- 10e5
 MINCOVERAGE <- 5 ## this is enforced at the bash script!
@@ -274,9 +275,118 @@ axis(1, at = 1:length(sorted), labels = sorted, las = 2)
 
 dev.off()
 
+## stratified by dnameth (low, mid, high, cutoffs 0.2 and 0.8 beta)
 
-## stratify by dnameth!
 
+curr <- d[!d$in_boundary,]
+
+## categorical methylation status
+curr$meth_cat <- 'mid'
+curr$meth_cat[curr$unmethylated] <- 'low'
+curr$meth_cat[curr$methylated] <- 'high'
+curr$meth_cat <- factor(curr$meth_cat, levels = c('low', 'mid', 'high'))
+
+ggplot(curr, aes(factor(hmm), entropy, fill = meth_cat)) + 
+  geom_bar(stat="identity", position = "dodge") + 
+  scale_fill_brewer(palette = "Set1")
+
+
+
+h <- ggplot(aes(y = entropy, x = hmm, fill = meth_cat), data = curr) +
+    geom_boxplot(outlier.alpha = 0.5) +
+    scale_fill_manual(values=c("gray90", "gray60", "gray30")) +
+    theme_bw() + 
+    theme(text = element_text(size = 15),
+          axis.text.x = element_text(angle = 90, hjust = 1))
+
+
+ggsave(h, file = file.path('entropy_no_boundary_boxplot_stratified_by_meth.png'))
+
+
+## how many instances are there?
+
+ggplot(curr, aes(factor(hmm),fill = meth_cat)) +
+    geom_bar(stat="count", position = "dodge") + 
+    scale_fill_manual(values=c("gray90", "gray60", "gray30")) +
+    theme_bw() + 
+    theme(text = element_text(size = 15),
+          axis.text.x = element_text(angle = 90, hjust = 1))
+
+
+## h1 <- ggplot(curr, aes(factor(hmm),fill = meth_cat)) +
+##     scale_y_log10(
+##         breaks = scales::trans_breaks("log10", function(x) 10^x),
+##         labels = scales::trans_format("log10", scales::math_format(10^.x))
+##     ) +    
+##     geom_bar(stat="count", position = "dodge", color = 'black') + 
+##     scale_fill_manual(values=c("gray90", "gray60", "gray30")) +
+##     theme_bw() + 
+##     theme(text = element_text(size = 15),
+##           axis.text.x = element_text(angle = 90, hjust = 1)) +
+##     annotation_logticks(sides = 'l') 
+
+h1 <- ggplot(curr, aes(factor(hmm),fill = meth_cat)) +
+    scale_y_log10(
+        breaks = scales::trans_breaks("log10", function(x) 10^x),
+        labels = scales::trans_format("log10", scales::math_format(10^.x))
+    ) +    
+    geom_bar(stat="count", width = 0.6, position = position_dodge(width=0.7), color = 'black') + 
+    scale_fill_manual(values=c("gray90", "gray60", "gray30")) +
+    theme_bw() + 
+    theme(text = element_text(size = 15),
+          axis.text.x = element_text(angle = 90, hjust = 1)) +
+    annotation_logticks(sides = 'l') 
+
+
+ggsave(h1, file = file.path('counts_no_boundary_boxplot_stratified_by_meth.png'))
+
+
+## same with those in boundaries!
+## (but grouping by single colors, not the pairwise relationships)
+
+curr <- d[d$in_boundary,]
+fd <- melt(curr[c('entropy', 'beta', as.character(colors))],
+           c("entropy", 'beta'),
+           variable.name = "hmm")
+fd <- fd[fd$value,]
+
+
+## categorical methylation status
+fd$meth_cat <- 'mid'
+fd$meth_cat[fd$beta < 0.2] <- 'low'
+fd$meth_cat[fd$beta >= 0.8] <- 'high'
+fd$meth_cat <- factor(fd$meth_cat, levels = c('low', 'mid', 'high'))
+
+
+
+h <- ggplot(aes(y = entropy, x = hmm, fill = meth_cat), data = fd) +
+    geom_boxplot(outlier.alpha = 0.5) +
+    scale_fill_manual(values=c("gray90", "gray60", "gray30")) +
+    theme_bw() + 
+    theme(text = element_text(size = 15),
+          axis.text.x = element_text(angle = 90, hjust = 1))
+
+
+ggsave(h, file = file.path('entropy_boundaries_boxplot_stratified_by_meth.png'))
+
+
+h1 <- ggplot(fd, aes(factor(hmm),fill = meth_cat)) +
+    scale_y_log10(
+        breaks = scales::trans_breaks("log10", function(x) 10^x),
+        labels = scales::trans_format("log10", scales::math_format(10^.x))
+    ) +    
+    geom_bar(stat="count", width = 0.6, position = position_dodge(width=0.7), color = 'black') + 
+    scale_fill_manual(values=c("gray90", "gray60", "gray30")) +
+    theme_bw() + 
+    theme(text = element_text(size = 15),
+          axis.text.x = element_text(angle = 90, hjust = 1)) +
+    annotation_logticks(sides = 'l') 
+
+
+ggsave(h1, file = file.path('counts_boundaries_boxplot_stratified_by_meth.png'))
+
+
+## what about checking preferential boundaries, the ones that are the most frequent?
 
 stop('till here')
 
