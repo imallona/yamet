@@ -275,9 +275,11 @@ mysql --user=genome --host=genome-mysql.cse.ucsc.edu  \
 wget http://hgdownload.cse.ucsc.edu/goldenPath/hg19/liftOver/hg19ToHg38.over.chain.gz
 gunzip hg19ToHg38.over.chain.gz
 
+wget http://hgdownload.soe.ucsc.edu/admin/exe/linux.x86_64/liftOver
 
+chmod a+x liftOver
 
-
+./liftOver hg19_h1_hmm.bed hg19ToHg38.over.chain hg38_h1_hmm.bed liftover_h1_unmapped.bed
 
 # for color in "$(cut -f 4 h1_hmm.bed | sort | uniq)"
 # do
@@ -293,12 +295,12 @@ gunzip hg19ToHg38.over.chain.gz
 ## mind the strand collapsing at the groupbystep
 $BEDTOOLS intersect -wa -wb \
           -a "$sample".CG.2_entropy.bed \
-          -b h1_hmm.bed | \
+          -b hg38_h1_hmm.bed | \
     $BEDTOOLS groupby -g 1-6 -c 10 -o concat > "$sample".CG.2_entropy_colored.bed
 
 
 $BEDTOOLS intersect -wa -wb \
           -a "$sample".CG.2_meth.bed \
-          -b h1_hmm.bed | \
+          -b hg38_h1_hmm.bed | \
     $BEDTOOLS groupby -g 1-6 -c 10 -o concat > "$sample".CG.2_meth_colored.bed
 

@@ -5,6 +5,57 @@
 
 ## @todo parallelize by chromosome!
 ## Data from https://www.encodeproject.org/experiments/ENCSR617FKV/
+## does not work
+
+echo '@todo fix, does not work'
+## end of the trace
+
+
+# cat: 'outdir/2_tuples/ENCFF857QML_coord_sorted_chr22.ENCFF857QML_coord_sorted_chr22.*.tsv': No such file or directory
+# cat: 'outdir/2_tuples/ENCFF857QML_coord_sorted_chr21.ENCFF857QML_coord_sorted_chr22.*.tsv': No such file or directory
+# cat: 'outdir/2_tuples/ENCFF857QML_coord_sorted_chr20.ENCFF857QML_coord_sorted_chr22.*.tsv': No such file or directory
+# When using programs that use GNU Parallel to process data for publication please cite:
+
+#   O. Tange (2011): GNU Parallel - The Command-Line Power Tool,
+#   ;login: The USENIX Magazine, February 2011:42-47.
+
+# This helps funding further development; and it won't cost you a cent.
+# Or you can get GNU Parallel without this requirement by paying 10000 EUR.
+
+# To silence this citation notice run 'parallel --bibtex' once or use '--no-notice'.
+
+# cat: outdir/2_tuples/ENCFF857QML_coord_sorted_chr22.reads_that_failed_QC.txt: No such file or directory
+# cat: outdir/2_tuples/ENCFF857QML_coord_sorted_chr21.reads_that_failed_QC.txt: No such file or directory
+# cat: outdir/2_tuples/ENCFF857QML_coord_sorted_chr20.reads_that_failed_QC.txt: No such file or directory
+# Removing chromosome-level files...
+# When using programs that use GNU Parallel to process data for publication please cite:
+
+#   O. Tange (2011): GNU Parallel - The Command-Line Power Tool,
+#   ;login: The USENIX Magazine, February 2011:42-47.
+
+# This helps funding further development; and it won't cost you a cent.
+# Or you can get GNU Parallel without this requirement by paying 10000 EUR.
+
+# To silence this citation notice run 'parallel --bibtex' once or use '--no-notice'.
+
+# rm: cannot remove 'outdir/ENCFF857QML_coord_sorted_chr22.bam': No such file or directory
+# rm: cannot remove 'outdir/ENCFF857QML_coord_sorted_chr21.bam': No such file or directory
+# rm: cannot remove 'outdir/ENCFF857QML_coord_sorted_chr20.bam': No such file or directory
+# When using programs that use GNU Parallel to process data for publication please cite:
+
+#   O. Tange (2011): GNU Parallel - The Command-Line Power Tool,
+#   ;login: The USENIX Magazine, February 2011:42-47.
+
+# This helps funding further development; and it won't cost you a cent.
+# Or you can get GNU Parallel without this requirement by paying 10000 EUR.
+
+# To silence this citation notice run 'parallel --bibtex' once or use '--no-notice'.
+
+# rm: cannot remove 'outdir/2_tuples/ENCFF857QML_coord_sorted_*.tsv': No such file or directory
+# rm: cannot remove 'outdir/2_tuples/ENCFF857QML_coord_sorted_*.reads_that_failed_QC.txt': No such file or directory
+
+
+
 
 export HOME=/home/imallona
 export TASK="cg_shadows"
@@ -261,3 +312,5 @@ rm ${OUTDIR}/{1}_tuples/${SAMPLE_NAME}_*.reads_that_failed_QC.txt" ::: ${M[@]}
 ## pete end
 
 deactivate ## methtuple virtenv
+
+

@@ -12,12 +12,15 @@ library(Cairo)
 library(ggplot2)
 library(RColorBrewer)
 
-NROWS <- 10e6
+NROWS <- 10e5
 MINCOVERAGE <- 5 ## this is enforced at the bash script!
 
-WD <- file.path('/home/imallona', 'cg_shadows', 'data', 'ENCFF857QML')
-meth_fn <- file.path(WD, 'mini.CG.2_meth_colored.bed')
-entropy_fn <- file.path(WD, 'mini.CG.2_entropy_colored.bed')
+WD <- file.path('/home/imallona', 'mnt', 'nfs', 'cg_shadows', 'data', 'ENCFF857QML')
+
+ssample <- 'ENCFF857QML'
+
+meth_fn <- file.path(WD, sprintf('%s.CG.2_meth_colored.bed', ssample))
+entropy_fn <- file.path(WD, sprintf('%s.CG.2_entropy_colored.bed', ssample))
 
 beta2m <- function(beta) {
     m <- log2(beta/(1 - beta))
@@ -85,9 +88,9 @@ d$entropy$uu <- as.numeric(tmp[4,])
 
 rm(tmp)
 
-d$coverage <- d$mm + d$um + d$mu + d$uu
+d$entropy$coverage <- d$entropy$mm + d$entropy$um + d$entropy$mu + d$entropy$uu
 
-d <- d[d$coverage > MINCOVERAGE,]
+## d <- d[d$coverage > MINCOVERAGE,]
 
 for (color in colors) {
     d$entropy[,color] <- NA
@@ -166,7 +169,7 @@ for (color in colors) {
     p <- ggplot(curr[,c('beta', 'entropy')], aes(beta, entropy))
 
     h3 <- p + stat_bin2d(bins=25) + scale_fill_gradientn(colours=r) + xlim(-0.1, 1.1) +
-        ylim(-0.1, entropy_max + 0.1)
+        ylim(-0.1, entropy_max + 0.1) + ggtitle(color)
     
     ggsave(h3, file = file.path(WD, sprintf('exploratory_3_%s.png', color)))
     
@@ -174,6 +177,7 @@ for (color in colors) {
 }
 
 
+## here ################################################################################
 
 ## stacked boxplots
 
