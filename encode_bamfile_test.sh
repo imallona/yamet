@@ -304,3 +304,85 @@ $BEDTOOLS intersect -wa -wb \
           -b hg38_h1_hmm.bed | \
     $BEDTOOLS groupby -g 1-6 -c 10 -o concat > "$sample".CG.2_meth_colored.bed
 
+
+## on ctcf and dnasei associations
+
+wget https://www.encodeproject.org/files/ENCFF368LWM/@@download/ENCFF368LWM.bed.gz -O ENCFF368LWM_ctcf.bed.gz
+
+wget https://www.encodeproject.org/files/ENCFF655STT/@@download/ENCFF655STT.bed.gz -O ENCFF655STT_dnasei_broad.bed.gz
+
+wget https://www.encodeproject.org/files/ENCFF030XPN/@@download/ENCFF030XPN.bed.gz -O ENCFF030XPN_dnasei_narrow.bed.gz
+
+## uncompress and intersect
+for encode in ENCFF030XPN ENCFF655STT ENCFF368LWM
+do
+    fn=$(find . -name "$encode*bed.gz")
+
+    gunzip -f $fn
+
+    bed="$(basename $fn .gz)"
+
+    $BEDTOOLS sort -i "$bed" | cut -f1-3 |  grep -P "^(chr[0-9]{1,2})\t" > sorted
+    mv -f sorted "$bed"
+    
+    echo $fn
+
+    ## only autosomal chromosomes
+    
+    # awk some column valued 0 or not
+    awk '{OFS=FS="\t"; if ($5 == 0) print }' "$sample".CG.2_entropy.bed |  \
+        grep -P "^(chr[0-9]{1,2})\t" | \
+        $BEDTOOLS reldist -a stdin \
+                  -b "$bed" > "$sample"_zero_entropy_vs_"$(basename $fn .bed.gz)".reldist
+    
+    # awk some column valued 0 or not
+    awk '{OFS=FS="\t"; if ($5 > 0.5) print }' "$sample".CG.2_entropy.bed | \
+        grep -P "^(chr[0-9]{1,2})\t" | \
+        $BEDTOOLS reldist -a stdin \
+                  -b "$bed" > "$sample"_high_entropy_vs_"$(basename $fn .bed.gz)".reldist
+
+done
+
+
+## not really interesting, what about rampage? (
+## this is hESC H7 and not H1
+
+wget https://www.encodeproject.org/files/ENCFF788SVK/@@download/ENCFF788SVK.bed.gz -O\
+     ENCFF788SVK_rampage.bed.gz
+
+
+for encode in ENCFF788SVK 
+do
+    fn=$(find . -name "$encode*bed.gz")
+
+    gunzip -f $fn
+
+    bed="$(basename $fn .gz)"
+
+    $BEDTOOLS sort -i "$bed" | cut -f1-3 |  grep -P "^(chr[0-9]{1,2})\t" > sorted
+    mv -f sorted "$bed"
+    
+    echo $fn
+
+    ## only autosomal chromosomes
+    
+    # awk some column valued 0 or not
+    awk '{OFS=FS="\t"; if ($5 == 0) print }' "$sample".CG.2_entropy.bed |  \
+        grep -P "^(chr[0-9]{1,2})\t" | \
+        $BEDTOOLS reldist -a stdin \
+                  -b "$bed" > "$sample"_zero_entropy_vs_"$(basename $fn .bed.gz)".reldist
+    
+    # awk some column valued 0 or not
+    awk '{OFS=FS="\t"; if ($5 > 0.5) print }' "$sample".CG.2_entropy.bed | \
+        grep -P "^(chr[0-9]{1,2})\t" | \
+        $BEDTOOLS reldist -a stdin \
+                  -b "$bed" > "$sample"_high_entropy_vs_"$(basename $fn .bed.gz)".reldist
+
+done
+
+## what if stratifying by dnameth as well?
+
+entropy_fn="$sample".CG.2_entropy.bed
+meth_fn="$sample".CG.2_meth.bed
+
+# paste file1 file2 | column -s $'\t' -t
