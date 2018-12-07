@@ -202,7 +202,7 @@ function get_methylation {
 ## output writes almost a bed6 (score column is the entropy and DOES NOT go from 0 to 1000)
 ## chr     strand  pos1    pos2    MM      MU      UM      UU
     
-function get_entropy {
+function get_entropy_4_states {
     ## entropy
     fn="$1"
 awk '
@@ -226,6 +226,40 @@ print $1,$3,$4,"MM"$5";MU"$6";UM"$7";UU"$8,E,$2
 
 }' $fn | "$BEDTOOLS" sort > "$(basename $fn .tsv)"_entropy.bed    
 }
+
+
+
+
+
+## parses run_methtupleoutputs to get entropyvalues
+## @param the methtuple path
+## output writes almost a bed6 (score column is the entropy and DOES NOT go from 0 to 1000)
+## chr     strand  pos1    pos2    MM      MU      UM      UU
+    
+function get_entropy_3_states {
+    ## entropy
+    fn="$1"
+awk '
+BEGIN {OFS=FS="\t"}
+NR==1{next}
+{
+  H["MM"] = $5
+  H["UU"] = $8
+  H["UM"] = $7+$8
+  N  = ($5+$6+$7+$8)
+  E = 0
+  p = ""
+  for (i in H) {
+    if (H[i] != 0) {
+      p = H[i]/N;
+      E -=  p * log(p);
+    }
+  }
+print $1,$3,$4,"MM"$5";MU"$6";UM"$7";UU"$8,E,$2
+
+}' $fn | "$BEDTOOLS" sort > "$(basename $fn .tsv)"_entropy.bed    
+}
+
 
 function collapse_strands {
     echo 'todo'
@@ -254,7 +288,7 @@ fn="$sample".CG.2.tsv
 filter_by_coverage $fn 5 > foo
 mv -f foo $fn
 
-get_entropy $fn
+get_entropy_3_states $fn
 
 get_methylation $fn
 
