@@ -288,14 +288,13 @@ fn="$sample".CG.2.tsv
 filter_by_coverage $fn 5 > foo
 mv -f foo $fn
 
-get_entropy_3_states $fn
+get_entropy_4_states $fn
 
 get_methylation $fn
 
 ## get chromatin colors and look for association
 
-echo 'Retrieving chromatin colors this is wrong because shouldn"t be hg19'
-
+## to be liftovered!
 mysql --user=genome --host=genome-mysql.cse.ucsc.edu  \
       --skip-column-names \
       -A -e \
@@ -303,8 +302,6 @@ mysql --user=genome --host=genome-mysql.cse.ucsc.edu  \
      FROM hg19.wgEncodeAwgSegmentationChromhmmH1hesc;' | \
     "$BEDTOOLS" sort  > hg19_h1_hmm.bed
 
-
-## @todo add liftOver here!! ############
 
 wget http://hgdownload.cse.ucsc.edu/goldenPath/hg19/liftOver/hg19ToHg38.over.chain.gz
 gunzip hg19ToHg38.over.chain.gz
@@ -419,4 +416,51 @@ done
 entropy_fn="$sample".CG.2_entropy.bed
 meth_fn="$sample".CG.2_meth.bed
 
-# paste file1 file2 | column -s $'\t' -t
+# unmeth and meth split
+# paste $entropy_fn $meth_fn | \
+#     column -s $'\t' | \
+#     cut -f1,2,3,4,6,11,5 | \
+
+
+
+
+paste $entropy_fn $meth_fn | \
+    column -s $'\t' | \
+    awk '{FS=OFS="\t"; if ($11 < 200 && $5 < 0.1) print $1,$2,$3,$4,$6,$11,$5}' > \
+        "$sample"_lowly_meth_low_entropy.bed
+
+paste $entropy_fn $meth_fn | \
+    column -s $'\t' | \
+    awk '{FS=OFS="\t"; if ($11 < 200 && $5 >= 0.3) print $1,$2,$3,$4,$6,$11,$5}' > \
+        "$sample"_lowly_meth_high_entropy.bed
+
+
+paste $entropy_fn $meth_fn | \
+    column -s $'\t' | \
+    awk '{FS=OFS="\t"; if ($11 >= 800 && $5 < 0.1) print $1,$2,$3,$4,$6,$11,$5}' > \
+        "$sample"_highly_meth_low_entropy.bed
+
+paste $entropy_fn $meth_fn | \
+    column -s $'\t' | \
+    awk '{FS=OFS="\t"; if ($11 >= 800 && $5 >= 0.3) print $1,$2,$3,$4,$6,$11,$5}' > \
+        "$sample"_highly_meth_high_entropy.bed
+
+
+mkdir -p reldist
+
+for item in "$sample"_lowly_meth_low_entropy.bed \
+                     "$sample"_highly_meth_low_entropy.bed \
+                     "$sample"_lowly_meth_high_entropy.bed \
+                     "$sample"_highly_meth_high_entropy.bed
+do
+    for bed in ENCFF030XPN_dnasei_narrow.bed \
+                   ENCFF368LWM_ctcf.bed \
+                   ENCFF655STT_dnasei_broad.bed \
+                   ENCFF788SVK_rampage.bed
+    do
+        
+    grep -P "^(chr[0-9]{1,2})\t" $item | \
+        $BEDTOOLS reldist -a stdin \
+                  -b "$bed" > reldist/"$(basename $item .bed)"_vs_"$(basename $fn .bed.gz)".reldist
+    done
+done
