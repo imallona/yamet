@@ -226,3 +226,44 @@ plot(d[,targets])
 
 cor(d$beta, d$standardized_entropy)
 cor(d$beta, d$entropy)
+
+#########
+
+
+## data.frame(pUU = d$pUU,
+##                   pUM = abs((d$pMM - d$pUU))/2,
+##                   pMU = abs((d$pMM - d$pUU))/2,
+##                   pMM = d$pMM)
+
+## head(bar)
+
+d$oneshot <- apply(data.frame(pUU = 0,
+                                  pUM = abs(d$pMM - d$pUU)/2 ,
+                                  pMU =  0,
+                                  pMM = d$pMM),
+                       1, entropy)
+
+
+summary(d$oneshot)
+
+plot(d$beta, d$entropy)
+lines(d$beta, d$oneshot, col = 'brown', type = 'p', pch = 19, cex = 0.5)
+
+
+
+
+
+#censor this for big betas (over 0.5)
+d$oneshot2 <- apply(data.frame(pUU = 0,
+                               pUM = abs(d$pMM - d$pUU)/2 ,
+                               pMU = 0,
+                               pMM = d$pUU),
+                       1, entropy)
+
+
+summary(d$oneshot2)
+
+plot(d$beta, d$entropy)
+lines(d$beta, d$oneshot2, col = 'brown', type = 'p', pch = 19, cex = 0.5)
+
+
