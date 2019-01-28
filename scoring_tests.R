@@ -248,6 +248,7 @@ summary(d$oneshot)
 
 plot(d$beta, d$entropy)
 lines(d$beta, d$oneshot, col = 'brown', type = 'p', pch = 19, cex = 0.5)
+d[d$beta>0.5, 'oneshot'] <- NA
 
 
 
@@ -260,6 +261,7 @@ d$oneshot2 <- apply(data.frame(pUU = 0,
                                pMM = d$pUU),
                        1, entropy)
 
+d[d$beta<=0.5, 'oneshot2'] <- NA
 
 summary(d$oneshot2)
 
@@ -267,3 +269,40 @@ plot(d$beta, d$entropy)
 lines(d$beta, d$oneshot2, col = 'brown', type = 'p', pch = 19, cex = 0.5)
 
 
+
+
+plot(d$beta, d$entropy, pch = 19)
+lines(d$beta, d$max_entropy, col = 'brown', type = 'p', pch = 7, cex = 0.8)
+lines(d$beta, d$min_entropy_down, col = 'blue', type = 'p', pch = 7, cex = 0.8)
+lines(d$beta, d$oneshot, col = 'orange', type = 'p', pch = 7, cex = 0.8)
+lines(d$beta, d$oneshot2, col = 'orange', type = 'p', pch = 7, cex = 0.8)
+lines(d$beta, d$entropy, pch = 19, type = 'p')
+
+
+
+## so let's standardize by the minimum
+
+d$lowerbound <- apply(d[,c('min_entropy_down', 'oneshot', 'oneshot2')], 1, function(x) min(x, na.rm = TRUE))
+summary(d$lowerbound)
+
+
+plot(d$beta, d$entropy)
+lines(d$beta, d$max_entropy, col = 'brown', type = 'p', pch = 19, cex = 0.5)
+lines(d$beta, d$lowerbound, col = 'blue', type = 'p', pch = 19, cex = 0.5)
+
+
+
+d$standardized_entropy <- (d$entropy - d$lowerbound) / (d$max_entropy - d$lowerbound)
+
+d$standardized_entropy[is.na(d$standardized_entropy)] <- 0
+summary(d$standardized_entropy)
+
+
+targets <- c('coverage',
+             'distance',
+             'beta',
+             'entropy',
+             'standardized_entropy')
+summary(d[,targets])
+
+plot(d[,targets])
