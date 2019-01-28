@@ -100,7 +100,6 @@ for (color in colors) {
 
 
 
-
 d$entropy$in_boundary <- apply(d$entropy[,as.character(colors)], 1, function(x) sum(x) > 1)
 table(d$entropy$in_boundary)
 
@@ -115,6 +114,10 @@ targets <- c('coverage',
              'beta',
              'entropy')
 
+
+## test standardization start
+
+## test standardization end
 
 
 png(file.path(WD, sprintf('%s_exploratory_1.png', ssample)), width = 700,
@@ -408,6 +411,272 @@ h1 <- ggplot(fd, aes(factor(hmm),fill = meth_cat)) +
 
 
 ggsave(h1, file = file.path('counts_boundaries_boxplot_stratified_by_meth.png'))
+
+
+
+## on some reldists to marks
+## without cpgislands
+
+reld <- list()
+
+for (fn in list.files(file.path(WD, 'reldist_no_cpgi'), pattern = "*reldist$")) {
+    reld[[fn]] <- read.table(file.path(WD, 'reldist_no_cpgi', fn),
+                    sep = "\t", header = TRUE)
+}
+
+
+
+
+png( sprintf('dnasei_narrow_reldistplot.png', fn),
+    width = 480, height = 480)
+par(mfrow = c(1,1),
+    oma = c(5,4,1,1) + 0.1,
+    mar = c(2,1,2,1) + 0.1,
+    pty = "s",
+    cex.main = 1.4,
+    cex.lab = 1.4,
+    cex.axis = 1.4)
+
+## d <- read.table(fn,
+##                 sep = "\t", header = TRUE)
+
+plot(reld$ENCFF857QML_lowly_meth_low_entropy__vs__ENCFF030XPN_dnasei_narrow.bed.reldist$reldist,
+     reld$ENCFF857QML_lowly_meth_low_entropy__vs__ENCFF030XPN_dnasei_narrow.bed.reldist$fraction,
+     type = 'b',
+     pch = 1,
+     ## main = sprintf('%s vs\n %s', tag_a, tag_b),
+     axes = TRUE,
+     xlab = "",
+     ylab = "",
+     ylim = c(0, 1),
+     col = 'black',
+     main = 'Entropy vs DNAseI in hESC H1')
+
+points(reld$ENCFF857QML_highly_meth_low_entropy__vs__ENCFF030XPN_dnasei_narrow.bed.reldist$reldist,
+     reld$ENCFF857QML_highly_meth_low_entropy__vs__ENCFF030XPN_dnasei_narrow.bed.reldist$fraction,
+     type = 'b',
+     pch = 2,
+     col = 'darkred')
+
+
+
+points(reld$ENCFF857QML_lowly_meth_high_entropy__vs__ENCFF030XPN_dnasei_narrow.bed.reldist$reldist,
+     reld$ENCFF857QML_lowly_meth_high_entropy__vs__ENCFF030XPN_dnasei_narrow.bed.reldist$fraction,
+     type = 'b',
+     pch = 3,
+     col = 'darkgreen')
+
+points(reld$ENCFF857QML_highly_meth_high_entropy__vs__ENCFF030XPN_dnasei_narrow.bed.reldist$reldist,
+     reld$ENCFF857QML_highly_meth_high_entropy__vs__ENCFF030XPN_dnasei_narrow.bed.reldist$fraction,
+     type = 'b',
+     pch = 4,
+     col = 'darkblue')
+
+
+legend('topright',
+       col = c('black', 'darkred', 'darkgreen', 'darkblue'),
+       pch = 1:4,
+       c('low meth low entropy', 'high meth low entropy', 'low meth high entropy', 'high meth high entropy '))
+
+title(xlab = sprintf("\nrelative distance to DNAse I peaks ENCFF857QML\noutside CpG islands"),
+      ylab = "frequency",
+      outer = TRUE, line = 2)
+
+dev.off()
+
+
+## what about ctcf?
+
+
+png( sprintf('ctcf_reldistplot.png', fn),
+    width = 480, height = 480)
+par(mfrow = c(1,1),
+    oma = c(5,4,1,1) + 0.1,
+    mar = c(2,1,2,1) + 0.1,
+    pty = "s",
+    cex.main = 1.4,
+    cex.lab = 1.4,
+    cex.axis = 1.4)
+
+## d <- read.table(fn,
+##                 sep = "\t", header = TRUE)
+
+plot(reld$ENCFF857QML_lowly_meth_low_entropy__vs__ENCFF368LWM_ctcf.bed.reldist$reldist,
+     reld$ENCFF857QML_lowly_meth_low_entropy__vs__ENCFF368LWM_ctcf.bed.reldist$fraction,
+     type = 'b',
+     pch = 1,
+     ## main = sprintf('%s vs\n %s', tag_a, tag_b),
+     axes = TRUE,
+     xlab = "",
+     ylab = "",
+     ylim = c(0, 1),
+     col = 'black',
+     main = 'Entropy vs CTCF in hESC H1')
+
+points(reld$ENCFF857QML_highly_meth_low_entropy__vs__ENCFF368LWM_ctcf.bed.reldist$reldist,
+     reld$ENCFF857QML_highly_meth_low_entropy__vs__ENCFF368LWM_ctcf.bed.reldist$fraction,
+     type = 'b',
+     pch = 2,
+     col = 'darkred')
+
+
+
+points(reld$ENCFF857QML_lowly_meth_high_entropy__vs__ENCFF368LWM_ctcf.bed.reldist$reldist,
+     reld$ENCFF857QML_lowly_meth_high_entropy__vs__ENCFF368LWM_ctcf.bed.reldist$fraction,
+     type = 'b',
+     pch = 3,
+     col = 'darkgreen')
+
+points(reld$ENCFF857QML_highly_meth_high_entropy__vs__ENCFF368LWM_ctcf.bed.reldist$reldist,
+     reld$ENCFF857QML_highly_meth_high_entropy__vs__ENCFF368LWM_ctcf.bed.reldist$fraction,
+     type = 'b',
+     pch = 4,
+     col = 'darkblue')
+
+
+legend('topright',
+       col = c('black', 'darkred', 'darkgreen', 'darkblue'),
+       pch = 1:4,
+       c('low meth low entropy', 'high meth low entropy', 'low meth high entropy', 'high meth high entropy '))
+
+title(xlab = sprintf("\nrelative distance to CTCF peaks ENCFF368LWM\noutside CpG islands"),
+      ylab = "frequency",
+      outer = TRUE, line = 2)
+
+dev.off()
+
+## rampage
+
+png( sprintf('rampage_reldistplot.png', fn),
+    width = 480, height = 480)
+par(mfrow = c(1,1),
+    oma = c(5,4,1,1) + 0.1,
+    mar = c(2,1,2,1) + 0.1,
+    pty = "s",
+    cex.main = 1.4,
+    cex.lab = 1.4,
+    cex.axis = 1.4)
+
+## d <- read.table(fn,
+##                 sep = "\t", header = TRUE)
+
+plot(reld$ENCFF857QML_lowly_meth_low_entropy__vs__ENCFF368LWM_ctcf.bed.reldist$reldist,
+     reld$ENCFF857QML_lowly_meth_low_entropy__vs__ENCFF368LWM_ctcf.bed.reldist$fraction,
+     type = 'b',
+     pch = 1,
+     ## main = sprintf('%s vs\n %s', tag_a, tag_b),
+     axes = TRUE,
+     xlab = "",
+     ylab = "",
+     ylim = c(0, 1),
+     col = 'black',
+     main = 'Entropy vs Rampage in hESC H1')
+
+points(reld$ENCFF857QML_highly_meth_low_entropy__vs__ENCFF368LWM_ctcf.bed.reldist$reldist,
+     reld$ENCFF857QML_highly_meth_low_entropy__vs__ENCFF368LWM_ctcf.bed.reldist$fraction,
+     type = 'b',
+     pch = 2,
+     col = 'darkred')
+
+
+
+points(reld$ENCFF857QML_lowly_meth_high_entropy__vs__ENCFF368LWM_ctcf.bed.reldist$reldist,
+     reld$ENCFF857QML_lowly_meth_high_entropy__vs__ENCFF368LWM_ctcf.bed.reldist$fraction,
+     type = 'b',
+     pch = 3,
+     col = 'darkgreen')
+
+points(reld$ENCFF857QML_highly_meth_high_entropy__vs__ENCFF368LWM_ctcf.bed.reldist$reldist,
+     reld$ENCFF857QML_highly_meth_high_entropy__vs__ENCFF368LWM_ctcf.bed.reldist$fraction,
+     type = 'b',
+     pch = 4,
+     col = 'darkblue')
+
+
+legend('topright',
+       col = c('black', 'darkred', 'darkgreen', 'darkblue'),
+       pch = 1:4,
+       c('low meth low entropy', 'high meth low entropy', 'low meth high entropy', 'high meth high entropy '))
+
+title(xlab = sprintf("\nrelative distance to Rampage peaks ENCFF788SVK\noutside CpG islands"),
+      ylab = "frequency",
+      outer = TRUE, line = 2)
+
+dev.off()
+
+## kdm1a
+
+png( sprintf('kdm1a_reldistplot.png', fn),
+    width = 480, height = 480)
+par(mfrow = c(1,1),
+    oma = c(5,4,1,1) + 0.1,
+    mar = c(2,1,2,1) + 0.1,
+    pty = "s",
+    cex.main = 1.4,
+    cex.lab = 1.4,
+    cex.axis = 1.4)
+
+## d <- read.table(fn,
+##                 sep = "\t", header = TRUE)
+
+plot(reld$ENCFF857QML_lowly_meth_low_entropy__vs__ENCFF562OAN_kdm1a.bed.reldist$reldist,
+     reld$ENCFF857QML_lowly_meth_low_entropy__vs__ENCFF562OAN_kdm1a.bed.reldist$fraction,
+     type = 'b',
+     pch = 1,
+     ## main = sprintf('%s vs\n %s', tag_a, tag_b),
+     axes = TRUE,
+     xlab = "",
+     ylab = "",
+     ylim = c(0, 1),
+     col = 'black',
+     main = 'Entropy vs KM1A in hESC H1')
+
+points(reld$ENCFF857QML_highly_meth_low_entropy__vs__ENCFF562OAN_kdm1a.bed.reldist$reldist,
+     reld$ENCFF857QML_highly_meth_low_entropy__vs__ENCFF562OAN_kdm1a.bed.reldist$fraction,
+     type = 'b',
+     pch = 2,
+     col = 'darkred')
+
+
+
+points(reld$ENCFF857QML_lowly_meth_high_entropy__vs__ENCFF562OAN_kdm1a.bed.reldist$reldist,
+     reld$ENCFF857QML_lowly_meth_high_entropy__vs__ENCFF562OAN_kdm1a.bed.reldist$fraction,
+     type = 'b',
+     pch = 3,
+     col = 'darkgreen')
+
+points(reld$ENCFF857QML_highly_meth_high_entropy__vs__ENCFF562OAN_kdm1a.bed.reldist$reldist,
+     reld$ENCFF857QML_highly_meth_high_entropy__vs__ENCFF562OAN_kdm1a.bed.reldist$fraction,
+     type = 'b',
+     pch = 4,
+     col = 'darkblue')
+
+
+legend('topright',
+       col = c('black', 'darkred', 'darkgreen', 'darkblue'),
+       pch = 1:4,
+       c('low meth low entropy', 'high meth low entropy', 'low meth high entropy', 'high meth high entropy '))
+
+title(xlab = sprintf("\nrelative distance to KM1A peaks ENCFF562OAN\noutside CpG islands"),
+      ylab = "frequency",
+      outer = TRUE, line = 2)
+
+dev.off()
+
+
+## without
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 ## what about checking preferential boundaries, the ones that are the most frequent?
