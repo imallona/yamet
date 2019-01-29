@@ -1,0 +1,175 @@
+---
+title: "CpG entropies scoring"
+params:
+  seed: 1
+author: "Izaskun Mallona (Mark Robinson, Tuncay Baubec labs)"
+output:
+  html_document:
+    keep_md: true
+    toc: true
+    toc_float: true
+    toc_depth: 4
+
+---
+
+```{r libraries, include=FALSE, cache = FALSE}
+library('latex2exp')
+library(entropy)
+library(cramer)
+library(Cairo)
+library(knitr)
+
+ac  <- function(col, alpha=1){
+  apply(sapply(col, col2rgb)/255, 2, 
+                     function(x) 
+                       rgb(x[1], x[2], x[3], alpha=alpha))  
+}
+
+opts_chunk$set(fig.width = 12,
+               fig.height = 12,
+               cache = TRUE,
+               include = TRUE,
+               cache.lazy = FALSE,
+               warning = TRUE,
+               message = TRUE)
+
+
+options(bitmapType='cairo')
+getOption('bitmapType')
+
+
+```
+# Data load
+
+```{r}
+load('data/test_data.RData')
+d <- foo
+rm(foo)
+```
+
+# Modeling entropies constraints
+
+Estimating the unmethylated and methylated tuples according to the beta value and coverage
+
+```{r}
+
+d$pU <- (d$cov - (d$cov * d$beta))/d$cov
+d$pM <- 1 - d$pU
+
+```
+
+```{r}
+d$max_entropy <- apply(data.frame(pUU = d$pU^2,
+                                  pUM = d$pU * d$pM,
+                                  pMU = d$pU * d$pM,
+                                  pMM = d$pM^2),
+                       1, entropy)
+
+
+d$min_entropy_full <- apply(data.frame(pUU = d$pU,
+                                       pUM = 0,
+                                       pMU = 0,
+                                       pMM = d$pM),
+                            1, entropy)
+
+
+## d$min_entropy_beta <- apply(data.frame(pUU = 0,
+##                                   pUM = abs(d$pM - d$pU)/2 ,
+##                                   pMU =  0,
+##                                   pMM = ifelse(d$beta >= 0.5,
+##                                                yes = d[d$beta < 0.5, 'pM'],
+##                                                no = d[d$beta >= 0.5, 'pU'])),
+##                             1, entropy)
+
+
+d$min_entropy_beta <- apply(data.frame(pUU = 0,
+                                  pUM = abs(d$pM - d$pU)/2 ,
+                                  pMU =  0,
+                                  pMM = d$pM),
+                   1, entropy)
+
+d$min_entropy_beta[d$beta >= 0.5] <- apply(data.frame(pU = 0,
+                                  pUM = abs(d[d$beta >= 0.5,]$pM - d[d$beta >= 0.5,]$pU)/2 ,
+                                  pMU =  0,
+                                  pMM = d[d$beta >= 0.5,]$pU),
+                                  1, entropy)
+
+
+d$lower_bound <- apply(d[,c('min_entropy_full', 'min_entropy_beta')], 1, min)
+```
+
+```{r plotsbounds}
+
+par(cex.axis = 1.4,
+    cex.lab = 1.4,
+    cex.main = 1.4,
+    cex.sub = 1.4,
+    pty = "s",
+    mar=c(5.1,4.1,4.1,2.1),
+    oma = c(4, 4, 1, 1))
+
+plot(d$beta, d$entropy, pch = 19, col = ac('black', 0.5),
+     xlab = 'methylation (beta value)',
+     ylab = "Shannon's entropy (H)" )
+lines(d$beta, d$max_entropy, col = 'darkred', type = 'p', pch = 4, cex = 1)
+## lines(d$beta, d$min_entropy_beta, col = 'blue', type = 'p', pch = 19, cex = 0.5)
+## lines(d$beta, d$min_entropy_full, col = 'darkred', type = 'p', pch = 19, cex = 0.5)
+lines(d$beta, d$lower_bound, col = 'darkblue', type = 'p', pch = 4, cex = 1)
+
+legend('topright',
+       col = c('black', 'darkred', 'darkblue'),
+       pch = c(19, 4, 4),
+       legend = c('observation', TeX('$H_{max}$'), TeX('$H_{min}$')))
+
+
+
+```
+
+Standardizing entropy values to the min and max theoretical entropies
+
+```{r}
+
+d$standardized_entropy <- (d$entropy - d$lower_bound) / (d$max_entropy - d$lower_bound)
+
+summary(d$standardized_entropy)
+
+d$standardized_entropy[is.na(d$standardized_entropy)] <- 0
+head(d[d$standardized_entropy == 0, c('code', 'beta', 'entropy', 'standardized_entropy')])
+
+
+par(cex.axis = 1.4,
+    cex.lab = 1.4,
+    cex.main = 1.4,
+    cex.sub = 1.4,
+    pty = "s",
+    mar=c(5.1,4.1,4.1,2.1),
+    oma = c(4, 4, 1, 1))
+
+plot(d$beta, d$standardized_entropy, pch = 19, col = ac('black', 0.5),
+     xlab = 'methylation (beta value)',
+     ylab = "standardized entropy (stdH)" )
+
+legend('topright',
+       col = c('black', 'darkred', 'darkblue'),
+       pch = c(19, 4, 4),
+       legend = c('observation', TeX('$H_{max}$'), TeX('$H_{min}$')))
+
+```
+
+```{r}
+
+targets <- c('coverage',
+             ## 'distance',
+             'beta',
+             'entropy',
+             'standardized_entropy')
+summary(d[,targets])
+
+plot(d[,targets])
+
+
+```
+
+```{r sessioinfo}
+devtools::session_info()
+```
