@@ -43,8 +43,8 @@ getOption('bitmapType')
 
 ```{r}
 load('data/test_data.RData')
-d <- foo
-rm(foo)
+
+dim(d)
 ```
 
 # Modeling entropies constraints
@@ -169,6 +169,138 @@ plot(d[,targets])
 
 
 ```
+
+```{r plotbycolors}
+
+
+hmm_colors <- read.table(text = "Art
+Ctcf
+CtcfO
+DnaseD
+DnaseU
+Elon
+ElonW
+Enh
+EnhF
+EnhW
+EnhWF
+FaireW
+Gen3'
+Gen5'
+H4K20
+Low
+Pol2
+PromF
+PromP
+Quies
+Repr
+ReprD
+ReprW
+Tss
+TssF", stringsAsFactors = FALSE)$V1
+
+
+for (hmm in hmm_colors) {
+    curr <- d[d[,hmm],]
+
+    ## downsampling for plotting purposes
+    set.seed(1)
+    curr <- curr[sample(x=nrow(curr), 1e3),]
+    
+    targets <- c('coverage',
+                 ## 'distance',
+                 'beta',
+                 'entropy',
+                 'standardized_entropy')
+
+
+    plot(curr[,targets], main = hmm)
+
+    
+    rm(curr)
+}
+
+```
+
+# Cramer tests
+
+```{r cramer}
+tests <- list()
+
+for (i in 1:length(hmm_colors)) {
+    for (j in i+1:length(hmm_colors)) {
+
+        ## caution, downsampling!
+
+        
+        foo <- cramer.test(head(as.matrix(d[d[,hmm_colors[i]],c('beta', 'entropy')]), 1e3),
+                           head(as.matrix(d[d[,hmm_colors[i]],c('beta', 'entropy')]), 1e3),
+                           sim = "eigenvalue")
+
+        ## stop()
+        
+        tests[[paste(hmm_colors[i], hmm_colors[j], 'bivariate', 'entropy')]] <- c(hmm_colors[i],
+                                                                                  hmm_colors[j],
+                                                                                  'entropy',
+                                                                                  'bivariate',
+                                                                                  foo$p.value,
+                                                                                  foo$statistic)
+        rm(foo)
+
+
+        foo <- cramer.test(head(as.matrix(d[d[,hmm_colors[i]],c('beta', 'standardized_entropy')]), 1e3),
+                           head(as.matrix(d[d[,hmm_colors[i]],c('beta', 'standardized_entropy')]), 1e3),
+                           sim = "eigenvalue")
+        tests[[paste(hmm_colors[i], hmm_colors[j],
+                     'bivariate', 'standardized_entropy')]] <- c(hmm_colors[i],
+                                                                 hmm_colors[j],
+                                                                 'standardized_entropy',
+                                                                 'bivariate',
+                                                                 foo$p.value,
+                                                                 foo$statistic)
+        rm(foo)
+
+
+        foo <- ks.test(d[d[,hmm_colors[i]],'entropy'],
+                       d[d[,hmm_colors[i]],'entropy'])
+        tests[[paste(hmm_colors[i], hmm_colors[j], 'univariate', 'entropy')]] <- c(hmm_colors[i],
+                                                                                   hmm_colors[j],
+                                                                                   'entropy',
+                                                                                   'univariate',
+                                                                                   foo$p.value,
+                                                                                   foo$statistic)
+        rm(foo)
+
+
+        foo <- ks.test(d[d[,hmm_colors[i]],'standardized_entropy'],
+                       d[d[,hmm_colors[i]], 'standardized_entropy'])
+        tests[[paste(hmm_colors[i], hmm_colors[j], 'univariate',
+                     'standardized_entropy')]] <- c(hmm_colors[i],
+                                                    hmm_colors[j],
+                                                    'standardized_entropy',
+                                                    'univariate',
+                                                    foo$p.value,
+                                                    foo$statistic)
+        rm(foo)
+
+        ## control
+        foo <- ks.test(d[d[,hmm_colors[i]],'beta'],
+                       d[d[,hmm_colors[i]],'beta'])
+        tests[[paste(hmm_colors[i], hmm_colors[j], 'univariate',
+                     'beta')]] <- c(hmm_colors[i],
+                                    hmm_colors[j],
+                                    'beta',
+                                    'univariate',
+                                    foo$p.value,
+                                    foo$statistic)
+        rm(foo)
+        ## cat('.')
+        
+
+    }
+}
+```
+
 
 ```{r sessioinfo}
 devtools::session_info()
