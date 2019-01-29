@@ -23,6 +23,7 @@ library(RColorBrewer)
 library(gridExtra)
 library(data.table)
 suppressPackageStartupMessages(library(dplyr))
+library(pheatmap)
 
 ac  <- function(col, alpha=1){
   apply(sapply(col, col2rgb)/255, 2, 
@@ -677,6 +678,57 @@ p + facet_grid(variable ~ test) + theme(axis.text.x = element_text(angle = 90, h
 
 ```
 
+```{r densities}
+p <- ggplot(d[!d$in_boundary,], aes(x=entropy))+
+               geom_density() + facet_grid(hmm ~ .)
+            
+p
+
+p <- ggplot(d[!d$in_boundary,], aes(x=standardized_entropy))+
+               geom_density() + facet_grid(hmm ~ .)
+            
+p
+
+p <- ggplot(d[!d$in_boundary,], aes(x=beta))+
+               geom_density() + facet_grid(hmm ~ .,)
+            
+p
+
+```
+
+```{r discretized}
+
+br = seq(0,1,by=0.1)
+
+ranges = paste(head(br,-1), br[-1], sep= " - ")
+
+
+heat <- as.data.frame(matrix(nrow = length(hmm_colors),
+                             ncol = length(ranges), data = NA),
+                      col.names = paste0('beta_', ranges),
+                      row.names = hmm_colors)
+
+colnames(heat) <- paste0('beta_', ranges)
+heat
+
+
+for (hmm in hmm_colors) {
+    freq   = hist(d[d$hmm == hmm, 'beta'], breaks=br, include.lowest=TRUE, plot=FALSE)
+    heat[hmm,] <- freq$counts
+    
+}
+
+
+pheatmap(heat, cluster_cols = FALSE, main = 'instances')
+
+## now average entropy or standardized entropy for each row
+
+## as in https://stackoverflow.com/questions/51688222/two-types-of-variables-in-a-single-heatmap-using-r
+
+## would require a long dataformat with
+## hmm (rows), beta range (columns), value (the standardizes stuff(
+
+```
 
 ```{r sessioinfo}
 devtools::session_info()
