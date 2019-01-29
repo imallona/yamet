@@ -22,6 +22,7 @@ library(ggplot2)
 library(RColorBrewer)
 library(gridExtra)
 library(data.table)
+suppressPackageStartupMessages(library(dplyr))
 
 ac  <- function(col, alpha=1){
   apply(sapply(col, col2rgb)/255, 2, 
@@ -557,12 +558,12 @@ for (hmm in hmm_colors) {
 ```{r cramer, eval = TRUE}
 tests <- list()
 
-short_hmm_colors <- c('Art', 'Ctcf', 'CtcfO', 'PromP', 'PromF')
+short_hmm_colors <- c('Art', 'Ctcf', 'CtcfO', 'PromP', 'PromF', 'Tss')
 for (i in 1:length(short_hmm_colors)) {
     for (j in i+1:length(short_hmm_colors)) {
         cat('.')
         ## caution, downsampling!
-        DOWNSAMPLING = 1e3
+        DOWNSAMPLING = 5e2
         ## stop()
         foo <- cramer.test(head(as.matrix(d[d[,hmm_colors[i]],c('beta', 'entropy')]), DOWNSAMPLING),
                            head(as.matrix(d[d[,hmm_colors[j]],c('beta', 'entropy')]), DOWNSAMPLING),
@@ -579,9 +580,12 @@ for (i in 1:length(short_hmm_colors)) {
         rm(foo)
 
 
-        foo <- cramer.test(head(as.matrix(d[d[,hmm_colors[i]],c('beta', 'standardized_entropy')]), DOWNSAMPLING),
-                           head(as.matrix(d[d[,hmm_colors[j]],c('beta', 'standardized_entropy')]), DOWNSAMPLING),
+        foo <- cramer.test(head(as.matrix(d[d[,hmm_colors[i]],c('beta', 'standardized_entropy')]),
+                                DOWNSAMPLING),
+                           head(as.matrix(d[d[,hmm_colors[j]],c('beta', 'standardized_entropy')]),
+                                DOWNSAMPLING),
                            sim = "eigenvalue")
+        
         tests[[paste(hmm_colors[i], hmm_colors[j],
                      'bivariate', 'standardized_entropy')]] <- c(hmm_colors[i],
                                                                  hmm_colors[j],
@@ -626,11 +630,13 @@ for (i in 1:length(short_hmm_colors)) {
                                     foo$statistic)
         rm(foo)
        
-        
+        ## stop()
 
     }
 }
+```
 
+```{r agg}
 agg <- do.call(rbind.data.frame, tests)
 colnames(agg) <- c('hmm_1', 'hmm_2', 'variable', 'test', 'pval', 'stat')
 agg$stat <- as.numeric(as.character(agg$stat))
