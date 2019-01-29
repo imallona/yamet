@@ -18,6 +18,10 @@ library(entropy)
 library(cramer)
 library(Cairo)
 library(knitr)
+library(ggplot2)
+library(RColorBrewer)
+library(gridExtra)
+library(data.table)
 
 ac  <- function(col, alpha=1){
   apply(sapply(col, col2rgb)/255, 2, 
@@ -45,6 +49,35 @@ getOption('bitmapType')
 load('data/test_data.RData')
 
 dim(d)
+
+
+hmm_colors <- read.table(text = "Art
+Ctcf
+CtcfO
+DnaseD
+DnaseU
+Elon
+ElonW
+Enh
+EnhF
+EnhW
+EnhWF
+FaireW
+Gen3'
+Gen5'
+H4K20
+Low
+Pol2
+PromF
+PromP
+Quies
+Repr
+ReprD
+ReprW
+Tss
+TssF", stringsAsFactors = FALSE)$V1
+
+
 ```
 
 # Modeling entropies constraints
@@ -156,6 +189,329 @@ legend('topright',
 
 ```
 
+
+```{r overallwithcolor}
+targets <- c('coverage',
+             ## 'distance',
+             'beta',
+             'entropy',
+             'standardized_entropy')
+
+DOWNSAMPLING <- 10000
+set.seed(1)
+curr <- d[sample(nrow(d), DOWNSAMPLING),]
+
+for (hmm_color in hmm_colors) {
+    par(mfrow = c(1,2))
+    plot(curr[,c('beta', 'entropy')],
+         col = ifelse(as.character(curr$hmm) == hmm_color,
+                      yes = ac('red', 1),
+                      no = ac('black', 0.5)),
+         cex = ifelse(as.character(curr$hmm) == hmm_color,
+                      yes = 1,
+                      no = 0.3),
+         main = hmm_color,
+         pch = 19)
+
+
+    plot(curr[,c('beta', 'standardized_entropy')],
+         col = ifelse(as.character(curr$hmm) == hmm_color,
+                      yes = ac('red', 1),
+                      no = ac('black', 0.5)),
+         cex = ifelse(as.character(curr$hmm) == hmm_color,
+                      yes = 1,
+                      no = 0.3),
+         main = hmm_color,
+         pch = 19)
+             
+}
+rm(curr)
+    
+```
+
+```{r recycling}
+
+rf <- colorRampPalette(rev(brewer.pal(11,'Spectral')))
+r <- rf(32)
+
+
+for (hmm_color in hmm_colors) {
+
+    curr <- d[d[,hmm_color],]
+      
+    p <- ggplot(curr[,c('beta', 'entropy')], aes(beta, entropy))
+
+    ## h3 <- p + stat_bin2d(bins=25) + scale_fill_gradientn(colours=r) + xlim(-0.1, 1.1) +
+    ##     ylim(-0.1, entropy_max + 0.1) + ggtitle(hmm_color)
+    
+    h3 <- p + stat_bin2d(bins=25) + scale_fill_gradientn(colours=r) + xlim(-0.1, 1.1) +
+        ylim(-0.1,1.5) + ggtitle(hmm_color) + theme(text = element_text(size=20)) +
+        xlab('DNA methylation (beta)') + ylab("Shannon's entropy (H)")
+    
+
+    p <- ggplot(curr[,c('beta', 'standardized_entropy')], aes(beta, standardized_entropy))
+    h4 <- p + stat_bin2d(bins=25) + scale_fill_gradientn(colours=r) + xlim(-0.1, 1.1) +
+        ylim(-0.1,1) + ggtitle(hmm_color) + theme(text = element_text(size=20)) +
+        xlab('DNA methylation (beta)') + ylab("Standardized entropy (stdH)")
+    
+   grid.arrange(h3, h4, ncol=2)
+    
+  
+}
+
+```
+
+```{r quantiles}
+
+
+d$unmethylated <- d$beta < 0.2
+d$methylated <- d$beta >= 0.8
+d$zero_entropy <- d$entropy == 0
+
+
+non_boundary <- list(median = tapply(d[!d$in_boundary, 'entropy'],
+                                     as.factor(as.character(d[!d$in_boundary, 'hmm'])),
+                                     function(x) quantile(x, probs = 0.5)),
+                     lower = tapply(d[!d$in_boundary, 'entropy'],
+                                     as.factor(as.character(d[!d$in_boundary, 'hmm'])),
+                                  function(x) quantile(x, probs = 0.25)),
+                     upper = tapply(d[!d$in_boundary, 'entropy'],
+                                     as.factor(as.character(d[!d$in_boundary, 'hmm'])),
+                                    function(x) quantile(x, probs = 0.755)))
+
+
+
+## sort by median, plot
+sorted <- names(sort(non_boundary$median))
+
+par(cex.axis = 1.8,
+    cex.lab = 1.8,
+    cex.main = 1.8,
+    cex.sub = 1.8,
+    pty = "s",
+    mar=c(5.1,4.1,4.1,2.1),
+    oma = c(1.2, 0, 0, 0),
+    xpd = TRUE)
+
+plot(non_boundary$lower[sorted], pch = 20,
+     ylim = c(0, max(unlist(non_boundary))),
+     ylab = "Shannon's entropy (H)" ,
+     xaxt = "n",
+     xlab = "",
+     main = '')
+
+points(non_boundary$median[sorted], pch = 20, col = 'red')
+points(non_boundary$upper[sorted], pch = 20)
+
+segments(y0 = non_boundary$lower[sorted],
+         y1 = non_boundary$upper[sorted],
+         x0 = 1:length(non_boundary$lower),
+         x1 = 1:length(non_boundary$lower))
+
+legend('topright', col = c('black', 'red', 'black'), pch = 20, c('3Q', 'median', '1Q'),
+       inset=c(-0.25,0))
+
+axis(1, at = 1:length(sorted), labels = sorted, las = 2)
+
+```
+
+```{r quantilesmethylation}
+
+non_boundary <- list(median = tapply(d[!d$in_boundary, 'beta'],
+                                     as.factor(as.character(d[!d$in_boundary, 'hmm'])),
+                                     function(x) quantile(x, probs = 0.5)),
+                     lower = tapply(d[!d$in_boundary, 'beta'],
+                                     as.factor(as.character(d[!d$in_boundary, 'hmm'])),
+                                  function(x) quantile(x, probs = 0.25)),
+                     upper = tapply(d[!d$in_boundary, 'beta'],
+                                     as.factor(as.character(d[!d$in_boundary, 'hmm'])),
+                                  function(x) quantile(x, probs = 0.755)))
+
+
+par(cex.axis = 1.8,
+    cex.lab = 1.8,
+    cex.main = 1.8,
+    cex.sub = 1.8,
+    pty = "s",
+    mar=c(5.1,4.1,4.1,2.1),
+    oma = c(1.2, 0, 0, 0))
+
+plot(non_boundary$lower[sorted], pch = 20,
+     ylim = c(0, max(unlist(non_boundary))),
+     ylab = 'methylation (beta)',
+     xaxt = "n",
+     xlab = "",
+     main = '')
+
+points(non_boundary$median[sorted], pch = 20, col = 'red')
+points(non_boundary$upper[sorted], pch = 20)
+segments(y0 = non_boundary$lower[sorted],
+         y1 = non_boundary$upper[sorted],
+         x0 = 1:length(non_boundary$lower),
+         x1 = 1:length(non_boundary$lower))
+
+axis(1, at = 1:length(sorted), labels = sorted, las = 2)
+```
+
+
+```{r quantilessratified}
+
+
+curr <- d[!d$in_boundary,]
+curr$hmm <- as.factor(as.character(curr$hmm))
+## categorical methylation status
+curr$meth_cat <- 'mid'
+curr$meth_cat[curr$unmethylated] <- 'low'
+curr$meth_cat[curr$methylated] <- 'high'
+curr$meth_cat <- factor(curr$meth_cat, levels = c('low', 'mid', 'high'))
+
+## ggplot(curr, aes(factor(hmm), entropy, fill = meth_cat)) + 
+##   geom_bar(stat="identity", position = "dodge") + 
+##   scale_fill_brewer(palette = "Set1")
+
+
+
+h <- ggplot(aes(y = entropy, x = hmm, fill = meth_cat), data = curr) +
+    geom_boxplot(outlier.alpha = 0.5, color = 'darkblue') +
+    scale_fill_manual(values=c("gray90", "gray60", "gray30")) +
+    ylab("Shannon's entropy (H)") +
+    xlab('chromatin state (chromHMM)') +
+    theme_bw() + 
+    theme(text = element_text(size = 15),
+          axis.text.x = element_text(angle = 90, hjust = 1))
+
+h
+
+```
+
+## Standardized
+
+
+```{r quantilesstd}
+
+
+d$unmethylated <- d$beta < 0.2
+d$methylated <- d$beta >= 0.8
+d$zero_standardized_entropy <- d$standardized_entropy == 0
+
+
+non_boundary <- list(median = tapply(d[!d$in_boundary, 'standardized_entropy'],
+                                     as.factor(as.character(d[!d$in_boundary, 'hmm'])),
+                                     function(x) quantile(x, probs = 0.5)),
+                     lower = tapply(d[!d$in_boundary, 'standardized_entropy'],
+                                     as.factor(as.character(d[!d$in_boundary, 'hmm'])),
+                                  function(x) quantile(x, probs = 0.25)),
+                     upper = tapply(d[!d$in_boundary, 'standardized_entropy'],
+                                     as.factor(as.character(d[!d$in_boundary, 'hmm'])),
+                                    function(x) quantile(x, probs = 0.755)))
+
+
+
+## sort by median, plot
+sorted <- names(sort(non_boundary$median))
+
+par(cex.axis = 1.8,
+    cex.lab = 1.8,
+    cex.main = 1.8,
+    cex.sub = 1.8,
+    pty = "s",
+    mar=c(5.1,4.1,4.1,2.1),
+    oma = c(1.2, 0, 0, 0),
+    xpd = TRUE)
+
+plot(non_boundary$lower[sorted], pch = 20,
+     ylim = c(0, max(unlist(non_boundary))),
+     ylab = "Shannon's standardized_entropy (stdH)" ,
+     xaxt = "n",
+     xlab = "",
+     main = '')
+
+points(non_boundary$median[sorted], pch = 20, col = 'red')
+points(non_boundary$upper[sorted], pch = 20)
+
+segments(y0 = non_boundary$lower[sorted],
+         y1 = non_boundary$upper[sorted],
+         x0 = 1:length(non_boundary$lower),
+         x1 = 1:length(non_boundary$lower))
+
+legend('topright', col = c('black', 'red', 'black'), pch = 20, c('3Q', 'median', '1Q'),
+       inset=c(-0.25,0))
+
+axis(1, at = 1:length(sorted), labels = sorted, las = 2)
+
+```
+
+```{r quantilesmethylationstd}
+
+non_boundary <- list(median = tapply(d[!d$in_boundary, 'beta'],
+                                     as.factor(as.character(d[!d$in_boundary, 'hmm'])),
+                                     function(x) quantile(x, probs = 0.5)),
+                     lower = tapply(d[!d$in_boundary, 'beta'],
+                                     as.factor(as.character(d[!d$in_boundary, 'hmm'])),
+                                  function(x) quantile(x, probs = 0.25)),
+                     upper = tapply(d[!d$in_boundary, 'beta'],
+                                     as.factor(as.character(d[!d$in_boundary, 'hmm'])),
+                                  function(x) quantile(x, probs = 0.755)))
+
+
+par(cex.axis = 1.8,
+    cex.lab = 1.8,
+    cex.main = 1.8,
+    cex.sub = 1.8,
+    pty = "s",
+    mar=c(5.1,4.1,4.1,2.1),
+    oma = c(1.2, 0, 0, 0))
+
+plot(non_boundary$lower[sorted], pch = 20,
+     ylim = c(0, max(unlist(non_boundary))),
+     ylab = 'methylation (beta)',
+     xaxt = "n",
+     xlab = "",
+     main = '')
+
+points(non_boundary$median[sorted], pch = 20, col = 'red')
+points(non_boundary$upper[sorted], pch = 20)
+segments(y0 = non_boundary$lower[sorted],
+         y1 = non_boundary$upper[sorted],
+         x0 = 1:length(non_boundary$lower),
+         x1 = 1:length(non_boundary$lower))
+
+axis(1, at = 1:length(sorted), labels = sorted, las = 2)
+```
+
+
+```{r quantilessratifiedstd}
+
+
+curr <- d[!d$in_boundary,]
+curr$hmm <- as.factor(as.character(curr$hmm))
+## categorical methylation status
+curr$meth_cat <- 'mid'
+curr$meth_cat[curr$unmethylated] <- 'low'
+curr$meth_cat[curr$methylated] <- 'high'
+curr$meth_cat <- factor(curr$meth_cat, levels = c('low', 'mid', 'high'))
+
+## ggplot(curr, aes(factor(hmm), standardized_entropy, fill = meth_cat)) + 
+##   geom_bar(stat="identity", position = "dodge") + 
+##   scale_fill_brewer(palette = "Set1")
+
+
+
+h <- ggplot(aes(y = standardized_entropy, x = hmm, fill = meth_cat), data = curr) +
+    geom_boxplot(outlier.alpha = 0.5, color = 'darkblue') +
+    scale_fill_manual(values=c("gray90", "gray60", "gray30")) +
+    ylab("Shannon's standardized_entropy (stdH)") +
+    xlab('chromatin state (chromHMM)') +
+    theme_bw() + 
+    theme(text = element_text(size = 15),
+          axis.text.x = element_text(angle = 90, hjust = 1))
+
+h
+```
+
+
+## Other plots
+
 ```{r}
 
 targets <- c('coverage',
@@ -170,34 +526,8 @@ plot(d[,targets])
 
 ```
 
-```{r plotbycolors}
+```{r plotbycolors, eval = FALSE}
 
-
-hmm_colors <- read.table(text = "Art
-Ctcf
-CtcfO
-DnaseD
-DnaseU
-Elon
-ElonW
-Enh
-EnhF
-EnhW
-EnhWF
-FaireW
-Gen3'
-Gen5'
-H4K20
-Low
-Pol2
-PromF
-PromP
-Quies
-Repr
-ReprD
-ReprW
-Tss
-TssF", stringsAsFactors = FALSE)$V1
 
 
 for (hmm in hmm_colors) {
@@ -224,17 +554,18 @@ for (hmm in hmm_colors) {
 
 # Cramer tests
 
-```{r cramer}
+```{r cramer, eval = TRUE}
 tests <- list()
 
-for (i in 1:length(hmm_colors)) {
-    for (j in i+1:length(hmm_colors)) {
-
+short_hmm_colors <- c('Art', 'Ctcf', 'CtcfO', 'PromP', 'PromF')
+for (i in 1:length(short_hmm_colors)) {
+    for (j in i+1:length(short_hmm_colors)) {
+        cat('.')
         ## caution, downsampling!
-
-        
-        foo <- cramer.test(head(as.matrix(d[d[,hmm_colors[i]],c('beta', 'entropy')]), 1e3),
-                           head(as.matrix(d[d[,hmm_colors[i]],c('beta', 'entropy')]), 1e3),
+        DOWNSAMPLING = 1e3
+        ## stop()
+        foo <- cramer.test(head(as.matrix(d[d[,hmm_colors[i]],c('beta', 'entropy')]), DOWNSAMPLING),
+                           head(as.matrix(d[d[,hmm_colors[j]],c('beta', 'entropy')]), DOWNSAMPLING),
                            sim = "eigenvalue")
 
         ## stop()
@@ -248,8 +579,8 @@ for (i in 1:length(hmm_colors)) {
         rm(foo)
 
 
-        foo <- cramer.test(head(as.matrix(d[d[,hmm_colors[i]],c('beta', 'standardized_entropy')]), 1e3),
-                           head(as.matrix(d[d[,hmm_colors[i]],c('beta', 'standardized_entropy')]), 1e3),
+        foo <- cramer.test(head(as.matrix(d[d[,hmm_colors[i]],c('beta', 'standardized_entropy')]), DOWNSAMPLING),
+                           head(as.matrix(d[d[,hmm_colors[j]],c('beta', 'standardized_entropy')]), DOWNSAMPLING),
                            sim = "eigenvalue")
         tests[[paste(hmm_colors[i], hmm_colors[j],
                      'bivariate', 'standardized_entropy')]] <- c(hmm_colors[i],
@@ -262,7 +593,7 @@ for (i in 1:length(hmm_colors)) {
 
 
         foo <- ks.test(d[d[,hmm_colors[i]],'entropy'],
-                       d[d[,hmm_colors[i]],'entropy'])
+                       d[d[,hmm_colors[j]],'entropy'])
         tests[[paste(hmm_colors[i], hmm_colors[j], 'univariate', 'entropy')]] <- c(hmm_colors[i],
                                                                                    hmm_colors[j],
                                                                                    'entropy',
@@ -285,7 +616,7 @@ for (i in 1:length(hmm_colors)) {
 
         ## control
         foo <- ks.test(d[d[,hmm_colors[i]],'beta'],
-                       d[d[,hmm_colors[i]],'beta'])
+                       d[d[,hmm_colors[j]],'beta'])
         tests[[paste(hmm_colors[i], hmm_colors[j], 'univariate',
                      'beta')]] <- c(hmm_colors[i],
                                     hmm_colors[j],
@@ -294,11 +625,50 @@ for (i in 1:length(hmm_colors)) {
                                     foo$p.value,
                                     foo$statistic)
         rm(foo)
-        ## cat('.')
+       
         
 
     }
 }
+
+agg <- do.call(rbind.data.frame, tests)
+colnames(agg) <- c('hmm_1', 'hmm_2', 'variable', 'test', 'pval', 'stat')
+agg$stat <- as.numeric(as.character(agg$stat))
+agg$pval <- as.numeric(as.character(agg$pval))
+
+DT::datatable(agg %>% as.data.frame() %>% 
+                dplyr::mutate_if(is.numeric, funs(round(., 2))), 
+              extensions = c("Buttons", "FixedColumns"),
+              rownames = FALSE, 
+              options = list(dom = "Bfrtip",
+                             scrollX = TRUE, 
+                             fixedColumns = list(leftColumns = 1),
+                             buttons = c("csv", "excel")))
+
+
+## print(agg)
+
+
+## p <- ggplot(data = agg, aes(as.factor(hmm_2),as.numeric(stat))) + geom_point()
+## p + facet_grid(variable ~ hmm_1 * test) + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+
+## p <- ggplot(data = agg, aes(as.factor(paste0(hmm_1, '__' , hmm_2),
+##                                       color=ifelse(agg$pval <0.05, 'red', 'black')),
+##                             as.numeric(stat))) + geom_point()
+
+
+## p + facet_grid(variable ~ test) + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+## p <- ggplot(data = agg, aes(as.factor(paste(hmm_1, hmm_2)),as.numeric(stat))) + geom_point()
+## p + facet_grid(variable ~ test) + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+
+p <- ggplot(data = agg, aes(as.factor(paste(hmm_1, '_', hmm_2)),as.numeric(stat),
+                            color = ifelse(pval >= 0.05, 'ns', 'p < 0.05'))) + geom_point()
+p + facet_grid(variable ~ test) + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+
 ```
 
 
