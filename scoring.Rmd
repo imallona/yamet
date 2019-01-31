@@ -607,8 +607,8 @@ while (i < length(short_hmm_colors)) {
                            second,
                            sim = "eigenvalue")
 
-        tests[[paste(hmm_colors[i], hmm_colors[j], 'bivariate', 'entropy')]] <- c(hmm_colors[i],
-                                                                                  hmm_colors[j],
+        tests[[paste(short_hmm_colors[i], short_hmm_colors[j], 'bivariate', 'entropy')]] <- c(short_hmm_colors[i],
+                                                                                  short_hmm_colors[j],
                                                                                   'entropy',
                                                                                   'bivariate',
                                                                                   foo$p.value,
@@ -620,8 +620,8 @@ while (i < length(short_hmm_colors)) {
 
         foo <- ks.test(first[,'entropy'],
                        second[,'entropy'])
-        tests[[paste(hmm_colors[i], hmm_colors[j], 'univariate', 'entropy')]] <- c(hmm_colors[i],
-                                                                                   hmm_colors[j],
+        tests[[paste(short_hmm_colors[i], short_hmm_colors[j], 'univariate', 'entropy')]] <- c(short_hmm_colors[i],
+                                                                                   short_hmm_colors[j],
                                                                                    'entropy',
                                                                                    'univariate',
                                                                                    foo$p.value,
@@ -646,9 +646,9 @@ while (i < length(short_hmm_colors)) {
                            second,
                            sim = "eigenvalue")
         
-        tests[[paste(hmm_colors[i], hmm_colors[j],
-                     'bivariate', 'standardized_entropy')]] <- c(hmm_colors[i],
-                                                                 hmm_colors[j],
+        tests[[paste(short_hmm_colors[i], short_hmm_colors[j],
+                     'bivariate', 'standardized_entropy')]] <- c(short_hmm_colors[i],
+                                                                 short_hmm_colors[j],
                                                                  'standardized_entropy',
                                                                  'bivariate',
                                                                  foo$p.value,
@@ -657,9 +657,9 @@ while (i < length(short_hmm_colors)) {
         foo <- ks.test(first[,'standardized_entropy'],
                        second[,'standardized_entropy'])
         
-        tests[[paste(hmm_colors[i], hmm_colors[j], 'univariate',
-                     'standardized_entropy')]] <- c(hmm_colors[i],
-                                                    hmm_colors[j],
+        tests[[paste(short_hmm_colors[i], short_hmm_colors[j], 'univariate',
+                     'standardized_entropy')]] <- c(short_hmm_colors[i],
+                                                    short_hmm_colors[j],
                                                     'standardized_entropy',
                                                     'univariate',
                                                     foo$p.value,
@@ -671,9 +671,9 @@ while (i < length(short_hmm_colors)) {
         foo <- ks.test(first[,'beta'],
                        second[,'beta'])
 
-        tests[[paste(hmm_colors[i], hmm_colors[j], 'univariate',
-                     'beta')]] <- c(hmm_colors[i],
-                                    hmm_colors[j],
+        tests[[paste(short_hmm_colors[i], short_hmm_colors[j], 'univariate',
+                     'beta')]] <- c(short_hmm_colors[i],
+                                    short_hmm_colors[j],
                                     'beta',
                                     'univariate',
                                     foo$p.value,
