@@ -578,22 +578,35 @@ for (hmm in hmm_colors) {
 
 # Cramer tests
 
-```{r cramer, eval = TRUE}
+```{r cramer, eval = TRUE, cache = FALSE}
 tests <- list()
 
-short_hmm_colors <- c('Art', 'Ctcf', 'CtcfO', 'PromP', 'PromF', 'Tss')
-for (i in 1:length(short_hmm_colors)) {
-    for (j in i+1:length(short_hmm_colors)) {
+short_hmm_colors <- c('Enh', 'Ctcf', 'Tss', 'PromP', 'PromF')
+d$hmm <- as.character(d$hmm)
+i <- 1
+while (i < length(short_hmm_colors)) {
+    j <- i + 1
+    while (j <= length(short_hmm_colors)) {
         cat('.')
         ## caution, downsampling!
         DOWNSAMPLING = 5e2
         ## stop()
-        foo <- cramer.test(head(as.matrix(d[d[,hmm_colors[i]],c('beta', 'entropy')]), DOWNSAMPLING),
-                           head(as.matrix(d[d[,hmm_colors[j]],c('beta', 'entropy')]), DOWNSAMPLING),
+
+       
+        first <- d[d$hmm == short_hmm_colors[i] & !d$in_boundary, c('beta', 'entropy')]
+        set.seed(1)
+        if (DOWNSAMPLING <= nrow(first))
+            first <- as.matrix(first[sample(nrow(first), DOWNSAMPLING),])
+
+        second <- d[d$hmm == short_hmm_colors[j] & !d$in_boundary, c('beta', 'entropy')]
+        set.seed(1)
+        if (DOWNSAMPLING <= nrow(second))
+            second <- as.matrix(second[sample(nrow(second), DOWNSAMPLING),])
+              
+        foo <- cramer.test(first,
+                           second,
                            sim = "eigenvalue")
 
-        ## stop()
-        
         tests[[paste(hmm_colors[i], hmm_colors[j], 'bivariate', 'entropy')]] <- c(hmm_colors[i],
                                                                                   hmm_colors[j],
                                                                                   'entropy',
@@ -603,10 +616,34 @@ for (i in 1:length(short_hmm_colors)) {
         rm(foo)
 
 
-        foo <- cramer.test(head(as.matrix(d[d[,hmm_colors[i]],c('beta', 'standardized_entropy')]),
-                                DOWNSAMPLING),
-                           head(as.matrix(d[d[,hmm_colors[j]],c('beta', 'standardized_entropy')]),
-                                DOWNSAMPLING),
+
+
+        foo <- ks.test(first[,'entropy'],
+                       second[,'entropy'])
+        tests[[paste(hmm_colors[i], hmm_colors[j], 'univariate', 'entropy')]] <- c(hmm_colors[i],
+                                                                                   hmm_colors[j],
+                                                                                   'entropy',
+                                                                                   'univariate',
+                                                                                   foo$p.value,
+                                                                                   foo$statistic)
+        rm(foo)
+
+        
+        first <- d[d$hmm == short_hmm_colors[i] & !d$in_boundary,
+                   c('beta', 'standardized_entropy')]
+        set.seed(1)
+        if (DOWNSAMPLING <= nrow(first))
+            first <- as.matrix(first[sample(nrow(first), DOWNSAMPLING),])
+
+        second <- d[d$hmm == short_hmm_colors[j] & !d$in_boundary,
+                    c('beta', 'standardized_entropy')]
+        set.seed(1)
+        if (DOWNSAMPLING <= nrow(second))
+            second <- as.matrix(second[sample(nrow(second), DOWNSAMPLING),])
+              
+
+        foo <- cramer.test(first,
+                           second,
                            sim = "eigenvalue")
         
         tests[[paste(hmm_colors[i], hmm_colors[j],
@@ -616,22 +653,10 @@ for (i in 1:length(short_hmm_colors)) {
                                                                  'bivariate',
                                                                  foo$p.value,
                                                                  foo$statistic)
-        rm(foo)
-
-
-        foo <- ks.test(d[d[,hmm_colors[i]],'entropy'],
-                       d[d[,hmm_colors[j]],'entropy'])
-        tests[[paste(hmm_colors[i], hmm_colors[j], 'univariate', 'entropy')]] <- c(hmm_colors[i],
-                                                                                   hmm_colors[j],
-                                                                                   'entropy',
-                                                                                   'univariate',
-                                                                                   foo$p.value,
-                                                                                   foo$statistic)
-        rm(foo)
-
-
-        foo <- ks.test(d[d[,hmm_colors[i]],'standardized_entropy'],
-                       d[d[,hmm_colors[i]], 'standardized_entropy'])
+   
+        foo <- ks.test(first[,'standardized_entropy'],
+                       second[,'standardized_entropy'])
+        
         tests[[paste(hmm_colors[i], hmm_colors[j], 'univariate',
                      'standardized_entropy')]] <- c(hmm_colors[i],
                                                     hmm_colors[j],
@@ -641,9 +666,11 @@ for (i in 1:length(short_hmm_colors)) {
                                                     foo$statistic)
         rm(foo)
 
+
         ## control
-        foo <- ks.test(d[d[,hmm_colors[i]],'beta'],
-                       d[d[,hmm_colors[j]],'beta'])
+        foo <- ks.test(first[,'beta'],
+                       second[,'beta'])
+
         tests[[paste(hmm_colors[i], hmm_colors[j], 'univariate',
                      'beta')]] <- c(hmm_colors[i],
                                     hmm_colors[j],
@@ -654,12 +681,14 @@ for (i in 1:length(short_hmm_colors)) {
         rm(foo)
        
         ## stop()
+        j <- j +1
 
     }
+    i <- i + 1
 }
 ```
 
-```{r agg}
+```{r agg, eval = TRUE, fig.width = 6, fig.height = 5, cache = FALSE}
 agg <- do.call(rbind.data.frame, tests)
 colnames(agg) <- c('hmm_1', 'hmm_2', 'variable', 'test', 'pval', 'stat')
 agg$stat <- as.numeric(as.character(agg$stat))
@@ -692,9 +721,21 @@ DT::datatable(agg %>% as.data.frame() %>%
 ## p <- ggplot(data = agg, aes(as.factor(paste(hmm_1, hmm_2)),as.numeric(stat))) + geom_point()
 ## p + facet_grid(variable ~ test) + theme(axis.text.x = element_text(angle = 90, hjust = 1))
 
+agg$test <- as.character(agg$test)
+agg$variable <- as.character(agg$variable)
+
+agg$test[agg$test=='bivariate'] <- 'Cramer\n(bivariate)'
+agg$test[agg$test=='univariate'] <- 'Kolmogorov-Smirnov\n(univariate)'
+
+agg$variable[agg$variable=='standardized_entropy'] <- 'std_entropy'
+
 
 p <- ggplot(data = agg, aes(as.factor(paste(hmm_1, '_', hmm_2)),as.numeric(stat),
-                            color = ifelse(pval >= 0.05, 'ns', 'p < 0.05'))) + geom_point()
+                            color = ifelse(pval >= 0.05, 'ns', 'p < 0.05'))) +
+    geom_point() + labs(colour = 'significance') +
+    ylab('test statistic (KS for univariate,\nCramer for bivariate)') +
+    xlab('Pairwise chromHMM comparison')
+    
 p + facet_grid(variable ~ test) + theme(axis.text.x = element_text(angle = 90, hjust = 1))
 
 
