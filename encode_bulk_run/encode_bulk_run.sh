@@ -1,7 +1,9 @@
 #!/bin/bash
 ##
 ## methtuples to look for nucleosome positioning
-## 29th june 2018
+## 17 feb
+
+echo 'todo filter chr19 only!'
 
 ## @todo parallelize by chromosome!
 ## Data from https://www.encodeproject.org/experiments/ENCSR617FKV/
@@ -13,10 +15,6 @@ export WD="$HOME"/mnt/nfs/"$TASK"
 export SOFT="$HOME"/soft
 export VIRTENVS="$HOME"/virtenvs
 export BEDTOOLS="$SOFT"/bedtools/bin/bedtools
-
-export METILENE="$SOFT"/metilene/metilene_v0.2-7/metilene
-export METILENE_INPUT="$SOFT"/metilene/metilene_v0.2-7/metilene_input.pl
-export METILENE_OUTPUT="$SOFT"/metilene/metilene_v0.2-7/metilene_output.pl
 
 export SAMTOOLS=/usr/local/bin/samtools
 
@@ -73,74 +71,15 @@ function get_methylation {
      }' | "$BEDTOOLS" sort > "$(basename $fn .tsv)"_meth.bed    
 }
 
-function prepare_metilene_input {
-    agreement_score_fn="$1"
-    background_score_fn="$2"
-    sample_name=$3
-
-    ## to call metilene the scores should be like betavalues (from 0 to 1000)
-    ## so divide by 1000
-
-    ## check the cpg offset, whether 0 or 1! setting up the middle point here
-
-    # for bed in  "$(basename $fn .tsv)"_scored.bed  "$(basename $fn .tsv)"_meth.bed
-    # do
-    #     awk '{OFS=FS="\t"; print $1, int($2+($3-$2)/2), $5/1000}' $bed > \
-    #         "$(basename $bed .be)"_metilene.input    
-    # done
-
-    ## rather, using starts and ends and NOT merging strands @todo
-    
-    ## rather, using starts and ends and NOT merging strands @todo
-    for bed in $agreement_score_fn $background_score_fn
-    do
-        awk '{OFS=FS="\t"; print $1,$2,$3,$5/1000}' $bed > \
-            "$bed"_metilene.input    
-    done
-
-    perl ${METILENE_INPUT} -in1 "$agreement_score_fn"_metilene.input \
-         -in2  "$background_score_fn"_metilene.input \
-         -out "$sample_name"_metilene \
-         -h1 agreement -h2 background -b $BEDTOOLS
-}
-
-
-function call_metilene {
-    agreement_tag="$1"
-    background_tag="$2"
-    metilene_input="$3"
-    
-    $METILENE -t $NTHREADS -d 0.1 -m 10 -a "$agreement_tag" -b "$background_tag" \
-              "$metilene_input" > "$metilene_input".output
-
-}
-
-function postprocess_metilene {
-    agreement_tag="$1"
-    background_tag="$2"
-    dmr_input="$3"
-    
-    perl "${METILENE_OUTPUT}" \
-         -q "$dmr_input" \
-         -c 5 \
-         -d 0.05 \
-         -a "$agreement_tag" \
-         -b "$background_tag" 
-}
-
 function filter_by_coverage {
     fn="$1"
     mincov="$2"
-
-    
-awk -v mincov="$mincov" '
-NR==1{next}
-{
-  if (($5+$6+$7+$8) >= mincov) print $0
-
-
-}' $fn
-
+  
+    awk -v mincov="$mincov" '
+  NR==1{next}
+  {
+    if (($5+$6+$7+$8) >= mincov) print $0
+  }' $fn
 }
 
 ## unnormalized Shannon entropies (could return E/log(4) to be normalized)
@@ -155,7 +94,6 @@ header
 1 2 3 4
 100000000 0 0 1
 EOF
-
 
 awk '
 NR==1{next}
@@ -265,6 +203,37 @@ function collapse_strands {
     echo 'todo'
 }
 
+
+
+cd $WD
+
+echo "sample identifiers/manifest for downlading" ##############################################
+
+cat << EOF >> 01_encode.conf
+id,exp_url,bam_url,assembly,description,replicate,end
+ENCFF112TXF,https://www.encodeproject.org/experiments/ENCSR888FON/,https://www.encodeproject.org/files/ENCFF112TXF/@@download/ENCFF112TXF.bam,GRCh38,IMR90,1,single
+ENCFF957OIM,https://www.encodeproject.org/experiments/ENCSR881XOU/,https://www.encodeproject.org/files/ENCFF957OIM/@@download/ENCFF957OIM.bam,GRCh38,HepG2,1,paired
+ENCFF572KNK,https://www.encodeproject.org/experiments/ENCSR881XOU/,https://www.encodeproject.org/files/ENCFF572KNK/@@download/ENCFF572KNK.bam,GRCh38,HepG2,2,paired
+ENCFF193RVP,https://www.encodeproject.org/experiments/ENCSR550RTN/,https://www.encodeproject.org/files/ENCFF193RVP/@@download/ENCFF193RVP.bam,GRCh38,HeLa-S3,1,paired
+ENCFF845VFH,https://www.encodeproject.org/experiments/ENCSR550RTN/,https://www.encodeproject.org/files/ENCFF845VFH/@@download/ENCFF845VFH.bam,GRCh38,HeLa-S3,2,paired
+ENCFF079RGH,https://www.encodeproject.org/experiments/ENCSR440MLE/,https://www.encodeproject.org/files/ENCFF079RGH/@@download/ENCFF079RGH.bam,GRCh38,GM23248,1,paired
+ENCFF119ELB,https://www.encodeproject.org/experiments/ENCSR440MLE/,https://www.encodeproject.org/files/ENCFF119ELB/@@download/ENCFF119ELB.bam,GRCh38,GM23248,2,paired
+
+EOF
+
+while IFS='' read -r line || [[ -n "$line" ]]
+do
+    sample=$(echo $line | cut -f1 -d ',')
+    bam_url=$(echo $line | cut -f3 -d ',')
+    echo "$sample" start
+
+    echo "$sample" end
+    
+done < 01_encode.conf
+
+:<<EOF
+
+    
 sample=ENCFF857QML
 
 mkdir -p $sample
@@ -509,3 +478,6 @@ do
                   -b "$bed" > reldist_no_cpgi/"$(basename $item .bed)"__vs__"$(basename $bed .bed.gz)".reldist
     done
 done
+
+
+EOF

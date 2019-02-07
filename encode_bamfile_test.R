@@ -117,6 +117,8 @@ targets <- c('coverage',
 
 ## test standardization start
 
+
+save(x = d, file = 'test_data.RData') ## to be processed with scoring.Rmd
 ## test standardization end
 
 
