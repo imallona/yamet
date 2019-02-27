@@ -227,7 +227,7 @@ do
     echo "$sample" start "$date"
     mkdir $sample; cd $_
 
-    wget $bam_url
+    wget --quiet $bam_url
 
     bam="$sample".bam
 
