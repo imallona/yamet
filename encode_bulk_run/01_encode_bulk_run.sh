@@ -207,8 +207,8 @@ cd $WD
 
 echo "sample identifiers/manifest for downlading" ##############################################
 
+## id,exp_url,bam_url,assembly,description,replicate,end
 cat << EOF > 01_encode.conf
-id,exp_url,bam_url,assembly,description,replicate,end
 ENCFF112TXF,https://www.encodeproject.org/experiments/ENCSR888FON/,https://www.encodeproject.org/files/ENCFF112TXF/@@download/ENCFF112TXF.bam,GRCh38,IMR90,1,single
 ENCFF957OIM,https://www.encodeproject.org/experiments/ENCSR881XOU/,https://www.encodeproject.org/files/ENCFF957OIM/@@download/ENCFF957OIM.bam,GRCh38,HepG2,1,paired
 ENCFF572KNK,https://www.encodeproject.org/experiments/ENCSR881XOU/,https://www.encodeproject.org/files/ENCFF572KNK/@@download/ENCFF572KNK.bam,GRCh38,HepG2,2,paired
