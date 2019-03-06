@@ -50,7 +50,7 @@ do
     
     echo "$sample" start "$date"
 
-    cd $sample
+    cd "$WD"/"$sample"
     ## get chromatin colors and look for association
 
     # ## get top quartiles for entropy and dnameth
@@ -69,5 +69,5 @@ do
 
     
     echo "$sample" end "$date"
-    cd ..
+    cd $WD
 done < 01_encode.conf
