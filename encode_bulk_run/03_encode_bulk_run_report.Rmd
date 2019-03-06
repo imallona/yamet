@@ -62,6 +62,19 @@ beta2m <- function(beta) {
 
 # Data load
 
+```{r samples_dict}
+samples_dict <- read.table(text ='id,exp_url,bam_url,assembly,description,replicate,end
+ENCFF112TXF,https://www.encodeproject.org/experiments/ENCSR888FON/,https://www.encodeproject.org/files/ENCFF112TXF/@@download/ENCFF112TXF.bam,GRCh38,IMR90,1,single
+ENCFF957OIM,https://www.encodeproject.org/experiments/ENCSR881XOU/,https://www.encodeproject.org/files/ENCFF957OIM/@@download/ENCFF957OIM.bam,GRCh38,HepG2,1,paired
+ENCFF572KNK,https://www.encodeproject.org/experiments/ENCSR881XOU/,https://www.encodeproject.org/files/ENCFF572KNK/@@download/ENCFF572KNK.bam,GRCh38,HepG2,2,paired
+ENCFF193RVP,https://www.encodeproject.org/experiments/ENCSR550RTN/,https://www.encodeproject.org/files/ENCFF193RVP/@@download/ENCFF193RVP.bam,GRCh38,HeLa-S3,1,paired
+ENCFF845VFH,https://www.encodeproject.org/experiments/ENCSR550RTN/,https://www.encodeproject.org/files/ENCFF845VFH/@@download/ENCFF845VFH.bam,GRCh38,HeLa-S3,2,paired
+ENCFF079RGH,https://www.encodeproject.org/experiments/ENCSR440MLE/,https://www.encodeproject.org/files/ENCFF079RGH/@@download/ENCFF079RGH.bam,GRCh38,GM23248,1,paired
+ENCFF119ELB,https://www.encodeproject.org/experiments/ENCSR440MLE/,https://www.encodeproject.org/files/ENCFF119ELB/@@download/ENCFF119ELB.bam,GRCh38,GM23248,2,paired/',
+sep = ',', header = TRUE, stringsAsFactors = TRUE)
+
+rownames(samples_dict) <- samples_dict$id
+```
 
 ```{r}
 colored <- list.files(path = 'encode_bulk', pattern = '*colored.bed', recursive = TRUE)
@@ -229,7 +242,8 @@ for (item in names(d)) {
         oma = c(4, 4, 1, 1))
 
     plot(d[[item]]$beta, d[[item]]$entropy, pch = 19, col = ac('black', 0.5),
-         xlab = 'methylation (beta value)',
+         xlab = sprintf('%s %s methylation (beta value)', samples_dict[item, 'description'],
+                        item),
          ylab = "Shannon's entropy (H)" )
     lines(d[[item]]$beta, d[[item]]$max_entropy, col = 'darkred', type = 'p', pch = 4, cex = 1)
     lines(d[[item]]$beta, d[[item]]$lower_bound, col = 'darkblue', type = 'p', pch = 4, cex = 1)
@@ -262,7 +276,8 @@ for (item in names(d)) {
         oma = c(4, 4, 1, 1))
 
     plot(d[[item]]$beta, d[[item]]$standardized_entropy, pch = 19, col = ac('black', 0.5),
-         xlab = 'methylation (beta value)',
+         xlab = sprintf('%s %s methylation (beta value)', samples_dict[item, 'description'],
+                        item),
          ylab = "standardized entropy (stdH)" )
 
 }
@@ -271,6 +286,7 @@ for (item in names(d)) {
 ```{r marginals}
 
 for (item in names(d)) {
+    print(sprintf('%s %s', samples_dict[item, 'description'], item))
     p=ggplot(d[[item]], aes(x=beta, y=standardized_entropy, color=entropy)) +
         geom_point() +
         theme(legend.position ='top') + xlab(sprintf('%s methylation (beta)', item)) +
@@ -294,7 +310,7 @@ for (item in names(d)) {
 
 ```{r coverage_vs_entropy}
 for (item in names(d)) {
-
+    print(item)
     curr <- d[[item]]
     
     targets <- c('coverage',
@@ -311,7 +327,7 @@ for (item in names(d)) {
         oma = c(1, 0, 0, 0))
 
     plot(curr[,targets], pch = 20,
-         col = add.alpha('black', 0.1),
+         col = ac('black', 0.1),
          main = item)
     
 }
@@ -323,7 +339,8 @@ for (item in names(d)) {
 ```{r recycling}
 
 for (item in names(d)) {
-    
+    print(sprintf('%s %s', samples_dict[item, 'description'], item))
+
     rf <- colorRampPalette(rev(brewer.pal(11,'Spectral')))
     r <- rf(32)
 
@@ -375,6 +392,8 @@ for (item in names(d)) {
 ```{r quantiles, fig.width = 7, fig.height = 7}
 
 for (item in names(d)) {
+    print(sprintf('%s %s', samples_dict[item, 'description'], item))
+
     curr <- d[[item]]
 
     curr$unmethylated <- curr$beta < 0.2
@@ -431,6 +450,8 @@ for (item in names(d)) {
 
 ```{r quantilesmethylation, fig.width = 7, fig.height = 7}
 for (item in names(d)) {
+    print(sprintf('%s %s', samples_dict[item, 'description'], item))
+
     curr <- d[[item]]
     non_boundary <- list(median = tapply(curr[!curr$in_boundary, 'beta'],
                                          as.factor(as.character(curr[!curr$in_boundary, 'hmm'])),
@@ -474,7 +495,8 @@ for (item in names(d)) {
 ```{r quantilessratified}
 
 for (item in names(d)) {
-
+    print(sprintf('%s %s', samples_dict[item, 'description'], item))
+ 
     curr <- d[[item]]
     
     curr <- curr[!curr$in_boundary,]
@@ -511,6 +533,8 @@ for (item in names(d)) {
 ```{r quantilesstd, fig.width = 7, fig.height = 7}
 
 for (item in names(d)) {
+    print(sprintf('%s %s', samples_dict[item, 'description'], item))
+
     curr <- d[[item]]
     
     curr$unmethylated <- curr$beta < 0.2
@@ -566,6 +590,8 @@ for (item in names(d)) {
 
 ```{r quantilesmethylationstd, fig.width = 7, fig.height = 7}
 for (item in names(d)) {
+    print(sprintf('%s %s', samples_dict[item, 'description'], item))
+
     curr <- d[[item]]
     
     non_boundary <- list(median = tapply(curr[!curr$in_boundary, 'beta'],
@@ -609,6 +635,8 @@ for (item in names(d)) {
 
 ```{r quantilessratifiedstd}
 for (item in names(d)){
+    print(sprintf('%s %s', samples_dict[item, 'description'], item))
+
     curr <- d[[item]]
     
     curr <- curr[!curr$in_boundary,]
@@ -867,6 +895,8 @@ for (item in names(d)){
 ```{r discretized,  fig.width = 10, fig.height=5}
 
 for (item in names(d)) {
+    print(sprintf('%s %s', samples_dict[item, 'description'], item))
+
     curr <- d[[item]]
     
     br = seq(0,1,by=0.1)
@@ -920,14 +950,14 @@ for (item in names(d)) {
                                          y = factor(hmm), fill = entropy)) +
         geom_tile() + scale_fill_viridis() +
         theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
-        xlab(sprintf('methylation (beta)', item)) +
+        xlab(sprintf('%s %s methylation (beta)', samples_dict[item, 'description'], item)) +
         ylab('chromatin color (chromHMM)')
 
     p2 <- ggplot(curr[!curr$in_boundary,], aes(x = factor(beta_categorical), y = factor(hmm),
                                          fill = standardized_entropy)) +
         geom_tile() + scale_fill_viridis() +
         theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
-        xlab('methylation (beta)') +
+        xlab(sprintf('%s %s methylation (beta)', samples_dict[item, 'description'], item)) +
         ylab('chromatin color (chromHMM)')
 
 
@@ -936,6 +966,103 @@ for (item in names(d)) {
     ggsave(sprintf('%s_heat_categorical.png', item), plot = p3, width = 10, height=5)
 
 }
+
+```
+
+# Across samples
+
+What about replicates and cell lines?
+
+```{r}
+
+foo <- list()
+for (item in names(d)) {
+    curr <- d[[item]]
+    curr <- curr[!curr$in_boundary,]
+    curr$beta_rounded <- round(curr$beta, 1)
+
+    foo[[item]] <- curr[,c('standardized_entropy', 'hmm')]
+    foo[[item]]$id <- paste0(item, '_', samples_dict[item, 'description'])
+    
+    
+   
+    
+}
+
+foo <- do.call(rbind.data.frame, foo)
+
+foo$id <- factor(foo$id, levels = c('ENCFF079RGH_GM23248',
+                                    'ENCFF119ELB_GM23248',
+                                    'ENCFF193RVP_HeLa-S3',
+                                    'ENCFF845VFH_HeLa-S3',
+                                    'ENCFF957OIM_HepG2',
+                                    'ENCFF572KNK_HepG2',
+                                    'ENCFF112TXF_IMR90'))
+
+    
+p <- ggplot(foo, aes(x=id, y=standardized_entropy, fill=hmm)) +
+  geom_boxplot() + coord_flip()
+                                      
+print(p) 
+## # Add dots
+## p + geom_dotplot(binaxis='y', stackdir='center')
+
+
+ ## ggplot(data = foo,
+ ##           aes(x = id, y = sta, fill = hmm)) +
+ ##        geom_bar(stat="identity") +
+ ##        theme(text = element_text(size = 15),
+ ##              axis.text.x = element_text(angle = 90, hjust = 1))
+
+## foo <- gather(summarized, beta, value, -id, -hmm)
+
+p <- ggplot(data = foo, aes(y = standardized_entropy, x = id)) +
+    geom_boxplot()
+print(p + facet_wrap(~hmm, nrow = 5) +
+    theme(text = element_text(size = 15),
+          axis.text.x = element_text(angle = 90, hjust = 1)))
+
+```
+
+
+Raw entropies
+
+```{r rawentropy}
+
+foo <- list()
+for (item in names(d)) {
+    curr <- d[[item]]
+    curr <- curr[!curr$in_boundary,]
+    curr$beta_rounded <- round(curr$beta, 1)
+
+    foo[[item]] <- curr[,c('entropy', 'hmm')]
+    foo[[item]]$id <- paste0(item, '_', samples_dict[item, 'description'])
+    
+    
+   
+    
+}
+
+foo <- do.call(rbind.data.frame, foo)
+
+foo$id <- factor(foo$id, levels = c('ENCFF079RGH_GM23248',
+                                    'ENCFF119ELB_GM23248',
+                                    'ENCFF193RVP_HeLa-S3',
+                                    'ENCFF845VFH_HeLa-S3',
+                                    'ENCFF957OIM_HepG2',
+                                    'ENCFF572KNK_HepG2',
+                                    'ENCFF112TXF_IMR90'))
+
+    
+p <- ggplot(foo, aes(x=id, y=entropy, fill=hmm)) +
+  geom_boxplot() + coord_flip()
+                                      
+print(p)
+
+p <- ggplot(data = foo, aes(y = entropy, x = id)) + geom_boxplot()
+print(p + facet_wrap(~hmm, nrow = 5) +
+    theme(text = element_text(size = 15),
+              axis.text.x = element_text(angle = 90, hjust = 1)))
 
 ```
 
