@@ -1,0 +1,32 @@
+CHROMS = [str(c) for c in range(1, 23)]
+
+rule all:
+    input:
+        "test.out"
+
+
+rule a:
+    output:
+        "a/{chrom}.out"
+    group: "mygroup"
+    shell:
+        "touch {output}"
+
+
+rule b:
+    input:
+        "a/{chrom}.out"
+    output:
+        "b/{chrom}.out"
+    group: "mygroup"
+    shell:
+        "touch {output}"
+
+
+rule c:
+    input:
+        expand("b/{chrom}.out", chrom = CHROMS)
+    output:
+        "test.out"
+    shell:
+        "touch {output}"
