@@ -1,32 +1,63 @@
-CHROMS = [str(c) for c in range(1, 23)]
+import os.path as op
+
+CHROMS = ['chr' + str(c) for c in range(1, 5)]
+SAMPLES = [op.join('test_data', 'se_directional.fq.gz_bismark_bt2.bam')]
+SORTED = [op.join('sorted', op.basename(f)) for f in SAMPLES]
+INDEXED = [op.join('sorted', op.basename(f)+'.bai') for f in SAMPLES]
+SPLIT = expand('{sample}_{chrom}.bam',
+                                sample = SORTED,
+                                chrom = CHROMS)
+
+print(CHROMS)
+print(SAMPLES)
+print(SORTED)
+print(INDEXED)
+print(SPLIT)
 
 rule all:
     input:
-        "test.out"
+        SORTED, INDEXED
+        # , expand('split/{sample}_{chrom}.bam',
+        #                         zip,
+        #                         sample = SAMPLES,
+        #                         chrom = CHROMS) 
 
-
-rule a:
-    output:
-        "a/{chrom}.out"
-    group: "mygroup"
-    shell:
-        "touch {output}"
-
-
-rule b:
+rule wtf_how_to_split_the_bamfile:
     input:
-        "a/{chrom}.out"
-    output:
-        "b/{chrom}.out"
-    group: "mygroup"
-    shell:
-        "touch {output}"
-
-
-rule c:
-    input:
-        expand("b/{chrom}.out", chrom = CHROMS)
+        expand('split/{sample}_{chrom}.bam',
+                                sample = SORTED,
+                                chrom = CHROMS) 
     output:
         "test.out"
     shell:
         "touch {output}"
+           
+rule split_by_chrom:
+    input:
+        "sorted/{sample}.bam"
+    output:
+        "split/{sample}_{chrom}.bam"
+
+    shell:
+        """samtools view -b {input} {wildcards.chrom} > {output}
+        """
+    
+rule samtools_index:
+    input:
+        "sorted/{sample}"
+    output:
+        "sorted/{sample}.bai"
+    shell:
+        "samtools index {input} > {output}"
+
+
+rule samtools_sort:
+    input:
+        "test_data/{sample}"
+    output:
+        "sorted/{sample}"
+    shell:
+        """
+        samtools sort {input} {output}
+        mv {output}.bam {output}
+        """
