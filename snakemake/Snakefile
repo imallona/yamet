@@ -7,15 +7,15 @@ SAMPLES = glob.glob(op.join('test_data', '*.bam'))
 
 BAMS = {op.splitext(op.basename(sample))[0] : sample for sample in SAMPLES}
 # SORTED = {sample : op.join(sample, 'sorted', sample + '.bam') for sample in BAMS.keys()}
-INDEXED =  {sample : op.join(sample,  sample + '.bam.bai') for sample in BAMS.keys()}
-SPLIT =  expand("{sample}/{sample}_{chrom}.bam",
-            sample =  BAMS.keys(),
-            chrom = CHROMS)
-# SORTED_QN = {sample : op.join(sample, 'split', sample + '_qn_sorted.bam') for sample in BAMS.keys()}
+# INDEXED =  {sample : op.join(sample,  sample + '.bam.bai') for sample in BAMS.keys()}
+# SPLIT =  expand("{sample}/{sample}_{chrom}.bam",
+#             sample =  BAMS.keys(),
+#             chrom = CHROMS)
+# # SORTED_QN = {sample : op.join(sample, 'split', sample + '_qn_sorted.bam') for sample in BAMS.keys()}
 
-SORTED_QN =  expand("{sample}/qnsorted_{sample}_{chrom}.bam",
-                    sample =  BAMS.keys(),
-                    chrom = CHROMS)
+# SORTED_QN =  expand("{sample}/qnsorted_{sample}_{chrom}.bam",
+#                     sample =  BAMS.keys(),
+#                     chrom = CHROMS)
 
 METHTUPLE = expand("{sample}/qnsorted_{sample}_{chrom}.CG.2.tsv",
                     sample =  BAMS.keys(),
@@ -31,15 +31,16 @@ AWK = expand("{sample}/qnsorted_{sample}_{chrom}.CG.2_cov_{cov}.tsv",
 print(CHROMS)
 print(SAMPLES)
 # print(SORTED)
-print(INDEXED)
-print(SPLIT)
-print(SORTED_QN)
-print(AWK)
+# print(INDEXED)
+# print(SPLIT)
+# print(SORTED_QN)
+# print(AWK)
+# print(INDEXED)
 
 rule all:
     input:
         # INDEXED.values(), SPLIT, SORTED_QN, METHTUPLE\
-        METHTUPLE, AWK
+        METHTUPLE,  AWK
 
 # rule get_entropy:
 #        input:
@@ -65,7 +66,7 @@ rule run_meththuple:
     input:
         "{sample}/qnsorted_{sample}_{chrom}.bam"
     output:
-        "{sample}/qnsorted_{sample}_{chrom}.CG.2.tsv"
+        temp("{sample}/qnsorted_{sample}_{chrom}.CG.2.tsv")
     shell: """
         set +u;
         source ~/virtenvs/methtuple/bin/activate
@@ -89,19 +90,12 @@ rule sort_by_queryname:
 rule split_by_chrom:
     input:
         "{sample}/{sample}.bam"
+        # lambda wildcards, attempt: attempt * 100
     output:
         temp("{sample}/{sample}_{chrom}.bam")
     shell:
-        "samtools view -b {input} > {output}"
+        "samtools view -b {input} {wildcards.chrom} > {output}"
  
-rule samtools_index:
-    input:
-        "{sample}/{sample}.bam"
-    output:
-        "{sample}/{sample}.bam.bai"
-    shell:
-        "samtools index {input} > {output}"
-
 rule samtools_sort:
     input:
         "test_data/{sample}.bam"
@@ -110,5 +104,6 @@ rule samtools_sort:
     shell:
         """
         samtools sort {input} {output}
-         mv {output}.bam {output}
+        mv {output}.bam {output}
+        samtools index {output}
         """
