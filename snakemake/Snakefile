@@ -6,46 +6,99 @@ CHROMS = ['chr' + str(c) for c in range(1, 5)]
 SAMPLES = glob.glob(op.join('test_data', '*.bam'))
 
 BAMS = {op.splitext(op.basename(sample))[0] : sample for sample in SAMPLES}
-SORTED = {sample : op.join('sorted', sample + '.bam') for sample in BAMS.keys()}
-INDEXED =  {sample : op.join('sorted', sample + '.bam.bai') for sample in BAMS.keys()}
-SPLIT =  expand("split/{sample}_{chrom}.bam",
+# SORTED = {sample : op.join(sample, 'sorted', sample + '.bam') for sample in BAMS.keys()}
+INDEXED =  {sample : op.join(sample,  sample + '.bam.bai') for sample in BAMS.keys()}
+SPLIT =  expand("{sample}/{sample}_{chrom}.bam",
             sample =  BAMS.keys(),
             chrom = CHROMS)
+# SORTED_QN = {sample : op.join(sample, 'split', sample + '_qn_sorted.bam') for sample in BAMS.keys()}
+
+SORTED_QN =  expand("{sample}/qnsorted_{sample}_{chrom}.bam",
+                    sample =  BAMS.keys(),
+                    chrom = CHROMS)
+
+METHTUPLE = expand("{sample}/qnsorted_{sample}_{chrom}.CG.2.tsv",
+                    sample =  BAMS.keys(),
+                    chrom = CHROMS)
+
+MINCOVERAGE = 1
+
+AWK = expand("{sample}/qnsorted_{sample}_{chrom}.CG.2_cov_{cov}.tsv",
+                    sample =  BAMS.keys(),
+                    chrom = CHROMS,
+                    cov = MINCOVERAGE)
 
 print(CHROMS)
 print(SAMPLES)
-print(SORTED)
+# print(SORTED)
 print(INDEXED)
 print(SPLIT)
-# print(expand("{sample}_{chrom}.bam", sample = INDEXED, chrom = CHROMS))
+print(SORTED_QN)
+print(AWK)
 
 rule all:
     input:
-        # INDEXED.values(), SPLIT
-        SPLIT
-      
-# rule wtf_how_to_split_the_bamfile_by_chromosome:
-#     input:
-#         SPLIT
-#     output:
-#         "test.out"
-#     shell:
-#         "touch {output}"
-           
+        # INDEXED.values(), SPLIT, SORTED_QN, METHTUPLE\
+        METHTUPLE, AWK
 
+# rule get_entropy:
+#        input:
+#            output:
+#                shell:
+
+
+rule filter_by_coverage:
+       input:
+           "{sample}/qnsorted_{sample}_{chrom}.CG.2.tsv"
+       output:
+           "{sample}/qnsorted_{sample}_{chrom}.CG.2_cov_{MINCOVERAGE}.tsv"
+       shell:
+           """
+           awk -v mincov="{MINCOVERAGE}" '
+           NR == 1 {{next}}
+           {{
+            if (($5+$6+$7+$8) >= mincov) print $0
+           }}' {input} > {output}
+           """
+                   
+rule run_meththuple:
+    input:
+        "{sample}/qnsorted_{sample}_{chrom}.bam"
+    output:
+        "{sample}/qnsorted_{sample}_{chrom}.CG.2.tsv"
+    shell: """
+        set +u;
+        source ~/virtenvs/methtuple/bin/activate
+        methtuple -m 2 --methylation-type CG {input}    
+        deactivate
+        set -u;
+        """
+    
+rule sort_by_queryname:
+    input:
+        "{sample}/{sample}_{chrom}.bam"
+    output:
+        temp("{sample}/qnsorted_{sample}_{chrom}.bam")
+        
+    shell:
+        """
+        samtools sort -n {input} {output}
+        mv {output}.bam {output}"""
+
+    
 rule split_by_chrom:
     input:
-        "sorted/{sample}.bam"
+        "{sample}/{sample}.bam"
     output:
-        "split/{sample}_{chrom}.bam"
+        temp("{sample}/{sample}_{chrom}.bam")
     shell:
         "samtools view -b {input} > {output}"
  
 rule samtools_index:
     input:
-        "sorted/{sample}.bam"
+        "{sample}/{sample}.bam"
     output:
-        "sorted/{sample}.bam.bai"
+        "{sample}/{sample}.bam.bai"
     shell:
         "samtools index {input} > {output}"
 
@@ -53,7 +106,7 @@ rule samtools_sort:
     input:
         "test_data/{sample}.bam"
     output:
-        "sorted/{sample}.bam"
+        temp("{sample}/{sample}.bam")
     shell:
         """
         samtools sort {input} {output}
