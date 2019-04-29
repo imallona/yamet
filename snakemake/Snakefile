@@ -1,27 +1,69 @@
 import os.path as op
 import glob
 
-CHROMS = ['chr' + str(c) for c in range(1, 5)]
+# configfile: "config.yaml"
+# validate(config, "config.schema.yaml")
+
+## yaml tests start ##########
+
+import yaml
+
+# roadmap ids
+# https://egg2.wustl.edu/roadmap/web_portal/meta.html
+# https://egg2.wustl.edu/roadmap/web_portal/chr_state_learning.html
+# 15 states HMM
+
+config = """
+ENCFF112TXF:
+ exp: https://www.encodeproject.org/experiments/ENCSR888FON/'
+ bam: https://www.encodeproject.org/files/ENCFF112TXF/@@download/ENCFF112TXF.bam
+ assembly: GRCh38
+ genotype: IMR90
+ replicate: 1
+ sequencing: single
+ roadmap_id: E017
+ roadmap_hmm: https://egg2.wustl.edu/roadmap/data/byFileType/chromhmmSegmentations/ChmmModels/coreMarks/jointModel/final/E017_15_coreMarks_hg38lift_mnemonics.bed.gz
+
+ENCFF957OIM:
+ exp: https://www.encodeproject.org/experiments/ENCSR881XOU/
+ bam: https://www.encodeproject.org/files/ENCFF957OIM/@@download/ENCFF957OIM.bam
+ assembly: GRCh38
+ genotype: HepG2
+ replicate : 1
+ sequencing: paired
+ roadmap_id : E118
+ roadmap_hmm: https://egg2.wustl.edu/roadmap/data/byFileType/chromhmmSegmentations/ChmmModels/coreMarks/jointModel/final/E118_15_coreMarks_hg38lift_mnemonics.bed.gz
+
+ENCFF572KNK :
+ exp: https://www.encodeproject.org/experiments/ENCSR881XOU/
+ bam: https://www.encodeproject.org/files/ENCFF572KNK/@@download/ENCFF572KNK.bam
+ assembly: GRCh38
+ genotype: HepG2
+ replicate : 2
+ sequencing: paired
+ roadmap_id : E118
+ roadmap_hmm: https://egg2.wustl.edu/roadmap/data/byFileType/chromhmmSegmentations/ChmmModels/coreMarks/jointModel/final/E118_15_coreMarks_hg38lift_mnemonics.bed.gz
+"""
+
+config = yaml.load(config)
+# print(config)
+
+
+## yaml tests end ###########
+
+
+CHROMS = ['chr' + str(c) for c in range(19)]
+MINCOVERAGE = 1
 
 SAMPLES = glob.glob(op.join('test_data', '*.bam'))
 
 BAMS = {op.splitext(op.basename(sample))[0] : sample for sample in SAMPLES}
-# SORTED = {sample : op.join(sample, 'sorted', sample + '.bam') for sample in BAMS.keys()}
-# INDEXED =  {sample : op.join(sample,  sample + '.bam.bai') for sample in BAMS.keys()}
-# SPLIT =  expand("{sample}/{sample}_{chrom}.bam",
-#             sample =  BAMS.keys(),
-#             chrom = CHROMS)
-# # SORTED_QN = {sample : op.join(sample, 'split', sample + '_qn_sorted.bam') for sample in BAMS.keys()}
-
-# SORTED_QN =  expand("{sample}/qnsorted_{sample}_{chrom}.bam",
-#                     sample =  BAMS.keys(),
-#                     chrom = CHROMS)
 
 METHTUPLE = expand("{sample}/qnsorted_{sample}_{chrom}.CG.2.tsv",
                     sample =  BAMS.keys(),
                     chrom = CHROMS)
 
-MINCOVERAGE = 1
+
 
 AWK = expand("{sample}/qnsorted_{sample}_{chrom}.CG.2_cov_{cov}.tsv",
                     sample =  BAMS.keys(),
@@ -48,25 +90,16 @@ KNITTED_REPORT = expand("{sample}/01_data_visualization_{sample}_cov_{cov}.html"
                         cov = MINCOVERAGE)
                         
 
+# HMMS_TO_DOWNLOAD = expand("hmms/hmm_{encode}",
+#                           encode = [op.basename(config[sample]['roadmap_hmm']) for sample in config.keys()])
+
 print(CHROMS)
 print(SAMPLES)
-# print(SORTED)
-# print(INDEXED)
-# print(SPLIT)
-# print(SORTED_QN)
-# print(AWK)
-# print(INDEXED)
+print(HMMS_TO_DOWNLOAD)
 
 rule all:
     input:
-        # INDEXED.values(), SPLIT, SORTED_QN, METHTUPLE\
-            # METHTUPLE,  AWK, MERGED_ENTROPY, MERGED_METHYLATION
         MERGED_ENTROPY, MERGED_METHYLATION, KNITTED_REPORT
-# rule get_entropy:
-#        input:
-#            output:
-#                shell:
-
 
 rule knit_report:
     input:
@@ -77,6 +110,16 @@ rule knit_report:
     script:
         "scripts/01_data_visualization.Rmd"
 
+
+## for this proper hmm must be downloaded
+rule annotate_to_hmm:
+    input:
+        "{sample}/{sample}_cov_{MINCOVERAGE}_entropy.bed.gz"
+    output:
+        "{sample}/{sample}_cov_{MINCOVERAGE}_entropy_colored.bed.gz"
+    shell:
+        "echo 'todo' > {output}"
+        
 rule merge_methylations:
     input:
         METHYLATIONS
@@ -199,4 +242,11 @@ rule samtools_sort:
         samtools index {output}
         """
 
-
+# rule download_hmm:
+#     # input:
+#     #     [config[sample]['roadmap_hmm'] for sample in config.keys()]
+#     output:
+#         "{encode}"
+#     shell:
+#         "wget --quiet {output} -O hmm/{output}"
+        
