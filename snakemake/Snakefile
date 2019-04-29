@@ -36,6 +36,18 @@ METHYLATIONS = expand("{sample}/qnsorted_{sample}_{chrom}_cov_{cov}_methylation.
                     chrom = CHROMS,
                     cov = MINCOVERAGE)
 
+MERGED_ENTROPY = expand( "{sample}/{sample}_cov_{cov}_entropy.bed.gz",
+                           sample = BAMS.keys(),
+                           cov = MINCOVERAGE)
+MERGED_METHYLATION = expand( "{sample}/{sample}_cov_{cov}_methylation.bed.gz",
+                              sample = BAMS.keys(),
+                              cov = MINCOVERAGE)
+
+KNITTED_REPORT = expand("{sample}/01_data_visualization_{sample}_cov_{cov}.html",
+                        sample = BAMS.keys(),
+                        cov = MINCOVERAGE)
+                        
+
 print(CHROMS)
 print(SAMPLES)
 # print(SORTED)
@@ -48,19 +60,44 @@ print(SAMPLES)
 rule all:
     input:
         # INDEXED.values(), SPLIT, SORTED_QN, METHTUPLE\
-        METHTUPLE,  AWK, ENTROPIES, METHYLATIONS
-
+            # METHTUPLE,  AWK, MERGED_ENTROPY, MERGED_METHYLATION
+        MERGED_ENTROPY, MERGED_METHYLATION, KNITTED_REPORT
 # rule get_entropy:
 #        input:
 #            output:
 #                shell:
 
 
+rule knit_report:
+    input:
+        MERGED_ENTROPY, MERGED_METHYLATION
+        
+    output:
+        "{sample}/01_data_visualization_{sample}_cov_{cov}.html"
+    script:
+        "scripts/01_data_visualization.Rmd"
+
+rule merge_methylations:
+    input:
+        METHYLATIONS
+    output:
+        "{sample}/{sample}_cov_{MINCOVERAGE}_methylation.bed.gz"
+    shell:
+        "cat {input} | bedtools sort | gzip > {output}"
+        
+rule merge_entropies:
+    input:
+        ENTROPIES
+    output:
+        "{sample}/{sample}_cov_{MINCOVERAGE}_entropy.bed.gz"
+    shell:
+        "cat {input} | bedtools sort | gzip > {output}"
+        
 rule get_methylation:
     input:
         "{sample}/qnsorted_{sample}_{chrom}.CG.2_cov_{MINCOVERAGE}.tsv"
     output:
-        "{sample}/qnsorted_{sample}_{chrom}_cov_{MINCOVERAGE}_methylation.bed"
+        temp("{sample}/qnsorted_{sample}_{chrom}_cov_{MINCOVERAGE}_methylation.bed")
     shell:
         """
         awk '
@@ -76,7 +113,7 @@ rule get_entropy:
     input:
         "{sample}/qnsorted_{sample}_{chrom}.CG.2_cov_{MINCOVERAGE}.tsv"
     output:
-        "{sample}/qnsorted_{sample}_{chrom}_cov_{MINCOVERAGE}_entropy.bed"
+        temp("{sample}/qnsorted_{sample}_{chrom}_cov_{MINCOVERAGE}_entropy.bed")
     shell:
         """
         awk '
@@ -106,7 +143,7 @@ rule filter_by_coverage:
        input:
            "{sample}/qnsorted_{sample}_{chrom}.CG.2.tsv"
        output:
-           "{sample}/qnsorted_{sample}_{chrom}.CG.2_cov_{MINCOVERAGE}.tsv"
+           temp("{sample}/qnsorted_{sample}_{chrom}.CG.2_cov_{MINCOVERAGE}.tsv")
        shell:
            """
            awk -v mincov="{MINCOVERAGE}" '
