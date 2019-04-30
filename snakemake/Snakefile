@@ -8,6 +8,8 @@ import glob
 
 import yaml
 
+print('note the bamfiles are retrieved using 01_encode_bulk_run, and that the hmm segmentations as well')
+
 # roadmap ids
 # https://egg2.wustl.edu/roadmap/web_portal/meta.html
 # https://egg2.wustl.edu/roadmap/web_portal/chr_state_learning.html
@@ -52,12 +54,17 @@ config = yaml.load(config)
 ## yaml tests end ###########
 
 
-CHROMS = ['chr' + str(c) for c in range(19)]
-MINCOVERAGE = 1
+# CHROMS = ['chr' + str(c) for c in range(18,19)]
+CHROMS = ['chr19']
+MINCOVERAGE = 20
 
 SAMPLES = glob.glob(op.join('test_data', '*.bam'))
 
 BAMS = {op.splitext(op.basename(sample))[0] : sample for sample in SAMPLES}
+# HMMS = [op.splitext(op.basename(hmm))[0] for hmm in glob.glob(op.join('hmm', '*.gz'))]
+
+HMMS = {op.splitext(op.basename(hmm))[0] : hmm for hmm in glob.glob(op.join('hmm', '*.gz'))}
+
 
 METHTUPLE = expand("{sample}/qnsorted_{sample}_{chrom}.CG.2.tsv",
                     sample =  BAMS.keys(),
@@ -88,18 +95,27 @@ MERGED_METHYLATION = expand( "{sample}/{sample}_cov_{cov}_methylation.bed.gz",
 KNITTED_REPORT = expand("{sample}/01_data_visualization_{sample}_cov_{cov}.html",
                         sample = BAMS.keys(),
                         cov = MINCOVERAGE)
-                        
 
-# HMMS_TO_DOWNLOAD = expand("hmms/hmm_{encode}",
+COLORED = expand( "{sample}/{sample}_cov_{cov}_entropy_hmm_{hmm}",
+                  sample = BAMS.keys(),
+                  hmm = HMMS.keys(),
+                  cov = MINCOVERAGE)
+                        
+## expanding the matrix the most, even to colors that are not the ones that match the genotype
+## (just to get a negative control)
+# HMMS_TO_INTERSECT = expand("{sample}/{hmm}_{sample}",
 #                           encode = [op.basename(config[sample]['roadmap_hmm']) for sample in config.keys()])
 
 print(CHROMS)
 print(SAMPLES)
-print(HMMS_TO_DOWNLOAD)
+print(HMMS)
+print(COLORED)
+# print(HMMS_TO_DOWNLOAD)
 
 rule all:
     input:
-        MERGED_ENTROPY, MERGED_METHYLATION, KNITTED_REPORT
+        AWK, METHTUPLE, ENTROPIES, METHYLATIONS, MERGED_ENTROPY, MERGED_METHYLATION,
+        KNITTED_REPORT, COLORED
 
 rule knit_report:
     input:
@@ -111,15 +127,20 @@ rule knit_report:
         "scripts/01_data_visualization.Rmd"
 
 
-## for this proper hmm must be downloaded
-rule annotate_to_hmm:
+## for this proper hmm must be downloaded @todo check the shell step
+rule annotate_entropies_to_hmm:
     input:
-        "{sample}/{sample}_cov_{MINCOVERAGE}_entropy.bed.gz"
+        # "{sample}/{sample}_cov_{MINCOVERAGE}_entropy"
+        MERGED_ENTROPY, "hmm/{hmm}.gz"
     output:
-        "{sample}/{sample}_cov_{MINCOVERAGE}_entropy_colored.bed.gz"
+        "{sample}/{sample}_cov_{MINCOVERAGE}_entropy_hmm_{hmm}"
     shell:
-        "echo 'todo' > {output}"
-        
+        """ bedtools intersect -wa -wb \
+              -a {sample}/{sample}_cov_{MINCOVERAGE}_entropy.bed.gz \
+              -b {hmm} | \
+        bedtools groupby -g 1-6 -c 10 -o concat > \
+        {output}"""
+        # """ touch  {output}"""
 rule merge_methylations:
     input:
         METHYLATIONS
@@ -217,8 +238,8 @@ rule sort_by_queryname:
         
     shell:
         """
-        samtools sort -n {input} {output}
-        mv {output}.bam {output}"""
+        samtools sort -n {input} -o {output}
+        # mv {output}.bam {output}"""
 
     
 rule split_by_chrom:
@@ -237,8 +258,8 @@ rule samtools_sort:
         temp("{sample}/{sample}.bam")
     shell:
         """
-        samtools sort {input} {output}
-        mv {output}.bam {output}
+        samtools sort {input} -o {output}
+        # mv {output}.bam {output}
         samtools index {output}
         """
 
