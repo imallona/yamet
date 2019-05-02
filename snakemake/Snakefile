@@ -1,4 +1,5 @@
-import os.path as op
+# import os.path as op
+import os
 import glob
 
 # configfile: "config.yaml"
@@ -58,12 +59,14 @@ config = yaml.load(config)
 CHROMS = ['chr19']
 MINCOVERAGE = 20
 
-SAMPLES = glob.glob(op.join('test_data', '*.bam'))
+SAMPLES = glob.glob(os.path.join('test_data', '*.bam'))
 
-BAMS = {op.splitext(op.basename(sample))[0] : sample for sample in SAMPLES}
-# HMMS = [op.splitext(op.basename(hmm))[0] for hmm in glob.glob(op.join('hmm', '*.gz'))]
+BAMS = {os.path.splitext(os.path.basename(sample))[0] : sample for sample in SAMPLES}
+# HMMS = [os.path.splitext(os.path.basename(hmm))[0] for hmm in glob.glob(os.path.join('hmm', '*.gz'))]
 
-HMMS = {op.splitext(op.basename(hmm))[0] : hmm for hmm in glob.glob(op.join('hmm', '*.gz'))}
+# HMMS = {os.path.splitext(os.path.basename(hmm))[0] : hmm for hmm in glob.glob(os.path.join('hmm', '*.gz'))}
+HMMS = {os.path.basename(hmm).split(os.extsep,1)[0] : hmm for hmm in glob.glob(os.path.join('hmm', '*.gz'))}
+
 
 
 METHTUPLE = expand("{sample}/qnsorted_{sample}_{chrom}.CG.2.tsv",
@@ -92,19 +95,25 @@ MERGED_METHYLATION = expand( "{sample}/{sample}_cov_{cov}_methylation.bed.gz",
                               sample = BAMS.keys(),
                               cov = MINCOVERAGE)
 
-KNITTED_REPORT = expand("{sample}/01_data_visualization_{sample}_cov_{cov}.html",
-                        sample = BAMS.keys(),
-                        cov = MINCOVERAGE)
+# KNITTED_REPORT = expand("{sample}/01_data_visualization_{sample}_cov_{cov}_hmm_{hmm}.html",
+#                         sample = BAMS.keys(),
+#                         cov = MINCOVERAGE,
+#                         hmm = HMMS.keys())
 
-COLORED = expand( "{sample}/{sample}_cov_{cov}_entropy_hmm_{hmm}",
+COLORED = expand( "{sample}/{sample}_cov_{cov}_entropy_hmm_{hmm}.bed.gz",
                   sample = BAMS.keys(),
-                  hmm = HMMS.keys(),
-                  cov = MINCOVERAGE)
-                        
+                  cov = MINCOVERAGE,
+                  hmm = HMMS.keys())
+
+R_OUTS = expand( "{sample}/{sample}_cov_{cov}_hmm_{hmm}.test",
+                  sample = BAMS.keys(),
+                  cov = MINCOVERAGE,
+                  hmm = HMMS.keys())
+
 ## expanding the matrix the most, even to colors that are not the ones that match the genotype
 ## (just to get a negative control)
 # HMMS_TO_INTERSECT = expand("{sample}/{hmm}_{sample}",
-#                           encode = [op.basename(config[sample]['roadmap_hmm']) for sample in config.keys()])
+#                           encode = [os.path.basename(config[sample]['roadmap_hmm']) for sample in config.keys()])
 
 print(CHROMS)
 print(SAMPLES)
@@ -115,32 +124,41 @@ print(COLORED)
 rule all:
     input:
         AWK, METHTUPLE, ENTROPIES, METHYLATIONS, MERGED_ENTROPY, MERGED_METHYLATION,
-        KNITTED_REPORT, COLORED
+        COLORED, R_OUTS
 
 rule knit_report:
     input:
-        MERGED_ENTROPY, MERGED_METHYLATION
-        
+        # MERGED_ENTROPY, MERGED_METHYLATION
+        colored_entropy =  "{sample}/{sample}_cov_{cov}_entropy_hmm_{hmm}.bed.gz",
+        rmd_script = 'scripts/01_data_visualization.Rmd'
     output:
-        "{sample}/01_data_visualization_{sample}_cov_{cov}.html"
+        # "{sample}/01_data_visualization_{sample}_cov_{cov}_hmm_{hmm}.html"
+        "{sample}/{sample}_cov_{cov}_hmm_{hmm}.test"
+    # script:
+    #     "scripts/01_data_visualization.Rmd"
+    # shell:
+        # '''R CMD BATCH --no-restore --no-save -e "rmarkdown::render({input.rmd_script})" '''
+        # '''R CMD BATCH --no-restore --no-save 
     script:
-        "scripts/01_data_visualization.Rmd"
+        "scripts/report.R"
 
 
 ## for this proper hmm must be downloaded @todo check the shell step
 rule annotate_entropies_to_hmm:
     input:
         # "{sample}/{sample}_cov_{MINCOVERAGE}_entropy"
-        MERGED_ENTROPY, "hmm/{hmm}.gz"
+        entropy =  "{sample}/{sample}_cov_{MINCOVERAGE}_entropy.bed.gz",
+        hmm = "hmm/{hmm}.bed.gz"
     output:
-        "{sample}/{sample}_cov_{MINCOVERAGE}_entropy_hmm_{hmm}"
+        "{sample}/{sample}_cov_{MINCOVERAGE}_entropy_hmm_{hmm}.bed.gz"
     shell:
         """ bedtools intersect -wa -wb \
-              -a {sample}/{sample}_cov_{MINCOVERAGE}_entropy.bed.gz \
-              -b {hmm} | \
-        bedtools groupby -g 1-6 -c 10 -o concat > \
+              -a {input.entropy} \
+              -b {input.hmm} | \
+        bedtools groupby -g 1-6 -c 10 -o concat | gzip > \
         {output}"""
         # """ touch  {output}"""
+        
 rule merge_methylations:
     input:
         METHYLATIONS
