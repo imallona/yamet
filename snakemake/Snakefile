@@ -46,6 +46,46 @@ ENCFF572KNK :
  sequencing: paired
  roadmap_id : E118
  roadmap_hmm: https://egg2.wustl.edu/roadmap/data/byFileType/chromhmmSegmentations/ChmmModels/coreMarks/jointModel/final/E118_15_coreMarks_hg38lift_mnemonics.bed.gz
+
+ENCFF193RVP :
+ exp: https://www.encodeproject.org/experiments/ENCSR550RTN/
+ bam: https://www.encodeproject.org/files/ENCFF193RVP/@@download/ENCFF193RVP.bam
+ assembly: GRCh38
+ genotype: HeLa-S3
+ replicate : 1
+ sequencing: paired
+ roadmap_id: E117
+ roadmap_hmm: https://egg2.wustl.edu/roadmap/data/byFileType/chromhmmSegmentations/ChmmModels/coreMarks/jointModel/final/E117_15_coreMarks_hg38lift_mnemonics.bed.gz
+
+ENCFF845VFH :
+ exp: https://www.encodeproject.org/experiments/ENCSR550RTN/
+ bam: https://www.encodeproject.org/files/ENCFF845VFH/@@download/ENCFF845VFH.bam
+ assembly: GRCh38
+ genotype: HeLa-S3
+ replicate: 2
+ sequencing: paired
+ roadmap_id: E117
+ roadmap_hmm: https://egg2.wustl.edu/roadmap/data/byFileType/chromhmmSegmentations/ChmmModels/coreMarks/jointModel/final/E117_15_coreMarks_hg38lift_mnemonics.bed.gz
+
+ENCFF079RGH :
+ exp: https://www.encodeproject.org/experiments/ENCSR440MLE/
+ bam: https://www.encodeproject.org/files/ENCFF079RGH/@@download/ENCFF079RGH.bam
+ assembly : GRCh38
+ genotype: GM23248
+ replicate: 1
+ sequencing: paired
+ roadmap_id : E126
+ roadmap_hmm : https://egg2.wustl.edu/roadmap/data/byFileType/chromhmmSegmentations/ChmmModels/coreMarks/jointModel/final/E126_15_coreMarks_hg38lift_mnemonics.bed.gz
+
+ENCFF119ELB :
+ exp : https://www.encodeproject.org/experiments/ENCSR440MLE/
+ bam : https://www.encodeproject.org/files/ENCFF119ELB/@@download/ENCFF119ELB.bam
+ assembly : GRCh38
+ genotype: GM23248
+ replicate: 2
+ sequencing: paired
+ roadmap_id : E126
+ roadmap_hmm : https://egg2.wustl.edu/roadmap/data/byFileType/chromhmmSegmentations/ChmmModels/coreMarks/jointModel/final/E126_15_coreMarks_hg38lift_mnemonics.bed.gz
 """
 
 config = yaml.load(config)
@@ -123,22 +163,18 @@ print(COLORED)
 
 rule all:
     input:
-        AWK, METHTUPLE, ENTROPIES, METHYLATIONS, MERGED_ENTROPY, MERGED_METHYLATION,
+        BAMS, AWK, METHTUPLE, ENTROPIES, METHYLATIONS, MERGED_ENTROPY, MERGED_METHYLATION,
         COLORED, R_OUTS
 
 rule knit_report:
     input:
-        # MERGED_ENTROPY, MERGED_METHYLATION
         colored_entropy =  "{sample}/{sample}_cov_{cov}_entropy_hmm_{hmm}.bed.gz",
+        colored_methylation = "{sample}/{sample}_cov_{cov}_methylation_hmm_{hmm}.bed.gz",
         rmd_script = 'scripts/01_data_visualization.Rmd'
+    log:
+         "{sample}/{sample}_cov_{cov}_hmm_{hmm}_report.log"
     output:
-        # "{sample}/01_data_visualization_{sample}_cov_{cov}_hmm_{hmm}.html"
         "{sample}/{sample}_cov_{cov}_hmm_{hmm}.test"
-    # script:
-    #     "scripts/01_data_visualization.Rmd"
-    # shell:
-        # '''R CMD BATCH --no-restore --no-save -e "rmarkdown::render({input.rmd_script})" '''
-        # '''R CMD BATCH --no-restore --no-save 
     script:
         "scripts/report.R"
 
