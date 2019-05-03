@@ -1,5 +1,6 @@
 #!/bin/env R
 ##
+## sample-based meth report
 ## Izaskun Mallona
 ##
 ## Thu May  2 2019
@@ -36,21 +37,19 @@ beta2m <- function(beta) {
 
 ########
 
-d <- list()
-
-d$entropy <- fread(file.path(snakemake@widlcards$sample,
-                             sprintf('%s_cov_%s_entropy_hmm_%s.bed.gz',
-                                     snakemake@widlcards$sample,
+d <- fread(file.path(snakemake@wildcards$sample,
+                             sprintf('%s_cov_%s_entropy_and_meth_hmm_%s.bed.gz',
+                                     snakemake@wildcards$sample,
                                      snakemake@wildcards$cov,
                                      snakemake@wildcards$hmm)))
 
 
-d$meth <- fread(file.path(snakemake@widlcards$sample,
-                          sprintf('%s_cov_%s_methylation_hmm_%s.bed.gz',
-                                  snakemake@widlcards$sample,
-                                  snakemake@wildcards$cov,
-                                  snakemake@wildcards$hmm)))
+## d$meth <- fread(file.path(snakemake@wildcards$sample,
+##                           sprintf('%s_cov_%s_methylation.bed.gz',
+##                                   snakemake@wildcards$sample,
+##                                   snakemake@wildcards$cov)))
 
+## stopifnot(nrow(d$meth) == nrow(d$entropy))
 
 hmm_colors <- c('13_ReprPC', '1_TssA', '4_Tx', '14_ReprPCWk',
                 '2_TssAFlnk',
@@ -65,22 +64,97 @@ hmm_colors <- c('13_ReprPC', '1_TssA', '4_Tx', '14_ReprPCWk',
                 '10_TssBiv',
                 '12_EnhBiv')
 
-d$merged <- data.frame(pos1 = d$entropy$V2,
-                           pos2 =  d$entropy$V3,
-                           name = d$entropy$V4,
-                           entropy = d$entropy$V5,
-                           strand = d$entropy$V6,
-                           hmm = d$entropy$V7,
-                           beta = d$meth$V5)
+colnames(d) <- c('chr', 'start', 'end', 'name', 'entropy', 'strand', 'beta', 'hmm')
 
-d$merged$beta <- d$merged$beta/1000
+d$beta <- d$beta/1000
 
-d$merged$coverage <- sapply(strsplit(as.character(gsub('[^0-9;]', '', d$merged$name)), ';'),
+d$coverage <- sapply(strsplit(as.character(gsub('[^0-9;]', '', d$name)), ';'),
        function(x) sum(as.numeric(x)))
 
-d$merged$m <- beta2m(d$merged$beta)
-d$merged$distance <- d$merged$pos2 - d$merged$pos1
-d$merged$log10dist <- log10(d$merged$distance)
+## d$m <- beta2m(d$beta)
+## d$distance <- d$end - d$start
+## d$log10dist <- log10(d$distance)
+
+
+## reports
+
+wd <- file.path(snakemake@wildcards$sample, 'reports')
+dir.create(wd, showWarnings = FALSE)
+
+
+## report 1 max entropies   ##############################################################
+
+if (nrow(d) > 10000) {
+    set.seed(4)
+    
+    idx <- sample(1:nrow(d), 10000)
+
+    sampled <- d[idx,]
+} else
+    sampled <- d
+
+
+sampled$pU <- (sampled$cov - (sampled$cov * sampled$beta))/sampled$cov
+sampled$pM <- 1 - sampled$pU
+
+sampled$max_entropy <- apply(data.frame(pUU = sampled$pU^2,
+                                        pUM = sampled$pU * sampled$pM,
+                                        pMU = sampled$pU * sampled$pM,
+                                        pMM = sampled$pM^2),
+                             1, entropy)
+
+
+sampled$min_entropy_full <- apply(data.frame(pUU = sampled$pU,
+                                             pUM = 0,
+                                             pMU = 0,
+                                             pMM = sampled$pM),
+                                  1, entropy)
+
+
+sampled$min_entropy_beta <- apply(data.frame(pUU = 0,
+                                             pUM = abs(sampled$pM - sampled$pU)/2 ,
+                                             pMU =  0,
+                                             pMM = sampled$pM),
+                                  1, entropy)
+
+sampled$min_entropy_beta[sampled$beta >= 0.5] <- apply(data.frame(
+    pU = 0,
+    pUM = abs(d[sampled$beta >= 0.5,]$pM - d[sampled$beta >= 0.5,]$pU)/2 ,
+    pMU =  0,
+    pMM = d[sampled$beta >= 0.5,]$pU),
+    1,
+    entropy)
+
+
+sampled$lower_bound <- apply(d[,c('min_entropy_full', 'min_entropy_beta')], 1, min)
+
+png(file.path(wd, sprintf('std_bounds.png')))
+par(cex.axis = 1.4,
+    cex.lab = 1.4,
+    cex.main = 1.4,
+    cex.sub = 1.4,
+    pty = "s",
+    mar=c(5.1,4.1,4.1,2.1),
+    oma = c(4, 4, 1, 1))
+
+plot(sampled$beta, sampled$entropy, pch = 19, col = ac('black', 0.5),
+     xlab = sprintf('%s %s methylation (beta value)', samples_dict[item, 'description'],
+                    item),
+     ylab = "Shannon's entropy (H)" )
+lines(sampled$beta, sampled$max_entropy, col = 'darkred', type = 'p', pch = 4, cex = 1)
+lines(sampled$beta, sampled$lower_bound, col = 'darkblue', type = 'p', pch = 4, cex = 1)
+
+legend('topright',
+       col = c('black', 'darkred', 'darkblue'),
+       pch = c(19, 4, 4),
+       legend = c('observation', TeX('$H_{max}$'), TeX('$H_{min}$')))
+
+dev.off()
+
+rm(sampled)
+
+## report 1 max entropies end  ##############################################################
+
 
 
 

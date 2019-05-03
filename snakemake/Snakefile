@@ -140,7 +140,7 @@ MERGED_METHYLATION = expand( "{sample}/{sample}_cov_{cov}_methylation.bed.gz",
 #                         cov = MINCOVERAGE,
 #                         hmm = HMMS.keys())
 
-COLORED = expand( "{sample}/{sample}_cov_{cov}_entropy_hmm_{hmm}.bed.gz",
+COLORED = expand( "{sample}/{sample}_cov_{cov}_entropy_and_meth_hmm_{hmm}.bed.gz",
                   sample = BAMS.keys(),
                   cov = MINCOVERAGE,
                   hmm = HMMS.keys())
@@ -163,13 +163,11 @@ print(COLORED)
 
 rule all:
     input:
-        BAMS, AWK, METHTUPLE, ENTROPIES, METHYLATIONS, MERGED_ENTROPY, MERGED_METHYLATION,
-        COLORED, R_OUTS
-
-rule knit_report:
+        # BAMS, AWK, METHTUPLE, ENTROPIES, METHYLATIONS, MERGED_ENTROPY, MERGED_METHYLATION, COLORED#, R_OUTS
+        COLORED
+rule run_sample_report:
     input:
-        colored_entropy =  "{sample}/{sample}_cov_{cov}_entropy_hmm_{hmm}.bed.gz",
-        colored_methylation = "{sample}/{sample}_cov_{cov}_methylation_hmm_{hmm}.bed.gz",
+        colored_entropy =  "{sample}/{sample}_cov_{cov}_entropy_and_meth_hmm_{hmm}.bed.gz",
         rmd_script = 'scripts/01_data_visualization.Rmd'
     log:
          "{sample}/{sample}_cov_{cov}_hmm_{hmm}_report.log"
@@ -178,15 +176,14 @@ rule knit_report:
     script:
         "scripts/report.R"
 
-
 ## for this proper hmm must be downloaded @todo check the shell step
 rule annotate_entropies_to_hmm:
     input:
         # "{sample}/{sample}_cov_{MINCOVERAGE}_entropy"
-        entropy =  "{sample}/{sample}_cov_{MINCOVERAGE}_entropy.bed.gz",
+        entropy =  "{sample}/{sample}_cov_{MINCOVERAGE}_entropy_and_meth.bed.gz",
         hmm = "hmm/{hmm}.bed.gz"
     output:
-        "{sample}/{sample}_cov_{MINCOVERAGE}_entropy_hmm_{hmm}.bed.gz"
+        "{sample}/{sample}_cov_{MINCOVERAGE}_entropy_and_meth_hmm_{hmm}.bed.gz"
     shell:
         """ bedtools intersect -wa -wb \
               -a {input.entropy} \
@@ -194,7 +191,28 @@ rule annotate_entropies_to_hmm:
         bedtools groupby -g 1-6 -c 10 -o concat | gzip > \
         {output}"""
         # """ touch  {output}"""
+
+
         
+rule add_methylation_to_entropy_file:
+    input:
+        methylation = "{sample}/{sample}_cov_{MINCOVERAGE}_methylation.bed.gz",
+        entropy = "{sample}/{sample}_cov_{MINCOVERAGE}_entropy.bed.gz"
+    output:
+        "{sample}/{sample}_cov_{MINCOVERAGE}_entropy_and_meth.bed.gz"
+    shell:
+        """
+        command=paste
+        for i in {input.methylation} {input.entropy}
+        do
+          command="$command <(gzip -cd $i)"
+        done
+  
+        eval $command | cut -f1-6,11 | gzip > tmp
+        mv tmp {output}
+        """
+
+                
 rule merge_methylations:
     input:
         METHYLATIONS
