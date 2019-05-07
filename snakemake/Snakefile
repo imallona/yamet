@@ -98,6 +98,7 @@ config = yaml.load(config)
 
 ## yaml tests end ###########
 
+Rbin = "/home/imallona/soft/R/R-3.5.1/bin/R"
 
 # CHROMS = ['chr' + str(c) for c in range(17,19)]
 CHROMS = ['chr19']
@@ -155,24 +156,30 @@ R_OUTS = expand( "{sample}/{sample}_cov_{cov}_hmm_{hmm}.test",
                   cov = MINCOVERAGE,
                   hmm = HMMS.keys())
 
+
+
 print(ENTROPIES)
 print(METHYLATIONS)
 
 rule all:
     input:
         # BAMS, AWK, METHTUPLE, ENTROPIES, METHYLATIONS, MERGED_ENTROPY, MERGED_METHYLATION, COLORED#, R_OUTS
-        AWK, METHTUPLE, MERGED_METHYLATION, MERGED_ENTROPY, COLORED
+        AWK, METHTUPLE, MERGED_METHYLATION, MERGED_ENTROPY, COLORED, R_OUTS
         
 rule run_sample_report:
     input:
         colored_entropy =  "{sample}/{sample}_cov_{cov}_entropy_and_meth_hmm_{hmm}.bed.gz",
-        rmd_script = 'scripts/01_data_visualization.Rmd'
+        script = 'scripts/report.R'
     log:
          "{sample}/{sample}_cov_{cov}_hmm_{hmm}_report.log"
     output:
         "{sample}/{sample}_cov_{cov}_hmm_{hmm}.test"
-    script:
-        "scripts/report.R"
+    # script:
+    #     "scripts/report.R"
+    shell:
+        '''{Rbin} CMD BATCH --no-restore --no-save \
+        "--args colored_entropy='{input.colored_entropy}' \
+        output='{output}'" {input.script} {log}'''
 
 ## for this proper hmm must be downloaded @todo check the shell step
 rule annotate_entropies_to_hmm:
@@ -186,7 +193,7 @@ rule annotate_entropies_to_hmm:
         """ bedtools intersect -wa -wb \
               -a {input.entropy} \
               -b {input.hmm} | \
-        bedtools groupby -g 1-6 -c 10 -o concat | gzip > \
+        bedtools groupby -g 1-7 -c 11 -o concat | gzip > \
         {output}"""
         # """ touch  {output}"""
 
@@ -202,13 +209,12 @@ rule add_methylation_to_entropy_file:
         """
         # merge
         command=paste
-        for i in {input.methylation} {input.entropy}
+        for i in {input.entropy} {input.methylation}
         do
           command="$command <(gzip -cd $i)"
         done
   
-        eval $command | cut -f1-6,11 | gzip > tmp
-        mv tmp {output}
+        eval $command | cut -f1-6,11 | gzip > {output}
         """
 
 rule merge_methylations:
@@ -239,7 +245,7 @@ rule get_methylation:
 BEGIN {{OFS=FS="\t"}}
 NR == 1 {{next}}
 {{
-  print $1,$3,$4,"MM"$5";MU"$6";UM"$7";UU"$8,(($5+(0.5*$6)+(0.5*$7))/($5+$6+$7+$8))*1000,$2
+  print $1,$3,$4,"MM"$5";MU"$6";UM"$7";UU"$8,(($5+(0.5*$6)+(0.5*$7))/($5+$6+$7+$8)),$2
 }}' {input} > {output}
 """
    

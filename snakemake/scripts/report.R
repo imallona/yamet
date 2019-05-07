@@ -9,19 +9,28 @@ suppressPackageStartupMessages({
     library(data.table)
     library('latex2exp')
     library(entropy)
-    library(cramer)
-    library(Cairo)
-    library(knitr)
-    library(ggplot2)
-    library(RColorBrewer)
-    library(gridExtra)
-    library(data.table)
+    ## library(cramer)
+    ## library(Cairo)
+    ## library(knitr)
+    ## library(ggplot2)
+    ## library(RColorBrewer)
+    ## library(gridExtra)
     library(dplyr)
-    library(pheatmap)
-    library(ggExtra)
-    library(tidyverse)
-    library(viridis)
+    ## library(pheatmap)
+    ## library(ggExtra)
+    ## library(tidyverse)
+    ## library(viridis)
 })
+
+
+
+args <- (commandArgs(trailingOnly = TRUE))
+for (i in seq_len(length(args))) {
+    eval(parse(text = args[[i]]))
+}
+
+print(args)
+print(output)
 
 
 ac  <- function(col, alpha=1){
@@ -37,19 +46,23 @@ beta2m <- function(beta) {
 
 ########
 
-d <- fread(file.path(snakemake@wildcards$sample,
-                             sprintf('%s_cov_%s_entropy_and_meth_hmm_%s.bed.gz',
-                                     snakemake@wildcards$sample,
-                                     snakemake@wildcards$cov,
-                                     snakemake@wildcards$hmm)))
+
+## fn <-  file.path(snakemake@wildcards$sample,
+##                              sprintf('%s_cov_%s_hmm_%s.test',
+##                                      snakemake@wildcards$sample,
+##                                      snakemake@wildcards$cov,
+##                                      snakemake@wildcards$hmm))
+
+fn <- colored_entropy
+getwd()
+print(fn)
+
+system(sprintf('file %s', fn))
+
+d <- data.table::fread(file.path(getwd(), fn), sep = '\t')
 
 
-## d$meth <- fread(file.path(snakemake@wildcards$sample,
-##                           sprintf('%s_cov_%s_methylation.bed.gz',
-##                                   snakemake@wildcards$sample,
-##                                   snakemake@wildcards$cov)))
-
-## stopifnot(nrow(d$meth) == nrow(d$entropy))
+head(d)
 
 hmm_colors <- c('13_ReprPC', '1_TssA', '4_Tx', '14_ReprPCWk',
                 '2_TssAFlnk',
@@ -66,7 +79,7 @@ hmm_colors <- c('13_ReprPC', '1_TssA', '4_Tx', '14_ReprPCWk',
 
 colnames(d) <- c('chr', 'start', 'end', 'name', 'entropy', 'strand', 'beta', 'hmm')
 
-d$beta <- d$beta/1000
+## d$beta <- d$beta/1000 # not needed anylonger, now scores are unmodified
 
 d$coverage <- sapply(strsplit(as.character(gsub('[^0-9;]', '', d$name)), ';'),
        function(x) sum(as.numeric(x)))
@@ -78,7 +91,7 @@ d$coverage <- sapply(strsplit(as.character(gsub('[^0-9;]', '', d$name)), ';'),
 
 ## reports
 
-wd <- file.path(snakemake@wildcards$sample, 'reports')
+wd <- file.path(dirname(colored_entropy), 'reports')
 dir.create(wd, showWarnings = FALSE)
 
 
@@ -155,7 +168,9 @@ rm(sampled)
 
 ## report 1 max entropies end  ##############################################################
 
+## report 2 start
 
+## report 2 end
 
 
 ###
@@ -169,19 +184,17 @@ getwd()
 
 ## snakemake@source()
 
-fn <-  file.path(snakemake@wildcards$sample,
-                             sprintf('%s_cov_%s_hmm_%s.test',
-                                     snakemake@wildcards$sample,
-                                     snakemake@wildcards$cov,
-                                     snakemake@wildcards$hmm))
-print(fn)
 
-write.table(x = rnorm(1),
-            file = fn)
 
 date()
 sessionInfo()
 .libPaths()
 
 ## devtools::session_info()
+
+
+## snakemake success run
+write.table(x = rnorm(1),
+            file = output)
+
 
