@@ -1,7 +1,11 @@
+# todo
+# ensure the bam file is not empty after subset by chrom
+
+
 # import os.path as op
 import os
 import glob
-
+import re
 # configfile: "config.yaml"
 # validate(config, "config.schema.yaml")
 
@@ -95,9 +99,10 @@ config = yaml.load(config)
 ## yaml tests end ###########
 
 
-# CHROMS = ['chr' + str(c) for c in range(18,19)]
+# CHROMS = ['chr' + str(c) for c in range(17,19)]
 CHROMS = ['chr19']
 MINCOVERAGE = 20
+NTHREADS = 4
 
 SAMPLES = glob.glob(os.path.join('test_data', '*.bam'))
 
@@ -113,27 +118,27 @@ METHTUPLE = expand("{sample}/qnsorted_{sample}_{chrom}.CG.2.tsv",
                     sample =  BAMS.keys(),
                     chrom = CHROMS)
 
-
-
 AWK = expand("{sample}/qnsorted_{sample}_{chrom}.CG.2_cov_{cov}.tsv",
                     sample =  BAMS.keys(),
                     chrom = CHROMS,
                     cov = MINCOVERAGE)
-ENTROPIES = expand("{sample}/qnsorted_{sample}_{chrom}_cov_{cov}_entropy.bed",
-                    sample =  BAMS.keys(),
-                    chrom = CHROMS,
-                    cov = MINCOVERAGE)
-METHYLATIONS = expand("{sample}/qnsorted_{sample}_{chrom}_cov_{cov}_methylation.bed",
-                    sample =  BAMS.keys(),
-                    chrom = CHROMS,
-                    cov = MINCOVERAGE)
 
-MERGED_ENTROPY = expand( "{sample}/{sample}_cov_{cov}_entropy.bed.gz",
-                           sample = BAMS.keys(),
+METHYLATIONS =  {os.path.splitext(os.path.basename(sample))[0] : expand("{sample}/qnsorted_{sample}_{chrom}_cov_{cov}_methylation.bed",
+                    sample =  sample,
+                    chrom = CHROMS,
+                    cov = MINCOVERAGE) for sample in BAMS}
+
+ENTROPIES =  {os.path.splitext(os.path.basename(sample))[0] : expand("{sample}/qnsorted_{sample}_{chrom}_cov_{cov}_entropy.bed",
+                    sample =  sample,
+                    chrom = CHROMS,
+                    cov = MINCOVERAGE) for sample in BAMS}
+
+MERGED_ENTROPY = expand("{sample}/{sample}_cov_{cov}_entropy.bed.gz",
+                        sample = BAMS.keys(),
                            cov = MINCOVERAGE)
 MERGED_METHYLATION = expand( "{sample}/{sample}_cov_{cov}_methylation.bed.gz",
-                              sample = BAMS.keys(),
-                              cov = MINCOVERAGE)
+                             sample = BAMS.keys(),
+                             cov = MINCOVERAGE)
 
 # KNITTED_REPORT = expand("{sample}/01_data_visualization_{sample}_cov_{cov}_hmm_{hmm}.html",
 #                         sample = BAMS.keys(),
@@ -150,21 +155,14 @@ R_OUTS = expand( "{sample}/{sample}_cov_{cov}_hmm_{hmm}.test",
                   cov = MINCOVERAGE,
                   hmm = HMMS.keys())
 
-## expanding the matrix the most, even to colors that are not the ones that match the genotype
-## (just to get a negative control)
-# HMMS_TO_INTERSECT = expand("{sample}/{hmm}_{sample}",
-#                           encode = [os.path.basename(config[sample]['roadmap_hmm']) for sample in config.keys()])
-
-print(CHROMS)
-print(SAMPLES)
-print(HMMS)
-print(COLORED)
-# print(HMMS_TO_DOWNLOAD)
+print(ENTROPIES)
+print(METHYLATIONS)
 
 rule all:
     input:
         # BAMS, AWK, METHTUPLE, ENTROPIES, METHYLATIONS, MERGED_ENTROPY, MERGED_METHYLATION, COLORED#, R_OUTS
-        COLORED
+        AWK, METHTUPLE, MERGED_METHYLATION, MERGED_ENTROPY, COLORED
+        
 rule run_sample_report:
     input:
         colored_entropy =  "{sample}/{sample}_cov_{cov}_entropy_and_meth_hmm_{hmm}.bed.gz",
@@ -202,6 +200,7 @@ rule add_methylation_to_entropy_file:
         "{sample}/{sample}_cov_{MINCOVERAGE}_entropy_and_meth.bed.gz"
     shell:
         """
+        # merge
         command=paste
         for i in {input.methylation} {input.entropy}
         do
@@ -212,18 +211,18 @@ rule add_methylation_to_entropy_file:
         mv tmp {output}
         """
 
-                
 rule merge_methylations:
     input:
-        METHYLATIONS
+        lambda wildcards: METHYLATIONS[wildcards.sample]
     output:
-        "{sample}/{sample}_cov_{MINCOVERAGE}_methylation.bed.gz"
+        "{sample}/{sample}_cov_{cov}_methylation.bed.gz"
     shell:
         "cat {input} | bedtools sort | gzip > {output}"
-        
+
 rule merge_entropies:
+    priority: 70
     input:
-        ENTROPIES
+         lambda wildcards: ENTROPIES[wildcards.sample]
     output:
         "{sample}/{sample}_cov_{MINCOVERAGE}_entropy.bed.gz"
     shell:
@@ -243,8 +242,7 @@ NR == 1 {{next}}
   print $1,$3,$4,"MM"$5";MU"$6";UM"$7";UU"$8,(($5+(0.5*$6)+(0.5*$7))/($5+$6+$7+$8))*1000,$2
 }}' {input} > {output}
 """
-
-    
+   
 rule get_entropy:
     input:
         "{sample}/qnsorted_{sample}_{chrom}.CG.2_cov_{MINCOVERAGE}.tsv"
@@ -290,6 +288,7 @@ rule filter_by_coverage:
            """
                    
 rule run_meththuple:
+    priority: 80
     input:
         "{sample}/qnsorted_{sample}_{chrom}.bam"
     output:
@@ -301,36 +300,40 @@ rule run_meththuple:
         deactivate
         set -u;
         """
-    
+
 rule sort_by_queryname:
+    priority: 90
     input:
         "{sample}/{sample}_{chrom}.bam"
     output:
         temp("{sample}/qnsorted_{sample}_{chrom}.bam")
-        
+    threads: NTHREADS
     shell:
         """
-        samtools sort -n {input} -o {output}
+        samtools sort -@ {threads} -n {input} -o {output}
         # mv {output}.bam {output}"""
 
-    
 rule split_by_chrom:
     input:
         "{sample}/{sample}.bam"
         # lambda wildcards, attempt: attempt * 100
     output:
         temp("{sample}/{sample}_{chrom}.bam")
+    threads: NTHREADS
     shell:
-        "samtools view -b {input} {wildcards.chrom} > {output}"
+        "samtools view -@ {threads} -b {input} {wildcards.chrom} > {output}"
  
 rule samtools_sort:
+    priority: 100
+              
     input:
         "test_data/{sample}.bam"
     output:
         temp("{sample}/{sample}.bam")
+    threads : NTHREADS
     shell:
         """
-        samtools sort {input} -o {output}
+        samtools sort -@ {threads} {input} -o {output}
         # mv {output}.bam {output}
         samtools index {output}
         """
