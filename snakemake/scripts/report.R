@@ -23,14 +23,11 @@ suppressPackageStartupMessages({
 })
 
 
-
 args <- (commandArgs(trailingOnly = TRUE))
+
 for (i in seq_len(length(args))) {
     eval(parse(text = args[[i]]))
 }
-
-print(args)
-print(output)
 
 
 ac  <- function(col, alpha=1){
@@ -44,25 +41,100 @@ beta2m <- function(beta) {
     m
 }
 
+##' Gets the upper and lower entropy bounds, as used for normalization
+##'
+##' 
+##' @title 
+##' @param d and annotated 2-tuples dataframe
+##' @return 
+##' @author Izaskun Mallona
+get_entropy_bounds <- function(d) {
+    if (nrow(d) > 10000) {
+        set.seed(4)        
+        idx <- sample(1:nrow(d), 10000)
+        sampled <- d[idx,]
+    } else
+        sampled <- d
+
+    sampled$pU <- (sampled$cov - (sampled$cov * sampled$beta))/sampled$cov
+    sampled$pM <- 1 - sampled$pU
+
+    sampled$max_entropy <- apply(data.frame(pUU = sampled$pU^2,
+                                            pUM = sampled$pU * sampled$pM,
+                                            pMU = sampled$pU * sampled$pM,
+                                            pMM = sampled$pM^2),
+                                 1, entropy)
+
+    sampled$min_entropy_full <- apply(data.frame(pUU = sampled$pU,
+                                                 pUM = 0,
+                                                 pMU = 0,
+                                                 pMM = sampled$pM),
+                                      1, entropy)
+
+    sampled$min_entropy_beta <- apply(data.frame(pUU = 0,
+                                                 pUM = abs(sampled$pM - sampled$pU)/2 ,
+                                                 pMU =  0,
+                                                 pMM = sampled$pM),
+                                      1, entropy)
+
+    sampled$min_entropy_beta[sampled$beta >= 0.5] <- apply(data.frame(
+        pU = 0,
+        pUM = abs(sampled[sampled$beta >= 0.5,]$pM - sampled[sampled$beta >= 0.5,]$pU)/2 ,
+        pMU =  0,
+        pMM = sampled[sampled$beta >= 0.5,]$pU),
+        1,
+        entropy)
+
+    sampled$lower_bound <- apply(sampled[,c('min_entropy_full', 'min_entropy_beta')], 1, min)
+    
+    return(sampled)
+}
+
+##' Plots the theoretical upper and lower entropy bounds (the ones used for normalization)
+##'
+##' .. content for \details{} ..
+##' @title 
+##' @param sampled an input dataframe
+##' @param wd working directory
+##' @param fn output fn (a PNG)
+##' @param sample_name the sample tag to annotate the file
+##' @return 
+##' @author Izaskun Mallona
+plot_entropy_bounds <- function(sampled, wd, fn = 'std_bounds.png', sample_name = '') {
+    png(file.path(wd, fn))
+    
+    par(cex.axis = 1.4,
+        cex.lab = 1.4,
+        cex.main = 1.4,
+        cex.sub = 1.4,
+        pty = "s",
+        mar=c(5.1,4.1,4.1,2.1),
+        oma = c(4, 4, 1, 1))
+
+    plot(sampled$beta, sampled$entropy, pch = 19, col = ac('black', 0.5),
+         xlab = sprintf('%s methylation (beta value)', sample_name),
+         ylab = "Shannon's entropy (H)" )
+    lines(sampled$beta, sampled$max_entropy, col = 'darkred', type = 'p', pch = 4, cex = 1)
+    lines(sampled$beta, sampled$lower_bound, col = 'darkblue', type = 'p', pch = 4, cex = 1)
+
+    legend('topright',
+           col = c('black', 'darkred', 'darkblue'),
+           pch = c(19, 4, 4),
+           legend = c('observation', TeX('$H_{max}$'), TeX('$H_{min}$')))
+
+    dev.off()
+}
+
 ########
 
 
-## fn <-  file.path(snakemake@wildcards$sample,
-##                              sprintf('%s_cov_%s_hmm_%s.test',
-##                                      snakemake@wildcards$sample,
-##                                      snakemake@wildcards$cov,
-##                                      snakemake@wildcards$hmm))
-
+print('Data load')
 fn <- colored_entropy
-getwd()
-print(fn)
 
-system(sprintf('file %s', fn))
+## d <- data.table::fread(fn) # crashes
+d <- read.table(fn)
 
-d <- data.table::fread(file.path(getwd(), fn), sep = '\t')
-
-
-head(d)
+########
 
 hmm_colors <- c('13_ReprPC', '1_TssA', '4_Tx', '14_ReprPCWk',
                 '2_TssAFlnk',
@@ -97,74 +169,7 @@ dir.create(wd, showWarnings = FALSE)
 
 ## report 1 max entropies   ##############################################################
 
-if (nrow(d) > 10000) {
-    set.seed(4)
-    
-    idx <- sample(1:nrow(d), 10000)
-
-    sampled <- d[idx,]
-} else
-    sampled <- d
-
-
-sampled$pU <- (sampled$cov - (sampled$cov * sampled$beta))/sampled$cov
-sampled$pM <- 1 - sampled$pU
-
-sampled$max_entropy <- apply(data.frame(pUU = sampled$pU^2,
-                                        pUM = sampled$pU * sampled$pM,
-                                        pMU = sampled$pU * sampled$pM,
-                                        pMM = sampled$pM^2),
-                             1, entropy)
-
-
-sampled$min_entropy_full <- apply(data.frame(pUU = sampled$pU,
-                                             pUM = 0,
-                                             pMU = 0,
-                                             pMM = sampled$pM),
-                                  1, entropy)
-
-
-sampled$min_entropy_beta <- apply(data.frame(pUU = 0,
-                                             pUM = abs(sampled$pM - sampled$pU)/2 ,
-                                             pMU =  0,
-                                             pMM = sampled$pM),
-                                  1, entropy)
-
-sampled$min_entropy_beta[sampled$beta >= 0.5] <- apply(data.frame(
-    pU = 0,
-    pUM = abs(d[sampled$beta >= 0.5,]$pM - d[sampled$beta >= 0.5,]$pU)/2 ,
-    pMU =  0,
-    pMM = d[sampled$beta >= 0.5,]$pU),
-    1,
-    entropy)
-
-
-sampled$lower_bound <- apply(d[,c('min_entropy_full', 'min_entropy_beta')], 1, min)
-
-png(file.path(wd, sprintf('std_bounds.png')))
-par(cex.axis = 1.4,
-    cex.lab = 1.4,
-    cex.main = 1.4,
-    cex.sub = 1.4,
-    pty = "s",
-    mar=c(5.1,4.1,4.1,2.1),
-    oma = c(4, 4, 1, 1))
-
-plot(sampled$beta, sampled$entropy, pch = 19, col = ac('black', 0.5),
-     xlab = sprintf('%s %s methylation (beta value)', samples_dict[item, 'description'],
-                    item),
-     ylab = "Shannon's entropy (H)" )
-lines(sampled$beta, sampled$max_entropy, col = 'darkred', type = 'p', pch = 4, cex = 1)
-lines(sampled$beta, sampled$lower_bound, col = 'darkblue', type = 'p', pch = 4, cex = 1)
-
-legend('topright',
-       col = c('black', 'darkred', 'darkblue'),
-       pch = c(19, 4, 4),
-       legend = c('observation', TeX('$H_{max}$'), TeX('$H_{min}$')))
-
-dev.off()
-
-rm(sampled)
+plot_entropy_bounds(sampled = get_entropy_bounds(d), wd = wd)
 
 ## report 1 max entropies end  ##############################################################
 

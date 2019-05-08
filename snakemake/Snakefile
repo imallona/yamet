@@ -98,7 +98,8 @@ config = yaml.load(config)
 
 ## yaml tests end ###########
 
-Rbin = "/home/imallona/soft/R/R-3.5.1/bin/R"
+# Rbin = "/home/imallona/soft/R/R-3.5.1/bin/R"
+Rbin = "/usr/local/bin/R"
 
 # CHROMS = ['chr' + str(c) for c in range(17,19)]
 CHROMS = ['chr19']
@@ -214,7 +215,7 @@ rule add_methylation_to_entropy_file:
           command="$command <(gzip -cd $i)"
         done
   
-        eval $command | cut -f1-6,11 | gzip > {output}
+        eval $command | cut -f1-6,11 | dos2unix | gzip > {output}
         """
 
 rule merge_methylations:
