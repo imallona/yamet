@@ -46,10 +46,11 @@ beta2m <- function(beta) {
 ##' 
 ##' @title 
 ##' @param d and annotated 2-tuples dataframe
+##' @param sample a boolean, whether to sample to 10k rows or not (TRUE by default)
 ##' @return 
 ##' @author Izaskun Mallona
-get_entropy_bounds <- function(d) {
-    if (nrow(d) > 10000) {
+get_entropy_bounds <- function(d, sample = TRUE) {
+    if (nrow(d) > 10000 & sample) {
         set.seed(4)        
         idx <- sample(1:nrow(d), 10000)
         sampled <- d[idx,]
@@ -125,6 +126,61 @@ plot_entropy_bounds <- function(sampled, wd, fn = 'std_bounds.png', sample_name 
     dev.off()
 }
 
+
+##' Standardize Shannon entropies by the low and upper bounds according to the meth level
+##' @title Standardize entropies
+##' @param d the methtuple data
+##' @return a dataframe with standardized entropy
+##' @author Izaskun Mallona
+standardize_entropy <- function(d) {
+    d <- get_entropy_bounds(d, sample = FALSE)
+    
+    d$standardized_entropy <- (d$entropy - d$lower_bound) / (d$max_entropy - d$lower_bound)
+    d$standardized_entropy[is.na(d$standardized_entropy)] <- 0
+
+    return(d)
+}
+
+plot_standardized_entropy <- function(d, wd, fn = 'std_entropies.png', sample_name = "") {
+    png(file.path(wd, fn))
+    par(cex.axis = 1.4,
+        cex.lab = 1.4,
+        cex.main = 1.4,
+        cex.sub = 1.4,
+        pty = "s",
+        mar=c(5.1,4.1,4.1,2.1),
+        oma = c(4, 4, 1, 1))
+
+    plot(d$beta, d$standardized_entropy, pch = 19, col = ac('black', 0.5),
+         xlab = sprintf('%s methylation (beta value)', sample_name),
+         ylab = "standardized entropy (stdH)" )
+
+    dev.off()
+}
+
+
+plot_marginals_standardized <- function(d, wd, fn = 'std_vs_entropy.png', sample_name = '')  {
+
+    p=ggplot(d[[item]], aes(x=beta, y=standardized_entropy, color=entropy)) +
+        geom_point() +
+        theme(legend.position ='top') + xlab(sprintf('%s methylation (beta)', item)) +
+        ylab('standardized entropy (stdH)')
+    
+    ## marginal density
+    p2 <- ggMarginal(p, type="histogram")
+
+    p <- ggplot(d[[item]], aes(x=entropy, y=standardized_entropy, color=beta)) +
+        geom_point() +
+        theme(legend.position ='top')  + xlab('entropy (H)') +
+        ylab('standardized entropy (stdH)')
+
+    p3 <- ggMarginal(p, type="histogram")
+
+    p4 <-grid.arrange(p2, p3, ncol=2)
+    p4
+    ggsave(sprintf(file.path(wd, fn)), plot = p4, width = 10, height=5)
+}
+
 ########
 
 
@@ -167,29 +223,18 @@ wd <- file.path(dirname(colored_entropy), 'reports')
 dir.create(wd, showWarnings = FALSE)
 
 
-## report 1 max entropies   ##############################################################
+print('report 1 reports/std_bounds.png')     ###############################
 
 plot_entropy_bounds(sampled = get_entropy_bounds(d), wd = wd)
 
-## report 1 max entropies end  ##############################################################
+print('report 2 reports/std_entropies.png')  ###############################
 
-## report 2 start
+d <- standardize_entropy(d = d)
+plot_standardized_entropy(d = d, wd = wd)
 
-## report 2 end
+print('report 3 reports/std_vs_entropy.png') ###############################
 
-
-###
-
-ls()
-str(snakemake)
-str(Snakemake)
-## save.image('test.RData')
-
-getwd()
-
-## snakemake@source()
-
-
+plot_marginals_standardized(d, wd = wd, fn = 'std_vs_entropy.png', sample_name = '') 
 
 date()
 sessionInfo()
