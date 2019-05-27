@@ -12,14 +12,14 @@ suppressPackageStartupMessages({
     ## library(cramer)
     ## library(Cairo)
     ## library(knitr)
-    ## library(ggplot2)
-    ## library(RColorBrewer)
-    ## library(gridExtra)
+    library(ggplot2)
+    library(RColorBrewer)
+    library(gridExtra)
     library(dplyr)
     ## library(pheatmap)
-    ## library(ggExtra)
+    library(ggExtra)
     ## library(tidyverse)
-    ## library(viridis)
+    library(viridis)
 })
 
 
@@ -161,15 +161,15 @@ plot_standardized_entropy <- function(d, wd, fn = 'std_entropies.png', sample_na
 
 plot_marginals_standardized <- function(d, wd, fn = 'std_vs_entropy.png', sample_name = '')  {
 
-    p=ggplot(d[[item]], aes(x=beta, y=standardized_entropy, color=entropy)) +
+    p=ggplot(d, aes(x=beta, y=standardized_entropy, color=entropy)) +
         geom_point() +
-        theme(legend.position ='top') + xlab(sprintf('%s methylation (beta)', item)) +
+        theme(legend.position ='top') + xlab(sprintf('%s methylation (beta)', sample_name)) +
         ylab('standardized entropy (stdH)')
     
     ## marginal density
     p2 <- ggMarginal(p, type="histogram")
 
-    p <- ggplot(d[[item]], aes(x=entropy, y=standardized_entropy, color=beta)) +
+    p <- ggplot(d, aes(x=entropy, y=standardized_entropy, color=beta)) +
         geom_point() +
         theme(legend.position ='top')  + xlab('entropy (H)') +
         ylab('standardized entropy (stdH)')
@@ -179,6 +179,207 @@ plot_marginals_standardized <- function(d, wd, fn = 'std_vs_entropy.png', sample
     p4 <-grid.arrange(p2, p3, ncol=2)
     p4
     ggsave(sprintf(file.path(wd, fn)), plot = p4, width = 10, height=5)
+}
+
+## bycolor
+
+
+add_in_boundary_boolean <- function(d, colors) {
+
+    for (color in colors) {
+        d[,color] <- NA
+        d[,color] <- grepl(color, as.character(d$hmm))
+    }
+
+    d$in_boundary <- apply(d[,as.character(colors)], 1, function(x) sum(x) > 1)
+    
+    return(d)
+}
+
+bycolor1 <- function(d, wd, colors, sample_id ='') {
+
+    entropy_max <- max(d$entropy)
+    
+    targets <-  c('coverage',
+                  'log10dist',
+                  'beta',
+                  'entropy')
+
+    for (color in colors) {
+
+        curr <- d[d[,color],]
+        png(file.path(wd, make.names(sprintf('exploratory_1_%s.png', color))),
+            width = 700,
+            height = 700)
+
+        plot(curr[,targets],
+             pch = 20,
+             col = ifelse(curr[,"in_boundary"], 'red', 'black'),
+             main = color)
+        
+        dev.off()
+
+        png(file.path(wd, make.names(sprintf('exploratory_2_%s.png', color))),
+            width = 400,
+            height = 400)
+        
+        plot(x = curr$beta,
+             y = curr$entropy,
+             xlim = c(0,1),
+             ylim = c(0, entropy_max),
+             pch = 20,
+             col = ac(ifelse(curr[,"in_boundary"], 'red', 'black'), 0.5),
+             main = color)
+        
+        dev.off()
+
+        p <- ggplot(curr[,c('beta', 'entropy')], aes(beta, entropy))
+
+        ## h3 <- p + stat_bin2d(bins=25) + scale_fill_gradientn(colours=r) + xlim(-0.1, 1.1) +
+        ##     ylim(-0.1, entropy_max + 0.1) + ggtitle(color)
+        
+        h3 <- p + stat_bin2d(bins=25) + scale_fill_gradientn(colours=terrain.colors(20)) + xlim(-0.1, 1.1) +
+            ylim(-0.1, entropy_max + 0.1) + ggtitle(color) + theme(text = element_text(size=20)) +
+            xlab('DNA methylation (beta)') + ylab("Shannon's entropy (H)")
+                
+        ggsave(h3, file = file.path(wd, make.names(sprintf('exploratory_3_%s.png', color))))
+
+    }
+}
+
+bycolor2 <- function(d, wd, colors, sample_id ='') {
+    
+    d$unmethylated <- d$beta < 0.2
+    d$methylated <- d$beta >= 0.8
+    d$zero_entropy <- d == 0
+
+    non_boundary <- list(median = tapply(d[!d$in_boundary, 'entropy'],
+                                         as.factor(as.character(d[!d$in_boundary, 'hmm'])),
+                                         function(x) quantile(x, probs = 0.5)),
+                         lower = tapply(d[!d$in_boundary, 'entropy'],
+                                        as.factor(as.character(d[!d$in_boundary, 'hmm'])),
+                                        function(x) quantile(x, probs = 0.25)),
+                         upper = tapply(d[!d$in_boundary, 'entropy'],
+                                        as.factor(as.character(d[!d$in_boundary, 'hmm'])),
+                                        function(x) quantile(x, probs = 0.755)))
+
+    ## sort by median, plot
+    sorted <- names(sort(non_boundary$median))
+
+    png(file.path(wd, 'quantiles_entropy_no_boundaries.png'), height = 480, width = 550)
+
+    par(cex.axis = 1.8,
+        cex.lab = 1.8,
+        cex.main = 1.8,
+        cex.sub = 1.8,
+        pty = "s",
+        mar=c(5.1,4.1,4.1,2.1),
+        oma = c(1.2, 0, 0, 0),
+        xpd = TRUE)
+
+    plot(non_boundary$lower[sorted], pch = 20,
+         ylim = c(0, max(unlist(non_boundary))),
+         ylab = "Shannon's entropy (H)" ,
+         xaxt = "n",
+         xlab = "",
+         main = '')
+
+    points(non_boundary$median[sorted], pch = 20, col = 'red')
+    points(non_boundary$upper[sorted], pch = 20)
+
+    segments(y0 = non_boundary$lower[sorted],
+             y1 = non_boundary$upper[sorted],
+             x0 = 1:length(non_boundary$lower),
+             x1 = 1:length(non_boundary$lower))
+
+    legend('topright', col = c('black', 'red', 'black'), pch = 20, c('3Q', 'median', '1Q'),
+           inset=c(-0.25,0))
+
+    axis(1, at = 1:length(sorted), labels = sorted, las = 2)
+
+    dev.off()
+
+    png(file.path(wd, 'quantiles_methylation_no_boundaries.png'))
+
+    par(cex.axis = 1.8,
+        cex.lab = 1.8,
+        cex.main = 1.8,
+        cex.sub = 1.8,
+        pty = "s",
+        mar=c(5.1,4.1,4.1,2.1),
+        oma = c(1.2, 0, 0, 0))
+
+    plot(non_boundary$lower[sorted], pch = 20,
+         ylim = c(0, max(unlist(non_boundary))),
+         ylab = 'methylation (beta)',
+         xaxt = "n",
+         xlab = "",
+         main = '')
+
+    points(non_boundary$median[sorted], pch = 20, col = 'red')
+    points(non_boundary$upper[sorted], pch = 20)
+    segments(y0 = non_boundary$lower[sorted],
+             y1 = non_boundary$upper[sorted],
+             x0 = 1:length(non_boundary$lower),
+             x1 = 1:length(non_boundary$lower))
+
+    axis(1, at = 1:length(sorted), labels = sorted, las = 2)
+
+    dev.off()
+
+}
+
+bycolor3 <- function(d, wd, colors, sample_id ='') {    
+    curr <- d[!d$in_boundary,]
+    curr$hmm <- as.factor(as.character(curr$hmm))
+    ## categorical methylation status
+    curr$meth_cat <- 'mid'
+    curr$meth_cat[curr$unmethylated] <- 'low'
+    curr$meth_cat[curr$methylated] <- 'high'
+    curr$meth_cat <- factor(curr$meth_cat, levels = c('low', 'mid', 'high'))
+
+    h <- ggplot(aes(y = entropy, x = hmm, fill = meth_cat), data = curr) +
+        geom_boxplot(outlier.alpha = 0.5, color = 'darkblue') +
+        scale_fill_manual(values=c("gray90", "gray60", "gray30")) +
+        ylab("Shannon's entropy (H)") +
+        xlab('chromatin state (chromHMM)') +
+        theme_bw() + 
+        theme(text = element_text(size = 15),
+              axis.text.x = element_text(angle = 90, hjust = 1))
+
+
+    ggsave(h, file = file.path(wd, 'entropy_no_boundary_boxplot_stratified_by_meth.png'),
+           height = 4, width = 8)
+
+
+}
+
+bycolor4 <- function(d, wd, colors, sample_id ='') {
+    curr <- d[!d$in_boundary,]
+    curr$hmm <- as.factor(as.character(curr$hmm))
+
+    curr$meth_cat <- 'mid'
+    curr$meth_cat[curr$unmethylated] <- 'low'
+    curr$meth_cat[curr$methylated] <- 'high'
+    curr$meth_cat <- factor(curr$meth_cat, levels = c('low', 'mid', 'high'))
+
+    
+    h1 <- ggplot(curr, aes(factor(hmm),fill = meth_cat)) +
+    scale_y_log10(
+        breaks = scales::trans_breaks("log10", function(x) 10^x),
+        labels = scales::trans_format("log10", scales::math_format(10^.x))
+    ) +    
+    geom_bar(stat="count", width = 0.6, position = position_dodge(width=0.7), color = 'black') + 
+    scale_fill_manual(values=c("gray90", "gray60", "gray30")) +
+    theme_bw() +
+    xlab('chromatin state (chromHMM)') +
+    theme(text = element_text(size = 15),
+          axis.text.x = element_text(angle = 90, hjust = 1)) +
+    annotation_logticks(sides = 'l') 
+
+
+    ggsave(h1, file = file.path(wd, 'counts_no_boundary_boxplot_stratified_by_meth.png'),
+           height = 4, width = 8)
 }
 
 ########
@@ -235,6 +436,41 @@ plot_standardized_entropy(d = d, wd = wd)
 print('report 3 reports/std_vs_entropy.png') ###############################
 
 plot_marginals_standardized(d, wd = wd, fn = 'std_vs_entropy.png', sample_name = '') 
+
+colnames(d)
+table(d$hmm)
+
+d$log10dist <- log10(d$end - d$start)
+
+
+
+d <- add_in_boundary_boolean(d = d, colors = hmm_colors)
+str(d)
+table( ac(ifelse(d[,"in_boundary"], 'red', 'black'), 0.5))
+
+print('report 4 untested')
+
+## bycolor1(d = d ,
+##          wd = wd, colors = hmm_colors, sample_id ='')
+
+print('report 5 untested')
+
+bycolor2(d = d,
+         wd = wd, colors = hmm_colors, sample_id ='')
+
+print('report 6 untested')
+
+bycolor3(d = d,
+         wd = wd, colors = hmm_colors, sample_id ='')
+
+
+print('report 7 untested')
+
+bycolor4(d = d,
+         wd = wd, colors = hmm_colors, sample_id ='')
+
+
+
 
 date()
 sessionInfo()
