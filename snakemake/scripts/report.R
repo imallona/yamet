@@ -25,6 +25,8 @@ suppressPackageStartupMessages({
 
 args <- (commandArgs(trailingOnly = TRUE))
 
+print(args)
+
 for (i in seq_len(length(args))) {
     eval(parse(text = args[[i]]))
 }
@@ -299,8 +301,22 @@ bycolor2 <- function(d, wd, colors, sample_id ='') {
 
     dev.off()
 
+    non_boundary <- list(median = tapply(d[!d$in_boundary, 'beta'],
+                                     as.factor(as.character(d[!d$in_boundary, 'hmm'])),
+                                     function(x) quantile(x, probs = 0.5)),
+                     lower = tapply(d[!d$in_boundary, 'beta'],
+                                     as.factor(as.character(d[!d$in_boundary, 'hmm'])),
+                                  function(x) quantile(x, probs = 0.25)),
+                     upper = tapply(d[!d$in_boundary, 'beta'],
+                                     as.factor(as.character(d[!d$in_boundary, 'hmm'])),
+                                  function(x) quantile(x, probs = 0.755)))
+
+
+    
     png(file.path(wd, 'quantiles_methylation_no_boundaries.png'))
 
+
+    
     par(cex.axis = 1.8,
         cex.lab = 1.8,
         cex.main = 1.8,
@@ -333,6 +349,10 @@ bycolor3 <- function(d, wd, colors, sample_id ='') {
     curr <- d[!d$in_boundary,]
     curr$hmm <- as.factor(as.character(curr$hmm))
     ## categorical methylation status
+    d$unmethylated <- d$beta < 0.2
+    d$methylated <- d$beta >= 0.8
+    d$zero_entropy <- d$entropy == 0
+    
     curr$meth_cat <- 'mid'
     curr$meth_cat[curr$unmethylated] <- 'low'
     curr$meth_cat[curr$methylated] <- 'high'
@@ -358,6 +378,10 @@ bycolor4 <- function(d, wd, colors, sample_id ='') {
     curr <- d[!d$in_boundary,]
     curr$hmm <- as.factor(as.character(curr$hmm))
 
+    d$unmethylated <- d$beta < 0.2
+    d$methylated <- d$beta >= 0.8
+    d$zero_entropy <- d$entropy == 0
+    
     curr$meth_cat <- 'mid'
     curr$meth_cat[curr$unmethylated] <- 'low'
     curr$meth_cat[curr$methylated] <- 'high'
@@ -381,6 +405,55 @@ bycolor4 <- function(d, wd, colors, sample_id ='') {
     ggsave(h1, file = file.path(wd, 'counts_no_boundary_boxplot_stratified_by_meth.png'),
            height = 4, width = 8)
 }
+
+bycolor5 <- function(d, wd, colors, sample_id ='') {
+
+    ## same with those in boundaries!
+    ## (but grouping by single colors, not the pairwise relationships)
+
+    curr <- d[d$in_boundary,]
+    fd <- melt(curr[c('entropy', 'beta', as.character(colors))],
+               c("entropy", 'beta'),
+               variable.name = "hmm")
+    fd <- fd[fd$value,]
+
+
+    ## categorical methylation status
+    fd$meth_cat <- 'mid'
+    fd$meth_cat[fd$beta < 0.2] <- 'low'
+    fd$meth_cat[fd$beta >= 0.8] <- 'high'
+    fd$meth_cat <- factor(fd$meth_cat, levels = c('low', 'mid', 'high'))
+
+
+
+    h <- ggplot(aes(y = entropy, x = hmm, fill = meth_cat), data = fd) +
+        geom_boxplot(outlier.alpha = 0.5) +
+        scale_fill_manual(values=c("gray90", "gray60", "gray30")) +
+        theme_bw() + 
+        theme(text = element_text(size = 15),
+              axis.text.x = element_text(angle = 90, hjust = 1))
+
+
+    ggsave(h, file = file.path('entropy_boundaries_boxplot_stratified_by_meth.png'))
+
+
+    h1 <- ggplot(fd, aes(factor(hmm),fill = meth_cat)) +
+        scale_y_log10(
+            breaks = scales::trans_breaks("log10", function(x) 10^x),
+            labels = scales::trans_format("log10", scales::math_format(10^.x))
+        ) +    
+        geom_bar(stat="count", width = 0.6, position = position_dodge(width=0.7), color = 'black') + 
+        scale_fill_manual(values=c("gray90", "gray60", "gray30")) +
+        theme_bw() + 
+        theme(text = element_text(size = 15),
+              axis.text.x = element_text(angle = 90, hjust = 1)) +
+        annotation_logticks(sides = 'l') 
+
+
+    ggsave(h1, file = file.path('counts_boundaries_boxplot_stratified_by_meth.png'))
+    
+}
+
 
 ########
 
@@ -420,7 +493,9 @@ d$coverage <- sapply(strsplit(as.character(gsub('[^0-9;]', '', d$name)), ';'),
 
 ## reports
 
-wd <- file.path(dirname(colored_entropy), 'reports')
+wd <- file.path(dirname(colored_entropy), 'reports', gsub('.bed.gz','', basename(colored_entropy)))
+
+
 dir.create(wd, showWarnings = FALSE)
 
 
@@ -450,25 +525,37 @@ table( ac(ifelse(d[,"in_boundary"], 'red', 'black'), 0.5))
 
 print('report 4 untested')
 
-## bycolor1(d = d ,
-##          wd = wd, colors = hmm_colors, sample_id ='')
+tryCatch({bycolor1(d = d ,
+                   wd = wd, colors = hmm_colors, sample_id ='')},
+         error = print)
 
 print('report 5 untested')
 
-bycolor2(d = d,
-         wd = wd, colors = hmm_colors, sample_id ='')
+tryCatch({bycolor2(d = d,
+                   wd = wd, colors = hmm_colors, sample_id ='')},
+         error = print)
+         
 
 print('report 6 untested')
 
-bycolor3(d = d,
-         wd = wd, colors = hmm_colors, sample_id ='')
+tryCatch({bycolor3(d = d,
+                   wd = wd, colors = hmm_colors, sample_id ='')},
+         error = print)
+         
 
 
 print('report 7 untested')
 
-bycolor4(d = d,
-         wd = wd, colors = hmm_colors, sample_id ='')
+tryCatch({bycolor4(d = d,
+                   wd = wd, colors = hmm_colors, sample_id ='')},
+         error = print)
 
+
+print('report 8 untested')
+
+tryCatch({bycolor5(d = d,
+                   wd = wd, colors = hmm_colors, sample_id ='')},
+         error = print)
 
 
 
