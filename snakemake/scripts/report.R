@@ -20,6 +20,7 @@ suppressPackageStartupMessages({
     library(ggExtra)
     ## library(tidyverse)
     library(viridis)
+    library(PMCMRplus) ## posthoc KW
 })
 
 
@@ -557,7 +558,54 @@ tryCatch({bycolor5(d = d,
                    wd = wd, colors = hmm_colors, sample_id ='')},
          error = print)
 
+print('test save for further integrations')
 
+## tests linear model
+
+## try linear model
+
+png(file.path(wd, 'std_entropy_qqnorm.png'))
+qqnorm(d$standardized_entropy, main = 'standardized_entropy')
+dev.off()
+
+kt <- kruskal.test(standardized_entropy~hmm, data = d[!d$in_boundary,])
+dunn <- kwAllPairsDunnTest(standardized_entropy~hmm, data = d[!d$in_boundary,])
+summary(dunn)
+
+png(file.path(wd, 'dunn_boxplot_std_entropy.png'))
+plot(dunn, las =2)
+dev.off()
+
+
+kt <- kruskal.test(entropy~hmm, data = d[!d$in_boundary,])
+dunn <- kwAllPairsDunnTest(entropy~hmm, data = d[!d$in_boundary,])
+summary(dunn)
+
+png(file.path(wd, 'dunn_boxplot_entropy.png'))
+plot(dunn, las =2)
+dev.off()
+
+
+kt <- kruskal.test(beta~hmm, data = d[!d$in_boundary,])
+dunn <- kwAllPairsDunnTest(beta~hmm, data = d[!d$in_boundary,])
+summary(dunn)
+
+png(file.path(wd, 'dunn_boxplot_beta.png'))
+plot(dunn, las =2)
+dev.off()
+
+
+
+## export for multireport integration
+
+selected <- c('entropy', 'beta', 'standardized_entropy', 'in_boundary', 'hmm')
+write.table( x = d[selected,],
+            file = gzfile(sprintf('%s_to_integrate.tsv.gz', gsub('.bed.gz', '',
+                                                                basename(colored_entropy)))),
+            row.names = FALSE, quote = FALSE, col.names = TRUE)
+
+
+## tests end
 
 date()
 sessionInfo()
