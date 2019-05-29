@@ -599,9 +599,9 @@ dev.off()
 ## export for multireport integration
 
 selected <- c('entropy', 'beta', 'standardized_entropy', 'in_boundary', 'hmm')
-write.table( x = d[selected,],
-            file = gzfile(sprintf('%s_to_integrate.tsv.gz', gsub('.bed.gz', '',
-                                                                basename(colored_entropy)))),
+write.table( x = d[,selected],
+            file = gzfile(file.path(wd, sprintf('%s_to_integrate.tsv.gz', gsub('.bed.gz', '',
+                                                                basename(colored_entropy))))),
             row.names = FALSE, quote = FALSE, col.names = TRUE)
 
 

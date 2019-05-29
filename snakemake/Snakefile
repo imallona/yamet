@@ -157,16 +157,63 @@ R_OUTS = expand( "{sample}/{sample}_cov_{cov}_hmm_{hmm}.test",
                   cov = MINCOVERAGE,
                   hmm = HMMS.keys())
 
+# R_OUTS_VARIANT =  ','.join({os.path.splitext(os.path.basename(sample))[0] : expand( "{sample}/{sample}_cov_{cov}_hmm_{hmm}_to_integrate.tsv.gz",
+#                   sample = BAMS.keys(),
+#                   cov = MINCOVERAGE,
+#                   hmm = HMMS.keys()) for sample in BAMS})
 
+R_OUTS_VARIANT =  {os.path.splitext(os.path.basename(sample))[0] : expand( "{sample}/{sample}_cov_{cov}_hmm_{hmm}_to_integrate.tsv.gz",
+                  sample = BAMS.keys(),
+                  cov = MINCOVERAGE,
+                  hmm = HMMS.keys()) for sample in BAMS}
 
-print(ENTROPIES)
-print(METHYLATIONS)
+INTEGRATIVE_OUTPUT = expand( "across_cov_{cov}_hmm.test",
+                        cov = MINCOVERAGE)
+
+# print(ENTROPIES)
+# print(METHYLATIONS)
+# print(R_OUTS_VARIANT)
+# print(','.join(','.join(item) for item in R_OUTS_VARIANT.values()))
 
 rule all:
     input:
         # BAMS, AWK, METHTUPLE, ENTROPIES, METHYLATIONS, MERGED_ENTROPY, MERGED_METHYLATION, COLORED#, R_OUTS
-        AWK, METHTUPLE, MERGED_METHYLATION, MERGED_ENTROPY, COLORED, R_OUTS
-        
+        AWK, METHTUPLE, MERGED_METHYLATION, MERGED_ENTROPY, COLORED#, INTEGRATIVE_OUTPUT
+
+
+
+# onsuccess:
+#     print("Workflow finished, no error")
+#     params:
+#         script = "scripts/multisample_report.R",
+#         samples = ','.join(','.join(item) for item in R_OUTS_VARIANT.values())    
+#     log:
+#         "multi_sample_report.log"
+#     output:
+#         "across_cov_{cov}_hmm.test"
+#     shell: '''{Rbin} CMD BATCH --no-restore --no-save \
+#     "--args annotated='{params.samples}' \
+#     output='{output}'" {params.script} {log}'''
+    
+# ## does not work Not all output, log and benchmark files of rule run_across_samples_report
+# ##  contain the same wildcards.
+# rule run_across_samples_report:
+#     input:
+#         # lambda wildcards: R_OUTS_VARIANT[wildcards.sample]
+#         # ','.join(R_OUTS_VARIANT.values())
+#         stuff =   lambda wildcards: R_OUTS_VARIANT[wildcards.sample],
+#         script = "scripts/multisample_report.R"
+#     params:
+#         ','.join(','.join(item) for item in R_OUTS_VARIANT.values())    
+#     log:
+#         "multi_sample_report.log"
+#     output:
+#          "across_cov_{cov}_hmm.test"
+#     shell: '''{Rbin} CMD BATCH --no-restore --no-save \
+#     "--args annotated='{params}' \
+#     output='{output}'" {input.script} {log}'''
+
+
 rule run_sample_report:
     input:
         colored_entropy =  "{sample}/{sample}_cov_{cov}_entropy_and_meth_hmm_{hmm}.bed.gz",
@@ -222,7 +269,7 @@ rule merge_methylations:
     input:
         lambda wildcards: METHYLATIONS[wildcards.sample]
     output:
-        "{sample}/{sample}_cov_{cov}_methylation.bed.gz"
+        temp("{sample}/{sample}_cov_{cov}_methylation.bed.gz")
     shell:
         "cat {input} | bedtools sort | gzip > {output}"
 
@@ -231,7 +278,7 @@ rule merge_entropies:
     input:
          lambda wildcards: ENTROPIES[wildcards.sample]
     output:
-        "{sample}/{sample}_cov_{MINCOVERAGE}_entropy.bed.gz"
+        temp("{sample}/{sample}_cov_{MINCOVERAGE}_entropy.bed.gz")
     shell:
         "cat {input} | bedtools sort | gzip > {output}"
         
@@ -299,7 +346,7 @@ rule run_meththuple:
     input:
         "{sample}/qnsorted_{sample}_{chrom}.bam"
     output:
-        temp("{sample}/qnsorted_{sample}_{chrom}.CG.2.tsv")
+        "{sample}/qnsorted_{sample}_{chrom}.CG.2.tsv"
     shell: """
         set +u;
         source ~/virtenvs/methtuple/bin/activate
