@@ -21,6 +21,9 @@ suppressPackageStartupMessages({
     ## library(tidyverse)
     ## library(viridis)
     library(PMCMRplus) ## posthoc KW
+    library(nnet) # multinomial
+    library(iCOBRA)
+    library(caret)
 })
 
     
@@ -103,17 +106,23 @@ kt <- kruskal.test(standardized_entropy~hmm, data = sampled[!sampled$in_boundary
 kt
 
 dunn <- kwAllPairsDunnTest(standardized_entropy~hmm, data = sampled[!sampled$in_boundary,])
-plot(dunn)
+## png(file.path(wd, 'dunn_std_entropy.pdf'))
+## plot(dunn)
+## dev.off()
 
 dunn_consistent <- kwAllPairsDunnTest(standardized_entropy~hmm, data = sampled[!sampled$in_boundary & sampled$consistent,])
 
 
 dunn_unconsistent <- kwAllPairsDunnTest(standardized_entropy~hmm, data = sampled[!sampled$in_boundary & !sampled$consistent,])
 
+
+png(file.path(wd, 'dunn_std_entropy.png'), width = 600, height = 600)
 par(mfrow = c(2,2))
-plot(dunn)
-plot(dunn_consistent)
-plot(dunn_unconsistent)
+plot(dunn, main = 'overall')
+plot(dunn_consistent, main = 'match')
+plot(dunn_unconsistent, main = 'discordant')
+dev.off()
+
 
 dunn_consistent$statistic - dunn_unconsistent$statistic
     
@@ -167,8 +176,79 @@ p6 <- ggplot(data = sampled[!sampled$in_boundary,],
 
 ggsave('p6.png', plot = p6)
 
+
+## which does best, std entropy, entropy, beta, or mixes?
+
+
+fit1c <- multinom(as.factor(hmm) ~ as.numeric(standardized_entropy),
+                  data = sampled[sampled$consistent & !sampled$in_boundary,])
+fit1d <- multinom(as.factor(hmm) ~ as.numeric(standardized_entropy), 
+                  data = sampled[!sampled$consistent & !sampled$in_boundary,])
+
+fit2c <- multinom(as.factor(hmm) ~ as.numeric(entropy),
+                  data = sampled[sampled$consistent & !sampled$in_boundary,])
+fit2d <- multinom(as.factor(hmm) ~ as.numeric(entropy),
+                  data = sampled[!sampled$consistent & !sampled$in_boundary,])
+
+
+fit3c <- multinom(as.factor(hmm) ~ as.numeric(beta),
+                  data = sampled[sampled$consistent & !sampled$in_boundary,])
+fit3d <- multinom(as.factor(hmm) ~ as.numeric(beta),
+                  data = sampled[!sampled$consistent & !sampled$in_boundary,])
+
+
+fit4c <- multinom(as.factor(hmm) ~ as.numeric(beta) + as.numeric(entropy),
+                  data = sampled[sampled$consistent & !sampled$in_boundary,])
+fit4d <- multinom(as.factor(hmm) ~ as.numeric(beta) + as.numeric(entropy),
+                  data = sampled[!sampled$consistent & !sampled$in_boundary,])
+
+
+rank(c(fit1c$AIC, fit1d$AIC, fit2c$AIC, fit2d$AIC, fit3c$AIC, fit3d$AIC, fit4c$AIC, fit4d$AIC))
+
+pvals <- list()
+
+for (item in c('fit1c', 'fit1d', 'fit2c', 'fit2d', 'fit3c', 'fit4c', 'fit4')) {
+    curr <- get(item)
+    z <- summary(curr)$coefficients/summary(curr)$standard.errors
+    p <- (1 - pnorm(abs(z), 0, 1)) * 2
+
+    pvals[[item]] <-  (1 - pnorm(abs(z), 0, 1)) * 2
+}
+
+     
+
+## let's predict and plot using iCOBRA
+set.seed(123)
+
+## caret confusion matrix stats
+
+caret::confusionMatrix(data = predict(fit4c),
+                       reference = sampled[sampled$consistent & !sampled$in_boundary,'hmm'])
+
+
+## predicted_probabilities
+
+## fitted(fit4c))
+## fit4c_cobra <- COBRAData(score = fitted(fit4c), truth = sampled$hmm)
+
+
+
+## library(mlogit)
+
+## d1 <- mlogit.data(sampled[sampled$in_bounday,],
+##                  shape = "wide", choice = "hmm", varying = c(1:3,8))
+
+## m <- mlogit(depvar ~ ic + oc | 0, H)
+## summary(m)
+
+## f1 <- mlogit(hmm ~ standardized_entropy, data = sampled)
+
+
+
 ## do consistent elements show higher variability?
-                                                  
+
+    
+
 ## manual processing end
 
 ###
