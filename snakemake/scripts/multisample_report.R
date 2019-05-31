@@ -45,9 +45,9 @@ samples <- sapply(strsplit(basename(fns), '_'), function(x) return(x[1]))
 hmms <-  sapply(strsplit(basename(fns), '_'), function(x) return(x[8]))
 
 d <- list()
-for (item in uniqeue(samples)) d[[item]] <- list()
+for (item in unique(samples)) d[[item]] <- list()
 for (i in 1:length(fns)) {
-    d[[samples[i]]][[hmms[i]]] <- read.table(fns[i], header = FALSE)
+    d[[samples[i]]][[hmms[i]]] <- read.table(fns[i], header = TRUE)
     d[[samples[i]]][[hmms[i]]]$segmentation <- hmms[i]
     d[[samples[i]]][[hmms[i]]]$sample <- samples[i]
     
@@ -59,13 +59,15 @@ for (item in names(d)) {
 }
 d <- do.call(rbind.data.frame, d)
 
+## colnames(d)[1:5] <- c('entropy', 'beta', 'standardized_entropy', 'in_boundary', 'hmm')
+
+
 dim(d)
 
 set.seed(-2)
-sampling <- sample(1:nrow(d), 100000)
+sampling <- sample(1:nrow(d[!d$in_boundary,]), 100000)
 
-sampled <- d[sampling,]
-
+sampled <- d[!d$in_boundary,][sampling,]
 
 print('parse this from the yaml!')
 ## whether the HMM and the tissue sort of `match` (same origin)
@@ -94,33 +96,34 @@ for (item in c('entropy', 'beta', 'standardized_entropy')) {
 }
 
 for (item in c('segmentation', 'hmm', 'in_boundary')) {
-    sampled[,item] <- as.factor(sampled[,item])
+    sampled[,item] <- as.factor(as.character(sampled[,item]))
 }
 
-sampled$in_boundary <- as.logical(sampled$in_boundary)
+## sampled$in_boundary <- as.logical(sampled$in_boundary)
 
 summary(sampled)
 
-kt <- kruskal.test(standardized_entropy~hmm, data = sampled[!sampled$in_boundary,])
+kt <- kruskal.test(standardized_entropy~hmm, data = sampled)
 
 kt
 
-dunn <- kwAllPairsDunnTest(standardized_entropy~hmm, data = sampled[!sampled$in_boundary,])
+dunn <- kwAllPairsDunnTest(standardized_entropy~hmm, data = sampled)
 ## png(file.path(wd, 'dunn_std_entropy.pdf'))
 ## plot(dunn)
 ## dev.off()
 
-dunn_consistent <- kwAllPairsDunnTest(standardized_entropy~hmm, data = sampled[!sampled$in_boundary & sampled$consistent,])
+dunn_consistent <- kwAllPairsDunnTest(standardized_entropy~hmm,
+                                      data = sampled[sampled$consistent,])
 
-
-dunn_unconsistent <- kwAllPairsDunnTest(standardized_entropy~hmm, data = sampled[!sampled$in_boundary & !sampled$consistent,])
+dunn_unconsistent <- kwAllPairsDunnTest(standardized_entropy~hmm,
+                                        data = sampled[ !sampled$consistent,])
 
 
 png(file.path(wd, 'dunn_std_entropy.png'), width = 600, height = 600)
 par(mfrow = c(2,2))
-plot(dunn, main = 'overall')
-plot(dunn_consistent, main = 'match')
-plot(dunn_unconsistent, main = 'discordant')
+plot(dunn, main = 'overall', las = 2)
+plot(dunn_consistent, main = 'match', las = 2)
+plot(dunn_unconsistent, main = 'discordant', las = 2)
 dev.off()
 
 
@@ -128,21 +131,20 @@ dunn_consistent$statistic - dunn_unconsistent$statistic
     
 plot(density(na.omit(as.numeric(dunn_consistent$statistic - dunn_unconsistent$statistic))))
 
-
-p1 <- ggplot(data = sampled[!sampled$in_boundary,],
+p1 <- ggplot(data = sampled,
        aes(x=hmm, y=standardized_entropy, fill=description)) + 
     geom_boxplot()
 
 ggsave('p1.png', plot = p1)
        
-p2 <- ggplot(data = sampled[!sampled$in_boundary,],
+p2 <- ggplot(data = sampled,
        aes(x=hmm, y=standardized_entropy, fill=description)) + 
     geom_boxplot()
 
 
 ggsave('p2.png', plot = p2)
 
-p3 <- ggplot(data = sampled[!sampled$in_boundary,],
+p3 <- ggplot(data = sampled,
        aes(x=hmm, y=standardized_entropy, fill=description)) +
   geom_boxplot()+
   facet_wrap(.~sample, ncol =3)+
@@ -151,7 +153,7 @@ p3 <- ggplot(data = sampled[!sampled$in_boundary,],
 
 ggsave('p3.png', plot = p3)
 
-p4 <- ggplot(data = sampled[!sampled$in_boundary,],
+p4 <- ggplot(data = sampled,
        aes(x=hmm, y=standardized_entropy, fill=description)) +
     geom_boxplot()+
     facet_wrap(~ sample*consistent, ncol = 3) +
@@ -159,7 +161,7 @@ p4 <- ggplot(data = sampled[!sampled$in_boundary,],
 
 ggsave('p4.png', plot = p4)
 
-p5 <- ggplot(data = sampled[!sampled$in_boundary,],
+p5 <- ggplot(data = sampled,
        aes(x=sample, y=standardized_entropy, fill=consistent)) +
     geom_boxplot()+
     facet_wrap(~ hmm, ncol = 3) +
@@ -168,7 +170,7 @@ p5 <- ggplot(data = sampled[!sampled$in_boundary,],
 ggsave('p5.png', plot = p5)
 
 
-p6 <- ggplot(data = sampled[!sampled$in_boundary,],
+p6 <- ggplot(data = sampled,
        aes(x=description, y=standardized_entropy, fill=consistent)) +
     geom_boxplot()+
     facet_wrap(~ hmm, ncol = 3) +
@@ -179,35 +181,48 @@ ggsave('p6.png', plot = p6)
 
 ## which does best, std entropy, entropy, beta, or mixes?
 
+## train and test setup: 75-25, and the incoherent as extra test
+
+train <- list()
+test <- list()
+tmp <- list()
+
+tmp$coherent <- sampled[sampled$consistent,]
+test$incoherent <- sampled[!sampled$consistent,]
+
+for (item in names(tmp)) tmp[[item]]$hmm <- as.factor(as.character(tmp[[item]]$hmm))
+
+smp_size <- floor(0.75 * nrow(tmp$coherent))
+
+set.seed(555)
+train_ind <- sample(seq_len(nrow(tmp$coherent)), size = smp_size)
+
+train$coherent <- tmp$coherent[train_ind, ]
+test$coherent <- tmp$coherent[-train_ind, ]
+
+# model 
 
 fit1c <- multinom(as.factor(hmm) ~ as.numeric(standardized_entropy),
-                  data = sampled[sampled$consistent & !sampled$in_boundary,])
-fit1d <- multinom(as.factor(hmm) ~ as.numeric(standardized_entropy), 
-                  data = sampled[!sampled$consistent & !sampled$in_boundary,])
+                  data = train$coherent)
 
 fit2c <- multinom(as.factor(hmm) ~ as.numeric(entropy),
-                  data = sampled[sampled$consistent & !sampled$in_boundary,])
-fit2d <- multinom(as.factor(hmm) ~ as.numeric(entropy),
-                  data = sampled[!sampled$consistent & !sampled$in_boundary,])
-
+                  data = train$coherent)
 
 fit3c <- multinom(as.factor(hmm) ~ as.numeric(beta),
-                  data = sampled[sampled$consistent & !sampled$in_boundary,])
-fit3d <- multinom(as.factor(hmm) ~ as.numeric(beta),
-                  data = sampled[!sampled$consistent & !sampled$in_boundary,])
-
+                  data = train$coherent)
 
 fit4c <- multinom(as.factor(hmm) ~ as.numeric(beta) + as.numeric(entropy),
-                  data = sampled[sampled$consistent & !sampled$in_boundary,])
-fit4d <- multinom(as.factor(hmm) ~ as.numeric(beta) + as.numeric(entropy),
-                  data = sampled[!sampled$consistent & !sampled$in_boundary,])
+                  data = train$coherent)
+
+fit5c <- multinom(as.factor(hmm) ~ as.numeric(beta) + as.numeric(standardized_entropy),
+                  data = train$coherent)
 
 
-rank(c(fit1c$AIC, fit1d$AIC, fit2c$AIC, fit2d$AIC, fit3c$AIC, fit3d$AIC, fit4c$AIC, fit4d$AIC))
+rank(c(fit1c$AIC, fit2c$AIC, fit3c$AIC,fit4c$AIC))
 
 pvals <- list()
 
-for (item in c('fit1c', 'fit1d', 'fit2c', 'fit2d', 'fit3c', 'fit4c', 'fit4')) {
+for (item in c('fit1c', 'fit2c',  'fit3c', 'fit4c', 'fit5c')) {
     curr <- get(item)
     z <- summary(curr)$coefficients/summary(curr)$standard.errors
     p <- (1 - pnorm(abs(z), 0, 1)) * 2
@@ -215,15 +230,69 @@ for (item in c('fit1c', 'fit1d', 'fit2c', 'fit2d', 'fit3c', 'fit4c', 'fit4')) {
     pvals[[item]] <-  (1 - pnorm(abs(z), 0, 1)) * 2
 }
 
-     
+confmats <- list()
+for (item in c('fit1c', 'fit2c',  'fit3c', 'fit4c', 'fit5c')) {
+    
+    confmats[[item]] <- caret::confusionMatrix(data = predict(get(item), test$coherent),
+                                               reference = test$coherent$hmm)
+}
 
-## let's predict and plot using iCOBRA
-set.seed(123)
+sapply(confmats, function(x) print(x$overall))
 
-## caret confusion matrix stats
+## what if predicting wrong hmms?
 
-caret::confusionMatrix(data = predict(fit4c),
-                       reference = sampled[sampled$consistent & !sampled$in_boundary,'hmm'])
+confmats_control <- list()
+for (item in c('fit1c', 'fit2c',  'fit3c', 'fit4c', 'fit5c')) {
+    
+    confmats_control[[item]] <- caret::confusionMatrix(data = predict(get(item), test$incoherent),
+                                               reference = test$incoherent$hmm)
+}
+
+sapply(confmats_control, function(x) print(x$overall))
+
+
+# Not a big difference... predictive power is low and beta works better!
+
+
+train$coherent$is_enh <- grepl('Enh', train$coherent$hmm )
+train$coherent$is_tss <- grepl('Tss', train$coherent$hmm )
+train$coherent$is_biv <- grepl('Biv', train$coherent$hmm )
+train$coherent$is_tx <- grepl('Tx', train$coherent$hmm )
+
+
+test$coherent$is_enh <- grepl('Enh', test$coherent$hmm )
+test$coherent$is_tss <- grepl('Tss', test$coherent$hmm )
+test$coherent$is_biv <- grepl('Biv', test$coherent$hmm )
+test$coherent$is_tx <- grepl('Tx', test$coherent$hmm )
+
+
+test$incoherent$is_enh <- grepl('Enh', test$incoherent$hmm )
+test$incoherent$is_tss <- grepl('Tss', test$incoherent$hmm )
+test$incoherent$is_biv <- grepl('Biv', test$incoherent$hmm )
+test$incoherent$is_tx <- grepl('Tx', test$incoherent$hmm )
+
+
+## now get's better
+for (item in c('is_enh', 'is_tss', 'is_biv', 'is_tx')){
+    mnom <- multinom(as.factor(train$coherent[,item]) ~ as.numeric(standardized_entropy),
+                     data = train$coherent)
+    print(item)
+    print(caret::confusionMatrix(data = predict(mnom, test$coherent),
+                           reference = as.factor(test$coherent[,item]))$overall)
+}
+
+## but does not hold for the incoherent scenario
+for (item in c('is_enh', 'is_tss', 'is_biv', 'is_tx')){
+    mnom <- multinom(as.factor(train$coherent[,item]) ~ as.numeric(standardized_entropy),
+                     data = train$coherent)
+    print(item)
+    print(caret::confusionMatrix(data = predict(mnom, test$incoherent),
+                           reference = as.factor(test$incoherent[,item]))$overall)
+}
+
+
+## that's weird Fri May 31 14:34:01 CEST 2019
+
 
 
 ## predicted_probabilities
