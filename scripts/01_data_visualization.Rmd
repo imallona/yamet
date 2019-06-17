@@ -1,0 +1,39 @@
+---
+title: "Preliminary visualization"
+author:
+    - "Izaskun Mallona"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+params:
+   rmd: "report.Rmd"
+output:
+  html_document:
+  highlight: tango
+  number_sections: no
+  theme: default
+  toc: yes
+  toc_depth: 3
+  toc_float:
+    collapsed: no
+    smooth_scroll: yes
+---
+
+# Source
+
+<a download="report.Rmd" href="`r base64enc::dataURI(file = params$rmd, mime = 'text/rmd', encoding = 'base64')`">R Markdown source file (to produce this document)</a>
+
+# Trace
+
+```{r}
+ls()
+str(params)
+str(snakemake)
+str(Snakemake)
+```
+
+
+# Session
+
+```{r sessionInfo, cache = FALSE}
+date()
+devtools::session_info()
+```
