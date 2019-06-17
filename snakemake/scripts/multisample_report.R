@@ -5,6 +5,8 @@
 ##
 ## Thu May  29 2019
 
+stop('get those genes that are intermediate methylation only, avoid extremes!')
+
 suppressPackageStartupMessages({
     library(data.table)
     ## library('latex2exp')
@@ -289,6 +291,18 @@ for (item in c('is_enh', 'is_tss', 'is_biv', 'is_tx')){
     print(caret::confusionMatrix(data = predict(mnom, test$incoherent),
                            reference = as.factor(test$incoherent[,item]))$overall)
 }
+
+
+
+## what if using dnameth? excellent as well, this might not make much sense
+for (item in c('is_enh', 'is_tss', 'is_biv', 'is_tx')){
+    mnom <- multinom(as.factor(train$coherent[,item]) ~ as.numeric(beta),
+                     data = train$coherent)
+    print(item)
+    print(caret::confusionMatrix(data = predict(mnom, test$coherent),
+                           reference = as.factor(test$coherent[,item]))$overall)
+}
+
 
 
 ## that's weird Fri May 31 14:34:01 CEST 2019

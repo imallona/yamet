@@ -7,3 +7,6 @@ challenges
 
 to paralellize methtuple @todo check
 https://github.com/PeteHaitch/methtuple/blob/master/helper_scripts/run_methtuple.sh
+
+to get a validation dataset
+glioblastoma https://www.nature.com/articles/s41591-018-0156-x https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE100351 
