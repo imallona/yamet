@@ -60,12 +60,18 @@ do
     fi
 done
 
+mkdir -p "$WD"/unmapped_bams
+mv "$WD"/../*bam "$WD"/unmapped_bams
 
 echo 'get fastq'
 
-mkdir raw_fastq
+mkdir -p $WD
 
-for bam in $(find $WD -name "*bam")
+cd $WD
+
+mkdir -p raw_fastq
+
+for bam in $(find $WD/unmapped_bams -name "*bam")
 do
     echo $bam
     tag=$(basename $bam _unmapped.bam)
@@ -74,7 +80,7 @@ do
     
     mkdir -p "$WD"/raw_fastq/"$tag"
 
-    bamToFastq -i "$WD"/"$bam" \
+    bamToFastq -i "$bam" \
                -fq "$WD"/raw_fastq/"$tag"/"$tag".fastq
 
     gzip "$WD"/raw_fastq/"$tag"/"$tag".fastq
