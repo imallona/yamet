@@ -1,0 +1,37 @@
+$schema: "http://json-schema.org/draft-06/schema#"
+
+description: snakemake configuration file
+
+type: object
+
+properties:
+  samples:
+    type: string
+
+  pca:
+    type: object
+    properties:
+      labels:
+        type: array
+        items:
+          type: string
+    required:
+      - id
+
+  params:
+    type: object
+    properties:
+      id: 
+        type: string
+      exp:
+        type: string
+      sequencing
+        type: string
+      genotype
+        type: string
+
+  required:
+      - id
+
+required:
+  - samples
