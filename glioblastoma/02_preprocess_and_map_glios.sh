@@ -17,7 +17,7 @@ export WD="$HOME"/mnt/nfs/"$TASK"/"$SUBTASK"
 
 export SOFT="$HOME"/soft
 export VIRTENVS="$HOME"/virtenvs
-export NTHREADS=20
+export NTHREADS=8
 ## guess this one
 export MM10=/home/Shared/data/annotation/Mouse/Ensembl_GRCm38.90/STARIndex/Ensembl_GRCm38.90.dna.primary_assembly_126/
 export MM10_GTF=/home/Shared/data/annotation/Mouse/Ensembl_GRCm38.90/gtf/Mus_musculus.GRCm38.90.gtf
@@ -71,7 +71,7 @@ cd $WD
 
 mkdir -p raw_fastq
 
-for bam in $(find $WD/unmapped_bams -name "*bam")
+for bam in $(find $WD/unmapped_bams -name "*bam" | sort)
 do
     echo $bam
     tag=$(basename $bam _unmapped.bam)
@@ -93,7 +93,7 @@ done
 
 echo 'cutadapt and sickle'
 
-for bam in $(find $WD -name "*bam")
+for bam in $(find $WD/unmapped_bams -name "*bam" | sort)
 do
     echo $bam
     tag=$(basename $bam _unmapped.bam)
@@ -119,7 +119,7 @@ do
     rm -f "$r".fastq.gz 
     
     "$SICKLE" se \
-	      -f "$trimmed_r".fastq.gz \
+	      -f "$trimmed_r"_cutadapt.fastq.gz \
 	      -o "$trimmed_r"_sickle.fastq.gz \
 	      -t sanger \
 	      -g &> "$trimmed_r"_cutadapt_sickle.log
@@ -130,6 +130,8 @@ do
     
     cd $WD
 done
+
+## till here
 
 echo 'bismark map'
 
