@@ -1,13 +1,12 @@
 $schema: "http://json-schema.org/draft-06/schema#"
-
 description: snakemake configuration file
-
-type: object
-
 properties:
   samples:
     type: string
-
+  software:
+    properties:
+      Rbin:
+        type: string
   pca:
     type: object
     properties:
@@ -15,23 +14,18 @@ properties:
         type: array
         items:
           type: string
-    required:
-      - id
-
+      required:
+        - id            
   params:
     type: object
     properties:
-      id: 
-        type: string
-      exp:
-        type: string
-      sequencing
-        type: string
-      genotype
-        type: string
-
-  required:
-      - id
-
+      chromosome: 
+        type: array
+        items:
+          type: string
+      min_coverage:
+        type: integer
+      min_threads:
+        type: integer
 required:
   - samples

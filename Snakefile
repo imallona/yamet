@@ -1,48 +1,32 @@
 # todo
 # ensure the bam file is not empty after subset by chrom
 
-
-print('note the bamfiles are retrieved using 01_encode_bulk_run, and that the hmm segmentations as well')
-
-# import os.path as op
-import os
-import glob
-import re
-import pandas as pd
-from snakemake.utils import validate
-import yaml
-
-configfile: "config.yaml"
-validate(config, "config.schema.yaml")
-
-
+# to be documented
 # roadmap ids
 # https://egg2.wustl.edu/roadmap/web_portal/meta.html
 # https://egg2.wustl.edu/roadmap/web_portal/chr_state_learning.html
 # 15 states HMM
 
-config = yaml.load(config)
-# print(config)
+print('note the bamfiles are retrieved using 01_encode_bulk_run,')
+print (' and that the hmm segmentations as well')
 
+import os
+# import glob
+import re
+import pandas as pd
+from snakemake.utils import validate
 
-## yaml tests end ###########
+configfile: "config.yaml"
+validate(config, "schemas/config.schema.yaml")
+Rbin = config['software']['Rbin']
+CHROMS = config['params']['chromosomes']
+MINCOVERAGE = config['params']['min_coverage']
+NTHREADS = config['params']['num_threads']
 
-# Rbin = "/home/imallona/soft/R/R-3.5.1/bin/R"
-Rbin = "/usr/local/bin/R"
-
-# CHROMS = ['chr' + str(c) for c in range(17,19)]
-CHROMS = ['chr19']
-MINCOVERAGE = 20
-NTHREADS = 4
-
-SAMPLES = glob.glob(os.path.join('test_data', '*.bam'))
-
-BAMS = {os.path.splitext(os.path.basename(sample))[0] : sample for sample in SAMPLES}
-# HMMS = [os.path.splitext(os.path.basename(hmm))[0] for hmm in glob.glob(os.path.join('hmm', '*.gz'))]
-
-# HMMS = {os.path.splitext(os.path.basename(hmm))[0] : hmm for hmm in glob.glob(os.path.join('hmm', '*.gz'))}
-HMMS = {os.path.basename(hmm).split(os.extsep,1)[0] : hmm for hmm in glob.glob(os.path.join('hmm', '*.gz'))}
-
+samples = pd.read_csv(config["samples"], sep = '\t').set_index("id", drop=False)
+validate(samples, schema="schemas/samples.schema.yaml")
+BAMS = samples.to_dict()['bam']
+HMMS = samples.to_dict()['roadmap_hmm']
 
 
 METHTUPLE = expand("{sample}/qnsorted_{sample}_{chrom}.CG.2.tsv",
