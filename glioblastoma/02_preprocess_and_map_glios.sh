@@ -18,6 +18,7 @@ export WD="$HOME"/mnt/nfs/"$TASK"/"$SUBTASK"
 export SOFT="$HOME"/soft
 export VIRTENVS="$HOME"/virtenvs
 export NTHREADS=16
+export BISMARK_NTHREADS=4
 ## guess this one
 export MM10=/home/Shared/data/annotation/Mouse/Ensembl_GRCm38.90/STARIndex/Ensembl_GRCm38.90.dna.primary_assembly_126/
 export MM10_GTF=/home/Shared/data/annotation/Mouse/Ensembl_GRCm38.90/gtf/Mus_musculus.GRCm38.90.gtf
@@ -137,24 +138,25 @@ done
 echo 'bismark map'
 
 mkdir -p "$WD"/bismark
-cd "$WD"/bismark
+cd "$WD"
 
-for fastq in $(find $WD/trimmed_fastq -name "*sickle.fastq.gz" | sort)
+for fastq in $(find $WD -name "*sickle.fastq.gz" | sort)
 do
     echo $fastq
-    ln -s $fastq
+
     tag=$(basename $fastq _sickle.fastq.gz)
 
     bismark_bam="$tag"_bismark_bt2.bam
 
-    
+    mkdir -p "$WD"/bismark/"$tag"
     ( "$BISMARK" --bowtie2 \
                  --path_to_bowtie "$BOWTIE_PATH" \
                  --gzip \
-                 --parallel $NTHREADS \
+                 --output_dir "$WD"/bismark/"$tag" \
+                 --parallel "$BISMARK_NTHREADS" \
                  --genome "$HG38_GENOME" \
-                 --se "$(basename $fastq)" ) 2>&1 | tee "$WD"/bismark/"$tag"_bismark.log
-    unlink "$fastq"
+                 --se  $fastq ) 2>&1 | tee "$WD"/bismark/"$tag"/"$tag"_bismark.log
+
 done
                     
 # echo 'dedup'
