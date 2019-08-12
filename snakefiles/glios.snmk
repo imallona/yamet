@@ -1,8 +1,6 @@
 # todo
 # ensure the bam file is not empty after subset by chrom
 
-print (' and that the hmm segmentations as well')
-
 import os
 # import glob
 import re
@@ -17,30 +15,37 @@ MINCOVERAGE = config['params']['min_coverage']
 NTHREADS = config['params']['num_threads']
 
 samples = pd.read_csv(config["samples"], sep = '\t').set_index("id", drop=False)
+print(samples)
 validate(samples, schema="schemas/samples.schema.yaml")
-BAMS = os.path.join(samples.to_dict()['id'],samples.to_dict()['bam'])
 
+# print(samples.to_dict()['bam'].values())
+
+# BAMS = [str(bam) for bam in samples.to_dict()['bam'].values()]
+BAMS = samples.to_dict()['bam']
+# print(BAMS)
+
+# BAMS = ["bismark/%s/%s.bam"% (a, a)] # get the bamfiles from the config, easier
 
 METHTUPLE = expand("{sample}/qnsorted_{sample}_{chrom}.CG.2.tsv",
-                    sample =  BAMS.keys(),
-                    chrom = CHROMS)
+                   sample =  BAMS.keys(),
+                   chrom = CHROMS)
 
 AWK = expand("{sample}/qnsorted_{sample}_{chrom}.CG.2_cov_{cov}.tsv",
-                    sample =  BAMS.keys(),
-                    chrom = CHROMS,
-                    cov = MINCOVERAGE)
+             sample =  BAMS.keys(),
+             chrom = CHROMS,
+             cov = MINCOVERAGE)
 
 METHYLATIONS =  {os.path.splitext(os.path.basename(sample))[0] :
                  expand("{sample}/qnsorted_{sample}_{chrom}_cov_{cov}_methylation.bed",
-                    sample =  sample,
-                    chrom = CHROMS,
-                    cov = MINCOVERAGE) for sample in BAMS}
+                        sample =  sample,
+                        chrom = CHROMS,
+                        cov = MINCOVERAGE) for sample in BAMS}
 
 ENTROPIES =  {os.path.splitext(os.path.basename(sample))[0] :
               expand("{sample}/qnsorted_{sample}_{chrom}_cov_{cov}_entropy.bed",
-                    sample =  sample,
-                    chrom = CHROMS,
-                    cov = MINCOVERAGE) for sample in BAMS}
+                     sample =  sample,
+                     chrom = CHROMS,
+                     cov = MINCOVERAGE) for sample in BAMS}
 
 MERGED_ENTROPY = expand("{sample}/{sample}_cov_{cov}_entropy.bed.gz",
                         sample = BAMS.keys(),
@@ -49,16 +54,6 @@ MERGED_ENTROPY = expand("{sample}/{sample}_cov_{cov}_entropy.bed.gz",
 MERGED_METHYLATION = expand( "{sample}/{sample}_cov_{cov}_methylation.bed.gz",
                              sample = BAMS.keys(),
                              cov = MINCOVERAGE)
-
-
-R_OUTS_VARIANT =  {os.path.splitext(os.path.basename(sample))[0] :
-                   expand( "{sample}/{sample}_cov_{cov}_hmm_{hmm}_to_integrate.tsv.gz",
-                  sample = BAMS.keys(),
-                  cov = MINCOVERAGE,
-                  hmm = HMMS.keys()) for sample in BAMS}
-
-INTEGRATIVE_OUTPUT = expand( "across_cov_{cov}_hmm.test",
-                        cov = MINCOVERAGE)
 
 rule all:
     input:
@@ -214,7 +209,7 @@ rule samtools_sort:
     priority: 100
               
     input:
-        "test_data/{sample}.bam"
+        "bismark/{sample}/{sample}_sickle_bismark_bt2.bam"
     output:
         temp("{sample}/{sample}.bam")
     threads : NTHREADS
