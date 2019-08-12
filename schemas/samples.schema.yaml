@@ -12,7 +12,7 @@ properties:
     type: string
     description: bam reference genome assembly
   replicate:
-    type: integer
+    type: string
     description: biological replicate
   sequencing:
     type: string
