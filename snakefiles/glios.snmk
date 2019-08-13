@@ -55,9 +55,14 @@ MERGED_METHYLATION = expand( "{sample}/{sample}_cov_{cov}_methylation.bed.gz",
                              sample = BAMS.keys(),
                              cov = MINCOVERAGE)
 
+MERGED_ENTROPY_AND_METHYLATION = expand( "{sample}/{sample}_cov_{cov}_entropy_and_meth.bed.gz",
+                             sample = BAMS.keys(),
+                             cov = MINCOVERAGE)
+
 rule all:
     input:
-        AWK, METHTUPLE, MERGED_METHYLATION, MERGED_ENTROPY
+        # AWK, METHTUPLE, METHYLATIONS, ENTROPIES, MERGED_METHYLATION, MERGED_ENTROPY
+        MERGED_ENTROPY_AND_METHYLATION
 
 rule run_sample_report:
     input:
@@ -174,7 +179,7 @@ rule run_meththuple:
     input:
         "{sample}/qnsorted_{sample}_{chrom}.bam"
     output:
-        "{sample}/qnsorted_{sample}_{chrom}.CG.2.tsv"
+        temp("{sample}/qnsorted_{sample}_{chrom}.CG.2.tsv")
     shell: """
         set +u;
         # source ~/virtenvs/methtuple/bin/activate
