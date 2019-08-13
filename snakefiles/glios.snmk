@@ -177,9 +177,9 @@ rule run_meththuple:
         "{sample}/qnsorted_{sample}_{chrom}.CG.2.tsv"
     shell: """
         set +u;
-        source ~/virtenvs/methtuple/bin/activate
+        # source ~/virtenvs/methtuple/bin/activate
         methtuple -m 2 --methylation-type CG {input}    
-        deactivate
+        # deactivate
         set -u;
         """
 
