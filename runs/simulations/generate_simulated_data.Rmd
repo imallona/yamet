@@ -1,0 +1,162 @@
+---
+title: "Cometh simulation"
+params:
+  seed: 1
+author: "Izaskun Mallona"
+output:
+  html_document:
+    keep_md: false
+    toc: true
+    toc_float: true
+    toc_depth: 4
+
+---
+
+# Context
+
+
+# SEt up
+
+```{r tag}
+analysis_tag <- 'cometh_simulation'
+```
+
+```{r libraries, include=TRUE, cache = FALSE}
+library(data.table)
+library(entropy)
+
+```
+
+```{r functions}
+ac <-  function(col, alpha=1){
+
+    apply(sapply(col, col2rgb)/255, 2, 
+          function(x) 
+              rgb(x[1], x[2], x[3], alpha=alpha))  
+}
+```
+
+
+# Simulation scenarios
+
+Data structure:
+
+```
+chr, cpg1, cpg2, tuples, entropies, strand, methylation
+```
+
+```
+18	10862	10870	MM50;MU0;UM0;UU0	0	+	1
+18	10870	10876	MM50;MU0;UM0;UU0	0	+	1
+18	10876	10888	MM49;MU0;UM0;UU0	0	+	1
+18	48387	48396	MM57;MU0;UM38;UU0	0.673012	-	0.8
+18	48396	48398	MM59;MU37;UM0;UU0	0.666654	-	0.807292
+18	48398	48412	MM50;MU9;UM37;UU0	0.929138	-	0.760417
+18	48412	48434	MM87;MU0;UM9;UU0	0.311129	-	0.953125
+
+
+```
+
+## Fully methylated
+
+```{r}
+
+## ## not used
+## recurse <- function(positions) {
+##     positions <- sort(positions)
+##     n <- 1
+##     res <- NULL
+##     while (n <= length(positions)) {
+##         if (n == 1) {
+##             res <- c(res, positions[n])
+##         } else {
+##             ## print(sprintf('%s %s %s', n, positions[n-1], positions[n]))
+##             res <- c(res, positions[n-1] + positions[n])
+##         }
+##         n <- n + 1
+##     }
+
+##     res
+## }
+
+## recurse(1:10)
+## recurse(10:1)
+## recurse(c(5,5,500))
+
+
+get_methylation <- function(mm, um, mu, uu) {
+    return (( (2 * mm) + um + mu) / (2* ( mm + um + mu + uu) ))
+}
+
+get_tuple_name <- function(mm, um, mu, uu) {
+    sprintf('MM%s;MU%s;UM%s;UU%s', mm, mu, um, uu)
+}
+
+## no gaps between tuples
+simulate_full_meth <- function(chrom, num_tuples, average_depth, std_depth, tuple_distance) {
+    tmp <- as.data.frame(matrix(nrow = num_tuples, ncol = 10, data = NA))
+    colnames(tmp) <- c('chrom', 'start', 'end', 'MM', 'MU', 'UM', 'UU', 'entropy',
+                       'strand', 'meth')
+
+    ## one sided, rounded normal distribution for coverages
+    set.seed(1)
+    tmp[,'MM'] <- round(abs(rnorm(n = num_tuples,
+                              mean = average_depth,
+                              sd = std_depth)))
+
+    tmp[tmp$MM == 0, 'MM'] <- average_depth
+    
+    pos <- seq(from = 1, length.out = num_tuples, by = tuple_distance)
+    
+    tmp[,'start'] <- pos
+    tmp[,'end'] <- c(pos[2:length(pos)], pos[length(pos)] + tuple_distance)
+
+    ## at random
+
+    set.seed(4)
+    tmp[,'strand'] <- sample(c('+', '-'), size = num_tuples, replace = TRUE)
+    
+    tmp[,'UU'] <- 0
+    tmp[,'UM'] <- 0
+    tmp[,'MU'] <- 0
+
+    tmp[,'meth'] <- get_methylation(mm = tmp$MM,
+                                    um = tmp$UM,
+                                    mu = tmp$MU,
+                                    uu = tmp$UU)
+
+    tmp[,'chrom'] <- chrom
+    tmp[, 'entropy'] <- apply(tmp[c('MM', 'UM', 'MU', 'UU')],
+                              1,
+                              entropy)
+
+    
+    tmp$id <- get_tuple_name(mm = tmp$MM, um = tmp$UM, mu = tmp$MU, uu = tmp$UU)
+    
+    tmp[c('chrom', 'start', 'end', 'id', 'entropy', 'strand', 'meth' )]
+                    
+}
+
+tmp <- simulate_full_meth(chrom = 'chr19', num_tuples = 10000,
+                          average_depth = 10,
+                          std_depth = 5,
+                          tuple_distance = 20)
+
+```
+
+## Fully unmethylated
+
+## Two haplotypes, half methylation, ordered
+
+## Many haplotypes, half methylation, unordered
+
+## Two haplotypes, 
+
+# Session
+
+```{r sessionInfo, cache = 0}
+
+date()
+devtools::session_info()
+
+```
