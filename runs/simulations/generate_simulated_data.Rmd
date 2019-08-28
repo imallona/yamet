@@ -1,0 +1,607 @@
+---
+title: "Cometh simulation"
+params:
+  seed: 1
+author: "Izaskun Mallona"
+output:
+  html_document:
+    keep_md: false
+    toc: true
+    toc_float: true
+    toc_depth: 4
+
+---
+
+# Context
+
+
+# SEt up
+
+```{r tag}
+analysis_tag <- 'cometh_simulation'
+```
+
+```{r libraries, include=TRUE, cache = FALSE}
+library(data.table)
+library(entropy)
+library(truncnorm) # truncated normal
+library(ggplot2)
+library(ggExtra)
+```
+
+```{r functions}
+ac <-  function(col, alpha=1){
+
+    apply(sapply(col, col2rgb)/255, 2, 
+          function(x) 
+              rgb(x[1], x[2], x[3], alpha=alpha))  
+}
+```
+
+
+```{r}
+
+get_methylation <- function(mm, um, mu, uu) {
+    return (( (2 * mm) + um + mu) / (2* ( mm + um + mu + uu) ))
+}
+
+get_tuple_name <- function(mm, um, mu, uu) {
+    sprintf('MM%s;MU%s;UM%s;UU%s', mm, mu, um, uu)
+}
+
+
+fill_positions_no_gaps <- function(num_tuples, tuple_distance) {
+
+    pos <- seq(from = 1, length.out = num_tuples, by = tuple_distance)
+    
+    end <- c(pos[2:length(pos)], pos[length(pos)] + tuple_distance)
+
+    return(list(start = pos, end = end))
+}
+
+build_tuple_scaffold <- function(num_tuples) {
+    tmp <- as.data.frame(matrix(nrow = num_tuples, ncol = 10, data = NA))
+    colnames(tmp) <- c('chrom', 'start', 'end', 'MM', 'MU', 'UM', 'UU', 'entropy',
+                       'strand', 'meth')
+    tmp
+}
+
+dissect_tuple_name <- function(count_string) {
+
+    cnames <- strsplit(gsub("[0-9]+", "", as.character(count_string)), ';')[[1]]
+    tmp <- strsplit(gsub("[A-Z]+", "", as.character(count_string)), ';')
+
+    tmp <- data.frame(matrix(unlist(tmp), nrow=length(count_string), byrow = TRUE))
+    
+    ## rownames(tmp) <- count_string
+    colnames(tmp) <- cnames
+    tmp <- sapply(tmp, function(x) as.numeric(as.character(x)))
+    tmp
+}
+
+get_coverage <- function(count_string) {
+    tmp <-  dissect_tuple_name(count_string)
+    rowSums(tmp)
+}
+
+
+plot_simulation <- function(d) {
+    d$coverage <- get_coverage(d$id)
+    d$log10_distance <- log10(d$end - d$start)
+
+    p1 <- ggplot(d, aes (x = coverage, y = meth, col = entropy)) +
+        geom_point() + theme_bw(15)
+    
+    p1 <- ggExtra::ggMarginal(p1,
+                              type = 'density',
+                              margins = 'both',
+                              size = 5)
+
+
+    p1
+    
+    p2 <- ggplot(d, aes (x = entropy, y = meth, col = entropy)) +
+        geom_point() + theme_bw(15)
+    
+    p2 <- ggExtra::ggMarginal(p2,
+                              type = 'density',
+                              margins = 'both',
+                              size = 5)
+
+    p2 
+}
+
+```
+
+```{r}
+
+write_simulation <- function(d, filename) {    
+    write.table(x = d, file = gzfile(filename),
+                row.names = FALSE, col.names = FALSE, quote = FALSE,
+                sep = '\t')
+
+}
+
+```
+
+
+# Simulation scenarios
+
+Data structure:
+
+```
+chr, cpg1, cpg2, tuples, entropies, strand, methylation
+```
+
+```
+18	10862	10870	MM50;MU0;UM0;UU0	0	+	1
+18	10870	10876	MM50;MU0;UM0;UU0	0	+	1
+18	10876	10888	MM49;MU0;UM0;UU0	0	+	1
+18	48387	48396	MM57;MU0;UM38;UU0	0.673012	-	0.8
+18	48396	48398	MM59;MU37;UM0;UU0	0.666654	-	0.807292
+18	48398	48412	MM50;MU9;UM37;UU0	0.929138	-	0.760417
+18	48412	48434	MM87;MU0;UM9;UU0	0.311129	-	0.953125
+```
+
+```{r}
+sims <- list()
+```
+
+## Fully methylated
+
+⏺⏺
+
+⏺⏺
+
+⏺⏺
+
+⏺⏺
+
+
+```{r}
+
+## no gaps between tuples
+simulate_full_meth <- function(chrom, num_tuples, average_depth, std_depth, tuple_distance) {
+    d <- build_tuple_scaffold(num_tuples)
+    d[,'chrom'] <- chrom
+    
+    ## one sided, rounded normal distribution for coverages
+    set.seed(1)
+    ## d[,'MM'] <- round(abs(rnorm(n = num_tuples,
+    ##                           mean = average_depth,
+    ##                           sd = std_depth)))
+    ## d[d$MM == 0, 'MM'] <- average_depth
+
+    d[,'MM']  <- round(truncnorm::rtruncnorm(num_tuples, a = 1, b = Inf,
+                                       mean = average_depth,
+                                       sd = std_depth))
+
+    
+    foo <- fill_positions_no_gaps(num_tuples = num_tuples,
+                                            tuple_distance = tuple_distance)
+
+    d$start <- foo$start
+    d$end <- foo$end
+
+    ## at random
+    set.seed(4)
+    d[,'strand'] <- sample(c('+', '-'), size = num_tuples, replace = TRUE)
+    
+    d[,'UU'] <- 0
+    d[,'UM'] <- 0
+    d[,'MU'] <- 0
+
+    d[,'meth'] <- get_methylation(mm = d$MM, um = d$UM,
+                                    mu = d$MU, uu = d$UU)
+
+    d[, 'entropy'] <- apply(d[c('MM', 'UM', 'MU', 'UU')],
+                              1,
+                              entropy)
+    
+    d$id <- get_tuple_name(mm = d$MM, um = d$UM, mu = d$MU, uu = d$UU)
+    
+    d[c('chrom', 'start', 'end', 'id', 'entropy', 'strand', 'meth' )]
+                    
+}
+
+```
+
+```{r}
+sims$meth <- simulate_full_meth(chrom = 'chr19', num_tuples = 10000,
+                           average_depth = 10,
+                           std_depth = 5,
+                           tuple_distance = 20)
+
+summary(sims$meth)
+
+
+hist(get_coverage(sims$meth$id))
+lines(density(get_coverage(sims$meth$id)), lwd = 2)
+
+```
+
+## Fully unmethylated
+
+○○
+
+○○
+
+○○
+
+○○
+
+```{r}
+
+simulate_full_unmeth <- function(chrom, num_tuples, average_depth, std_depth, tuple_distance) {
+    d <- build_tuple_scaffold(num_tuples)
+    d[,'chrom'] <- chrom
+    
+    ## one sided, rounded normal distribution for coverages
+    set.seed(1)
+    d[,'UU'] <- round(truncnorm::rtruncnorm(num_tuples, a = 1, b = Inf,
+                                       mean = average_depth,
+                                       sd = std_depth))
+
+    foo <- fill_positions_no_gaps(num_tuples = num_tuples,
+                                            tuple_distance = tuple_distance)
+
+    d$start <- foo$start
+    d$end <- foo$end
+    
+    ## at random
+    set.seed(4)
+    d[,'strand'] <- sample(c('+', '-'), size = num_tuples, replace = TRUE)
+    
+    d[,'MM'] <- 0
+    d[,'UM'] <- 0
+    d[,'MU'] <- 0
+
+    d[,'meth'] <- get_methylation(mm = d$MM, um = d$UM,
+                                    mu = d$MU, uu = d$UU)
+
+    d[, 'entropy'] <- apply(d[c('MM', 'UM', 'MU', 'UU')],
+                              1,
+                              entropy)
+    
+    d$id <- get_tuple_name(mm = d$MM, um = d$UM, mu = d$MU, uu = d$UU)
+    
+    d[c('chrom', 'start', 'end', 'id', 'entropy', 'strand', 'meth' )]            
+}
+
+
+```
+
+```{r}
+sims$unmeth <- simulate_full_unmeth(chrom = 'chr19', num_tuples = 10000,
+                               average_depth = 10,
+                               std_depth = 5,
+                               tuple_distance = 20)
+
+summary(sims$unmeth)
+
+plot_simulation(sims$unmeth)
+
+hist(get_coverage(sims$unmeth$id))
+lines(density(get_coverage(sims$unmeth$id)), lwd = 2)
+```
+
+
+
+## Two haplotypes, half methylation, ordered
+
+⏺⏺
+
+⏺⏺
+
+○○
+
+○○
+
+
+```{r}
+simulate_two_haplotypes_lowest_entropy <- function(chrom, num_tuples, average_depth,
+                                                   std_depth, tuple_distance) {
+
+    dmeth <- simulate_full_meth(chrom, round(num_tuples/2), average_depth,
+                                std_depth, tuple_distance)
+    ## print(head(dmeth))
+
+    dunmeth <-  simulate_full_unmeth(chrom, round(num_tuples/2), average_depth,
+                                     std_depth, tuple_distance)
+
+    ## print(head(dunmeth))
+    
+    d <- rbind(dmeth, dunmeth)
+
+    d <- d[order(d$start),]
+    d
+    ## return(list(d = d, dmeth = dmeth, dunmeth = dunmeth))
+}
+
+```
+
+
+```{r}
+sims$imprint <- simulate_two_haplotypes_lowest_entropy(chrom = 'chr19', num_tuples = 10000,
+                               average_depth = 10,
+                               std_depth = 5,
+                               tuple_distance = 20)
+
+summary(sims$imprint)
+
+hist(get_coverage(sims$imprint$id))
+lines(density(get_coverage(sims$imprint$id)), lwd = 2)
+
+```
+
+
+## Infinite haplotypes, max entropy
+
+⏺○
+
+○⏺
+
+○○
+
+⏺⏺
+
+
+```{r untested1, eval = TRUE}
+
+simulate_infinite_haplotypes <- function(chrom, num_tuples, average_depth,
+                                         std_depth, tuple_distance) {
+
+    d <- build_tuple_scaffold(num_tuples)
+    d[,'chrom'] <- chrom
+    
+    ## one sided, rounded normal distribution for coverages
+    set.seed(1)
+    
+    d[,'UU'] <- round(truncnorm::rtruncnorm(num_tuples, a = 0, b = Inf,
+                                            mean = average_depth/4,
+                                            sd = std_depth/2))
+
+    set.seed(2)
+    
+    d[,'UM'] <- round(truncnorm::rtruncnorm(num_tuples, a = 0, b = Inf,
+                                            mean = average_depth/4,
+                                            sd = std_depth/2))    
+    set.seed(99)
+
+    d[,'MU'] <- round(truncnorm::rtruncnorm(num_tuples, a = 0, b = Inf,
+                                            mean = average_depth/4,
+                                            sd = std_depth/2))
+    set.seed(666)
+
+    d[,'MM'] <- round(truncnorm::rtruncnorm(num_tuples, a = 0, b = Inf,
+                                            mean = average_depth/4,
+                                            sd = std_depth/2))
+    
+    foo <- fill_positions_no_gaps(num_tuples = num_tuples,
+                                  tuple_distance = tuple_distance)    
+
+    d$start <- foo$start
+    d$end <- foo$end
+
+    d[,'meth'] <- get_methylation(mm = d$MM, um = d$UM,
+                                    mu = d$MU, uu = d$UU)
+
+    d[, 'entropy'] <- apply(d[c('MM', 'UM', 'MU', 'UU')],
+                              1,
+                              entropy)
+    
+    ## at random
+    set.seed(4)
+    d[,'strand'] <- sample(c('+', '-'), size = num_tuples, replace = TRUE)
+
+    
+    
+    d$id <- get_tuple_name(mm = d$MM, um = d$UM, mu = d$MU, uu = d$UU)
+    
+    d[c('chrom', 'start', 'end', 'id', 'entropy', 'strand', 'meth' )]    
+    
+}
+```
+
+```{r untested2, eval = TRUE}
+sims$entropic <- simulate_infinite_haplotypes(chrom = 'chr19', num_tuples = 10000,
+                               average_depth = 10,
+                               std_depth = 5,
+                               tuple_distance = 20)
+
+summary(sims$entropic)
+
+head(sims$entropic)
+
+hist(get_coverage(sims$entropic$id))
+lines(density(get_coverage(sims$entropic$id)), lwd = 2)
+
+hist(sims$entropic$meth)
+hist(sims$entropic$entropy)
+
+plot_simulation(sims$entropic)
+
+```
+
+
+
+## Boundary simple
+
+
+⏺○
+
+⏺○
+
+⏺○
+
+⏺○
+
+
+```{r}
+simulate_boundary <- function(chrom, num_tuples, average_depth,
+                                         std_depth, tuple_distance) {
+
+    d <- build_tuple_scaffold(num_tuples)
+    d[,'chrom'] <- chrom
+    
+    ## one sided, rounded normal distribution for coverages
+    set.seed(88)
+    
+    d[,'UM'] <- round(truncnorm::rtruncnorm(num_tuples, a = 1, b = Inf,
+                                            mean = average_depth,
+                                            sd = std_depth))
+    d[,'UU'] <- 0
+    d[,'MU'] <- 0
+    d[,'MM'] <- 0
+    
+    foo <- fill_positions_no_gaps(num_tuples = num_tuples,
+                                  tuple_distance = tuple_distance)    
+
+    d$start <- foo$start
+    d$end <- foo$end
+
+    d[,'meth'] <- get_methylation(mm = d$MM, um = d$UM,
+                                    mu = d$MU, uu = d$UU)
+
+    d[, 'entropy'] <- apply(d[c('MM', 'UM', 'MU', 'UU')],
+                              1,
+                              entropy)
+    
+    ## at random
+    set.seed(4)
+    d[,'strand'] <- sample(c('+', '-'), size = num_tuples, replace = TRUE)
+
+    
+    
+    d$id <- get_tuple_name(mm = d$MM, um = d$UM, mu = d$MU, uu = d$UU)
+    
+    d[c('chrom', 'start', 'end', 'id', 'entropy', 'strand', 'meth' )]    
+    
+}
+
+```
+
+
+```{r}
+sims$boundary <- simulate_boundary(chrom = 'chr19', num_tuples = 10000,
+                                         average_depth = 10,
+                                         std_depth = 5,
+                                         tuple_distance = 20)
+
+summary(sims$boundary)
+
+head(sims$boundary)
+
+hist(get_coverage(sims$boundary$id))
+lines(density(get_coverage(sims$boundary$id)), lwd = 2)
+
+hist(sims$boundary$meth)
+hist(sims$boundary$entropy)
+
+plot_simulation(sims$boundary)
+
+```
+
+
+## Boundary opposed
+
+
+⏺○
+
+⏺○
+
+○⏺
+
+○⏺
+
+
+```{r}
+simulate_opposed_boundary <- function(chrom, num_tuples, average_depth,
+                                         std_depth, tuple_distance) {
+
+    d <- build_tuple_scaffold(num_tuples)
+    d[,'chrom'] <- chrom
+    
+    ## one sided, rounded normal distribution for coverages
+    set.seed(88)
+    
+    d[,'UM'] <- round(truncnorm::rtruncnorm(num_tuples, a = 1, b = Inf,
+                                            mean = average_depth/2,
+                                            sd = std_depth))
+
+
+    d$MU <- d$UM
+    
+    d[,'UU'] <- 0
+    d[,'MM'] <- 0
+    
+    foo <- fill_positions_no_gaps(num_tuples = num_tuples,
+                                  tuple_distance = tuple_distance)    
+
+    d$start <- foo$start
+    d$end <- foo$end
+
+    d[,'meth'] <- get_methylation(mm = d$MM, um = d$UM,
+                                    mu = d$MU, uu = d$UU)
+
+    d[, 'entropy'] <- apply(d[c('MM', 'UM', 'MU', 'UU')],
+                              1,
+                              entropy)
+    
+    ## at random
+    set.seed(4)
+    d[,'strand'] <- sample(c('+', '-'), size = num_tuples, replace = TRUE)
+
+    
+    
+    d$id <- get_tuple_name(mm = d$MM, um = d$UM, mu = d$MU, uu = d$UU)
+    
+    d[c('chrom', 'start', 'end', 'id', 'entropy', 'strand', 'meth' )]    
+    
+}
+
+```
+
+
+```{r}
+sims$opposed_boundary <- simulate_opposed_boundary(chrom = 'chr19', num_tuples = 10000,
+                                         average_depth = 10,
+                                         std_depth = 5,
+                                         tuple_distance = 20)
+
+summary(sims$opposed_boundary)
+
+head(sims$opposed_boundary)
+
+plot_simulation(sims$opposed_boundary)
+
+```
+
+## Write simulations
+
+```{r}
+dir.create('simulations', showWarnings = FALSE)
+
+for (sim in names(sims)) {
+    write_simulation(sims[sim],
+                     filename = file.path('simulations', sprintf('%s.gz', sim)))
+}
+```
+
+# Coverage simulations
+
+
+# Todo
+
+Simulating regions longer than 2 items?
+
+Strand-specific simulations?
+
+# Session
+
+```{r sessionInfo, cache = 0}
+
+date()
+devtools::session_info()
+
+```
