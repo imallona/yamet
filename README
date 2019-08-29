@@ -1,7 +1,14 @@
 ## Repo organization
 
 - `schemas`, yaml sample and configs, includes `samples.schema.yaml` and `config.schema.yaml`
-- `runs`, snakemakes and data getters for specific runs, e.g. `encode`, `glios`, `simulations`, `test`
+- `runs`,  data getters, config files and accessors for specific runs, e.g. `encode`, `glios`, `simulations`, `test`
+- `snakefiles`, snakefiles for different runs
+
+## Current runs
+- `glios`, explores entropies from https://www.ebi.ac.uk/ega/datasets/EGAD00001004074, for which clinical data are available
+- `encode`, explores the association between entropies and HMM segmentations using data from ENCODE
+- `test`, uses the methtuple bismark bam testfiles
+
 
 ## To do
 
