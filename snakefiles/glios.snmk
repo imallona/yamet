@@ -64,17 +64,41 @@ AVG_ENTROPIES = expand( "{sample}/{sample}_cov_{cov}_average_entropy_promoter.be
                              sample = BAMS.keys(),
                              cov = MINCOVERAGE)
 
+AVG_METHYLATIONS = expand( "{sample}/{sample}_cov_{cov}_average_methylation_promoter.bed.gz",
+                           sample = BAMS.keys(),
+                           cov = MINCOVERAGE)
+
 BEDTOOLS = "/home/imallona/soft/bedtools/bedtools2/bin/bedtools"
 
 rule all:
     input:
         # AWK, METHTUPLE, METHYLATIONS, ENTROPIES, MERGED_METHYLATION, MERGED_ENTROPY
         # MERGED_ENTROPY_AND_METHYLATION
-        AVG_ENTROPIES
+        AVG_ENTROPIES, AVG_METHYLATIONS
 
 
 # ruleorder: merge_methylations > get_average_entropy_in_promoters
-        
+
+rule get_average_methylation_in_promoters:
+    input:
+        entropy = "{sample}/{sample}_cov_{MINCOVERAGE}_entropy_and_meth.bed.gz",
+        promoters = 'data/hg38_nonoverlapping_promoters.bed',
+        bedtools_bin = BEDTOOLS
+    output:
+        "{sample}/{sample}_cov_{MINCOVERAGE}_average_methylation_promoter.bed.gz"
+    shell:
+        # """
+        # zcat {input.entropy} | \
+        #   bedtools map -a - -b {input.promoters} -c 5 -o mean | gzip > {output}
+        # """
+        """
+        zcat {input.entropy} | \
+        {input.bedtools_bin} intersect -a - -b {input.promoters} -wa -wb | \
+        {input.bedtools_bin} groupby -g 11 -c 7 -o mean | gzip > {output}
+        """
+
+
+
 rule get_average_entropy_in_promoters:
     input:
         entropy = "{sample}/{sample}_cov_{MINCOVERAGE}_entropy_and_meth.bed.gz",

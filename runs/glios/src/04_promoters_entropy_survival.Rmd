@@ -1,0 +1,72 @@
+---
+title: "04 promoters / glioblastoma"
+params:
+  seed: 1
+author: "Izaskun Mallona"
+output:
+  html_document:
+    keep_md: false
+    toc: true
+    toc_float: true
+    toc_depth: 4
+
+---
+
+# Configure
+
+```{r}
+NTHREADS=5
+```
+
+```{r tag}
+analysis_tag <- '04_promoters_entropy_survival'
+```
+
+```{r}
+library(devtools)
+```
+
+# Data load
+
+Methylation and entropy data (averaged by non-overlapping promoter)
+
+```{r}
+d <- list(meth = list(),
+          entropy = list())
+
+for (fn in list.files('.', pattern = '.*average_entropy_promoter.bed.gz', recursive = TRUE)) {
+    tryCatch({
+        d$entropy[[dirname(fn)]] <- read.table(fn, header = FALSE, stringsAsFactors = FALSE,
+                                       col.names = c('promoter', 'avg_entropy'))
+    }, error = function(x) print(fn))
+    
+}
+
+for (fn in list.files('.', pattern = '.*average_meth_promoter.bed.gz', recursive = TRUE)) {
+    tryCatch({
+        d$meth[[dirname(fn)]] <- read.table(fn, header = FALSE, stringsAsFactors = FALSE,
+                                       col.names = c('promoter', 'avg_entropy'))
+    }, error = function(x) print(fn))
+    
+}
+
+```
+
+Clinical data
+
+```{r}
+print('todo')
+```
+
+# Summarization
+
+Average of averages? 
+
+# Session
+
+```{r sessionInfo, cache = 0}
+
+date()
+devtools::session_info()
+
+```
