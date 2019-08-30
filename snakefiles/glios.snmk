@@ -1,5 +1,6 @@
 # todo
 # ensure the bam file is not empty after subset by chrom
+# add the bedtools path to config file
 
 import os
 # import glob
@@ -59,9 +60,11 @@ MERGED_ENTROPY_AND_METHYLATION = expand( "{sample}/{sample}_cov_{cov}_entropy_an
                              sample = BAMS.keys(),
                              cov = MINCOVERAGE)
 
-AVG_ENTROPIES = expand( "{sample}/{sample}_cov_{cov}_average_promoter_entropy.bed.gz",
+AVG_ENTROPIES = expand( "{sample}/{sample}_cov_{cov}_average_entropy_promoter.bed.gz",
                              sample = BAMS.keys(),
                              cov = MINCOVERAGE)
+
+BEDTOOLS = "/home/imallona/soft/bedtools/bedtools2/bin/bedtools"
 
 rule all:
     input:
@@ -75,15 +78,21 @@ rule all:
 rule get_average_entropy_in_promoters:
     input:
         entropy = "{sample}/{sample}_cov_{MINCOVERAGE}_entropy_and_meth.bed.gz",
-        promoters = 'data/hg38_nonoverlapping_promoters.bed'
+        promoters = 'data/hg38_nonoverlapping_promoters.bed',
+        bedtools_bin = BEDTOOLS
     output:
         "{sample}/{sample}_cov_{MINCOVERAGE}_average_entropy_promoter.bed.gz"
     shell:
+        # """
+        # zcat {input.entropy} | \
+        #   bedtools map -a - -b {input.promoters} -c 5 -o mean | gzip > {output}
+        # """
         """
         zcat {input.entropy} | \
-          bedtools map -a - -b {input.promoters} -c 5 -o mean | gzip > {output}
+        {input.bedtools_bin} intersect -a - -b {input.promoters} -wa -wb | \
+        {input.bedtools_bin} groupby -g 11 -c 5 -o mean | gzip > {output}
         """
-
+        
 rule add_methylation_to_entropy_file:
     input:
         methylation = "{sample}/{sample}_cov_{MINCOVERAGE}_methylation.bed.gz",

@@ -26,10 +26,13 @@ mysql --user=genome \
            strand           
           from 
            hg38.refGene;" | \
-    awk '{OFS=FS="\t"; print $1,$2,$3,$4,"0",$5}' | $BEDTOOLS sort > refGene_hg38.bed
+    awk '{OFS=FS="\t"; print $1,$2,$3,$4,"0",$5}' | \
+    sed 's/chr//g' | \
+    $BEDTOOLS sort > refGene_hg38.bed
 
 mysql --user=genome --host=genome-mysql.cse.ucsc.edu \
-      -A -e "select chrom, size from hg38.chromInfo" > hg38.genome
+      -A -e "select chrom, size from hg38.chromInfo" | \
+    sed 's/chr//g' | sed 's/om/chrom/g' > hg38.genome
 
 
 ## bedtools expanding overlapping transcripts and getting the upstream region,
