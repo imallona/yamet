@@ -16,7 +16,9 @@ output:
 
 ```{r}
 NTHREADS = 5
-CLINICAL_DATA_PATH = file.path('data', '41591_2018_156_MOESM3_ESM.csv')
+
+DATA_PATH= '/home/imallona/src/meth_entropies/runs/glios'
+CLINICAL_DATA_PATH = file.path(DATA_PATH,  'data', '41591_2018_156_MOESM3_ESM.csv')
 ```
 
 ```{r tag}
@@ -37,17 +39,21 @@ Methylation and entropy data (averaged by non-overlapping promoter)
 d <- list(meth = list(),
           entropy = list())
 
-for (fn in list.files('.', pattern = '.*average_entropy_promoter.bed.gz', recursive = TRUE)) {
+for (fn in list.files(DATA_PATH,
+                      pattern = '.*average_entropy_promoter.bed.gz', recursive = TRUE)) {
     tryCatch({
-        d$entropy[[dirname(fn)]] <- read.table(fn, header = FALSE, stringsAsFactors = FALSE,
+        d$entropy[[dirname(fn)]] <- read.table(file.path(DATA_PATH, fn),
+                                               header = FALSE, stringsAsFactors = FALSE,
                                        col.names = c('promoter', 'avg_entropy'))
     }, error = function(x) print(fn))
     
 }
 
-for (fn in list.files('.', pattern = '.*average_methylation_promoter.bed.gz', recursive = TRUE)) {
+for (fn in list.files(DATA_PATH,
+                      pattern = '.*average_methylation_promoter.bed.gz', recursive = TRUE)) {
     tryCatch({
-        d$meth[[dirname(fn)]] <- read.table(fn, header = FALSE, stringsAsFactors = FALSE,
+        d$meth[[dirname(fn)]] <- read.table(file.path(DATA_PATH, fn),
+                                            header = FALSE, stringsAsFactors = FALSE,
                                        col.names = c('promoter', 'avg_meth'))
     }, error = function(x) print(fn))
     
@@ -90,12 +96,10 @@ rownames(dict) <- dict$id
 
 ```
 
-Filling it with the average of averages DNA methylation entropies and beta values.
-@todo fix nas
 
 ```{r}
 for (id in dict$id) {
-    meth_id <- grep(pattern = sprintf('.*%s', id), x = names(d$meth), value = TRUE)
+    meth_id <- grep(pattern = sprintf('.*%s$', id), x = names(d$meth), value = TRUE)
     dict[id, 'meth'] <- mean(d$meth[[meth_id]]$avg_meth, na.rm = TRUE)
     
     entropy_id <- grep(pattern = sprintf('.*%s', id), x = names(d$entropy), value = TRUE)
@@ -117,6 +121,8 @@ dict$event_global[dict$Status == 'alive'] <- 0
 Global survival vs methylation
 
 ```{r}
+tag <- 'avg_meth'
+tag2 <- tag
 
 ctime <- summary(coxph(Surv(dict$Follow.up.Time..months., dict$event_global) ~
                            dict$meth))
@@ -161,14 +167,16 @@ plot(ctime_cutoff, xlab = tag, main = 'cut-off selection global survival')
 Global survival vs entropy
 
 ```{r}
+tag <- 'avg_entropy'
+tag2 <- tag
 
 ctime <- summary(coxph(Surv(dict$Follow.up.Time..months., dict$event_global) ~
                            dict$entropy))
 
 ctime_cutoff <- maxstat.test(Surv(Follow.up.Time..months., event_global) ~
-                                 dict$entropy,
+                                 entropy,
                              data = dict,
-                             sentropyod = "LogRank", pentropyod = "condMC", B = 9999,
+                             smethod = "LogRank", pentropyod = "condMC", B = 9999,
                              alpha = 0.05)
 
 fit <- survfit(Surv(dict$Follow.up.Time..months., dict$event_global)
@@ -210,10 +218,104 @@ dict$event_free <- NA
 dict$event_free[dict$Time.to.Progression..months. < dict$Follow.up.Time..months.] <- 1
 dict$event_free[dict$Time.to.Progression..months. > dict$Follow.up.Time..months.] <- 0
 
-table(event_free)
+table(dict$event_free)
 ```
 
 Because all do...
+
+
+What about the proportion of highly entropic regions?
+
+```{r untested_m}
+
+dict <- data.frame(entropy = names(d$entropy),
+                   meth = NA,
+                   id = NA,
+                   stringsAsFactors = FALSE)
+
+dict$patient <- sapply(strsplit(split = "_", dict$entropy),
+                       function(x) return(sprintf('%s_%s', x[2], x[3])))
+
+dict$sample <- gsub('_NA', '', sapply(strsplit(split = "_", dict$entropy),
+                                      function(x) return(sprintf('%s_%s_%s', x[4], x[5], x[6]))))
+
+dict$id <- sprintf('%s_%s', dict$patient, dict$sample)
+dict$entropy <- NA
+
+rownames(dict) <- dict$id
+
+dict <- merge(dict, clin, by = 'id')
+
+dict$event_global <- NA
+dict$event_global[dict$Status == 'dead'] <- 1
+dict$event_global[dict$Status == 'alive'] <- 0
+
+
+
+dict$count_entropic <- NA
+for (id in dict$id) {
+    entropy_id <- grep(pattern = sprintf('.*%s$', id), x = names(d$entropy), value = TRUE)
+    if (length(entropy_id) == 1) {
+        ## print(entropy_id)
+        ## tryCatch({
+        dict[entropy_id, 'count_entropic'] <- sum(d$entropy[[entropy_id]]$avg_entropy > 0.5,
+                                                  na.rm = TRUE)/length(d$entropy[[entropy_id]]$avg_entropy)
+
+        
+        ## }, error = function(x) print(''))
+    }
+}
+
+summary(dict$count_entropic)
+summary(dict$event_global)
+
+
+tag <- 'avg_count_entropic'
+tag2 <- tag
+
+ctime <- summary(coxph(Surv(dict$Follow.up.Time..months., dict$event_global) ~
+                           dict$Sex))
+
+ctime <- summary(coxph(Surv(dict$Follow.up.Time..months., dict$event_global) ~
+                           dict$count_entropic))
+
+ctime_cutoff <- maxstat.test(Surv(Follow.up.Time..months., event_global) ~
+                                 count_entropic,
+                             data = dict,
+                             smethod = "LogRank", pcount_entropicod = "condMC", B = 9999,
+                             alpha = 0.05)
+
+fit <- survfit(Surv(dict$Follow.up.Time..months., dict$event_global)
+               ~ strata(dict$count_entropic < ctime_cutoff$estimate))
+
+ctime_sdf <- survdiff(Surv(dict$Follow.up.Time..months., dict$event_global)
+                      ~ dict$count_entropic < ctime_cutoff$estimate , rho = 0)
+
+ctime_sdf$p.value <- 1 - pchisq(ctime_sdf$chisq, length(ctime_sdf$n) - 1)
+ctime_sdf$statistic <-ctime_sdf$chisq
+
+
+plot(fit, lty = 1:2,
+     ylab = 'event global survival probability',
+     xlab = 'time global',
+     main = sprintf('%s\ncoxph pvalue %s statistic %s\nlogrank pvalue %s statistic %s',
+                    tag, tag2,
+                    sprintf('%g', coef(ctime)[5]), sprintf('%g', coef(ctime)[1]),
+                    sprintf('%g', ctime_sdf$p.value),  sprintf('%g', ctime_sdf$statistic)))
+
+legend(
+    "bottomleft",
+    legend = c(sprintf('x < %s', ctime_cutoff$estimate),
+               sprintf('x >= %s', ctime_cutoff$estimate)),
+    lty = 1:2,
+    horiz = FALSE,
+    bty = 'n')
+
+plot(ctime_cutoff, xlab = tag, main = 'cut-off selection global survival')
+    
+
+```
+
 
 # Session
 
