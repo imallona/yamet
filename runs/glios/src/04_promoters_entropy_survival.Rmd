@@ -23,6 +23,8 @@ Sample-wise PDR and epiallele entropy values were calculated by averaging across
 
 ```
 
+But look at figure 5d: is clear it does not allow to stratify patients in this case! https://www.nature.com/articles/s41591-018-0156-x/figures/5
+
 Plus match patients, recurrence etc
 
 
@@ -34,6 +36,25 @@ NTHREADS = 5
 DATA_PATH= '/home/imallona/src/meth_entropies/runs/glios'
 CLINICAL_DATA_PATH = file.path(DATA_PATH,  'data', '41591_2018_156_MOESM3_ESM.csv')
 ```
+
+
+```{r knitr_setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      fig.width = 6,
+                      fig.height = 6,
+                      comment = NULL,
+                      warning = TRUE,
+                      cache = TRUE, tidy = TRUE, tidy.opts = list(width.cutoff=80))
+
+## for transparencies
+## setHook(packageEvent("grDevices", "onLoad"),
+## function(...) grDevices::X11.options(type='cairo'))
+## options(device='x11')
+options(bitmapType="cairo")
+
+```
+
+
 
 ```{r tag}
 analysis_tag <- '04_promoters_entropy_survival'
@@ -93,21 +114,28 @@ Building a per-patient and sample entropies/methylation dataframe.
 
 ```{r}
 
-dict <- data.frame(entropy = names(d$entropy),
+dict <- data.frame(raw_id = names(d$entropy),
+                   entropy = NA,
                    meth = NA,
                    id = NA,
                    stringsAsFactors = FALSE)
 
-dict$patient <- sapply(strsplit(split = "_", dict$entropy),
+dict$clin_id <- gsub('_NA', '',
+                     sapply(strsplit(split = "_", dict$raw_id),
+                            function(x) return(sprintf('%s_%s_%s_%s_%s',
+                                                  x[2], x[3], x[4], x[5], x[6]))))
+
+dict$patient <- sapply(strsplit(split = "_", dict$raw_id),
                        function(x) return(sprintf('%s_%s', x[2], x[3])))
 
-dict$sample <- gsub('_NA', '', sapply(strsplit(split = "_", dict$entropy),
+dict$sample <- gsub('_NA', '', sapply(strsplit(split = "_", dict$raw_id),
                                       function(x) return(sprintf('%s_%s_%s', x[4], x[5], x[6]))))
+
 
 dict$id <- sprintf('%s_%s', dict$patient, dict$sample)
 dict$entropy <- NA
 
-rownames(dict) <- dict$id
+rownames(dict) <- dict$raw_id
 
 ```
 
@@ -164,13 +192,14 @@ d$entropy <- d$entropy[lengths(d$entropy) != 0]
 Standardization
 
 
-```{r}
-print('todo')
+```{r, eval = FALSE}
+print('does not work on averages')
 
-standardize_without_coverage <- function(meth, entropy) {
+standardize_without_coverage <- function(id, meth, entropy) {
     cov = 10
     
-    d <- data.frame(meth = meth, entropy = entropy)
+    d <- data.frame(id = id, meth = meth, entropy = entropy)
+    ## rownames(d) <- d$id
     
     d$pU <- (rep(cov, length(meth)) - (cov * meth))/cov
     d$pM <- 1 - d$pU
@@ -209,6 +238,8 @@ standardize_without_coverage <- function(meth, entropy) {
     
     d$standardized_entropy <- (d$entropy - d$lower_bound) / (d$max_entropy - d$lower_bound)
     d$standardized_entropy[is.na(d$standardized_entropy)] <- 0
+
+    return(d[, c('id', 'standardized_entropy')])
 }
 
 
@@ -216,6 +247,7 @@ d$standardized <- list()
 for (item in names(d$entropy)) {
     tryCatch({
         d$standardized[[item]] <- standardize_without_coverage(
+            id = d$entropy[[item]]$promoter,
             meth = d$meth[[item]]$avg_meth,
             entropy = d$entropy[[item]]$avg_entropy)
     }, error = function(x) print(sprintf('%s %s', item, x)))
@@ -223,30 +255,55 @@ for (item in names(d$entropy)) {
 ```
 
 
-Get the mean value. This was coded very weirdly, redo
+Get the mean value. By patient and same type (e.g. whether fv or not; not by patient)
 
 
 ```{r}
-for (id in dict$id) {
-    meth_id <- grep(pattern = sprintf('.*%s$', id), x = names(d$meth), value = TRUE)
-    dict[id, 'meth'] <- mean(d$meth[[meth_id]]$avg_meth, na.rm = TRUE)
+for (id in dict$raw_id) {
+    dict[id, 'meth'] <- mean(d$meth[[id]]$avg_meth, na.rm = TRUE)
     
-    entropy_id <- grep(pattern = sprintf('.*%s', id), x = names(d$entropy), value = TRUE)
-    dict[id, 'entropy'] <- mean(d$entropy[[entropy_id]]$avg_entropy, na.rm = TRUE)
+    dict[id, 'entropy'] <- mean(d$entropy[[id]]$avg_entropy, na.rm = TRUE)
 
-    standardized_entropy_id <- grep(pattern = sprintf('.*%s', id), x = names(d$standardized_entropy), value = TRUE)
-    dict[id, 'standardized_entropy'] <- mean(d$standardized_entropy[[standardized_entropy_id]]$avg_standardized_entropy, na.rm = TRUE)
+    ## dict[id, 'standardized_entropy'] <- mean(d$standardized[[id]]$standardized_entropy,
+    ##                                          na.rm = TRUE)
 }
 
 ```
 
+# Survival
 
+BEWARE WE ARE TAKING DOUBLE THE CASES WE HAVE, BECAUSE OF THE PROCESSING OF FV AND NONFV: split them not to falsely increase the cohort size!
+
+## Global survival all
 
 
 Survival object update.
 
+
+
+
 ```{r}
-dict <- merge(dict, clin, by = 'id')
+dict$another_id <- gsub('_fv', '', dict$clin_id)
+
+tmp <- list(fv = dict[grep('fv', dict$id),],
+            nonfv =  dict[grep('fv', dict$id, invert = TRUE),])
+
+dict <- tmp
+
+## commenting out because the identifier (same patient <-> fv and not fv data)
+## dict$fv <-  merge(dict$fv, clin, by.y = 'id', by.x = 'clin_id')
+
+dict$fv <-  merge(dict$fv, clin, by.y = 'id', by.x = 'another_id')
+
+dict$nonfv <-  merge(dict$nonfv, clin, by.y = 'id', by.x = 'clin_id')
+
+dict$fv$fv <- 'fv'
+dict$nonfv$fv <- 'nonfv' 
+dict <- do.call(rbind.data.frame, dict)
+
+```
+
+```{r}
 
 dict$event_global <- NA
 dict$event_global[dict$Status == 'dead'] <- 1
@@ -348,25 +405,346 @@ legend(
     
 ```
 
-Global survival vs standardized entropy
+Complex models
+
+No fv
 
 ```{r}
 
+tag <- 'avg_entropy'
+tag2 <- tag
+
+(ctime1 <- summary(coxph(Surv(dict$Follow.up.Time..months., dict$event_global) ~
+                            dict$meth)))
+
+(ctime2 <- summary(coxph(Surv(dict$Follow.up.Time..months., dict$event_global) ~
+                            dict$entropy +
+                            dict$meth +
+                            dict$Age.at.Diagnosis +
+                            dict$Sex +
+                            dict$IDH.status +
+                            dict$fv)))
+
+
 ```
 
+
+## Free survival all
+
 Disease-free survival
-Disease recidives are not encoded 
+Disease recidives: some are NA, let's encode them as 0
 
 ```{r}
 dict$event_free <- NA
 
 dict$event_free[dict$Time.to.Progression..months. < dict$Follow.up.Time..months.] <- 1
 dict$event_free[dict$Time.to.Progression..months. > dict$Follow.up.Time..months.] <- 0
+dict$event_free[is.na(dict$event_free)] <- 0
 
 table(dict$event_free)
 ```
 
-Because all do...
+```{r}
+
+tag <- 'avg_meth'
+tag2 <- 'free survival'
+
+ctime <- summary(coxph(Surv(dict$Follow.up.Time..months., dict$event_free) ~
+                           dict$meth))
+
+## ctime_cutoff <- maxstat.test(Surv(Follow.up.Time..months., event_global) ~
+##                                  dict$meth,
+##                              data = dict,
+##                              smethod = "LogRank", pmethod = "condMC", B = 9999,
+##                              alpha = 0.05)
+
+ctime_cutoff <- list(estimate = median(na.omit(dict$meth)))
+
+fit <- survfit(Surv(dict$Follow.up.Time..months., dict$event_free)
+               ~ strata(dict$meth < ctime_cutoff$estimate))
+
+ctime_sdf <- survdiff(Surv(dict$Follow.up.Time..months., dict$event_global)
+                      ~ dict$meth < ctime_cutoff$estimate , rho = 0)
+
+ctime_sdf$p.value <- 1 - pchisq(ctime_sdf$chisq, length(ctime_sdf$n) - 1)
+ctime_sdf$statistic <-ctime_sdf$chisq
+
+
+plot(fit, lty = 1:2,
+     ylab = 'event free survival probability',
+     xlab = 'time global',
+     main = sprintf('%s\ncoxph pvalue %s statistic %s\nlogrank pvalue %s statistic %s',
+                    tag, tag2,
+                    sprintf('%g', coef(ctime)[5]), sprintf('%g', coef(ctime)[1]),
+                    sprintf('%g', ctime_sdf$p.value),  sprintf('%g', ctime_sdf$statistic)))
+
+legend(
+    "bottomleft",
+    legend = c(sprintf('x < %s', ctime_cutoff$estimate),
+               sprintf('x >= %s', ctime_cutoff$estimate)),
+    lty = 1:2,
+    horiz = FALSE,
+    bty = 'n')
+
+## plot(ctime_cutoff, xlab = tag, main = 'cut-off selection global survival')
+
+
+```
+
+
+
+```{r}
+
+tag <- 'avg_entropy'
+tag2 <- 'free survival'
+
+ctime <- summary(coxph(Surv(dict$Follow.up.Time..months., dict$event_free) ~
+                           dict$entropy))
+
+## ctime_cutoff <- maxstat.test(Surv(Follow.up.Time..months., event_global) ~
+##                                  dict$entropy,
+##                              data = dict,
+##                              sentropyod = "LogRank", pentropyod = "condMC", B = 9999,
+##                              alpha = 0.05)
+
+ctime_cutoff <- list(estimate = median(na.omit(dict$entropy)))
+
+fit <- survfit(Surv(dict$Follow.up.Time..months., dict$event_free)
+               ~ strata(dict$entropy < ctime_cutoff$estimate))
+
+ctime_sdf <- survdiff(Surv(dict$Follow.up.Time..months., dict$event_global)
+                      ~ dict$entropy < ctime_cutoff$estimate , rho = 0)
+
+ctime_sdf$p.value <- 1 - pchisq(ctime_sdf$chisq, length(ctime_sdf$n) - 1)
+ctime_sdf$statistic <-ctime_sdf$chisq
+
+
+plot(fit, lty = 1:2,
+     ylab = 'event free survival probability',
+     xlab = 'time global',
+     main = sprintf('%s\ncoxph pvalue %s statistic %s\nlogrank pvalue %s statistic %s',
+                    tag, tag2,
+                    sprintf('%g', coef(ctime)[5]), sprintf('%g', coef(ctime)[1]),
+                    sprintf('%g', ctime_sdf$p.value),  sprintf('%g', ctime_sdf$statistic)))
+
+legend(
+    "bottomleft",
+    legend = c(sprintf('x < %s', ctime_cutoff$estimate),
+               sprintf('x >= %s', ctime_cutoff$estimate)),
+    lty = 1:2,
+    horiz = FALSE,
+    bty = 'n')
+
+## plot(ctime_cutoff, xlab = tag, main = 'cut-off selection global survival')
+
+
+```
+
+## Global survival FV meth
+
+```{r}
+tag <- 'avg_meth FV only'
+tag2 <- tag
+
+dictfv<- dict[dict$fv =='fv',]
+
+ctime <- summary(coxph(Surv(dictfv$Follow.up.Time..months., dictfv$event_global) ~
+                           dictfv$meth))
+
+## ctime_cutoff <- maxstat.test(Surv(Follow.up.Time..months., event_global) ~
+##                                  dictfv$meth,
+##                              data = dictfv,
+##                              smethod = "LogRank", pmethod = "condMC", B = 9999,
+##                              alpha = 0.05)
+
+ctime_cutoff <- list(estimate = median(na.omit(dictfv$meth)))
+
+fit <- survfit(Surv(dictfv$Follow.up.Time..months., dictfv$event_global)
+               ~ strata(dictfv$meth < ctime_cutoff$estimate))
+
+ctime_sdf <- survdiff(Surv(dictfv$Follow.up.Time..months., dictfv$event_global)
+                      ~ dictfv$meth < ctime_cutoff$estimate , rho = 0)
+
+ctime_sdf$p.value <- 1 - pchisq(ctime_sdf$chisq, length(ctime_sdf$n) - 1)
+ctime_sdf$statistic <-ctime_sdf$chisq
+
+
+plot(fit, lty = 1:2,
+     ylab = 'event global survival probability',
+     xlab = 'time global',
+     main = sprintf('%s\ncoxph pvalue %s statistic %s\nlogrank pvalue %s statistic %s',
+                    tag, tag2,
+                    sprintf('%g', coef(ctime)[5]), sprintf('%g', coef(ctime)[1]),
+                    sprintf('%g', ctime_sdf$p.value),  sprintf('%g', ctime_sdf$statistic)))
+
+legend(
+    "bottomleft",
+    legend = c(sprintf('x < %s', ctime_cutoff$estimate),
+               sprintf('x >= %s', ctime_cutoff$estimate)),
+    lty = 1:2,
+    horiz = FALSE,
+    bty = 'n')
+
+## plot(ctime_cutoff, xlab = tag, main = 'cut-off selection global survival')
+    
+```
+
+
+## Global survival FV entropy
+
+```{r}
+tag <- 'avg_entropy FV only'
+tag2 <- tag
+
+dictfv<- dict[dict$fv =='fv',]
+
+ctime <- summary(coxph(Surv(dictfv$Follow.up.Time..months., dictfv$event_global) ~
+                           dictfv$entropy))
+
+## ctime_cutoff <- maxstat.test(Surv(Follow.up.Time..months., event_global) ~
+##                                  dictfv$entropy,
+##                              data = dictfv,
+##                              sentropyod = "LogRank", pentropyod = "condMC", B = 9999,
+##                              alpha = 0.05)
+
+ctime_cutoff <- list(estimate = median(na.omit(dictfv$entropy)))
+
+fit <- survfit(Surv(dictfv$Follow.up.Time..months., dictfv$event_global)
+               ~ strata(dictfv$entropy < ctime_cutoff$estimate))
+
+ctime_sdf <- survdiff(Surv(dictfv$Follow.up.Time..months., dictfv$event_global)
+                      ~ dictfv$entropy < ctime_cutoff$estimate , rho = 0)
+
+ctime_sdf$p.value <- 1 - pchisq(ctime_sdf$chisq, length(ctime_sdf$n) - 1)
+ctime_sdf$statistic <-ctime_sdf$chisq
+
+
+plot(fit, lty = 1:2,
+     ylab = 'event global survival probability',
+     xlab = 'time global',
+     main = sprintf('%s\ncoxph pvalue %s statistic %s\nlogrank pvalue %s statistic %s',
+                    tag, tag2,
+                    sprintf('%g', coef(ctime)[5]), sprintf('%g', coef(ctime)[1]),
+                    sprintf('%g', ctime_sdf$p.value),  sprintf('%g', ctime_sdf$statistic)))
+
+legend(
+    "bottomleft",
+    legend = c(sprintf('x < %s', ctime_cutoff$estimate),
+               sprintf('x >= %s', ctime_cutoff$estimate)),
+    lty = 1:2,
+    horiz = FALSE,
+    bty = 'n')
+
+## plot(ctime_cutoff, xlab = tag, main = 'cut-off selection global survival')
+    
+```
+
+
+
+
+## Global survival non FV meth
+
+```{r}
+tag <- 'avg_meth nonFV only'
+tag2 <- tag
+
+dictnonfv<- dict[dict$fv =='nonfv',]
+
+ctime <- summary(coxph(Surv(dictnonfv$Follow.up.Time..months., dictnonfv$event_global) ~
+                           dictnonfv$meth))
+
+## ctime_cutoff <- maxstat.test(Surv(Follow.up.Time..months., event_global) ~
+##                                  dictnonfv$meth,
+##                              data = dictnonfv,
+##                              smethod = "LogRank", pmethod = "condMC", B = 9999,
+##                              alpha = 0.05)
+
+ctime_cutoff <- list(estimate = median(na.omit(dictnonfv$meth)))
+
+fit <- survfit(Surv(dictnonfv$Follow.up.Time..months., dictnonfv$event_global)
+               ~ strata(dictnonfv$meth < ctime_cutoff$estimate))
+
+ctime_sdf <- survdiff(Surv(dictnonfv$Follow.up.Time..months., dictnonfv$event_global)
+                      ~ dictnonfv$meth < ctime_cutoff$estimate , rho = 0)
+
+ctime_sdf$p.value <- 1 - pchisq(ctime_sdf$chisq, length(ctime_sdf$n) - 1)
+ctime_sdf$statistic <-ctime_sdf$chisq
+
+
+plot(fit, lty = 1:2,
+     ylab = 'event global survival probability',
+     xlab = 'time global',
+     main = sprintf('%s\ncoxph pvalue %s statistic %s\nlogrank pvalue %s statistic %s',
+                    tag, tag2,
+                    sprintf('%g', coef(ctime)[5]), sprintf('%g', coef(ctime)[1]),
+                    sprintf('%g', ctime_sdf$p.value),  sprintf('%g', ctime_sdf$statistic)))
+
+legend(
+    "bottomleft",
+    legend = c(sprintf('x < %s', ctime_cutoff$estimate),
+               sprintf('x >= %s', ctime_cutoff$estimate)),
+    lty = 1:2,
+    horiz = FALSE,
+    bty = 'n')
+
+## plot(ctime_cutoff, xlab = tag, main = 'cut-off selection global survival')
+    
+```
+
+
+
+## Global survival non FV entropy
+
+```{r}
+tag <- 'avg_entropy nonFV only'
+tag2 <- tag
+
+dictnonfv<- dict[dict$fv =='nonfv',]
+
+ctime <- summary(coxph(Surv(dictnonfv$Follow.up.Time..months., dictnonfv$event_global) ~
+                           dictnonfv$entropy))
+
+## ctime_cutoff <- maxstat.test(Surv(Follow.up.Time..months., event_global) ~
+##                                  dictnonfv$entropy,
+##                              data = dictnonfv,
+##                              sentropyod = "LogRank", pentropyod = "condMC", B = 9999,
+##                              alpha = 0.05)
+
+ctime_cutoff <- list(estimate = median(na.omit(dictnonfv$entropy)))
+
+fit <- survfit(Surv(dictnonfv$Follow.up.Time..months., dictnonfv$event_global)
+               ~ strata(dictnonfv$entropy < ctime_cutoff$estimate))
+
+ctime_sdf <- survdiff(Surv(dictnonfv$Follow.up.Time..months., dictnonfv$event_global)
+                      ~ dictnonfv$entropy < ctime_cutoff$estimate , rho = 0)
+
+ctime_sdf$p.value <- 1 - pchisq(ctime_sdf$chisq, length(ctime_sdf$n) - 1)
+ctime_sdf$statistic <-ctime_sdf$chisq
+
+
+plot(fit, lty = 1:2,
+     ylab = 'event global survival probability',
+     xlab = 'time global',
+     main = sprintf('%s\ncoxph pvalue %s statistic %s\nlogrank pvalue %s statistic %s',
+                    tag, tag2,
+                    sprintf('%g', coef(ctime)[5]), sprintf('%g', coef(ctime)[1]),
+                    sprintf('%g', ctime_sdf$p.value),  sprintf('%g', ctime_sdf$statistic)))
+
+legend(
+    "bottomleft",
+    legend = c(sprintf('x < %s', ctime_cutoff$estimate),
+               sprintf('x >= %s', ctime_cutoff$estimate)),
+    lty = 1:2,
+    horiz = FALSE,
+    bty = 'n')
+
+## plot(ctime_cutoff, xlab = tag, main = 'cut-off selection global survival')
+    
+```
+
+
+## Chunks
+
 
 
 Standardized entropy?
