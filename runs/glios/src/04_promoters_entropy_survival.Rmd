@@ -12,6 +12,20 @@ output:
 
 ---
 
+# Notes and todos
+
+From https://www.nature.com/articles/s41591-018-0156-x#Sec10
+
+```
+The epiallele entropy (EPY), a measure of subclonality within a tumor, was calculated using a slightly modified version of methclone (v0.1)50. We calculated epiallele entropies separately for each of the samples and, independently, for each matched pair of primary and recurring tumors. Input files to methclone were created by aligning the trimmed RRBS reads to the human reference genome (GRCh38) using Bismark58. To find suitable thresholds for read coverage and entropy change, we performed a series of analyses with read thresholds set to 20, 40, and 60 reads and entropy change thresholds set to –40, –50, –60, –70, –80, and –90. We did not observe significant differences in the results except for the expected effects at the extremes of the spectrum. Therefore, we chose a moderate read threshold of 40 reads for methclone to consider a locus, and loci with a combinatorial entropy change below –80 were classified as epigenetic shift loci (eloci) between primary and recurring tumors or normal brain control samples (as described in the original publication)50. For each pair, we then calculated epiallele shifts per million loci (EPM), dividing the number of eloci by the total number of assessed loci normalized to 1 million loci50.
+
+Sample-wise PDR and epiallele entropy values were calculated by averaging across all promoters that were covered in >75% of the samples. Promoter regions were defined as the genomic region 1 kb upstream to 500 bp downstream of a given transcription start site as annotated by GENCODE72.
+
+```
+
+Plus match patients, recurrence etc
+
+
 # Configure
 
 ```{r}
@@ -29,6 +43,7 @@ analysis_tag <- '04_promoters_entropy_survival'
 library(devtools)
 library(survival)
 library(maxstat)
+library(entropy)
 ```
 
 # Data load
@@ -96,6 +111,120 @@ rownames(dict) <- dict$id
 
 ```
 
+Select promoters present in at least 75% of the patients
+
+
+```{r}
+
+## promoters <- as.data.frame(table(unlist(sapply(d$entropy, function(x) return(x$promoter)))))
+
+## ## promoters$percentage <- promoters$Freq/length(d$entropy)
+
+## tmp <- lapply(d$entropy, function(x) merge(x = data.frame(promoter = promoters),
+##                                            y = x,
+##                                            by = 'promoter',
+##                                            all.x = TRUE))
+
+
+promoters <- as.data.frame(table(unlist(lapply(d$entropy,
+                                               function(x) return(unique(x$promoter))))))
+
+promoters$percentage <- promoters$Freq/length(d$entropy)
+
+## present in 75% of the samples at least
+selected <- promoters[promoters$percentage >= 0.75, 'Var1']
+
+## we'll remove readouts from different promoters as well
+selected <- grep(',', selected, invert = TRUE, value = TRUE)
+
+```
+
+```{r}
+length(selected)
+```
+
+Filtering out data represented in less than 75% of the samples.
+
+
+```{r}
+
+d$entropy <- lapply(d$entropy, function(x) x[x$promoter %in% selected,])
+d$meth <- lapply(d$meth, function(x) x[x$promoter %in% selected,])
+```
+
+Remove samples with no data after filtering
+
+
+```{r}
+
+d$meth <- d$meth[lengths(d$meth) != 0]
+d$entropy <- d$entropy[lengths(d$entropy) != 0]
+```
+
+Standardization
+
+
+```{r}
+print('todo')
+
+standardize_without_coverage <- function(meth, entropy) {
+    cov = 10
+    
+    d <- data.frame(meth = meth, entropy = entropy)
+    
+    d$pU <- (rep(cov, length(meth)) - (cov * meth))/cov
+    d$pM <- 1 - d$pU
+    
+    d$max_entropy <- apply(data.frame(pUU = d$pU^2,
+                                      pUM = d$pU * d$pM,
+                                      pMU = d$pU * d$pM,
+                                      pMM = d$pM^2),
+                           1, entropy)
+
+
+    d$min_entropy_full <- apply(data.frame(pUU = d$pU,
+                                           pUM = 0,
+                                           pMU = 0,
+                                           pMM = d$pM),
+                                1, entropy)
+
+    
+    
+    d$min_entropy_meth <- apply(data.frame(pUU = 0,
+                                           pUM = abs(d$pM - d$pU)/2 ,
+                                           pMU =  0,
+                                           pMM = d$pM),
+                                1, entropy)
+
+    d$min_entropy_meth[d$meth >= 0.5] <- apply(
+        data.frame(pU = 0,
+                   pUM = abs(d[meth >= 0.5,]$pM - d[meth >= 0.5,]$pU)/2 ,
+                   pMU =  0,
+                   pMM = d[meth >= 0.5,]$pU),
+        1, entropy)
+    
+    
+    d$lower_bound <- apply(d[,c('min_entropy_full', 'min_entropy_meth')], 1, min)
+
+    
+    d$standardized_entropy <- (d$entropy - d$lower_bound) / (d$max_entropy - d$lower_bound)
+    d$standardized_entropy[is.na(d$standardized_entropy)] <- 0
+}
+
+
+d$standardized <- list()
+for (item in names(d$entropy)) {
+    tryCatch({
+        d$standardized[[item]] <- standardize_without_coverage(
+            meth = d$meth[[item]]$avg_meth,
+            entropy = d$entropy[[item]]$avg_entropy)
+    }, error = function(x) print(sprintf('%s %s', item, x)))
+}
+```
+
+
+Get the mean value. This was coded very weirdly, redo
+
 
 ```{r}
 for (id in dict$id) {
@@ -104,9 +233,15 @@ for (id in dict$id) {
     
     entropy_id <- grep(pattern = sprintf('.*%s', id), x = names(d$entropy), value = TRUE)
     dict[id, 'entropy'] <- mean(d$entropy[[entropy_id]]$avg_entropy, na.rm = TRUE)
+
+    standardized_entropy_id <- grep(pattern = sprintf('.*%s', id), x = names(d$standardized_entropy), value = TRUE)
+    dict[id, 'standardized_entropy'] <- mean(d$standardized_entropy[[standardized_entropy_id]]$avg_standardized_entropy, na.rm = TRUE)
 }
 
 ```
+
+
+
 
 Survival object update.
 
@@ -127,11 +262,13 @@ tag2 <- tag
 ctime <- summary(coxph(Surv(dict$Follow.up.Time..months., dict$event_global) ~
                            dict$meth))
 
-ctime_cutoff <- maxstat.test(Surv(Follow.up.Time..months., event_global) ~
-                                 dict$meth,
-                             data = dict,
-                             smethod = "LogRank", pmethod = "condMC", B = 9999,
-                             alpha = 0.05)
+## ctime_cutoff <- maxstat.test(Surv(Follow.up.Time..months., event_global) ~
+##                                  dict$meth,
+##                              data = dict,
+##                              smethod = "LogRank", pmethod = "condMC", B = 9999,
+##                              alpha = 0.05)
+
+ctime_cutoff <- list(estimate = median(na.omit(dict$meth)))
 
 fit <- survfit(Surv(dict$Follow.up.Time..months., dict$event_global)
                ~ strata(dict$meth < ctime_cutoff$estimate))
@@ -159,7 +296,7 @@ legend(
     horiz = FALSE,
     bty = 'n')
 
-plot(ctime_cutoff, xlab = tag, main = 'cut-off selection global survival')
+## plot(ctime_cutoff, xlab = tag, main = 'cut-off selection global survival')
     
 ```
 
@@ -173,11 +310,13 @@ tag2 <- tag
 ctime <- summary(coxph(Surv(dict$Follow.up.Time..months., dict$event_global) ~
                            dict$entropy))
 
-ctime_cutoff <- maxstat.test(Surv(Follow.up.Time..months., event_global) ~
-                                 entropy,
-                             data = dict,
-                             smethod = "LogRank", pentropyod = "condMC", B = 9999,
-                             alpha = 0.05)
+## ctime_cutoff <- maxstat.test(Surv(Follow.up.Time..months., event_global) ~
+##                                  entropy,
+##                              data = dict,
+##                              smethod = "LogRank", pentropyod = "condMC", B = 9999,
+##                              alpha = 0.05)
+
+ctime_cutoff <- list(estimate = median(na.omit(dict$entropy)))
 
 fit <- survfit(Surv(dict$Follow.up.Time..months., dict$event_global)
                ~ strata(dict$entropy < ctime_cutoff$estimate))
@@ -205,8 +344,14 @@ legend(
     horiz = FALSE,
     bty = 'n')
 
-plot(ctime_cutoff, xlab = tag, main = 'cut-off selection global survival')
+## plot(ctime_cutoff, xlab = tag, main = 'cut-off selection global survival')
     
+```
+
+Global survival vs standardized entropy
+
+```{r}
+
 ```
 
 Disease-free survival
@@ -224,9 +369,17 @@ table(dict$event_free)
 Because all do...
 
 
+Standardized entropy?
+
+
+```{r}
+
+```
+
+
 What about the proportion of highly entropic regions?
 
-```{r untested_m}
+```{r untested_m, eval = FALSE}
 
 dict <- data.frame(entropy = names(d$entropy),
                    meth = NA,
@@ -315,6 +468,7 @@ plot(ctime_cutoff, xlab = tag, main = 'cut-off selection global survival')
     
 
 ```
+
 
 
 # Session
