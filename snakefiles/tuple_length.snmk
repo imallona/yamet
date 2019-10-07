@@ -1,0 +1,148 @@
+# todo
+# ensure the bam file is not empty after subset by chrom
+# add the bedtools path to config file
+
+import os
+# import glob
+import re
+import pandas as pd
+from snakemake.utils import validate
+
+configfile: "config.yaml"
+validate(config, "schemas/config.schema.yaml")
+Rbin = config['software']['Rbin']
+CHROMS = config['params']['chromosomes']
+MINCOVERAGE = config['params']['min_coverage']
+NTHREADS = config['params']['num_threads']
+TUPLE_LENGTHS = range(2, 6)
+
+samples = pd.read_csv(config["samples"], sep = '\t').set_index("id", drop=False)
+
+print(samples)
+
+validate(samples, schema="schemas/samples.schema.yaml")
+
+# print(samples.to_dict()['bam'].values())
+
+# BAMS = [str(bam) for bam in samples.to_dict()['bam'].values()]
+BAMS = samples.to_dict()['bam']
+# print(BAMS)
+
+# BAMS = ["bismark/%s/%s.bam"% (a, a)] # get the bamfiles from the config, easier
+
+METHTUPLE = expand("{sample}/qnsorted_{sample}_{chrom}.CG.{tuplelength}.tsv",
+                   tuplelength = TUPLE_LENGTHS,
+                   sample =  BAMS.keys(),
+                   chrom = CHROMS)
+
+# AWK = expand("{sample}/qnsorted_{sample}_{chrom}.CG.2_cov_{cov}.tsv",
+#              sample =  BAMS.keys(),
+#              chrom = CHROMS,
+#              cov = MINCOVERAGE)
+
+# METHYLATIONS =  {os.path.splitext(os.path.basename(sample))[0] :
+#                  expand("{sample}/qnsorted_{sample}_{chrom}_cov_{cov}_methylation.bed",
+#                         sample =  sample,
+#                         chrom = CHROMS,
+#                         cov = MINCOVERAGE) for sample in BAMS}
+
+# ENTROPIES =  {os.path.splitext(os.path.basename(sample))[0] :
+#               expand("{sample}/qnsorted_{sample}_{chrom}_cov_{cov}_entropy.bed",
+#                      sample =  sample,
+#                      chrom = CHROMS,
+#                      cov = MINCOVERAGE) for sample in BAMS}
+
+# MERGED_ENTROPY = expand("{sample}/{sample}_cov_{cov}_entropy.bed.gz",
+#                         sample = BAMS.keys(),
+#                            cov = MINCOVERAGE)
+
+# MERGED_METHYLATION = expand( "{sample}/{sample}_cov_{cov}_methylation.bed.gz",
+#                              sample = BAMS.keys(),
+#                              cov = MINCOVERAGE)
+
+# MERGED_ENTROPY_AND_METHYLATION = expand( "{sample}/{sample}_cov_{cov}_entropy_and_meth.bed.gz",
+#                              sample = BAMS.keys(),
+#                              cov = MINCOVERAGE)
+
+# AVG_ENTROPIES = expand( "{sample}/{sample}_cov_{cov}_average_entropy_promoter.bed.gz",
+#                              sample = BAMS.keys(),
+#                              cov = MINCOVERAGE)
+
+# AVG_METHYLATIONS = expand( "{sample}/{sample}_cov_{cov}_average_methylation_promoter.bed.gz",
+#                            sample = BAMS.keys(),
+#                            cov = MINCOVERAGE)
+
+BEDTOOLS = "/home/imallona/soft/bedtools/bedtools2/bin/bedtools"
+
+rule all:
+    input:
+        # AWK, METHTUPLE, METHYLATIONS, ENTROPIES, MERGED_METHYLATION, MERGED_ENTROPY
+        # MERGED_ENTROPY_AND_METHYLATION
+        # AVG_ENTROPIES, AVG_METHYLATIONS
+        METHTUPLE
+
+
+# as many columns as needed
+rule adaptative_entropy:
+    input:
+        "{sample}/qnsorted_{sample}_{chrom}.CG.{numtuples}_cov_{MINCOVERAGE}.tsv"
+    output:
+        "{sample}/qnsorted_{sample}_{chrom}_cov_{MINCOVERAGE}_entropy.bed"
+    shell:
+        "echo todo"
+        # """
+        # cut -f select and then pipe to fast python scipy entropy?
+        # https://stackoverflow.com/questions/15450192/fastest-way-to-compute-entropy-in-python
+        # """
+    
+rule run_meththuple:
+    priority: 80
+    input:
+        "{sample}/qnsorted_{sample}_{chrom}.bam",
+    output:
+        # temp("{sample}/qnsorted_{sample}_{chrom}.CG.{tuplelength}.tsv")
+        "{sample}/qnsorted_{sample}_{chrom}.CG.{tuplelength}.tsv"
+    shell: """
+        set +u;
+        # source ~/virtenvs/methtuple/bin/activate
+        methtuple -m {wildcards.tuplelength} --methylation-type CG {input}    
+        # deactivate
+        set -u;
+        """
+
+rule sort_by_queryname:
+    priority: 90
+    input:
+        "{sample}/{sample}_{chrom}.bam"
+    output:
+        temp("{sample}/qnsorted_{sample}_{chrom}.bam")
+    threads: NTHREADS
+    shell:
+        """
+        samtools sort -@ {threads} -n {input} -o {output}
+        # mv {output}.bam {output}"""
+
+rule split_by_chrom:
+    input:
+        "{sample}/{sample}.bam"
+        # lambda wildcards, attempt: attempt * 100
+    output:
+        temp("{sample}/{sample}_{chrom}.bam")
+    threads: NTHREADS
+    shell:
+        "samtools view -@ {threads} -b {input} {wildcards.chrom} > {output}"
+ 
+rule samtools_sort:
+    priority: 100
+              
+    input:
+        "bismark/{sample}/{sample}_sickle_bismark_bt2.bam"
+    output:
+        temp("{sample}/{sample}.bam")
+    threads : NTHREADS
+    shell:
+        """
+        samtools sort -@ {threads} {input} -o {output}
+        # mv {output}.bam {output}
+        samtools index {output}
+        """
