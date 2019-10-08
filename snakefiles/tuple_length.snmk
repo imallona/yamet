@@ -46,13 +46,21 @@ MERGED = expand("{sample}/{sample}_cov_{cov}_CG_{tuplelength}_entropy_and_meth.b
                       cov = MINCOVERAGE,
                       tuplelength = TUPLE_LENGTHS)
 
+MERGED2 = expand("{sample}/{sample}_cov_{cov}_CG_{tuplelength}_entropy_and_meth.bed.gz",
+                  sample = BAMS.keys(),
+                  cov = MINCOVERAGE,
+                  tuplelength =  TUPLE_LENGTHS)
+
+print(MERGED2)
+
 rule all:
     input:
-        METHTUPLE, MERGED
+        METHTUPLE, MERGED2
 
 rule merge_meth_and_entropies:
     input:
         lambda wildcards: ENTROPY_METHS[wildcards.sample]
+        
     output:
         "{sample}/{sample}_cov_{MINCOVERAGE}_CG_{tuplelength}_entropy_and_meth.bed.gz"
     shell:
