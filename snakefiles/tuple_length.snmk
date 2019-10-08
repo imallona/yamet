@@ -1,6 +1,8 @@
 # todo
 # ensure the bam file is not empty after subset by chrom
-# add the bedtools path to config file
+# plot correlation between tuple lengths
+#
+# 08 oct 2019
 
 import os
 # import glob
@@ -10,6 +12,7 @@ from snakemake.utils import validate
 
 configfile: "config.yaml"
 validate(config, "schemas/config.schema.yaml")
+
 Rbin = config['software']['Rbin']
 CHROMS = config['params']['chromosomes']
 MINCOVERAGE = config['params']['min_coverage']
@@ -22,86 +25,61 @@ print(samples)
 
 validate(samples, schema="schemas/samples.schema.yaml")
 
-# print(samples.to_dict()['bam'].values())
-
-# BAMS = [str(bam) for bam in samples.to_dict()['bam'].values()]
 BAMS = samples.to_dict()['bam']
-# print(BAMS)
-
-# BAMS = ["bismark/%s/%s.bam"% (a, a)] # get the bamfiles from the config, easier
 
 METHTUPLE = expand("{sample}/qnsorted_{sample}_{chrom}.CG.{tuplelength}.tsv",
                    tuplelength = TUPLE_LENGTHS,
                    sample =  BAMS.keys(),
                    chrom = CHROMS)
 
-# AWK = expand("{sample}/qnsorted_{sample}_{chrom}.CG.2_cov_{cov}.tsv",
-#              sample =  BAMS.keys(),
-#              chrom = CHROMS,
-#              cov = MINCOVERAGE)
+ENTROPY_METHS = {os.path.splitext(os.path.basename(sample))[0] :
+                 expand("{sample}/{sample}_cov_{cov}_CG_{tuplelength}_entropy_and_meth_{chrom}.bed",
+                        sample = sample,
+                        cov = MINCOVERAGE,
+                        tuplelength = TUPLE_LENGTHS,
+                        chrom = CHROMS) for sample in BAMS}
 
-# METHYLATIONS =  {os.path.splitext(os.path.basename(sample))[0] :
-#                  expand("{sample}/qnsorted_{sample}_{chrom}_cov_{cov}_methylation.bed",
-#                         sample =  sample,
-#                         chrom = CHROMS,
-#                         cov = MINCOVERAGE) for sample in BAMS}
+print(ENTROPY_METHS)
 
-# ENTROPIES =  {os.path.splitext(os.path.basename(sample))[0] :
-#               expand("{sample}/qnsorted_{sample}_{chrom}_cov_{cov}_entropy.bed",
-#                      sample =  sample,
-#                      chrom = CHROMS,
-#                      cov = MINCOVERAGE) for sample in BAMS}
-
-# MERGED_ENTROPY = expand("{sample}/{sample}_cov_{cov}_entropy.bed.gz",
-#                         sample = BAMS.keys(),
-#                            cov = MINCOVERAGE)
-
-# MERGED_METHYLATION = expand( "{sample}/{sample}_cov_{cov}_methylation.bed.gz",
-#                              sample = BAMS.keys(),
-#                              cov = MINCOVERAGE)
-
-# MERGED_ENTROPY_AND_METHYLATION = expand( "{sample}/{sample}_cov_{cov}_entropy_and_meth.bed.gz",
-#                              sample = BAMS.keys(),
-#                              cov = MINCOVERAGE)
-
-# AVG_ENTROPIES = expand( "{sample}/{sample}_cov_{cov}_average_entropy_promoter.bed.gz",
-#                              sample = BAMS.keys(),
-#                              cov = MINCOVERAGE)
-
-# AVG_METHYLATIONS = expand( "{sample}/{sample}_cov_{cov}_average_methylation_promoter.bed.gz",
-#                            sample = BAMS.keys(),
-#                            cov = MINCOVERAGE)
-
-BEDTOOLS = "/home/imallona/soft/bedtools/bedtools2/bin/bedtools"
+MERGED = expand("{sample}/{sample}_cov_{cov}_CG_{tuplelength}_entropy_and_meth.bed.gz",
+                      sample = BAMS.keys(),
+                      cov = MINCOVERAGE,
+                      tuplelength = TUPLE_LENGTHS)
 
 rule all:
     input:
-        # AWK, METHTUPLE, METHYLATIONS, ENTROPIES, MERGED_METHYLATION, MERGED_ENTROPY
-        # MERGED_ENTROPY_AND_METHYLATION
-        # AVG_ENTROPIES, AVG_METHYLATIONS
-        METHTUPLE
+        METHTUPLE, MERGED
 
-
-# as many columns as needed
-rule adaptative_entropy:
+rule merge_meth_and_entropies:
     input:
-        "{sample}/qnsorted_{sample}_{chrom}.CG.{numtuples}_cov_{MINCOVERAGE}.tsv"
+        lambda wildcards: ENTROPY_METHS[wildcards.sample]
     output:
-        "{sample}/qnsorted_{sample}_{chrom}_cov_{MINCOVERAGE}_entropy.bed"
+        "{sample}/{sample}_cov_{MINCOVERAGE}_CG_{tuplelength}_entropy_and_meth.bed.gz"
     shell:
-        "echo todo"
-        # """
-        # cut -f select and then pipe to fast python scipy entropy?
-        # https://stackoverflow.com/questions/15450192/fastest-way-to-compute-entropy-in-python
-        # """
+        """
+        # merge
+        cat {input} | gzip > {output}
+        """
+
     
+rule compute_methylation_and_entropy:
+    input:
+        "{sample}/qnsorted_{sample}_{chrom}.CG.{tuplelength}.tsv"
+    output:
+        temp("{sample}/{sample}_cov_{MINCOVERAGE}_CG_{tuplelength}_entropy_and_meth_{chrom}.bed")
+    shell:
+        """
+        # merge
+        cat {input} | python src/entropy_stdin.py > {output}
+        """
+        
 rule run_meththuple:
     priority: 80
     input:
         "{sample}/qnsorted_{sample}_{chrom}.bam",
     output:
         # temp("{sample}/qnsorted_{sample}_{chrom}.CG.{tuplelength}.tsv")
-        "{sample}/qnsorted_{sample}_{chrom}.CG.{tuplelength}.tsv"
+        temp("{sample}/qnsorted_{sample}_{chrom}.CG.{tuplelength}.tsv")
     shell: """
         set +u;
         # source ~/virtenvs/methtuple/bin/activate
