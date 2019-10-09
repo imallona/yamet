@@ -45,7 +45,7 @@ print(pandas.concat([fd[['chr']],
                      empty_name,
                      entropies,
                      fd[['strand']],
-                     entropies, methylations],
+                     methylations],
                     axis=1,
                     ignore_index = True).to_string(index = False, header = False,
                                                    justify = 'unset'))

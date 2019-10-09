@@ -1,7 +1,8 @@
 # todo
 # ensure the bam file is not empty after subset by chrom
 # plot correlation between tuple lengths
-#
+# @todo fix MERGED2 to really split by tuple and by sample (!!) now all outputs are the same
+# 
 # 08 oct 2019
 
 import os
@@ -22,6 +23,7 @@ TUPLE_LENGTHS = range(2, 6)
 samples = pd.read_csv(config["samples"], sep = '\t').set_index("id", drop=False)
 
 print(samples)
+print(MINCOVERAGE)
 
 validate(samples, schema="schemas/samples.schema.yaml")
 
@@ -51,6 +53,12 @@ MERGED2 = expand("{sample}/{sample}_cov_{cov}_CG_{tuplelength}_entropy_and_meth.
                   cov = MINCOVERAGE,
                   tuplelength =  TUPLE_LENGTHS)
 
+TEST = expand("{sample}/{sample}_cov_{cov}_CG_{tuplelength}_entropy_and_meth_{chrom}.bed",
+              sample = BAMS.keys(),
+              cov = MINCOVERAGE,
+              tuplelength =  TUPLE_LENGTHS,
+              chrom = CHROMS)
+
 print(MERGED2)
 
 rule all:
@@ -74,7 +82,7 @@ rule compute_methylation_and_entropy:
     input:
         "{sample}/qnsorted_{sample}_{chrom}.CG.{tuplelength}.tsv"
     output:
-        temp("{sample}/{sample}_cov_{MINCOVERAGE}_CG_{tuplelength}_entropy_and_meth_{chrom}.bed")
+        "{sample}/{sample}_cov_{MINCOVERAGE}_CG_{tuplelength}_entropy_and_meth_{chrom}.bed"
     shell:
         """
         # merge
