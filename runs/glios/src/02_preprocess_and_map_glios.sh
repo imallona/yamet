@@ -159,13 +159,24 @@ do
 
 done
                     
-# echo 'dedup'
-                    
-# "$(dirname $BISMARK)"/deduplicate_bismark -p \
+echo 'dedup skipped because this is RRBS' 
+
+
+# for bam in $(find $WD -name "*sickle_bismark_bt2.bam" | sort)
+# do
+#     echo $bam
+
+#     tag=$(basename $fastq _sickle_bismark_bt2.bam)
+
+#     echo "$(dirname $BISMARK)"/deduplicate_bismark -p \
 #                      --output_dir $WD \
-#                      --bam "$sample"1_cutadapt_sickle_bismark_bt2_se.bam
+#                      --bam "$bam"
 
 
+# done
+
+
+                    
 
 
 

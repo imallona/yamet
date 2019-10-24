@@ -65,6 +65,9 @@ library(devtools)
 library(survival)
 library(maxstat)
 library(entropy)
+library('survminer')
+
+
 ```
 
 # Data load
@@ -403,6 +406,67 @@ legend(
 
 ## plot(ctime_cutoff, xlab = tag, main = 'cut-off selection global survival')
     
+```
+
+Prettier output
+```{r}
+
+library('survminer')
+library(survival)
+
+tag <- 'avg_entropy'
+tag2 <- tag
+
+ctime <- summary(coxph(Surv(dict$Follow.up.Time..months., dict$event_global) ~
+                           dict$entropy))
+
+## ctime_cutoff <- maxstat.test(Surv(Follow.up.Time..months., event_global) ~
+##                                  entropy,
+##                              data = dict,
+##                              smethod = "LogRank", pentropyod = "condMC", B = 9999,
+##                              alpha = 0.05)
+
+ctime_cutoff <- list(estimate = median(na.omit(dict$entropy)))
+
+fit <- survfit(Surv(dict$Follow.up.Time..months., dict$event_global)
+               ~ strata(dict$entropy < ctime_cutoff$estimate))
+
+ctime_sdf <- survdiff(Surv(dict$Follow.up.Time..months., dict$event_global)
+                      ~ dict$entropy < ctime_cutoff$estimate , rho = 0)
+
+ctime_sdf$p.value <- 1 - pchisq(ctime_sdf$chisq, length(ctime_sdf$n) - 1)
+ctime_sdf$statistic <-ctime_sdf$chisq
+
+
+tmp <- data.frame(months = dict$Follow.up.Time..months.,
+                  event_global = dict$event_global,
+                  strata = dict$entropy < ctime_cutoff$estimate)
+
+fit <- survfit(Surv(tmp$months, tmp$event_global)
+               ~ tmp$strata)
+
+
+psurv <- ggsurvplot(
+    fit, 
+    data = tmp, 
+    size = 1,                 # change line size
+    palette = 
+        c("#E7B800", "#2E9FDF"),# custom color palettes
+    conf.int = TRUE,          # Add confidence interval
+    pval = TRUE,              # Add p-value
+  risk.table = TRUE,        # Add risk table
+  risk.table.col = "strata",# Risk table color by groups
+  legend.labs = 
+      c("Low entropy", "High entropy"),    # Change legend labels
+  risk.table.height = 0.25, # Useful to change when you have multiple groups
+  ggtheme = theme_bw()      # Change ggplot2 theme
+)
+
+print(psurv)
+
+ggsave(filename = 'psurv_entropy.png', plot = print(psurv), width = 5, height = 5)
+
+
 ```
 
 Complex models
