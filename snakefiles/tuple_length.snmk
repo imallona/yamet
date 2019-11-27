@@ -22,8 +22,8 @@ TUPLE_LENGTHS = range(2, 6)
 
 samples = pd.read_csv(config["samples"], sep = '\t').set_index("id", drop=False)
 
-print(samples)
-print(MINCOVERAGE)
+# print(samples)
+# print(MINCOVERAGE)
 
 validate(samples, schema="schemas/samples.schema.yaml")
 
@@ -41,7 +41,7 @@ ENTROPY_METHS = {os.path.splitext(os.path.basename(sample))[0] :
                         tuplelength = TUPLE_LENGTHS,
                         chrom = CHROMS) for sample in BAMS}
 
-print(ENTROPY_METHS)
+# print(ENTROPY_METHS)
 
 MERGED = expand("{sample}/{sample}_cov_{cov}_CG_{tuplelength}_entropy_and_meth.bed.gz",
                       sample = BAMS.keys(),
@@ -53,13 +53,21 @@ MERGED2 = expand("{sample}/{sample}_cov_{cov}_CG_{tuplelength}_entropy_and_meth.
                   cov = MINCOVERAGE,
                   tuplelength =  TUPLE_LENGTHS)
 
-TEST = expand("{sample}/{sample}_cov_{cov}_CG_{tuplelength}_entropy_and_meth_{chrom}.bed",
+TEST = {tuplelength: expand("{sample}/{sample}_cov_{cov}_CG_{tuplelength}_entropy_and_meth_{chrom}.bed",
               sample = BAMS.keys(),
               cov = MINCOVERAGE,
-              tuplelength =  TUPLE_LENGTHS,
-              chrom = CHROMS)
+              tuplelength =  tuplelength,
+              chrom = CHROMS) for tuplelength in TUPLE_LENGTHS}
 
-print(MERGED2)
+TEST2 = {sample: expand("{sample}/{sample}_cov_{cov}_CG_{tuplelength}_entropy_and_meth_{chrom}.bed",
+                        sample = sample,
+                        cov = MINCOVERAGE,
+                        tuplelength =  TUPLE_LENGTHS,
+                        chrom = CHROMS) for sample in BAMS.keys()}
+
+print(BAMS.keys())
+print('-------')
+print(TEST2)
 
 rule all:
     input:
@@ -67,12 +75,12 @@ rule all:
 
 rule merge_meth_and_entropies:
     input:
-        # lambda wildcards: ENTROPY_METHS[wildcards.sample]
-        expand("{sample}/{sample}_cov_{cov}_CG_{tuplelength}_entropy_and_meth_{chrom}.bed",
-               sample = BAMS.keys(),
-               cov = MINCOVERAGE,
-               tuplelength = TUPLE_LENGTHS,
-               chrom = CHROMS)
+        lambda wildcards: TEST2[wildcards.sample]
+        # expand("{sample}/{sample}_cov_{cov}_CG_{tuplelength}_entropy_and_meth_{chrom}.bed",
+        #        sample = BAMS.keys(),
+        #        cov = MINCOVERAGE,
+        #        tuplelength = TUPLE_LENGTHS,
+        #        chrom = CHROMS)
         
     output:
         "{sample}/{sample}_cov_{cov}_CG_{tuplelength}_entropy_and_meth.bed.gz"
