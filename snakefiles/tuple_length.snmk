@@ -67,10 +67,15 @@ rule all:
 
 rule merge_meth_and_entropies:
     input:
-        lambda wildcards: ENTROPY_METHS[wildcards.sample]
+        # lambda wildcards: ENTROPY_METHS[wildcards.sample]
+        expand("{sample}/{sample}_cov_{cov}_CG_{tuplelength}_entropy_and_meth_{chrom}.bed",
+               sample = BAMS.keys(),
+               cov = MINCOVERAGE,
+               tuplelength = TUPLE_LENGTHS,
+               chrom = CHROMS)
         
     output:
-        "{sample}/{sample}_cov_{MINCOVERAGE}_CG_{tuplelength}_entropy_and_meth.bed.gz"
+        "{sample}/{sample}_cov_{cov}_CG_{tuplelength}_entropy_and_meth.bed.gz"
     shell:
         """
         # merge
