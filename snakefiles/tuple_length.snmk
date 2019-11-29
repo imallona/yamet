@@ -53,18 +53,6 @@ MERGED2 = expand("{sample}/{sample}_cov_{cov}_CG_{tuplelength}_entropy_and_meth.
                   cov = MINCOVERAGE,
                   tuplelength =  TUPLE_LENGTHS)
 
-TEST = {tuplelength: expand("{sample}/{sample}_cov_{cov}_CG_{tuplelength}_entropy_and_meth_{chrom}.bed",
-              sample = BAMS.keys(),
-              cov = MINCOVERAGE,
-              tuplelength =  tuplelength,
-              chrom = CHROMS) for tuplelength in TUPLE_LENGTHS}
-
-TEST2 = {sample: expand("{sample}/{sample}_cov_{cov}_CG_{tuplelength}_entropy_and_meth_{chrom}.bed",
-                        sample = sample,
-                        cov = MINCOVERAGE,
-                        tuplelength =  TUPLE_LENGTHS,
-                        chrom = CHROMS) for sample in BAMS.keys()}
-
 print(BAMS.keys())
 print('-------')
 print(TEST2)
@@ -75,12 +63,9 @@ rule all:
 
 rule merge_meth_and_entropies:
     input:
-        lambda wildcards: TEST2[wildcards.sample]
-        # expand("{sample}/{sample}_cov_{cov}_CG_{tuplelength}_entropy_and_meth_{chrom}.bed",
-        #        sample = BAMS.keys(),
-        #        cov = MINCOVERAGE,
-        #        tuplelength = TUPLE_LENGTHS,
-        #        chrom = CHROMS)
+        expand("{{sample}}/{{sample}}_cov_{cov}_CG_{{tuplelength}}_entropy_and_meth_{chrom}.bed",
+               cov = MINCOVERAGE,
+               chrom = CHROMS)
         
     output:
         "{sample}/{sample}_cov_{cov}_CG_{tuplelength}_entropy_and_meth.bed.gz"
@@ -151,5 +136,5 @@ rule samtools_sort:
         """
         samtools sort -@ {threads} {input} -o {output}
         # mv {output}.bam {output}
-        samtools index {output}
+        samtools index -@ {threads} {output}
         """
