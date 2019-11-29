@@ -18,7 +18,7 @@ Rbin = config['software']['Rbin']
 CHROMS = config['params']['chromosomes']
 MINCOVERAGE = config['params']['min_coverage']
 NTHREADS = config['params']['num_threads']
-TUPLE_LENGTHS = range(2, 6)
+TUPLE_LENGTHS = range(2, 10)
 
 samples = pd.read_csv(config["samples"], sep = '\t').set_index("id", drop=False)
 
@@ -52,10 +52,6 @@ MERGED2 = expand("{sample}/{sample}_cov_{cov}_CG_{tuplelength}_entropy_and_meth.
                   sample = BAMS.keys(),
                   cov = MINCOVERAGE,
                   tuplelength =  TUPLE_LENGTHS)
-
-print(BAMS.keys())
-print('-------')
-print(TEST2)
 
 rule all:
     input:

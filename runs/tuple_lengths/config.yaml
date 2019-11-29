@@ -7,7 +7,7 @@ software:
 params:
  chromosomes: ['18','19']
  min_coverage: 20
- num_threads: 4
+ num_threads: 10
 
 pca:
  labels:
