@@ -2,7 +2,8 @@
 samples: reduced_samples_glios.tsv
 
 software:
- Rbin: "/usr/local/bin/R"
+ Rbin: "R_LIBS=/home/Shared_taupo/Rlib/release-3.9-lib/ /usr/local/R/R-3.6.0/bin/Rscript"
+
 
 params:
  chromosomes: ['18','19']

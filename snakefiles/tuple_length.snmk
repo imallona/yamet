@@ -22,40 +22,53 @@ TUPLE_LENGTHS = range(2, 10)
 
 samples = pd.read_csv(config["samples"], sep = '\t').set_index("id", drop=False)
 
-# print(samples)
-# print(MINCOVERAGE)
-
 validate(samples, schema="schemas/samples.schema.yaml")
 
 BAMS = samples.to_dict()['bam']
 
-METHTUPLE = expand("{sample}/qnsorted_{sample}_{chrom}.CG.{tuplelength}.tsv",
-                   tuplelength = TUPLE_LENGTHS,
-                   sample =  BAMS.keys(),
-                   chrom = CHROMS)
+# METHTUPLE = expand("{sample}/qnsorted_{sample}_{chrom}.CG.{tuplelength}.tsv",
+#                    tuplelength = TUPLE_LENGTHS,
+#                    sample =  BAMS.keys(),
+#                    chrom = CHROMS)
 
-ENTROPY_METHS = {os.path.splitext(os.path.basename(sample))[0] :
-                 expand("{sample}/{sample}_cov_{cov}_CG_{tuplelength}_entropy_and_meth_{chrom}.bed",
-                        sample = sample,
-                        cov = MINCOVERAGE,
-                        tuplelength = TUPLE_LENGTHS,
-                        chrom = CHROMS) for sample in BAMS}
-
-# print(ENTROPY_METHS)
+# ENTROPY_METHS = {os.path.splitext(os.path.basename(sample))[0] :
+#                  expand("{sample}/{sample}_cov_{cov}_CG_{tuplelength}_entropy_and_meth_{chrom}.bed",
+#                         sample = sample,
+#                         cov = MINCOVERAGE,
+#                         tuplelength = TUPLE_LENGTHS,
+#                         chrom = CHROMS) for sample in BAMS}
 
 MERGED = expand("{sample}/{sample}_cov_{cov}_CG_{tuplelength}_entropy_and_meth.bed.gz",
-                      sample = BAMS.keys(),
-                      cov = MINCOVERAGE,
-                      tuplelength = TUPLE_LENGTHS)
-
-MERGED2 = expand("{sample}/{sample}_cov_{cov}_CG_{tuplelength}_entropy_and_meth.bed.gz",
                   sample = BAMS.keys(),
                   cov = MINCOVERAGE,
                   tuplelength =  TUPLE_LENGTHS)
 
+BY_SAMPLE_REPORTS = expand("{sample}/{sample}_cov_{cov}_by_sample_report.log",
+                           sample = BAMS.keys(),
+                           cov = MINCOVERAGE)
+
+print (BY_SAMPLE_REPORTS)
+print ([MINCOVERAGE])
+
 rule all:
     input:
-        METHTUPLE, MERGED2
+        MERGED, BY_SAMPLE_REPORTS
+
+rule by_sample_report:
+    input:
+        sample = BAMS.keys() #,
+    params:
+        cov = MINCOVERAGE
+    output:
+        BY_SAMPLE_REPORTS
+    threads: NTHREADS
+    run:
+        for curr in input.sample:
+            shell("""{Rbin} src/postproc_report_per_sample.R -s {curr} \
+            -c {params.cov} -i {curr} \
+            -o {curr} -t {threads} | \
+            tee {curr}/{curr}_cov_{params.cov}_by_sample_report.log
+            """)
 
 rule merge_meth_and_entropies:
     input:
