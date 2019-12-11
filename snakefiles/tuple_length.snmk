@@ -47,13 +47,34 @@ BY_SAMPLE_REPORTS = expand("{sample}/{sample}_cov_{cov}_by_sample_report.log",
                            sample = BAMS.keys(),
                            cov = MINCOVERAGE)
 
+FINAL_REPORT = expand('final_report/cov_{cov}_across_samples_report.log',
+                      cov = MINCOVERAGE)
+
 print (BY_SAMPLE_REPORTS)
 print ([MINCOVERAGE])
 
 rule all:
     input:
-        MERGED, BY_SAMPLE_REPORTS
+        MERGED, BY_SAMPLE_REPORTS, FINAL_REPORT
 
+rule across_samples_report:
+    input:
+        BY_SAMPLE_REPORTS
+    params:
+        cov = MINCOVERAGE
+    output:
+        FINAL_REPORT
+    threads: NTHREADS
+    shell:
+        """
+        mkdir -p final_report
+        
+        {Rbin} src/postproc_report_all_sample.R \
+            -c {params.cov} -i {curr} \
+            -o final_report -t {threads} | \
+            tee final_report/cov_{params.cov}_across_samples_report.log
+        """
+        
 rule by_sample_report:
     input:
         sample = BAMS.keys() #,
