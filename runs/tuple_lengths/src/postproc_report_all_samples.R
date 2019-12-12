@@ -48,7 +48,7 @@ print(str(opt))
 
 setDTthreads(threads = opt$nthreads)
 
-dir.create(opt$output_pathput_path, showWarnings = FALSE)
+dir.create(opt$output_path, showWarnings = FALSE)
 
 h_files <- list.files(opt$input_path, sprintf('.*ggpairs_entropy_data.rds'), recursive = TRUE)
 

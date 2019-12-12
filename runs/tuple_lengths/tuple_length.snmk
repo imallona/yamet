@@ -47,7 +47,7 @@ BY_SAMPLE_REPORTS = expand("{sample}/{sample}_cov_{cov}_by_sample_report.log",
                            sample = BAMS.keys(),
                            cov = MINCOVERAGE)
 
-FINAL_REPORT = expand('final_report/cov_{cov}_across_samples_report.log',
+FINAL_REPORT = expand('cov_{cov}_across_samples_report.log',
                       cov = MINCOVERAGE)
 
 print (BY_SAMPLE_REPORTS)
@@ -67,12 +67,12 @@ rule across_samples_report:
     threads: NTHREADS
     shell:
         """
-        mkdir -p final_report
+        # mkdir -p final_report
         
-        {Rbin} src/postproc_report_all_sample.R \
-            -c {params.cov} -i {curr} \
+        {Rbin} src/postproc_report_all_samples.R \
+            -c {params.cov} -i . \
             -o final_report -t {threads} | \
-            tee final_report/cov_{params.cov}_across_samples_report.log
+            tee cov_{params.cov}_across_samples_report.log
         """
         
 rule by_sample_report:
