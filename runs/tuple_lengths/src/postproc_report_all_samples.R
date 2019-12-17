@@ -209,7 +209,7 @@ p2 <- ggplot(sampled,
 
 ggsave(plot = p2, filename = file.path(opt$output_path,
                                        sprintf('integrative_p2.png')),
-       device = 'png', width =300, height = 100)
+       device = 'png', width =14, height = 7)
 
 rm(p2)
 

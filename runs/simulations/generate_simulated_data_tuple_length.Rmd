@@ -15,7 +15,8 @@ output:
 # Context
 
 
-# SEt up
+
+# Set up
 
 ```{r tag}
 analysis_tag <- 'cometh_simulation_tuple_aware'
@@ -166,6 +167,7 @@ write_simulation <- function(d, filename) {
 }
 
 ```
+
 
 
 # Simulation scenarios
@@ -712,6 +714,82 @@ for (sim in names(sims)) {
 ```
 
 # Coverage simulations
+
+
+# Scores different from entropies
+
+Largely WSH-based
+
+```{r scores_ONGOING, eval = FALSE}
+
+d <- simulate_boundary(chrom = 'chr19', num_tuples = 10000, average_depth = 10,
+                       std_depth = 5, tuple_distance = 20, tuple_length = 4)
+
+
+## proportion of discordant reads (PDR) 
+compute_pdr <- function() {
+    stop('todo')
+}
+
+## proportion of sites with intermediate methylation
+compute_pim <- function() {
+}
+
+
+## methylated haplotype load (MHL)
+## As in @article{guo2017identification,
+##   title={Identification of methylation haplotype blocks aids in deconvolution of heterogeneous tissue samples and tumor tissue-of-origin mapping from plasma DNA},
+##   author={Guo, Shicheng and Diep, Dinh and Plongthongkum, Nongluk and Fung, Ho-Lim and Zhang, Kang and Zhang, Kun},
+##   journal={Nature genetics},
+##   volume={49},
+##   number={4},
+##   pages={635},
+##   year={2017},
+##   publisher={Nature Publishing Group}
+## }
+
+## all substrings
+compute_mhl <- function(d, tuple_length, w = 1) {
+    mhl_up <- NULL
+
+    mhl_down <- NULL
+
+    test <- data.frame(MMMM = 1, UMMU =2)
+
+    tuples <- get_tuple_identifiers(tuple_length = tuple_length)
+    for (i in 1: tuple_length) {
+        ## count proportion of all methylated substrings with length L (i in this case)
+        target <- paste(rep('M', i), collapse = '')
+
+        ordered <- grep(target, tuples, value = TRUE)
+
+        disordered <- setdiff(tuples, ordered)
+
+        ## number of methylated i-tuples in current tuple_length-tuple
+        ## substrings <- setNames(sapply(regexec(target,
+        ##                                       tuples),
+        ##                               function(x) attributes(x)$match.length),
+        ##                        tuples)
+        ## attributes(gregexpr(target, tuples)[[1]])
+        ## number of methylated i-tuples in current tuple_length-tuple
+
+        ## nope
+        ## substrings <- setNames(sapply(gregexpr(target,
+        ##                                        tuples),
+        ##                               function(x) length(attributes(x)$match.length)),
+        ##                        tuples)
+        ## stringr::str_locate_all(pattern = target, string = tuples)
+        ## substrings
+
+        sapply(tuples, function(x) substring(x, 1:(nchar(x)-i+1), i:nchar(x)))
+
+        i <- 3
+        
+        ## colSums(d[,tuples])  * 
+        foo
+    }
+}
+```
 
 
 # Todo
