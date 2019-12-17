@@ -18,7 +18,7 @@ output:
 # SEt up
 
 ```{r tag}
-analysis_tag <- 'cometh_simulation'
+analysis_tag <- 'cometh_simulation_tuple_aware'
 ```
 
 ```{r libraries, include=TRUE, cache = FALSE}
@@ -78,8 +78,12 @@ get_methylation_tuple_length_aware <- function(d, tuple_length) {
           function(x) return((sum(x * counts$m)) / (tuple_length*sum(x))))
 }
 
-get_methylation <- function(mm, um, mu, uu) {
-    return (( (2 * mm) + um + mu) / (2* ( mm + um + mu + uu) ))
+## get_methylation <- function(mm, um, mu, uu) {
+##     return (( (2 * mm) + um + mu) / (2* ( mm + um + mu + uu) ))
+## }
+
+get_methylation <- function(d, tuple_length) {
+    get_methylation_tuple_length_aware(d, tuple_length)
 }
 
 # @deprecated does not work with tuple length >= 2 
@@ -96,7 +100,7 @@ fill_positions_no_gaps <- function(num_tuples, tuple_distance) {
     return(list(start = pos, end = end))
 }
 
-build_tuple_scaffold <- function(num_tuples, tuple_length = 2) {
+build_tuple_scaffold <- function(num_tuples, tuple_length) {
 
     ids <- get_tuple_identifiers(tuple_length)
     tmp <- as.data.frame(matrix(nrow = num_tuples, ncol = 6 + length(ids), data = NA))
@@ -211,9 +215,10 @@ simulate_full_meth <- function(chrom, num_tuples, average_depth, std_depth, tupl
     ##                           sd = std_depth)))
     ## d[d$MM == 0, 'MM'] <- average_depth
 
-    d[,'MM']  <- round(truncnorm::rtruncnorm(num_tuples, a = 1, b = Inf,
-                                       mean = average_depth,
-                                       sd = std_depth))
+    d[,paste(rep('M', tuple_length), collapse = '')]  <- round(truncnorm::rtruncnorm(
+        num_tuples, a = 1, b = Inf,
+        mean = average_depth,
+        sd = std_depth))
 
     
     foo <- fill_positions_no_gaps(num_tuples = num_tuples,
@@ -235,12 +240,9 @@ simulate_full_meth <- function(chrom, num_tuples, average_depth, std_depth, tupl
     counts <- count_m_and_u(colnames(d))
     tuples <- colnames(d)[(counts$m + counts$u) > 0]
     
-    d[, 'entropy'] <- apply(d[tuples],
-                              1,
-                              entropy)
+    d[, 'entropy'] <- apply(d[tuples], 1, entropy)
     
     d$id <- '.' # get_tuple_name(mm = d$MM, um = d$UM, mu = d$MU, uu = d$UU)
-
     
     d[c('chrom', 'start', 'end', 'id', 'entropy', 'strand', 'meth' )]
                     
@@ -257,7 +259,7 @@ sims$meth <- simulate_full_meth(chrom = 'chr19', num_tuples = 10000,
 
 summary(sims$meth)
 
-
+head(sims$meth)
 ## hist(get_coverage(sims$meth$id))
 ## lines(density(get_coverage(sims$meth$id)), lwd = 2)
 
@@ -360,14 +362,23 @@ plot_simulation(sims$unmeth)
 
 ```{r}
 simulate_two_haplotypes_lowest_entropy <- function(chrom, num_tuples, average_depth,
-                                                   std_depth, tuple_distance) {
+                                                   std_depth, tuple_distance, tuple_length) {
 
-    dmeth <- simulate_full_meth(chrom, round(num_tuples/2), average_depth,
-                                std_depth, tuple_distance)
+    dmeth <- simulate_full_meth(chrom = chrom,
+                                num_tuples = round(num_tuples/2),
+                                average_depth = average_depth,
+                                std_depth = std_depth,
+                                tuple_distance = tuple_distance,
+                                tuple_length =  tuple_length)
     ## print(head(dmeth))
 
-    dunmeth <-  simulate_full_unmeth(chrom, round(num_tuples/2), average_depth,
-                                     std_depth, tuple_distance)
+    dunmeth <-  simulate_full_unmeth(chrom = chrom,
+                                     num_tuples = round(num_tuples/2),
+                                     average_depth = average_depth,
+                                     std_depth = std_depth,
+                                     tuple_distance = tuple_distance,
+                                     tuple_length =  tuple_length)
+
 
     ## print(head(dunmeth))
     
@@ -385,12 +396,14 @@ simulate_two_haplotypes_lowest_entropy <- function(chrom, num_tuples, average_de
 sims$imprint <- simulate_two_haplotypes_lowest_entropy(chrom = 'chr19', num_tuples = 10000,
                                average_depth = 10,
                                std_depth = 5,
-                               tuple_distance = 20)
+                               tuple_distance = 20,
+                               tuple_length=4)
 
 summary(sims$imprint)
 
-hist(get_coverage(sims$imprint$id))
-lines(density(get_coverage(sims$imprint$id)), lwd = 2)
+head(sims$imprint)
+# hist(get_coverage(sims$imprint$id))
+#lines(density(get_coverage(sims$imprint$id)), lwd = 2)
 
 ```
 
@@ -406,57 +419,47 @@ lines(density(get_coverage(sims$imprint$id)), lwd = 2)
 ⏺⏺
 
 
-```{r untested1, eval = TRUE}
+```{r entropic, eval = TRUE}
+
+## chrom <- 'chrx'
+## num_tuples <- 100
+## average_depth <- 30
+## std_depth <- 5
+## tuple_distance <- 2
+## tuple_length <- 5
 
 simulate_infinite_haplotypes <- function(chrom, num_tuples, average_depth,
-                                         std_depth, tuple_distance) {
+                                         std_depth, tuple_distance, tuple_length) {
 
-    d <- build_tuple_scaffold(num_tuples)
+    d <- build_tuple_scaffold(num_tuples = num_tuples, tuple_length = tuple_length)
     d[,'chrom'] <- chrom
     
     ## one sided, rounded normal distribution for coverages
     set.seed(1)
-    
-    d[,'UU'] <- round(truncnorm::rtruncnorm(num_tuples, a = 0, b = Inf,
-                                            mean = average_depth/4,
-                                            sd = std_depth/2))
 
-    set.seed(2)
-    
-    d[,'UM'] <- round(truncnorm::rtruncnorm(num_tuples, a = 0, b = Inf,
-                                            mean = average_depth/4,
-                                            sd = std_depth/2))    
-    set.seed(99)
+    tuples <- get_tuple_identifiers(tuple_length = tuple_length)
+    for (tuple in tuples) {
+        d[,tuple] <- round(truncnorm::rtruncnorm(num_tuples, a = 0, b = Inf,
+                                                mean = average_depth,
+                                                sd = std_depth))
+    }
 
-    d[,'MU'] <- round(truncnorm::rtruncnorm(num_tuples, a = 0, b = Inf,
-                                            mean = average_depth/4,
-                                            sd = std_depth/2))
-    set.seed(666)
-
-    d[,'MM'] <- round(truncnorm::rtruncnorm(num_tuples, a = 0, b = Inf,
-                                            mean = average_depth/4,
-                                            sd = std_depth/2))
-    
+    head(d)
     foo <- fill_positions_no_gaps(num_tuples = num_tuples,
                                   tuple_distance = tuple_distance)    
-
+    
     d$start <- foo$start
     d$end <- foo$end
-
-    d[,'meth'] <- get_methylation(mm = d$MM, um = d$UM,
-                                    mu = d$MU, uu = d$UU)
-
-    d[, 'entropy'] <- apply(d[c('MM', 'UM', 'MU', 'UU')],
-                              1,
-                              entropy)
     
+    d[,'meth'] <- get_methylation_tuple_length_aware(d, tuple_length)
+    
+    d[, 'entropy'] <- apply(d[tuples], 1, entropy)
     ## at random
     set.seed(4)
     d[,'strand'] <- sample(c('+', '-'), size = num_tuples, replace = TRUE)
 
     
-    
-    d$id <- get_tuple_name(mm = d$MM, um = d$UM, mu = d$MU, uu = d$UU)
+    d$id <- '.' # get_tuple_name(mm = d$MM, um = d$UM, mu = d$MU, uu = d$UU)
     
     d[c('chrom', 'start', 'end', 'id', 'entropy', 'strand', 'meth' )]    
     
@@ -464,17 +467,19 @@ simulate_infinite_haplotypes <- function(chrom, num_tuples, average_depth,
 ```
 
 ```{r untested2, eval = TRUE}
-sims$entropic <- simulate_infinite_haplotypes(chrom = 'chr19', num_tuples = 10000,
-                               average_depth = 10,
-                               std_depth = 5,
-                               tuple_distance = 20)
+sims$entropic <- simulate_infinite_haplotypes(chrom = 'chr19',
+                                              num_tuples = 10000,
+                                              average_depth = 10,
+                                              std_depth = 10,
+                                              tuple_length = 10,
+                                              tuple_distance = 20)
 
 summary(sims$entropic)
 
 head(sims$entropic)
 
-hist(get_coverage(sims$entropic$id))
-lines(density(get_coverage(sims$entropic$id)), lwd = 2)
+## hist(get_coverage(sims$entropic$id))
+## lines(density(get_coverage(sims$entropic$id)), lwd = 2)
 
 hist(sims$entropic$meth)
 hist(sims$entropic$entropy)
@@ -497,35 +502,38 @@ plot_simulation(sims$entropic)
 ⏺○
 
 
-```{r}
+```{r, eval = TRUE}
 simulate_boundary <- function(chrom, num_tuples, average_depth,
-                                         std_depth, tuple_distance) {
+                                         std_depth, tuple_distance, tuple_length) {
 
-    d <- build_tuple_scaffold(num_tuples)
+    d <- build_tuple_scaffold(num_tuples = num_tuples, tuple_length = tuple_length)
     d[,'chrom'] <- chrom
-    
+
+    ## get midpoint
+    tuples <- get_tuple_identifiers(tuple_length = tuple_length)
+    first_half <- round(tuple_length/2)
+    second_half <- tuple_length - first_half
+
+    boundary <- paste(c(rep('U', first_half), rep('M', second_half)), collapse = '')
+   
     ## one sided, rounded normal distribution for coverages
     set.seed(88)
     
-    d[,'UM'] <- round(truncnorm::rtruncnorm(num_tuples, a = 1, b = Inf,
+    d[,boundary] <- round(truncnorm::rtruncnorm(num_tuples, a = 1, b = Inf,
                                             mean = average_depth,
                                             sd = std_depth))
-    d[,'UU'] <- 0
-    d[,'MU'] <- 0
-    d[,'MM'] <- 0
     
+    d[,setdiff(tuples, boundary)] <- 0
+
     foo <- fill_positions_no_gaps(num_tuples = num_tuples,
                                   tuple_distance = tuple_distance)    
 
     d$start <- foo$start
     d$end <- foo$end
 
-    d[,'meth'] <- get_methylation(mm = d$MM, um = d$UM,
-                                    mu = d$MU, uu = d$UU)
+    d[,'meth'] <- get_methylation(d, tuple_length = tuple_length)
 
-    d[, 'entropy'] <- apply(d[c('MM', 'UM', 'MU', 'UU')],
-                              1,
-                              entropy)
+    d[, 'entropy'] <- apply(d[tuples], 1, entropy)
     
     ## at random
     set.seed(4)
@@ -533,7 +541,7 @@ simulate_boundary <- function(chrom, num_tuples, average_depth,
 
     
     
-    d$id <- get_tuple_name(mm = d$MM, um = d$UM, mu = d$MU, uu = d$UU)
+    d$id <- '.' # get_tuple_name(mm = d$MM, um = d$UM, mu = d$MU, uu = d$UU)
     
     d[c('chrom', 'start', 'end', 'id', 'entropy', 'strand', 'meth' )]    
     
@@ -544,9 +552,10 @@ simulate_boundary <- function(chrom, num_tuples, average_depth,
 
 ```{r}
 sims$boundary <- simulate_boundary(chrom = 'chr19', num_tuples = 10000,
-                                         average_depth = 10,
-                                         std_depth = 5,
-                                         tuple_distance = 20)
+                                   average_depth = 10,
+                                   std_depth = 5,
+                                   tuple_distance = 20,
+                                   tuple_length = 4)
 
 summary(sims$boundary)
 
@@ -577,23 +586,29 @@ plot_simulation(sims$boundary)
 
 ```{r}
 simulate_opposed_boundary <- function(chrom, num_tuples, average_depth,
-                                         std_depth, tuple_distance) {
-
-    d <- build_tuple_scaffold(num_tuples)
+                                         std_depth, tuple_distance, tuple_length) {
+    d <- build_tuple_scaffold(num_tuples = num_tuples, tuple_length = tuple_length)
     d[,'chrom'] <- chrom
-    
+
+    ## get midpoint
+    tuples <- get_tuple_identifiers(tuple_length = tuple_length)
+    first_half <- round(tuple_length/2)
+    second_half <- tuple_length - first_half
+
+    boundary <- paste(c(rep('U', first_half), rep('M', second_half)), collapse = '')
+   
     ## one sided, rounded normal distribution for coverages
     set.seed(88)
     
-    d[,'UM'] <- round(truncnorm::rtruncnorm(num_tuples, a = 1, b = Inf,
-                                            mean = average_depth/2,
+    d[,boundary] <- round(truncnorm::rtruncnorm(num_tuples/2, a = 1, b = Inf,
+                                            mean = average_depth,
                                             sd = std_depth))
 
+    rev_boundary <- paste(c(rep('M', first_half), rep('U', second_half)), collapse = '')
 
-    d$MU <- d$UM
-    
-    d[,'UU'] <- 0
-    d[,'MM'] <- 0
+    d[,rev_boundary] <- d[,boundary]
+
+    d[,setdiff(tuples, c(boundary, rev_boundary))] <- 0
     
     foo <- fill_positions_no_gaps(num_tuples = num_tuples,
                                   tuple_distance = tuple_distance)    
@@ -601,20 +616,15 @@ simulate_opposed_boundary <- function(chrom, num_tuples, average_depth,
     d$start <- foo$start
     d$end <- foo$end
 
-    d[,'meth'] <- get_methylation(mm = d$MM, um = d$UM,
-                                    mu = d$MU, uu = d$UU)
-
-    d[, 'entropy'] <- apply(d[c('MM', 'UM', 'MU', 'UU')],
-                              1,
-                              entropy)
-    
     ## at random
     set.seed(4)
     d[,'strand'] <- sample(c('+', '-'), size = num_tuples, replace = TRUE)
 
     
-    
-    d$id <- get_tuple_name(mm = d$MM, um = d$UM, mu = d$MU, uu = d$UU)
+    d[,'meth'] <- get_methylation(d, tuple_length = tuple_length)
+    d[, 'entropy'] <- apply(d[tuples], 1, entropy)
+
+    d$id <- '.'
     
     d[c('chrom', 'start', 'end', 'id', 'entropy', 'strand', 'meth' )]    
     
@@ -627,6 +637,7 @@ simulate_opposed_boundary <- function(chrom, num_tuples, average_depth,
 sims$opposed_boundary <- simulate_opposed_boundary(chrom = 'chr19', num_tuples = 10000,
                                          average_depth = 10,
                                          std_depth = 5,
+                                         tuple_length = 5,
                                          tuple_distance = 20)
 
 summary(sims$opposed_boundary)
@@ -636,6 +647,58 @@ head(sims$opposed_boundary)
 plot_simulation(sims$opposed_boundary)
 
 ```
+
+# Diffuse boundary, from ordered to disordered
+
+```{r}
+simulate_disordered_gradient <- function(chrom, num_tuples, average_depth,
+                                         std_depth, tuple_distance, tuple_length) {
+    ## d <- build_tuple_scaffold(num_tuples = num_tuples, tuple_length = tuple_length)
+    ## d[,'chrom'] <- chrom
+
+    ## ## get midpoint
+    ## tuples <- get_tuple_identifiers(tuple_length = tuple_length)
+    ## first_half <- round(tuple_length/2)
+    ## second_half <- tuple_length - first_half
+
+    ## boundary <- paste(c(rep('U', first_half), rep('M', second_half)), collapse = '')
+   
+    ## ## one sided, rounded normal distribution for coverages
+    ## set.seed(88)
+    
+    ## d[,boundary] <- round(truncnorm::rtruncnorm(num_tuples/2, a = 1, b = Inf,
+    ##                                         mean = average_depth,
+    ##                                         sd = std_depth))
+
+    ## rev_boundary <- paste(c(rep('M', first_half), rep('U', second_half)), collapse = '')
+
+    ## d[,rev_boundary] <- d[,boundary]
+
+    ## d[,setdiff(tuples, c(boundary, rev_boundary))] <- 0
+    
+    ## foo <- fill_positions_no_gaps(num_tuples = num_tuples,
+    ##                               tuple_distance = tuple_distance)    
+
+    ## d$start <- foo$start
+    ## d$end <- foo$end
+
+    ## ## at random
+    ## set.seed(4)
+    ## d[,'strand'] <- sample(c('+', '-'), size = num_tuples, replace = TRUE)
+
+    
+    ## d[,'meth'] <- get_methylation(d, tuple_length = tuple_length)
+    ## d[, 'entropy'] <- apply(d[tuples], 1, entropy)
+
+    ## d$id <- '.'
+    
+    ## d[c('chrom', 'start', 'end', 'id', 'entropy', 'strand', 'meth' )]    
+    
+}
+
+
+```
+
 
 ## Write simulations
 

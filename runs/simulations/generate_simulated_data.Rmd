@@ -207,6 +207,7 @@ simulate_full_meth <- function(chrom, num_tuples, average_depth, std_depth, tupl
 ```
 
 ```{r}
+
 sims$meth <- simulate_full_meth(chrom = 'chr19', num_tuples = 10000,
                            average_depth = 10,
                            std_depth = 5,
@@ -272,10 +273,12 @@ simulate_full_unmeth <- function(chrom, num_tuples, average_depth, std_depth, tu
 ```
 
 ```{r}
-sims$unmeth <- simulate_full_unmeth(chrom = 'chr19', num_tuples = 10000,
-                               average_depth = 10,
-                               std_depth = 5,
-                               tuple_distance = 20)
+sims$unmeth <- simulate_full_unmeth(chrom = 'chr19',
+                                    num_tuples = 10000,
+                                    tuple_length = 8,
+                                    average_depth = 10,
+                                    std_depth = 5,
+                                    tuple_distance = 20)
 
 summary(sims$unmeth)
 
