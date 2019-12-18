@@ -759,7 +759,7 @@ for (sim in names(sims)) {
 
 Largely WSH-based
 
-```{r scores_ONGOING, eval = FALSE}
+```{r scores_ONGOING, eval = TRUE}
 
 tuple_length = 5
 d <- simulate_infinite_haplotypes(chrom = 'chr19', num_tuples = 10000, average_depth = 10,
@@ -768,19 +768,38 @@ d <- simulate_infinite_haplotypes(chrom = 'chr19', num_tuples = 10000, average_d
 
 
 ## proportion of discordant reads (PDR) 
-compute_pdr <- function() {
-    stop('todo')
+compute_pdr <- function(d, tuple_length) {
+    stopifnot(tuple_length >= 2, 'only tuples longer than >=2 CpGs can be partly methylated')
+
+    tuples <- get_tuple_identifiers(tuple_length = tuple_length)
+
+    ord <- c(paste(rep('U', tuple_length), collapse = ''),
+                 paste(rep('M', tuple_length), collapse = ''))
+    mid <- setdiff(tuples, ord)
+    rowSums(d[,mid])/rowSums(d[,tuples])
+    
 }
 
 ## proportion of sites with intermediate methylation
-compute_pim <- function() {
+## meaning a beta value between 0.4 and 0.6
+is_pim <- function(d, tuple_length) {
+    stopifnot(tuple_length >= 2, 'only tuples longer than >=2 CpGs can be partly methylated')
+
+    d$meth < 0.6 & d$meth >= 0.4
 }
 
+## as in Guo's natgen
 compute_epipolymorphism <- function (d, tuple_length) {
     tuples <- get_tuple_identifiers(tuple_length = tuple_length)
     methylated <- paste(rep('M', tuple_length), collapse = '')
     background <- setdiff(tuples, methylated)
     1 - (d[,methylated] / rowSums(d[,tuples ]))
+}
+
+## as in Guo's natgen
+compute_number_haplotypes <- function (d, tuple_length) {
+    tuples <- get_tuple_identifiers(tuple_length = tuple_length)
+    rowSums(d[,tuples] > 0)
 }
 
 ## head(d)
@@ -834,7 +853,7 @@ compute_mhl <- function(d, tuple_length, w = 1) {
         mhl_up <- mhl_up + (rowSums(as.matrix(d[,ord]) %*% diag(weight[ord])) /
                                (rowSums(d[,tuples]) * w * (tuple_length-i+1)))
         
-        mhl_down <- mhl_down + rep(w, nrow(tmp))
+        mhl_down <- mhl_down + rep(w, nrow(d))
     }
 
     mhl_up/mhl_down
