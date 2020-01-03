@@ -1,14 +1,21 @@
+*yamet* is just *y*et *a*nother DNA *m*ethylation *e*ntropy *t*ool. It is aimed to compute DNA methylation heterogeneity scores from bisufilte-sequencing data. It is designed to run standardized snakemake workflows from bismark-mapped BAM files.
+
+This repository is also available at https://bitbucket.org/imallona/yamet/src/master/.
+
+The manuscript is available at https://github.com/imallona/yamet_paper and https://bitbucket.org/imallona/yamet_paper/src/master/ .
+
 ## Repo organization
 
 - `schemas`, yaml sample and configs, includes `samples.schema.yaml` and `config.schema.yaml`
-- `runs`,  data getters, config files and accessors for specific runs, e.g. `encode`, `glios`, `simulations`, `test`
-- `snakefiles`, snakefiles for different runs
+- `runs`,  snakefiles, data getters, config files and accessors for specific runs, e.g. `encode`, `glios`, `simulations`, `test`
 
 ## Current runs
+
 - `glios`, explores entropies from https://www.ebi.ac.uk/ega/datasets/EGAD00001004074, for which clinical data are available
 - `encode`, explores the association between entropies and HMM segmentations using data from ENCODE
 - `test`, uses the methtuple bismark bam testfiles
-
+- `simulations`
+- `tuple_lengths`, on exploring different tuple lengths on encode and/or glios datasets
 
 ## To do
 
@@ -51,7 +58,3 @@ Benchmark
 - Feinberg's matlab
 - Guo et al 2017
 - ?
-
-Global
-
-- Get a name
