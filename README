@@ -1,12 +1,57 @@
-challenges
+## Repo organization
 
-- which score to use?
-- will we compare the agreement to the methylation to call DMRs and remove effect of fully meth, fully unmeth stuff? this is a triangular distribution anyway
-- will we collapse stranded information before calling DMRs?
-- why some positions have NA for both agreement and wt after running the metilene_input script?
+- `schemas`, yaml sample and configs, includes `samples.schema.yaml` and `config.schema.yaml`
+- `runs`,  data getters, config files and accessors for specific runs, e.g. `encode`, `glios`, `simulations`, `test`
+- `snakefiles`, snakefiles for different runs
 
-to paralellize methtuple @todo check
-https://github.com/PeteHaitch/methtuple/blob/master/helper_scripts/run_methtuple.sh
+## Current runs
+- `glios`, explores entropies from https://www.ebi.ac.uk/ega/datasets/EGAD00001004074, for which clinical data are available
+- `encode`, explores the association between entropies and HMM segmentations using data from ENCODE
+- `test`, uses the methtuple bismark bam testfiles
 
-to get a validation dataset
-glioblastoma https://www.nature.com/articles/s41591-018-0156-x https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE100351 
+
+## To do
+
+Implementation
+
+- Tests
+- Config yaml for multisample handling
+
+Metric
+
+- Scores: explore alternatives to methylation-standardized entropy
+- Strand specificity, skipped currently
+
+Simulations
+
+- Simulations based en epiallele diversity
+- Simulations based in DNA meth
+- Simulations based in sequencing depth
+- Simulations based in read length
+
+Use cases
+
+- Test dataset provided by `methtuple`
+- HMM cell-line specificity, e.g. enhancer detection
+- RRBS-derived outcome prediction (glioblastomas)
+
+Use cases challenges
+
+- Confounding with purity/deconvolution of purity
+- ASM
+- CNV
+
+Further capabilities?
+
+- Differential entropy?
+- Regional differential entropy?
+
+Benchmark
+
+- Feinberg's matlab
+- Guo et al 2017
+- ?
+
+Global
+
+- Get a name

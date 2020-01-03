@@ -1,0 +1,937 @@
+---
+title: "Cometh simulation with tuple lengths"
+params:
+  seed: 1
+author: "Izaskun Mallona"
+output:
+  html_document:
+    keep_md: false
+    toc: true
+    toc_float: true
+    toc_depth: 4
+
+---
+
+# Context
+
+
+
+# Set up
+
+```{r tag}
+analysis_tag <- 'cometh_simulation_tuple_aware'
+```
+
+```{r libraries, include=TRUE, cache = FALSE}
+library(data.table)
+library(entropy)
+library(truncnorm) # truncated normal
+library(ggplot2)
+library(ggExtra)
+```
+
+```{r functions}
+ac <-  function(col, alpha=1){
+
+    apply(sapply(col, col2rgb)/255, 2, 
+          function(x) 
+              rgb(x[1], x[2], x[3], alpha=alpha))  
+}
+```
+
+Test expand grid
+
+```{r}
+get_tuple_identifiers <- function(tuple_length) {
+    bar <- list()
+    bar[1:tuple_length] <- list(c('M', 'U'))
+
+    apply(expand.grid(bar), 1, function(x) paste0(x, collapse = ''))    
+}
+
+```
+
+```{r}
+
+count_m_and_u <- function(strings) {
+    ms <- lengths(regmatches(strings, gregexpr("M", strings)))
+    us <- lengths(regmatches(strings, gregexpr("U", strings)))
+    return(list(m = ms, u = us))
+}
+
+get_methylation_tuple_length_aware <- function(d, tuple_length) {
+    ## get tuple length
+
+    counts <- count_m_and_u(colnames(d))
+
+    are_tuples <- (counts$m + counts$u) > 0
+
+    counts <- lapply(counts, function(x) x[are_tuples])
+    
+    ## for ( i in 1:length(tmp$m)) {
+    ##     if (tmp$m[i] + tmp$[i] == tuple_length) {
+    ##         ugly[[colnames(d)[i]]]  <- (counts$m[i]*) / ()
+    ##     }
+    ## }
+
+    apply(d[,colnames(d)[are_tuples]],
+          1,
+          function(x) return((sum(x * counts$m)) / (tuple_length*sum(x))))
+}
+
+## get_methylation <- function(mm, um, mu, uu) {
+##     return (( (2 * mm) + um + mu) / (2* ( mm + um + mu + uu) ))
+## }
+
+get_methylation <- function(d, tuple_length) {
+    get_methylation_tuple_length_aware(d, tuple_length)
+}
+
+# @deprecated does not work with tuple length >= 2 
+get_tuple_name <- function(mm, um, mu, uu) {
+    sprintf('MM%s;MU%s;UM%s;UU%s', mm, mu, um, uu)
+}
+
+fill_positions_no_gaps <- function(num_tuples, tuple_distance) {
+
+    pos <- seq(from = 1, length.out = num_tuples, by = tuple_distance)
+    
+    end <- c(pos[2:length(pos)], pos[length(pos)] + tuple_distance)
+
+    return(list(start = pos, end = end))
+}
+
+build_tuple_scaffold <- function(num_tuples, tuple_length) {
+
+    ids <- get_tuple_identifiers(tuple_length)
+    tmp <- as.data.frame(matrix(nrow = num_tuples, ncol = 6 + length(ids), data = NA))
+    colnames(tmp) <- c('chrom', 'start', 'end', ids, 'entropy',
+                       'strand', 'meth')
+    tmp
+}
+
+dissect_tuple_name <- function(count_string) {
+
+    cnames <- strsplit(gsub("[0-9]+", "", as.character(count_string)), ';')[[1]]
+    tmp <- strsplit(gsub("[A-Z]+", "", as.character(count_string)), ';')
+
+    tmp <- data.frame(matrix(unlist(tmp), nrow=length(count_string), byrow = TRUE))
+    
+    ## rownames(tmp) <- count_string
+    colnames(tmp) <- cnames
+    tmp <- sapply(tmp, function(x) as.numeric(as.character(x)))
+    tmp
+}
+
+get_coverage <- function(count_string) {
+    tmp <-  dissect_tuple_name(count_string)
+    rowSums(tmp)
+}
+
+
+plot_simulation <- function(d) {
+    d$coverage <- get_coverage(d$id)
+    d$log10_distance <- log10(d$end - d$start)
+
+    p1 <- ggplot(d, aes (x = coverage, y = meth, col = entropy)) +
+        geom_point() + theme_bw(15)
+    
+    p1 <- ggExtra::ggMarginal(p1,
+                              type = 'density',
+                              margins = 'both',
+                              size = 5)
+
+
+    p1
+    
+    p2 <- ggplot(d, aes (x = entropy, y = meth, col = entropy)) +
+        geom_point() + theme_bw(15)
+    
+    p2 <- ggExtra::ggMarginal(p2,
+                              type = 'density',
+                              margins = 'both',
+                              size = 5)
+
+    p2 
+}
+
+```
+
+```{r}
+
+write_simulation <- function(d, filename) {    
+    write.table(x = d, file = gzfile(filename),
+                row.names = FALSE, col.names = FALSE, quote = FALSE,
+                sep = '\t')
+
+}
+
+```
+
+
+
+# Simulation scenarios
+
+Data structure:
+
+```
+chr, cpg1, cpg2, tuples, entropies, strand, methylation
+```
+
+```
+18	10862	10870	MM50;MU0;UM0;UU0	0	+	1
+18	10870	10876	MM50;MU0;UM0;UU0	0	+	1
+18	10876	10888	MM49;MU0;UM0;UU0	0	+	1
+18	48387	48396	MM57;MU0;UM38;UU0	0.673012	-	0.8
+18	48396	48398	MM59;MU37;UM0;UU0	0.666654	-	0.807292
+18	48398	48412	MM50;MU9;UM37;UU0	0.929138	-	0.760417
+18	48412	48434	MM87;MU0;UM9;UU0	0.311129	-	0.953125
+```
+
+```{r}
+sims <- list()
+```
+
+## Fully methylated
+
+⏺⏺
+
+⏺⏺
+
+⏺⏺
+
+⏺⏺
+
+
+```{r}
+
+## no gaps between tuples
+simulate_full_meth <- function(chrom, num_tuples, average_depth, std_depth, tuple_distance,
+                               tuple_length, return_tuples = FALSE) {
+    d <- build_tuple_scaffold(num_tuples, tuple_length)
+    d[,'chrom'] <- chrom
+    
+    ## one sided, rounded normal distribution for coverages
+    set.seed(1)
+    ## d[,'MM'] <- round(abs(rnorm(n = num_tuples,
+    ##                           mean = average_depth,
+    ##                           sd = std_depth)))
+    ## d[d$MM == 0, 'MM'] <- average_depth
+
+    d[,paste(rep('M', tuple_length), collapse = '')]  <- round(truncnorm::rtruncnorm(
+        num_tuples, a = 1, b = Inf,
+        mean = average_depth,
+        sd = std_depth))
+
+    
+    foo <- fill_positions_no_gaps(num_tuples = num_tuples,
+                                  tuple_distance = tuple_distance)
+
+    d$start <- foo$start
+    d$end <- foo$end
+
+    ## at random
+    set.seed(33)
+    d[,'strand'] <- sample(c('+', '-'), size = num_tuples, replace = TRUE)
+
+    unmethylated <- grep('U', names(d))
+    d[,unmethylated] <- 0
+
+    ## d[,'meth'] <- get_methylation(mm = d$MM, um = d$UM,
+    d[,'meth'] <- get_methylation_tuple_length_aware(d, tuple_length)
+
+    ## counts <- count_m_and_u(colnames(d))
+    ## tuples <- colnames(d)[(counts$m + counts$u) > 0]
+    tuples <- get_tuple_identifiers(tuple_length = tuple_length)
+    
+    d[, 'entropy'] <- apply(d[tuples], 1, entropy)
+    
+    d$id <- '.' # get_tuple_name(mm = d$MM, um = d$UM, mu = d$MU, uu = d$UU)
+
+    if (return_tuples) {
+        d[c('chrom', 'start', 'end', tuples, 'id', 'entropy', 'strand', 'meth' )]
+    } else
+        d[c('chrom', 'start', 'end', 'id', 'entropy', 'strand', 'meth' )]
+                    
+}
+
+```
+
+```{r}
+sims$meth <- simulate_full_meth(chrom = 'chr19', num_tuples = 10000,
+                                average_depth = 10,
+                                tuple_length = 5,
+                                std_depth = 5,
+                                tuple_distance = 20 * 5)
+
+summary(sims$meth)
+
+head(sims$meth)
+## hist(get_coverage(sims$meth$id))
+## lines(density(get_coverage(sims$meth$id)), lwd = 2)
+
+```
+
+## Fully unmethylated
+
+○○
+
+○○
+
+○○
+
+○○
+
+```{r}
+
+## chrom <- 'chrx'
+## num_tuples <- 100
+## average_depth <- 30
+## std_depth <- 5
+## tuple_distance <- 2
+## tuple_length <- 5
+
+simulate_full_unmeth <- function(chrom, num_tuples, average_depth, std_depth, tuple_distance,
+                                 tuple_length, return_tuples = FALSE) {
+    d <- build_tuple_scaffold(num_tuples, tuple_length)
+    d[,'chrom'] <- chrom
+    
+    ## one sided, rounded normal distribution for coverages
+    set.seed(1)
+    d[,paste(rep('U', tuple_length), collapse = '')] <- round(
+        truncnorm::rtruncnorm(num_tuples, a = 1, b = Inf,
+                              mean = average_depth,
+                              sd = std_depth))
+
+    foo <- fill_positions_no_gaps(num_tuples = num_tuples,
+                                  tuple_distance = tuple_distance)
+
+    d$start <- foo$start
+    d$end <- foo$end
+    
+    ## at random
+    set.seed(4)
+    d[,'strand'] <- sample(c('+', '-'), size = num_tuples, replace = TRUE)
+
+    methylated <- grep('M', names(d))
+                       
+    
+    d[,methylated] <- 0
+
+    ## here
+    ## d[,'meth'] <- get_methylation(mm = d$MM, um = d$UM,
+    ##                                 mu = d$MU, uu = d$UU)
+    d[,'meth'] <- get_methylation_tuple_length_aware(d, tuple_length)
+
+    ## counts <- count_m_and_u(colnames(d))
+    ## tuples <- colnames(d)[(counts$m + counts$u) > 0]
+    tuples <- get_tuple_identifiers(tuple_length = tuple_length)
+    
+    d[, 'entropy'] <- apply(d[tuples], 1, entropy)
+    
+    d$id <- '.' # get_tuple_name(mm = d$MM, um = d$UM, mu = d$MU, uu = d$UU)
+    
+    if (return_tuples) {
+        d[c('chrom', 'start', 'end', tuples, 'id', 'entropy', 'strand', 'meth' )]
+    } else
+        d[c('chrom', 'start', 'end', 'id', 'entropy', 'strand', 'meth' )]
+    
+}
+
+
+```
+
+```{r}
+sims$unmeth <- simulate_full_unmeth(chrom = 'chr19',
+                                    num_tuples = 10000,
+                                    tuple_length = 8,
+                                    average_depth = 10,
+                                    std_depth = 5,
+                                    tuple_distance = 20*8,
+                                    return_tuples = FALSE)
+
+summary(sims$unmeth)
+
+plot_simulation(sims$unmeth)
+
+## hist(get_coverage(sims$unmeth$id))
+## lines(density(get_coverage(sims$unmeth$id)), lwd = 2)
+```
+
+
+
+## Two haplotypes, half methylation, ordered
+
+⏺⏺
+
+⏺⏺
+
+○○
+
+○○
+
+
+```{r}
+simulate_two_haplotypes_lowest_entropy <- function(chrom, num_tuples, average_depth,
+                                                   std_depth, tuple_distance, tuple_length,
+                                                   return_tuples = FALSE) {
+
+    d <- build_tuple_scaffold(num_tuples = num_tuples, tuple_length = tuple_length)
+    d[,'chrom'] <- chrom
+
+    ## get midpoint
+    tuples <- get_tuple_identifiers(tuple_length = tuple_length)
+    targets <- c(paste(rep('U', tuple_length), collapse = ''),
+                 paste(rep('M', tuple_length), collapse = ''))
+
+    set.seed(5)
+    d[,targets] <- round(truncnorm::rtruncnorm(num_tuples, a = 1, b = Inf,
+                                               mean = average_depth,
+                                               sd = std_depth))
+
+    d[,setdiff(tuples, targets)] <- 0
+
+    foo <- fill_positions_no_gaps(num_tuples = num_tuples,
+                                  tuple_distance = tuple_distance)
+
+    d$start <- foo$start
+    d$end <- foo$end
+    
+    ## at random
+    set.seed(4)
+    d[,'strand'] <- sample(c('+', '-'), size = num_tuples, replace = TRUE)
+
+    
+
+    tuples <- get_tuple_identifiers(tuple_length = tuple_length)
+    
+    d[,'meth'] <- get_methylation_tuple_length_aware(d, tuple_length)
+
+    ## counts <- count_m_and_u(colnames(d))
+    ## tuples <- colnames(d)[(counts$m + counts$u) > 0]
+    tuples <- get_tuple_identifiers(tuple_length = tuple_length)
+    
+    d[, 'entropy'] <- apply(d[tuples], 1, entropy)
+    
+    d$id <- '.' # get_tuple_name(mm = d$MM, um = d$UM, mu = d$MU, uu = d$UU)
+
+    if (return_tuples) {
+        d[c('chrom', 'start', 'end', tuples, 'id', 'entropy', 'strand', 'meth' )]
+    } else
+        d[c('chrom', 'start', 'end', 'id', 'entropy', 'strand', 'meth' )]
+}
+
+```
+
+
+```{r, eval = FALSE}
+sims$imprint <- simulate_two_haplotypes_lowest_entropy(chrom = 'chr19', num_tuples = 10000,
+                               average_depth = 10,
+                               std_depth = 5,
+                               tuple_distance = 20,
+                               tuple_length=4)
+
+summary(sims$imprint)
+
+head(sims$imprint)
+# hist(get_coverage(sims$imprint$id))
+#lines(density(get_coverage(sims$imprint$id)), lwd = 2)
+
+```
+
+
+## Infinite haplotypes, max entropy
+
+⏺○
+
+○⏺
+
+○○
+
+⏺⏺
+
+
+```{r entropic, eval = TRUE}
+
+## chrom <- 'chrx'
+## num_tuples <- 100
+## average_depth <- 30
+## std_depth <- 5
+## tuple_distance <- 2
+## tuple_length <- 5
+
+simulate_infinite_haplotypes <- function(chrom, num_tuples, average_depth,
+                                         std_depth, tuple_distance, tuple_length,
+                                         return_tuples = FALSE) {
+
+    d <- build_tuple_scaffold(num_tuples = num_tuples, tuple_length = tuple_length)
+    d[,'chrom'] <- chrom
+    
+    ## one sided, rounded normal distribution for coverages
+    set.seed(1)
+
+    tuples <- get_tuple_identifiers(tuple_length = tuple_length)
+    for (tuple in tuples) {
+        d[,tuple] <- round(truncnorm::rtruncnorm(num_tuples, a = 0, b = Inf,
+                                                mean = average_depth,
+                                                sd = std_depth))
+    }
+
+    head(d)
+    foo <- fill_positions_no_gaps(num_tuples = num_tuples,
+                                  tuple_distance = tuple_distance)    
+    
+    d$start <- foo$start
+    d$end <- foo$end
+    
+    d[,'meth'] <- get_methylation_tuple_length_aware(d, tuple_length)
+    
+    d[, 'entropy'] <- apply(d[tuples], 1, entropy)
+    ## at random
+    set.seed(4)
+    d[,'strand'] <- sample(c('+', '-'), size = num_tuples, replace = TRUE)
+
+    
+    d$id <- '.' # get_tuple_name(mm = d$MM, um = d$UM, mu = d$MU, uu = d$UU)
+
+    if (return_tuples) {
+        d[c('chrom', 'start', 'end', tuples, 'id', 'entropy', 'strand', 'meth' )]
+    } else
+        d[c('chrom', 'start', 'end', 'id', 'entropy', 'strand', 'meth' )]
+}
+```
+
+```{r untested2, eval = TRUE}
+sims$entropic <- simulate_infinite_haplotypes(chrom = 'chr19',
+                                              num_tuples = 10000,
+                                              average_depth = 10,
+                                              std_depth = 10,
+                                              tuple_length = 10,
+                                              tuple_distance = 20)
+
+summary(sims$entropic)
+
+head(sims$entropic)
+
+## hist(get_coverage(sims$entropic$id))
+## lines(density(get_coverage(sims$entropic$id)), lwd = 2)
+
+hist(sims$entropic$meth)
+hist(sims$entropic$entropy)
+
+plot_simulation(sims$entropic)
+
+```
+
+
+
+## Boundary simple
+
+
+⏺○
+
+⏺○
+
+⏺○
+
+⏺○
+
+
+```{r, eval = TRUE}
+simulate_boundary <- function(chrom, num_tuples, average_depth,
+                              std_depth, tuple_distance, tuple_length,
+                              return_tuples = FALSE) {
+
+    d <- build_tuple_scaffold(num_tuples = num_tuples, tuple_length = tuple_length)
+    d[,'chrom'] <- chrom
+
+    ## get midpoint
+    tuples <- get_tuple_identifiers(tuple_length = tuple_length)
+    first_half <- round(tuple_length/2)
+    second_half <- tuple_length - first_half
+
+    boundary <- paste(c(rep('U', first_half), rep('M', second_half)), collapse = '')
+   
+    ## one sided, rounded normal distribution for coverages
+    set.seed(88)
+    
+    d[,boundary] <- round(truncnorm::rtruncnorm(num_tuples, a = 1, b = Inf,
+                                            mean = average_depth,
+                                            sd = std_depth))
+    
+    d[,setdiff(tuples, boundary)] <- 0
+
+    foo <- fill_positions_no_gaps(num_tuples = num_tuples,
+                                  tuple_distance = tuple_distance)    
+
+    d$start <- foo$start
+    d$end <- foo$end
+
+    d[,'meth'] <- get_methylation(d, tuple_length = tuple_length)
+
+    d[, 'entropy'] <- apply(d[tuples], 1, entropy)
+    
+    ## at random
+    set.seed(4)
+    d[,'strand'] <- sample(c('+', '-'), size = num_tuples, replace = TRUE)
+    
+    d$id <- '.' # get_tuple_name(mm = d$MM, um = d$UM, mu = d$MU, uu = d$UU)
+
+    if (return_tuples) {
+        d[c('chrom', 'start', 'end', tuples, 'id', 'entropy', 'strand', 'meth' )]
+    } else
+        d[c('chrom', 'start', 'end', 'id', 'entropy', 'strand', 'meth' )]
+    
+}
+
+```
+
+
+```{r}
+sims$boundary <- simulate_boundary(chrom = 'chr19', num_tuples = 10000,
+                                   average_depth = 10,
+                                   std_depth = 5,
+                                   tuple_distance = 20,
+                                   tuple_length = 4)
+
+summary(sims$boundary)
+
+head(sims$boundary)
+
+## hist(get_coverage(sims$boundary$id))
+## lines(density(get_coverage(sims$boundary$id)), lwd = 2)
+
+hist(sims$boundary$meth)
+hist(sims$boundary$entropy)
+
+plot_simulation(sims$boundary)
+
+```
+
+
+## Boundary opposed
+
+
+⏺○
+
+⏺○
+
+○⏺
+
+○⏺
+
+
+```{r}
+simulate_opposed_boundary <- function(chrom, num_tuples, average_depth,
+                                      std_depth, tuple_distance, tuple_length,
+                                      return_tuples = FALSE) {
+    
+    d <- build_tuple_scaffold(num_tuples = num_tuples, tuple_length = tuple_length)
+    d[,'chrom'] <- chrom
+
+    ## get midpoint
+    tuples <- get_tuple_identifiers(tuple_length = tuple_length)
+    first_half <- round(tuple_length/2)
+    second_half <- tuple_length - first_half
+
+    boundary <- paste(c(rep('U', first_half), rep('M', second_half)), collapse = '')
+   
+    ## one sided, rounded normal distribution for coverages
+    set.seed(88)
+    
+    d[,boundary] <- round(truncnorm::rtruncnorm(num_tuples/2, a = 1, b = Inf,
+                                            mean = average_depth,
+                                            sd = std_depth))
+
+    rev_boundary <- paste(c(rep('M', first_half), rep('U', second_half)), collapse = '')
+
+    d[,rev_boundary] <- d[,boundary]
+
+    d[,setdiff(tuples, c(boundary, rev_boundary))] <- 0
+    
+    foo <- fill_positions_no_gaps(num_tuples = num_tuples,
+                                  tuple_distance = tuple_distance)    
+
+    d$start <- foo$start
+    d$end <- foo$end
+
+    ## at random
+    set.seed(4)
+    d[,'strand'] <- sample(c('+', '-'), size = num_tuples, replace = TRUE)
+
+    
+    d[,'meth'] <- get_methylation(d, tuple_length = tuple_length)
+    d[, 'entropy'] <- apply(d[tuples], 1, entropy)
+
+    d$id <- '.'
+
+    if (return_tuples) {
+        d[c('chrom', 'start', 'end', tuples, 'id', 'entropy', 'strand', 'meth' )]
+    } else
+        d[c('chrom', 'start', 'end', 'id', 'entropy', 'strand', 'meth' )]    
+}
+
+```
+
+
+```{r}
+sims$opposed_boundary <- simulate_opposed_boundary(chrom = 'chr19', num_tuples = 10000,
+                                         average_depth = 10,
+                                         std_depth = 5,
+                                         tuple_length = 5,
+                                         tuple_distance = 20)
+
+summary(sims$opposed_boundary)
+
+head(sims$opposed_boundary)
+
+plot_simulation(sims$opposed_boundary)
+
+```
+
+# Diffuse boundary, from ordered to disordered
+
+```{r}
+simulate_disordered_gradient <- function(chrom, num_tuples, average_depth,
+                                         std_depth, tuple_distance, tuple_length) {
+    ## d <- build_tuple_scaffold(num_tuples = num_tuples, tuple_length = tuple_length)
+    ## d[,'chrom'] <- chrom
+
+    ## ## get midpoint
+    ## tuples <- get_tuple_identifiers(tuple_length = tuple_length)
+    ## first_half <- round(tuple_length/2)
+    ## second_half <- tuple_length - first_half
+
+    ## boundary <- paste(c(rep('U', first_half), rep('M', second_half)), collapse = '')
+   
+    ## ## one sided, rounded normal distribution for coverages
+    ## set.seed(88)
+    
+    ## d[,boundary] <- round(truncnorm::rtruncnorm(num_tuples/2, a = 1, b = Inf,
+    ##                                         mean = average_depth,
+    ##                                         sd = std_depth))
+
+    ## rev_boundary <- paste(c(rep('M', first_half), rep('U', second_half)), collapse = '')
+
+    ## d[,rev_boundary] <- d[,boundary]
+
+    ## d[,setdiff(tuples, c(boundary, rev_boundary))] <- 0
+    
+    ## foo <- fill_positions_no_gaps(num_tuples = num_tuples,
+    ##                               tuple_distance = tuple_distance)    
+
+    ## d$start <- foo$start
+    ## d$end <- foo$end
+
+    ## ## at random
+    ## set.seed(4)
+    ## d[,'strand'] <- sample(c('+', '-'), size = num_tuples, replace = TRUE)
+
+    
+    ## d[,'meth'] <- get_methylation(d, tuple_length = tuple_length)
+    ## d[, 'entropy'] <- apply(d[tuples], 1, entropy)
+
+    ## d$id <- '.'
+    
+    ## d[c('chrom', 'start', 'end', 'id', 'entropy', 'strand', 'meth' )]    
+    
+}
+
+
+```
+
+
+## Write simulations
+
+```{r}
+dir.create('simulations', showWarnings = FALSE)
+
+for (sim in names(sims)) {
+    write_simulation(sims[sim],
+                     filename = file.path('simulations', sprintf('%s.gz', sim)))
+}
+```
+
+# Coverage simulations
+
+
+# Scores different from entropies
+
+Largely WSH-based
+
+```{r scores_ONGOING, eval = TRUE}
+
+tuple_length = 5
+d <- simulate_infinite_haplotypes(chrom = 'chr19', num_tuples = 10000, average_depth = 10,
+                       std_depth = 5, tuple_distance = 20, tuple_length = tuple_length,
+                       return_tuples = TRUE)
+
+
+## proportion of discordant reads (PDR) 
+compute_pdr <- function(d, tuple_length) {
+    stopifnot(tuple_length >= 2, 'only tuples longer than >=2 CpGs can be partly methylated')
+
+    tuples <- get_tuple_identifiers(tuple_length = tuple_length)
+
+    ord <- c(paste(rep('U', tuple_length), collapse = ''),
+                 paste(rep('M', tuple_length), collapse = ''))
+    mid <- setdiff(tuples, ord)
+    rowSums(d[,mid])/rowSums(d[,tuples])
+    
+}
+
+## proportion of sites with intermediate methylation
+## meaning a beta value between 0.4 and 0.6
+is_pim <- function(d, tuple_length) {
+    stopifnot(tuple_length >= 2, 'only tuples longer than >=2 CpGs can be partly methylated')
+
+    d$meth < 0.6 & d$meth >= 0.4
+}
+
+## as in Guo's natgen
+compute_epipolymorphism <- function (d, tuple_length) {
+    tuples <- get_tuple_identifiers(tuple_length = tuple_length)
+    methylated <- paste(rep('M', tuple_length), collapse = '')
+    background <- setdiff(tuples, methylated)
+    1 - (d[,methylated] / rowSums(d[,tuples ]))
+}
+
+## as in Guo's natgen
+compute_number_haplotypes <- function (d, tuple_length) {
+    tuples <- get_tuple_identifiers(tuple_length = tuple_length)
+    rowSums(d[,tuples] > 0)
+}
+
+## head(d)
+## summary(compute_epipolymorphism(d, tuple_length = tuple_length))
+
+## methylated haplotype load (MHL)
+## As in @article{guo2017identification,
+##   title={Identification of methylation haplotype blocks aids in deconvolution of heterogeneous tissue samples and tumor tissue-of-origin mapping from plasma DNA},
+##   author={Guo, Shicheng and Diep, Dinh and Plongthongkum, Nongluk and Fung, Ho-Lim and Zhang, Kang and Zhang, Kun},
+##   journal={Nature genetics},
+##   volume={49},
+##   number={4},
+##   pages={635},
+##   year={2017},
+##   publisher={Nature Publishing Group}
+## }
+## Note figure 2 has errors as described in https://github.com/dinhdiep/MONOD2
+
+## all substrings. Notice we don't run that for regions, inprinciple, but for tuple lengths
+compute_mhl <- function(d, tuple_length, w = 1) {
+    mhl_up <- rep(0, nrow(d))
+    mhl_down <- rep(0, nrow(d))
+
+    ## test <- data.frame(MMMM = 1, UMMU =2)
+    
+    tuples <- get_tuple_identifiers(tuple_length = tuple_length)
+    for (i in 1: tuple_length) {
+        ## count proportion of all methylated substrings with length L (i in this case)
+        target <- paste(rep('M', i), collapse = '')
+
+        ord <- grep(target, tuples, value = TRUE)
+        disord <- setdiff(tuples, ord)
+
+        foo <- sapply(tuples,
+                      function(x) substring(x, 1:(nchar(x)-i+1), i:nchar(x))) == target
+        ## a weight that measures how many times the meth sub-tuple is prsent within the
+        ## tuple (overlapping allowed)
+        ## e.g MMMM has 3 MM, and two MMM, and two MMMM as well
+        if (i == tuple_length) {
+            weight <- setNames(as.numeric(foo), names(foo))
+        } else {
+            weight <- setNames(colSums(
+                sapply(tuples,
+                       function(x) substring(x, 1:(nchar(x)-i+1), i:nchar(x))) == target),
+                tuples)
+        }        
+
+        ## mhl_up <- mhl_up + (rowSums(as.matrix(d[,ord]) %*% diag(weight[ord])) /
+        ##                      (rowSums(d[,tuples]) * w * 2^(tuple_length-i+1)))
+
+        mhl_up <- mhl_up + (rowSums(as.matrix(d[,ord]) %*% diag(weight[ord])) /
+                               (rowSums(d[,tuples]) * w * (tuple_length-i+1)))
+        
+        mhl_down <- mhl_down + rep(w, nrow(d))
+    }
+
+    mhl_up/mhl_down
+}
+```
+
+
+Asserts for methylation haplotype load
+
+Add standardized entropy, or any other idea
+
+```{r}
+
+summary(compute_mhl(d = simulate_full_meth(chrom = 'fullmeth',
+                        num_tuples = 1e5,
+                        average_depth = 20,
+                        std_depth = 20,
+                        tuple_length = 4,
+                        tuple_distance = 10*3,
+                        return_tuples = TRUE), tuple_length = 4, w = 1)) 
+
+
+summary(compute_mhl(d = simulate_full_unmeth(chrom = 'fullunmeth',
+                        num_tuples = 1e5,
+                        average_depth = 20,
+                        std_depth = 20,
+                        tuple_length = 5,
+                        tuple_distance = 10*3,
+                        return_tuples = TRUE), tuple_length = 5, w = 1))
+
+summary(compute_mhl(d = simulate_boundary(chrom = 'foo',
+                        num_tuples = 1e5,
+                        average_depth = 20,
+                        std_depth = 20,
+                        tuple_length = 5,
+                        tuple_distance = 10*3,
+                        return_tuples = TRUE), tuple_length = 5, w = 1))
+
+
+summary(compute_mhl(d = simulate_opposed_boundary(chrom = 'bar',
+                        num_tuples = 1e5,
+                        average_depth = 20,
+                        std_depth = 20,
+                        tuple_length = 5,
+                        tuple_distance = 10*3,
+                        return_tuples = TRUE), tuple_length = 5, w = 1))
+
+
+summary(compute_mhl(simulate_two_haplotypes_lowest_entropy(chrom = 'baz',
+                                              num_tuples = 1e5,
+                                              average_depth = 20,
+                                              std_depth = 20,
+                        tuple_length = 3,
+                        tuple_distance = 10*3,
+                        return_tuples = TRUE), tuple_length = 3, w = 1))
+
+
+summary(compute_mhl(d = simulate_infinite_haplotypes(chrom = 'boundary',
+                        num_tuples = 1e5,
+                        average_depth = 20,
+                        std_depth = 20,
+                        tuple_length = 7,
+                        tuple_distance = 10*6,
+                        return_tuples = TRUE), tuple_length = 7, w = 1))
+
+```
+
+# Todo
+
+Simulating regions longer than 2 items?
+
+Strand-specific simulations?
+
+# Session
+
+```{r sessionInfo, cache = 0}
+
+date()
+devtools::session_info()
+
+```
