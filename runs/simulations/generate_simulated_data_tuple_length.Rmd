@@ -863,6 +863,8 @@ compute_mhl <- function(d, tuple_length, w = 1) {
 
 Asserts for methylation haplotype load
 
+Add standardized entropy, or any other idea
+
 ```{r}
 
 summary(compute_mhl(d = simulate_full_meth(chrom = 'fullmeth',
