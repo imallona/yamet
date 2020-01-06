@@ -29,6 +29,7 @@ library(truncnorm) # truncated normal
 library(ggplot2)
 library(ggExtra)
 library(knitr)
+library(tidyr)
 ```
 
 
@@ -39,7 +40,9 @@ knitr::opts_chunk$set(echo = TRUE,
                       fig.height = 6,
                       comment = NULL,
                       warning = TRUE,
-                      cache = TRUE, tidy = TRUE, tidy.opts = list(width.cutoff=80))
+                      cache = TRUE,
+                      cache.lazy = FALSE,
+                      tidy = TRUE, tidy.opts = list(width.cutoff=80))
 
 ```
 
@@ -1030,6 +1033,8 @@ compute_standardized_entropy <- function(d, tuple_length, sampling = TRUE) {
 
 # Integrative tuple length and scores
 
+## test
+
 ```{r ONGOING, cache = FALSE}
 
 run_all_scores <- function(d, tuple_length) {
@@ -1076,6 +1081,423 @@ targets <- c('beta', 'h', 'std_h', 'mhl', 'pdr', 'pim', 'epipolymorphism', 'numb
 plot(as.data.frame(res[targets]))
 ```
 
+## Tuple lengths
+
+```{r}
+boundaries <- c('meth', 'unmeth', 'two_haplotypes', 'entropic', 'boundary',
+               'opposed_boundary' )
+
+tuple_lengths <- seq(2, 12, by = 1)
+
+## fd <- data.frame(expand.grid(x = boundaries , y = tuple_length))
+## colnames(fd) <- c('status', 'tuple_length')
+
+## fd$score <- NA
+## fd$mean <- NA
+## fd$stdev <- NA
+
+## fd <- data.frame(status = NULL, tuple_length = NULL, score = NULL,
+##                  value = NULL)
+
+```{r entropic_first}
+fd <- list()
+
+num_tuples <- 10
+for (tuple_length in tuple_lengths) {
+    print(tuple_length)
+    d <- simulate_infinite_haplotypes (chrom = 'entropic',
+                                   num_tuples = num_tuples,
+                                   average_depth = 20,
+                                   std_depth = 20,
+                                   tuple_length = tuple_length,
+                                   tuple_distance = tuple_length * 4,
+                                   return_tuples = TRUE)
+
+    res <- run_all_scores(d, tuple_length = tuple_length)
+    
+    ## res$std_h <- compute_standardized_entropy(d, tuple_length = tuple_length, sampling = TRUE)
+    
+    fd[[paste(tuple_length, 'entropic')]] <- data.frame(
+        status = 'entropic',
+        tuple_length = tuple_length,
+        gather(as.data.frame(res), score, value, beta:number_haplotypes))
+
+}
+
+print('done')
+```
+
+Full meth
+
+```{r}
+for (tuple_length in tuple_lengths) {
+    d <- simulate_full_meth(chrom = 'full',
+                                   num_tuples = num_tuples,
+                                   average_depth = 20,
+                                   std_depth = 20,
+                                   tuple_length = tuple_length,
+                                   tuple_distance = tuple_length * 4,
+                                   return_tuples = TRUE)
+
+    res <- run_all_scores(d, tuple_length = tuple_length)
+    
+    ## res$std_h <- compute_standardized_entropy(d, tuple_length = tuple_length, sampling = TRUE)
+    
+    fd[[paste(tuple_length, 'full_meth')]] <- data.frame(
+        status = 'full_meth',
+        tuple_length = tuple_length,
+        gather(as.data.frame(res), score, value, beta:number_haplotypes))
+
+    
+        
+                                                        
+}
+```
+
+
+Full unmeth
+
+```{r test}
+for (tuple_length in tuple_lengths) {
+    d <- simulate_full_unmeth(chrom = 'full_unmeth',
+                                   num_tuples = num_tuples,
+                                   average_depth = 20,
+                                   std_depth = 20,
+                                   tuple_length = tuple_length,
+                                   tuple_distance = tuple_length * 4,
+                                   return_tuples = TRUE)
+
+    res <- run_all_scores(d, tuple_length = tuple_length)
+    
+    ## res$std_h <- compute_standardized_entropy(d, tuple_length = tuple_length, sampling = TRUE)
+    
+    fd[[paste(tuple_length, 'full_unmeth')]] <- data.frame(
+        status = 'full_unmeth',
+        tuple_length = tuple_length,
+        gather(as.data.frame(res), score, value, beta:number_haplotypes))
+
+    
+        
+                                                        
+}
+```
+
+Two haplotypes
+
+```{r}
+for (tuple_length in tuple_lengths) {
+    d <- simulate_two_haplotypes_lowest_entropy(chrom = 'two',
+                                                num_tuples = num_tuples,
+                                                average_depth = 20,
+                                                std_depth = 20,
+                                                tuple_length = tuple_length,
+                                                tuple_distance = tuple_length * 4,
+                                                return_tuples = TRUE)
+
+    res <- run_all_scores(d, tuple_length = tuple_length)
+    
+    ## res$std_h <- compute_standardized_entropy(d, tuple_length = tuple_length, sampling = TRUE)
+    
+    fd[[paste(tuple_length, 'two')]] <- data.frame(
+        status = 'two_haplotypes',
+        tuple_length = tuple_length,
+        gather(as.data.frame(res), score, value, beta:number_haplotypes))                                                       
+}
+```
+
+Boundary
+
+```{r}
+for (tuple_length in tuple_lengths) {
+    d <- simulate_boundary(chrom = 'bound',
+                           num_tuples = num_tuples,
+                           average_depth = 20,
+                           std_depth = 20,
+                           tuple_length = tuple_length,
+                           tuple_distance = tuple_length * 4,
+                           return_tuples = TRUE)
+    
+    res <- run_all_scores(d, tuple_length = tuple_length)
+    
+    ## res$std_h <- compute_standardized_entropy(d, tuple_length = tuple_length, sampling = TRUE)
+    
+    fd[[paste(tuple_length, 'bound')]] <- data.frame(
+        status = 'boundary',
+        tuple_length = tuple_length,
+        gather(as.data.frame(res), score, value, beta:number_haplotypes))                                                       
+}
+```
+
+
+Opposed boundary
+
+```{r}
+for (tuple_length in tuple_lengths) {
+    d <- simulate_opposed_boundary(chrom = 'obound',
+                           num_tuples = num_tuples,
+                           average_depth = 20,
+                           std_depth = 20,
+                           tuple_length = tuple_length,
+                           tuple_distance = tuple_length * 4,
+                           return_tuples = TRUE)
+    
+    res <- run_all_scores(d, tuple_length = tuple_length)
+    
+    ## res$std_h <- compute_standardized_entropy(d, tuple_length = tuple_length, sampling = TRUE)
+    
+    fd[[paste(tuple_length, 'obound')]] <- data.frame(
+        status = 'opposed_boundary',
+        tuple_length = tuple_length,
+        gather(as.data.frame(res), score, value, beta:number_haplotypes))                                                       
+}
+```
+
+Tidying and plotting
+
+```{r, fig.width=10, fig.height = 4}
+fd <- do.call(rbind.data.frame, fd)
+
+
+fd$value <- as.numeric(as.character(fd$value))
+fd$score <- as.factor(fd$score)
+fd$status <- as.factor(fd$status)
+
+## ggplot(fd, aes(x=status, y = value)) +
+##   geom_point() +
+##     facet_wrap(fd$score~fd$tuple_length) +
+##     theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+##     scale_y_continuous(trans='log10')
+
+ggplot(fd, aes(x= tuple_length, y = value, color = score, shape = score)) +
+  geom_point() +
+    facet_wrap(fd$status, ncol = 6) +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+    scale_y_continuous(trans='log10') +
+    scale_shape_manual(values=c(19,17,4,8,9,10,11)) 
+
+
+```
+
+```{r}
+ggplot(fd, aes(x= tuple_length, y = value)) +
+    geom_point() +
+    geom_smooth() +
+    facet_grid(fd$score~fd$status) +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+    scale_y_continuous(trans='log1p') 
+
+
+```
+
+
+```{r}
+ggplot(fd, aes(x= tuple_length, y = value)) +
+    geom_point() +
+    geom_smooth() +
+    facet_grid(fd$score~fd$status) +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+    scale_y_continuous(trans='log1p', breaks = c(0.5,1, 10,100, 1000, 10e3)) 
+
+
+```
+
+
+```{r}
+ggplot(fd, aes(x= tuple_length, y = log10(value + 1))) +
+    geom_point() +
+    geom_smooth() +
+    facet_grid(fd$score~fd$status) +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1)) 
+    
+```
+
+
+## Number of tuples
+
+fixed tuple length, e.g. 4, and different depths
+
+```{r}
+tuple_length <- 4
+
+cov_fd <- list()
+
+tuples_range <- seq(2, 50, by = 4)
+
+for (num_tuples in  tuples_range) {
+    
+    d <- simulate_infinite_haplotypes (chrom = 'entropic',
+                                   num_tuples = num_tuples,
+                                   average_depth = 20,
+                                   std_depth = 20,
+                                   tuple_length = tuple_length,
+                                   tuple_distance = tuple_length * 4,
+                                   return_tuples = TRUE)
+
+    res <- run_all_scores(d, tuple_length = tuple_length)
+    
+    ## res$std_h <- compute_standardized_entropy(d, tuple_length = tuple_length, sampling = TRUE)
+    
+    cov_fd[[paste(num_tuples, 'entropic')]] <- data.frame(
+        status = 'entropic',
+        num_tuples = num_tuples,
+        gather(as.data.frame(res), score, value, beta:number_haplotypes))
+
+}
+
+```
+
+
+<!-- start -->
+
+Full meth
+
+```{r}
+for (num_tuples in  tuples_range) {
+    d <- simulate_full_meth(chrom = 'full',
+                                   num_tuples = num_tuples,
+                                   average_depth = 20,
+                                   std_depth = 20,
+                                   tuple_length = tuple_length,
+                                   tuple_distance = tuple_length * 4,
+                                   return_tuples = TRUE)
+
+    res <- run_all_scores(d, tuple_length = tuple_length)
+    
+    ## res$std_h <- compute_standardized_entropy(d, tuple_length = tuple_length, sampling = TRUE)
+    
+    cov_fd[[paste(num_tuples, 'full_meth')]] <- data.frame(
+        status = 'full_meth',
+        num_tuples = num_tuples,
+        gather(as.data.frame(res), score, value, beta:number_haplotypes))
+
+    
+        
+                                                        
+}
+```
+
+
+Full unmeth
+
+```{r}
+for (num_tuples in  tuples_range) {
+    d <- simulate_full_unmeth(chrom = 'full_unmeth',
+                                   num_tuples = num_tuples,
+                                   average_depth = 20,
+                                   std_depth = 20,
+                                   tuple_length = tuple_length,
+                                   tuple_distance = tuple_length * 4,
+                                   return_tuples = TRUE)
+
+    res <- run_all_scores(d, tuple_length = tuple_length)
+    
+    ## res$std_h <- compute_standardized_entropy(d, num_tuples = num_tuples, sampling = TRUE)
+    
+    cov_fd[[paste(num_tuples, 'full_unmeth')]] <- data.frame(
+        status = 'full_unmeth',
+        num_tuples = num_tuples,
+        gather(as.data.frame(res), score, value, beta:number_haplotypes))
+
+    
+        
+                                                        
+}
+```
+
+Two haplotypes
+
+```{r}
+for (num_tuples in  tuples_range) {
+    d <- simulate_two_haplotypes_lowest_entropy(chrom = 'two',
+                                                num_tuples = num_tuples,
+                                                average_depth = 20,
+                                                std_depth = 20,
+                                                tuple_length = tuple_length,
+                                                tuple_distance = tuple_length * 4,
+                                                return_tuples = TRUE)
+
+    res <- run_all_scores(d, tuple_length = tuple_length)
+    
+    ## res$std_h <- compute_standardized_entropy(d, num_tuples = num_tuples, sampling = TRUE)
+    
+    cov_fd[[paste(num_tuples, 'two')]] <- data.frame(
+        status = 'two_haplotypes',
+        num_tuples = num_tuples,
+        gather(as.data.frame(res), score, value, beta:number_haplotypes))                                                       
+}
+```
+
+Boundary
+
+```{r}
+for (num_tuples in  tuples_range) {
+    d <- simulate_boundary(chrom = 'bound',
+                           num_tuples = num_tuples,
+                           average_depth = 20,
+                           std_depth = 20,
+                           tuple_length = tuple_length,
+                           tuple_distance = tuple_length * 4,
+                           return_tuples = TRUE)
+    
+    res <- run_all_scores(d, tuple_length = tuple_length)
+    
+    ## res$std_h <- compute_standardized_entropy(d, num_tuples = num_tuples, sampling = TRUE)
+    
+    cov_fd[[paste(num_tuples, 'bound')]] <- data.frame(
+        status = 'boundary',
+        num_tuples = num_tuples,
+        gather(as.data.frame(res), score, value, beta:number_haplotypes))                                                       
+}
+```
+
+
+Opposed boundary
+
+```{r}
+for (num_tuples in  tuples_range) {
+    d <- simulate_opposed_boundary(chrom = 'obound',
+                           num_tuples = num_tuples,
+                           average_depth = 20,
+                           std_depth = 20,
+                           tuple_length = tuple_length,
+                           tuple_distance = tuple_length * 4,
+                           return_tuples = TRUE)
+    
+    res <- run_all_scores(d, tuple_length = tuple_length)
+    
+    ## res$std_h <- compute_standardized_entropy(d, num_tuples = num_tuples, sampling = TRUE)
+    
+    cov_fd[[paste(num_tuples, 'obound')]] <- data.frame(
+        status = 'opposed_boundary',
+        num_tuples = num_tuples,
+        gather(as.data.frame(res), score, value, beta:number_haplotypes))                                                       
+}
+```
+
+
+Tidying and plotting
+
+```{r, fig.width=10, fig.height = 4}
+cov_fd <- do.call(rbind.data.frame, cov_fd)
+
+
+cov_fd$value <- as.numeric(as.character(cov_fd$value))
+cov_fd$score <- as.factor(cov_fd$score)
+cov_fd$status <- as.factor(cov_fd$status)
+```
+
+
+```{r, fig.width = 8, fig.height =8}
+ggplot(cov_fd, aes(x= num_tuples, y = log10(value + 1))) +
+    geom_point() +
+    geom_smooth() +
+    facet_grid(cov_fd$score~cov_fd$status) +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1)) 
+    
+```
+
+
+<!-- end -->
 
 # Todo
 
