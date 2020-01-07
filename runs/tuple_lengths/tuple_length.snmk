@@ -77,14 +77,20 @@ rule across_samples_report:
         
 rule by_sample_report:
     input:
-        sample = BAMS.keys() #,
+        # sample = BAMS.keys() #,
+        beds = expand("{sample}/{sample}_cov_{cov}_CG_{tuplelength}_entropy_and_meth.bed.gz",
+               cov = MINCOVERAGE,
+               tuplelength = TUPLE_LENGTHS,
+               sample = BAMS.keys())
+        
     params:
         cov = MINCOVERAGE
     output:
         BY_SAMPLE_REPORTS
     threads: NTHREADS
     run:
-        for curr in input.sample:
+        # for curr in input.sample:
+        for curr in BAM.keys():
             shell("""{Rbin} src/postproc_report_per_sample.R -s {curr} \
             -c {params.cov} -i {curr} \
             -o {curr} -t {threads} | \
@@ -92,6 +98,7 @@ rule by_sample_report:
             """)
 
 rule merge_meth_and_entropies:
+    # priority: 80
     input:
         expand("{{sample}}/{{sample}}_cov_{cov}_CG_{{tuplelength}}_entropy_and_meth_{chrom}.bed",
                cov = MINCOVERAGE,
