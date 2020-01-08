@@ -110,7 +110,6 @@ rule merge_meth_and_entropies:
         """
         # merge
         cat {input} | gzip > {output}
-        rm {input}
         """
 
     
@@ -118,7 +117,7 @@ rule compute_methylation_and_entropy:
     input:
         "{sample}/qnsorted_{sample}_{chrom}.CG.{tuplelength}.tsv"
     output:
-        "{sample}/{sample}_cov_{MINCOVERAGE}_CG_{tuplelength}_entropy_and_meth_{chrom}.bed"
+        temp("{sample}/{sample}_cov_{MINCOVERAGE}_CG_{tuplelength}_entropy_and_meth_{chrom}.bed")
     shell:
         """
         # merge
