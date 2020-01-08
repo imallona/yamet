@@ -265,7 +265,7 @@ simulate_full_meth <- function(chrom, num_tuples, average_depth, std_depth, tupl
     ## tuples <- colnames(d)[(counts$m + counts$u) > 0]
     tuples <- get_tuple_identifiers(tuple_length = tuple_length)
     
-    d[, 'entropy'] <- apply(d[tuples], 1, entropy)
+    d[, 'entropy'] <- apply(d[tuples], 1, entropy)/log(2^tuple_length)
     
     d$id <- '.' # get_tuple_name(mm = d$MM, um = d$UM, mu = d$MU, uu = d$UU)
 
@@ -348,7 +348,7 @@ simulate_full_unmeth <- function(chrom, num_tuples, average_depth, std_depth, tu
     ## tuples <- colnames(d)[(counts$m + counts$u) > 0]
     tuples <- get_tuple_identifiers(tuple_length = tuple_length)
     
-    d[, 'entropy'] <- apply(d[tuples], 1, entropy)
+    d[, 'entropy'] <- apply(d[tuples], 1, entropy)/log(2^tuple_length)
     
     d$id <- '.' # get_tuple_name(mm = d$MM, um = d$UM, mu = d$MU, uu = d$UU)
     
@@ -432,7 +432,7 @@ simulate_two_haplotypes_lowest_entropy <- function(chrom, num_tuples, average_de
     ## tuples <- colnames(d)[(counts$m + counts$u) > 0]
     tuples <- get_tuple_identifiers(tuple_length = tuple_length)
     
-    d[, 'entropy'] <- apply(d[tuples], 1, entropy)
+    d[, 'entropy'] <- apply(d[tuples], 1, entropy)/log(2^tuple_length)
     
     d$id <- '.' # get_tuple_name(mm = d$MM, um = d$UM, mu = d$MU, uu = d$UU)
 
@@ -507,7 +507,8 @@ simulate_infinite_haplotypes <- function(chrom, num_tuples, average_depth,
     
     d[,'meth'] <- get_methylation_tuple_length_aware(d, tuple_length)
     
-    d[, 'entropy'] <- apply(d[tuples], 1, entropy)
+    d[, 'entropy'] <- apply(d[tuples], 1, function(x) entropy(x, unit = 'log'))/log(2^tuple_length)
+    max(d$entropy)
     ## at random
     set.seed(4)
     d[,'strand'] <- sample(c('+', '-'), size = num_tuples, replace = TRUE)
@@ -590,7 +591,7 @@ simulate_boundary <- function(chrom, num_tuples, average_depth,
 
     d[,'meth'] <- get_methylation(d, tuple_length = tuple_length)
 
-    d[, 'entropy'] <- apply(d[tuples], 1, entropy)
+    d[, 'entropy'] <- apply(d[tuples], 1, entropy)/log(2^tuple_length)
     
     ## at random
     set.seed(4)
@@ -682,7 +683,7 @@ simulate_opposed_boundary <- function(chrom, num_tuples, average_depth,
 
     
     d[,'meth'] <- get_methylation(d, tuple_length = tuple_length)
-    d[, 'entropy'] <- apply(d[tuples], 1, entropy)
+    d[, 'entropy'] <- apply(d[tuples], 1, entropy)/log(2^tuple_length)
 
     d$id <- '.'
 
@@ -750,7 +751,7 @@ simulate_disordered_gradient <- function(chrom, num_tuples, average_depth,
 
     
     ## d[,'meth'] <- get_methylation(d, tuple_length = tuple_length)
-    ## d[, 'entropy'] <- apply(d[tuples], 1, entropy)
+    ## d[, 'entropy'] <- apply(d[tuples], 1, entropy)/log(2^tuple_length)
 
     ## d$id <- '.'
     
@@ -1509,8 +1510,9 @@ table(fd[fd$value > 1, 'score'])
 
 str(fd)
 
-nolog <- c('beta', 'epipolimorphism', 'mhl', 'pdr', 'pim')
-tolog <- c('h', 'number_haplotypes')
+nolog <- c('beta', 'epipolimorphism', 'mhl', 'pdr', 'pim', 'h')
+tolog <- c('number_haplotypes')
+
 
 ggplot(fd[fd$score %in% nolog,], aes(x= tuple_length, y = value)) +
     geom_point() +

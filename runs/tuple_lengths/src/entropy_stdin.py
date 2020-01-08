@@ -30,7 +30,7 @@ starter = fd.filter(regex=r'^pos.*', axis=1).head()
 # entropies = fd2.apply(entropy, axis=1)
 ## rather normalize entropies to the range (1,2)
 m = starter.shape[1] ## requires m > 1
-entropies = fd2.apply(entropy, axis=1)/(log(m**2))
+entropies = fd2.apply(entropy, axis=1)/(log(2**m))
 
 # get the proportion of `M` elements within each tuple, to leverage the contribution
 # to methylation

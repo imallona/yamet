@@ -90,7 +90,7 @@ rule by_sample_report:
     threads: NTHREADS
     run:
         # for curr in input.sample:
-        for curr in BAM.keys():
+        for curr in BAMS.keys():
             shell("""{Rbin} src/postproc_report_per_sample.R -s {curr} \
             -c {params.cov} -i {curr} \
             -o {curr} -t {threads} | \
