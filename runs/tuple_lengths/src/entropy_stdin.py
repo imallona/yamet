@@ -3,6 +3,8 @@
 ## Calculates entropies and methylations per row for whathever the output
 ##   of methtuple it is (regardless of the -m value)
 ##
+## Update 8 Jan 2020: now returns normalized entropy
+##
 ## Reads from stdin, writes to stdout
 ## @todo optimize
 ##
@@ -11,6 +13,7 @@
 
 import sys
 from scipy.stats import entropy
+from numpy import log
 import pandas
 
 # read from stdin as many columns as methtuple readouts
@@ -24,7 +27,10 @@ starter = fd.filter(regex=r'^pos.*', axis=1).head()
 # fd2 = fd.div(fd.sum(axis=1), axis=0)
 
 # calculate entropy
-entropies = fd2.apply(entropy, axis=1)
+# entropies = fd2.apply(entropy, axis=1)
+## rather normalize entropies to the range (1,2)
+m = starter.shape[1] ## requires m > 1
+entropies = fd2.apply(entropy, axis=1)/(log(m**2))
 
 # get the proportion of `M` elements within each tuple, to leverage the contribution
 # to methylation

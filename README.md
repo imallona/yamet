@@ -4,6 +4,10 @@ This repository is also available at https://bitbucket.org/imallona/yamet/src/ma
 
 The manuscript is available at https://github.com/imallona/yamet_paper and https://bitbucket.org/imallona/yamet_paper/src/master/ .
 
+## FIXME
+
+the op.join runs, tuple_length, src, entropy_stdin.py does compute normalized entropy and not entropy. This change should be applied everywhere! -- 8th Jan 2020
+
 ## Repo organization
 
 - `schemas`, yaml sample and configs, includes `samples.schema.yaml` and `config.schema.yaml`

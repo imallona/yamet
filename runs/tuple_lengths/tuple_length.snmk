@@ -110,6 +110,7 @@ rule merge_meth_and_entropies:
         """
         # merge
         cat {input} | gzip > {output}
+        rm {input}
         """
 
     

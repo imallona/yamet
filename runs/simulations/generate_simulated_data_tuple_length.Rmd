@@ -58,6 +58,11 @@ ac <-  function(col, alpha=1){
 Test expand grid
 
 ```{r}
+
+## normalize_entropy <- function(unnormalized_entropy, tuple_length) {
+##     unnormalized_entropy/log(2^tuple_length)    
+## }
+    
 get_tuple_identifiers <- function(tuple_length) {
     bar <- list()
     bar[1:tuple_length] <- list(c('M', 'U'))
@@ -1495,6 +1500,53 @@ ggplot(cov_fd, aes(x= num_tuples, y = log10(value + 1))) +
     theme(axis.text.x = element_text(angle = 90, hjust = 1)) 
     
 ```
+
+By panel, scores bound to (0,1) separately for the sake of readability
+
+```{r fig.width = 10, fig.height = 8}
+
+table(fd[fd$value > 1, 'score'])
+
+str(fd)
+
+nolog <- c('beta', 'epipolimorphism', 'mhl', 'pdr', 'pim')
+tolog <- c('h', 'number_haplotypes')
+
+ggplot(fd[fd$score %in% nolog,], aes(x= tuple_length, y = value)) +
+    geom_point() +
+    geom_smooth() +
+    facet_grid(fd[fd$score %in% nolog,]$status~fd[fd$score %in% nolog,]$score) +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1)) 
+```
+
+```{r fig.width = 10, fig.height = 8}
+
+table(cov_fd[cov_fd$value > 1, 'score'])
+
+str(cov_fd)
+
+nolog <- c('beta', 'epipolimorphism', 'mhl', 'pdr', 'pim')
+tolog <- c('h', 'number_haplotypes')
+
+ggplot(cov_fd[cov_fd$score %in% nolog,], aes(x= num_tuples, y = value)) +
+    geom_point() +
+    geom_smooth() +
+    facet_grid(cov_fd[cov_fd$score %in% nolog,]$status~cov_fd[cov_fd$score %in% nolog,]$score) +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1)) 
+```
+
+Plus the ones that are not within [0,1]
+
+```{r, fig.width = 4, fig.height=8}
+ggplot(fd[fd$score %in% tolog,], aes(x= tuple_length, y = value)) +
+    geom_point() +
+    geom_smooth() +
+    facet_grid(fd[fd$score %in% tolog,]$status~fd[fd$score %in% tolog,]$score) +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1)) 
+
+```
+
+I should normalize entropy dividing it by the max entropy, that is `log n`. https://www.xycoon.com/normalized_entropy.htm
 
 
 <!-- end -->
