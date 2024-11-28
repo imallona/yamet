@@ -37,13 +37,15 @@ ref <- collapsed[c(3,1)]
 ref$end <- ref$start +1
 
 ## as well as the regions we'd like to check, just one per chr:
-
 regions <- data.frame(chr = unique(ref$chr),
                       start = min(ref$start),
                       end = max(ref$end) + 1)
 
-## and add sparsity by eliminating every fifth element of the simulated data
-collapsed <- collapsed[1:nrow(collapsed) %% 5 != 0, c('chr', 'start', 'beta')]
+## we are not filling the 'methylated reads' and 'unmethylated reads' columns but will fill them with a dot
+collapsed$placeholder <- '.'
+
+## and add sparsity by eliminating every nineth element of the simulated data
+collapsed <- collapsed[1:nrow(collapsed) %% 9 != 0, c('chr', 'start', 'placeholder', 'placeholder', 'beta')]
 
 ## write outputs
 write.table(regions, file = 'regions.bed', quote = FALSE, row.names = FALSE, col.names = FALSE, sep = "\t")
