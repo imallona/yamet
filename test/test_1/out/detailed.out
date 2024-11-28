@@ -1,0 +1,6 @@
+chr     start   end     test_1/in/simulations.tsv
+chrM    1       201     0
+chrU    1       201     0
+chr1_1  1       201     notsure
+chr3_1  1       201     notsure
+chr_random      1       201     notsure

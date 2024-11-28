@@ -34,7 +34,7 @@ jobs:
           cd method
           make
        
-      - name: Test
+      - name: Test_0
         run: |
           cd test
           ../method/yamet \
@@ -43,6 +43,21 @@ jobs:
               --bed      test_0/in/regions.bed \
               --det-out  current_test_0.out
 
+          echo 'Diff expected vs produced'
+          
           diff test_0/out/detailed.out \
                current_test_0.out
           
+      - name: Test_1
+        run: |
+          cd test
+          ../method/yamet \
+              --tsv      test_1/in/simulations.tsv \
+              --ref      test_1/in/reference.tsv \
+              --bed      test_1/in/regions.bed \
+              --det-out  current_test_1.out
+              
+          echo 'Diff expected vs produced'
+
+          diff test_1/out/detailed.out \
+               current_test_1.out
