@@ -1,3 +1,12 @@
+# Current release
+
+Under development! :confetti_ball:
+
+Please also check (probably side branches of):
+
+- https://github.com/emsonder/MethQuant
+- https://github.com/emsonder/MethQuant-analysis
+
 # Old release
 
 ## Repo organization

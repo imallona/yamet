@@ -1,0 +1,6 @@
+chr     start   end     simulations.tsv
+chrM    1       201     0
+chrU    1       201     -1
+chr1_1  1       201     -1
+chr3_1  1       201     -1
+chr_random      1       201     -1
