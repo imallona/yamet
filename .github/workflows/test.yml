@@ -1,0 +1,35 @@
+name: build_and_test
+
+on:
+  workflow_dispatch: 
+  # push:
+  #   branches:
+  #     - master
+  #   paths: ['.github/workflows/test.yml', '**/Makefile', '**/*.h', '**/*.hpp', '**/*.c', '**/*.cpp']
+  # pull_request:
+  #   types: [opened, synchronize, reopened]
+  #   paths: ['.github/workflows/test.yml', '**/Makefile', '**/*.h', '**/*.hpp', '**/*.c', '**/*.cpp']
+
+# env:
+#   BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
+
+jobs:
+  build_ubuntu_latest_cuda:
+    runs-on: ubuntu-latest
+    container: nvidia/cuda:12.6.2-devel-ubuntu24.04
+    steps:
+      - name: Clone
+        id: checkout
+        uses: actions/checkout@v4
+        
+      - name: Install dependencies
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          apt update
+          apt install -y cmake build-essential ninja-build libgomp1 git
+
+      - name: Build
+        run: |
+          cd method
+          make
