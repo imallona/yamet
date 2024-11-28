@@ -1,0 +1,5 @@
+This test "true" detailed output in `out/detailed.out` was produced on 28th Nov 2024 and not necessarily true.
+
+Regions and data were manually crafted.
+
+Also, files look space-separated instead of tab-separated as they should.
