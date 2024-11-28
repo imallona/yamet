@@ -15,20 +15,12 @@ on:
 
 jobs:
   build_ubuntu_latest_cuda:
-    runs-on: ubuntu-latest
-    container: nvidia/cuda:12.6.2-devel-ubuntu24.04
+    runs-on: self-hosted
     steps:
       - name: Clone
         id: checkout
         uses: actions/checkout@v4
-        
-      - name: Install dependencies
-        env:
-          DEBIAN_FRONTEND: noninteractive
-        run: |
-          apt update
-          apt install -y cmake build-essential ninja-build libgomp1 git zlib1g-dev libboost-all-dev
-
+      
       - name: Build
         run: |
           cd method
