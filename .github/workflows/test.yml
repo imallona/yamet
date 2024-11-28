@@ -2,13 +2,13 @@ name: build_and_test
 
 on:
   workflow_dispatch: 
-  # push:
-  #   branches:
-  #     - master
-  #   paths: ['.github/workflows/test.yml', '**/Makefile', '**/*.h', '**/*.hpp', '**/*.c', '**/*.cpp']
-  # pull_request:
-  #   types: [opened, synchronize, reopened]
-  #   paths: ['.github/workflows/test.yml', '**/Makefile', '**/*.h', '**/*.hpp', '**/*.c', '**/*.cpp']
+  push:
+    branches:
+      - actions
+    paths: ['.github/workflows/test.yml', '**/Makefile', '**/*.h', '**/*.hpp', '**/*.c', '**/*.cpp']
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths: ['.github/workflows/test.yml', '**/Makefile', '**/*.h', '**/*.hpp', '**/*.c', '**/*.cpp']
 
 # env:
 #   BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
