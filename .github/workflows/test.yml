@@ -27,7 +27,7 @@ jobs:
           DEBIAN_FRONTEND: noninteractive
         run: |
           apt update
-          apt install -y cmake build-essential ninja-build libgomp1 git zlib1g-dev
+          apt install -y cmake build-essential ninja-build libgomp1 git zlib1g-dev libboost-all-dev
 
       - name: Build
         run: |
