@@ -1,0 +1,62 @@
+#!/usr/bin/env snakemake -s
+##
+## Runs yamet
+##
+## Started 2nd Dec 2024
+
+import os.path as op
+
+rule all:
+    input:
+        op.join('ecker_data', 'downloaded.flag')
+    
+rule download_ecker_metadata:
+    conda:
+        "envs/yamet.yml"
+    output:
+        meta = op.join('ecker_data', 'MOp_Metadata.tsv.gz')
+    params:
+        path = 'ecker_data'
+    shell:
+        """
+        mkdir -p {params.path}
+        curl "https://data.nemoarchive.org/biccn/grant/u19_cemba/cemba/epigenome/sncell/mCseq/mouse/processed/analysis/EckerRen_Mouse_MOp_methylation_ATAC/metadata/mc/MOp_Metadata.tsv.gz" -o {output.meta}
+        """
+
+rule download_ecker:
+    conda:
+        "envs/yamet.yml"
+    input:
+        meta = op.join('ecker_data', 'MOp_Metadata.tsv.gz')
+    output:
+        raw_urls = temp(op.join('ecker_data', 'raw_urls')),
+        urls = op.join('ecker_data', 'urls'),
+        flag = op.join('ecker_data', 'downloaded.flag')
+        
+    params:
+        base_url = "https://data.nemoarchive.org/biccn/grant/u19_cemba/cemba/epigenome/sncell/mCseq/mouse/processed/counts/",
+        path = 'ecker_data/'
+    threads:
+        2
+    shell:
+        """
+        zcat {input.meta} | cut -f2 | grep -v AllcPath > {output.raw_urls}
+        sed 's\\/gale/raidix/rdx-4/CEMBA_RS1/\\{params.base_url}\\g' {output.raw_urls} | \
+           sed 's\\/allc/\\/\\g' | sed 's\\.gz\\.tar\\g' > {output.urls}
+        
+        wget -i {output.urls} --directory-prefix={params.path}
+        touch {output.flag}
+        """
+
+
+def download_scnmt_gastrulation():
+    return NULL
+
+def download_promoters(assembly = 'mm10'):
+    return NULL
+
+def download_genes(assembly = 'mm10'):
+    return NULL
+
+def download_repeats(assembly = 'mm10'):
+    return NULL
