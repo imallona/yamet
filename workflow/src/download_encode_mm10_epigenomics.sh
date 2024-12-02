@@ -8,7 +8,7 @@
 
 # "https://www.encodeproject.org/metadata/?control_type%21=%2A&related_series.%40type=ReferenceEpigenome&replicates.library.biosample.donor.organism.scientific_name=Mus+musculus&status=released&biosample_ontology.classification=tissue&biosample_ontology.term_name=forebrain&assembly=mm10&assay_title=Histone+ChIP-seq&replicates.library.biosample.life_stage=postnatal&files.file_type=bed+narrowPeak&target.label=H3K27ac&target.label=H3K4me3&target.label=H3K9me3&target.label=H3K27me3&target.label=H3K4me1&type=Experiment&files.analyses.status=released&files.preferred_default=true"
 
-mkdir -p annotation/mm10/encode/
+mkdir -p annotation/mm10
 cd $_
 
 #H3K4me3
