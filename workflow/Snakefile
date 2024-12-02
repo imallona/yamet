@@ -9,10 +9,15 @@
 
 import os.path as op
 
+## the shuffling is to have as many permutations as len(seed) of each of the annotations, to build
+##   multiple entropy background distributions
 rule all:
     input:
         # op.join('ecker_data', 'downloaded.flag'),
-        op.join('annotation', 'mm10', 'done.flag')
+        op.join('annotation', 'mm10', 'done.flag'),
+        expand(op.join('shuffled', '{seed}', '{annotation}.bed.gz'),
+               seed = [1,2],
+               annotation = ['transcripts', 'promoters'])
     
 rule download_ecker_metadata:
     conda:
@@ -111,6 +116,55 @@ rule download_mm10_encode:
         """
         bash src/download_encode_mm10_epigenomics.sh
         """
+
+rule get_mm10_genome_sizes:
+    conda:
+        op.join("envs", "yamet.yml")
+    output:
+        genome = op.join('annotation', 'mm10','genome.sizes')
+    params:
+        path = op.join('annotation', 'mm10')
+    threads:
+        1
+    shell:
+        """
+        bash src/download_mm10_genome_sizes.sh > {output.genome}
+        """
+        
+rule shuffle_background:
+    conda:
+        op.join("envs", "yamet.yml")
+    input:
+        bed = op.join('annotation', 'mm10', '{annotation}.bed.gz'),
+        genome = op.join('annotation', 'mm10','genome.sizes')
+    output:
+        op.join('shuffled', '{seed}', '{annotation}.bed.gz')
+    shell:
+        """
+        zcat {input.bed} | \
+            bedtools shuffle -i - -g {input.genome} -seed {wildcards.seed} | \
+            gzip -c > {output}
+        """
+
+## how do we run yamet? in batches of cells? how to automate this so the shuffled backgrounds
+##   are coupled as well?
+rule run_yamet:
+    conda:
+        op.join("envs", "yamet.yml")
+    input:
+        bed = op.join('annotation', 'mm10', '{annotation}.bed.gz'),
+        genome = op.join('annotation', 'mm10','genome.sizes')
+    output:
+        detailed = op.join('yamet', '{annotation}', '{cells}')
+    message:
+        """
+        echo running yamet on {input.bed} and {input.annotation}
+        """
+    shell:
+        """
+        echo 'not implemented'
+        """
+
 
 # ## data download - pending stuff
 

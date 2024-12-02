@@ -5,3 +5,4 @@ channels:
 dependencies:
   - conda-forge::mariadb
   - conda-forge::wget
+  - bioconda::bedtools
