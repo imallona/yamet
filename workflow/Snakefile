@@ -2,13 +2,17 @@
 ##
 ## Runs yamet
 ##
+## See https://github.com/emsonder/MethQuant-analysis/blob/cleanup/01_ecker_brain_atlas_2021/01_get_regions.sh
+##   for further annotations
+##
 ## Started 2nd Dec 2024
 
 import os.path as op
 
 rule all:
     input:
-        op.join('ecker_data', 'downloaded.flag')
+        # op.join('ecker_data', 'downloaded.flag'),
+        op.join('annotation', 'mm10', 'done.flag')
     
 rule download_ecker_metadata:
     conda:
@@ -48,15 +52,72 @@ rule download_ecker:
         touch {output.flag}
         """
 
+rule download_mm10_annotation_for_ecker:
+    conda:
+        op.join("envs", "yamet.yml")
+    input:
+        promoters = op.join('annotation', 'mm10', 'promoters.bed.gz'),
+        txs = op.join('annotation', 'mm10', 'transcripts.bed.gz'),
+        encode = op.join('annotation', 'mm10', 'h3k27ac.bed.gz')
+    output:
+        flag = op.join('annotation', 'mm10', 'done.flag')
+    params:
+        path = op.join('annotation', 'mm10')
+    threads:
+        1
+    shell:
+        """
+        date > {output.flag}
+        """
+    
+rule download_mm10_promoters:
+    conda:
+        op.join("envs", "yamet.yml")
+    output:
+        promoters = op.join('annotation', 'mm10', 'promoters.bed.gz')    
+    params:
+        path = op.join('annotation', 'mm10')
+    threads:
+        1
+    shell:
+        """
+        bash src/download_mm10_promoters.sh | gzip -c > {output.promoters}
+        """
 
-def download_scnmt_gastrulation():
-    return NULL
+rule download_mm10_transcripts:
+    conda:
+        op.join("envs", "yamet.yml")
+    output:
+        txs = op.join('annotation', 'mm10', 'transcripts.bed.gz')
+    params:
+        path = op.join('annotation', 'mm10')
+    threads:
+        1
+    shell:
+        """
+        bash src/download_mm10_transcripts.sh | gzip -c > {output.txs}
+        """
+        
+rule download_mm10_encode:
+    conda:
+        op.join("envs", "yamet.yml")
+    output:
+        last = op.join('annotation', 'mm10','h3k27ac.bed.gz')
+    params:
+        path = op.join('annotation', 'mm10')
+    threads:
+        1
+    shell:
+        """
+        bash src/download_encode_mm10_epigenomics.sh
+        """
 
-def download_promoters(assembly = 'mm10'):
-    return NULL
+# ## data download - pending stuff
 
-def download_genes(assembly = 'mm10'):
-    return NULL
+# def download_scnmt_gastrulation():
+#     return NULL
 
-def download_repeats(assembly = 'mm10'):
-    return NULL
+# ## perhaps lines and sines separately?
+# def download_mm10_repeats(assembly = 'mm10'):
+#     return NULL
+
