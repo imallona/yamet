@@ -3,6 +3,8 @@
 ## Generates basic, simplistic simulated data to test yamet
 ## Doesn't write expected truths (@todo)
 ##
+## Run: `Rscript generate_test_inputs.R`
+##
 ## Started 28 Nov 2024
 
 NCPGS=100
@@ -41,15 +43,15 @@ regions <- data.frame(chr = unique(ref$chr),
                       start = min(ref$start),
                       end = max(ref$end) + 1)
 
-## we are not filling the 'methylated reads' and 'unmethylated reads' columns but will fill them with a dot
-collapsed$placeholder <- '.'
+## we are not filling the 'methylated reads' and 'unmethylated reads' columns but will fill them with zeroes
+collapsed$placeholder <- 0
 
 ## and add sparsity by eliminating every nineth element of the simulated data
 collapsed <- collapsed[1:nrow(collapsed) %% 9 != 0, c('chr', 'start', 'placeholder', 'placeholder', 'beta')]
 
 ## write outputs
-write.table(regions, file = 'regions.bed', quote = FALSE, row.names = FALSE, col.names = FALSE, sep = "\t")
-write.table(collapsed, file = 'simulations.tsv', quote = FALSE, row.names = FALSE, col.names = FALSE, sep = "\t")
-write.table(ref, file = 'reference.tsv', quote = FALSE, row.names = FALSE, col.names = FALSE, sep = "\t")
+write.table(regions, file = 'regions.bed', quote = FALSE, row.names = FALSE, col.names = FALSE, sep = " ")
+write.table(collapsed, file = 'simulations.tsv', quote = FALSE, row.names = FALSE, col.names = FALSE, sep = " ")
+write.table(ref, file = 'reference.tsv', quote = FALSE, row.names = FALSE, col.names = FALSE, sep = " ")
 
 print('Done.')
