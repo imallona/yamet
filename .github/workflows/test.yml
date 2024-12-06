@@ -4,7 +4,7 @@ on:
   workflow_dispatch: 
   pull_request:
     types: [assigned, opened, synchronize, reopened]
-    paths: ['.github/workflows/test.yml', '**/Makefile', '**/*.h', '**/*.hpp', '**/*.c', '**/*.cpp']
+    # paths: ['.github/workflows/test.yml', '**/Makefile', '**/*.h', '**/*.hpp', '**/*.c', '**/*.cpp']
 
 # env:
 #   BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
@@ -43,8 +43,16 @@ jobs:
               --tsv      test_1/in/simulations.tsv \
               --ref      test_1/in/reference.tsv \
               --bed      test_1/in/regions.bed \
-              --det-out  current_test_1.out &> current_test_1_stdout
-              
+              --det-out  current_test_1.out &> current_test_1.stdout
+
+          echo 'Produced detailed output (debug)'
+
+          cat -e current_test_1.out
+
+          echo 'Produced stdout (debug)'
+
+          cat -e current_test_1.stdout
+          
           echo 'Diff expected vs produced detailed output'
 
           diff test_1/out/detailed.out \
@@ -53,4 +61,4 @@ jobs:
           echo 'Diff expected vs produced stdout'
 
           diff test_1/out/stdout \
-               current_test_1_stdout.out
+               current_test_1.stdout
