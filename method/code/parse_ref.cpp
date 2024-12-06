@@ -28,7 +28,8 @@ Reference parseRef(const std::string &filename, Intervals intervals)
   constexpr int bufferSize = 64 * 1024;
   char buffer[bufferSize];
   std::string partialLine;
-  bool headerSkipped = false;
+  bool firstFound = false;
+  // bool headerSkipped = false;
 
   unsigned int chrIndex = 0, intervalIndex = 0;
   bool done = false;
@@ -58,55 +59,88 @@ Reference parseRef(const std::string &filename, Intervals intervals)
         partialLine = line;
         break;
       }
-      if (!headerSkipped)
-      {
-        headerSkipped = true;
-        continue;
-      }
+      // if (!headerSkipped)
+      // {
+      //   headerSkipped = true;
+      //   continue;
+      // }
       std::istringstream lineStream(line);
       std::string chr, temp;
       unsigned int pos;
-      ss >> chr >> pos >> temp;
+      lineStream >> chr >> pos >> temp;
+      // std::cout << chr << " " << pos << std::endl;
+      // std::cout << chrIndex << " " << intervalIndex << std::endl;
 
       if (chr != intervals[chrIndex].chr)
-        continue;
+        if (firstFound)
+        {
+          if (chrIndex < intervals.size() - 1)
+          {
+            chrIndex++;
+            intervalIndex = 0;
+          }
+        }
+        else
+        {
+          continue;
+        }
+      firstFound = true;
       if (pos < intervals[chrIndex].intervals[intervalIndex].start)
         continue;
       while (intervals[chrIndex].intervals[intervalIndex].end <= pos)
       {
-        if (chrIndex == intervals.size() - 1)
+        if (intervalIndex < intervals[chrIndex].intervals.size() - 1)
         {
-          if (intervalIndex == intervals[chrIndex].intervals.size() - 1)
-          {
-            done = true;
-            break;
-          }
           intervalIndex++;
         }
         else
         {
-          if (intervalIndex == intervals[chrIndex].intervals.size() - 1)
+          if (chrIndex < intervals.size() - 1)
           {
             chrIndex++;
             intervalIndex = 0;
-            break;
           }
-          else
-          {
-            intervalIndex++;
-          }
+          break;
         }
       }
 
-      if (done)
-        break;
-      if (intervals[chrIndex].intervals[intervalIndex].start <= pos && pos < intervals[chrIndex].intervals[intervalIndex].end)
+      // if (pos < intervals[chrIndex].intervals[intervalIndex].start)
+      //   continue;
+      // while (intervals[chrIndex].intervals[intervalIndex].end <= pos)
+      // {
+      //   if (chrIndex == intervals.size() - 1)
+      //   {
+      //     if (intervalIndex == intervals[chrIndex].intervals.size() - 1)
+      //     {
+      //       done = true;
+      //       break;
+      //     }
+      //     intervalIndex++;
+      //   }
+      //   else
+      //   {
+      //     if (intervalIndex == intervals[chrIndex].intervals.size() - 1)
+      //     {
+      //       chrIndex++;
+      //       intervalIndex = 0;
+      //       break;
+      //     }
+      //     else
+      //     {
+      //       intervalIndex++;
+      //     }
+      //   }
+      // }
+
+      // if (done)
+      //   break;
+      if (chr == intervals[chrIndex].chr && intervals[chrIndex].intervals[intervalIndex].start <= pos && pos < intervals[chrIndex].intervals[intervalIndex].end)
       {
         ref[chrIndex].positions[intervalIndex].emplace_back(pos);
       }
     }
-    if (done)
-      break;
+    // if (done)
+    //   break;
     if (bytesRead < bufferSize - 1)
       break;
   }

@@ -1,0 +1,35 @@
+--Search Regions------------------
+
+Chromosome: chrM
+  Start: 1, End: 201
+Chromosome: chrU
+  Start: 1, End: 201
+Chromosome: chr1_1
+  Start: 1, End: 201
+Chromosome: chr3_1
+  Start: 1, End: 201
+Chromosome: chr_random
+  Start: 1, End: 201
+
+--Reference CPGs------------------
+
+
+--Cell Files------------------
+
+
+--Sample Entropies------------------
+
+Filename: test_1/in/simulations.tsv
+  Aggregate: 0.0865326
+  Detailed:
+    Chromosome: chrM
+      Bin 0 -> 0
+    Chromosome: chrU
+      Bin 0 -> 0
+    Chromosome: chr1_1
+      Bin 0 -> 0
+    Chromosome: chr3_1
+      Bin 0 -> 0.437214
+    Chromosome: chr_random
+      Bin 0 -> 0.742137
+
