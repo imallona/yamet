@@ -2,6 +2,6 @@ chr     start   end     test_1/in/simulations.tsv
 chrM	1	201	0
 chrU	1	201	0
 chr1_1	1	201	0
-chr3_1	1	201	0.466284
-chr_random	1	201	0.750055
+chr3_1	1	201	0.437214
+chr_random	1	201	0.742137
 
