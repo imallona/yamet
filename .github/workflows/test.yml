@@ -2,12 +2,8 @@ name: build_and_test
 
 on:
   workflow_dispatch: 
-  push:
-    branches:
-      - actions
-    paths: ['.github/workflows/test.yml', '**/Makefile', '**/*.h', '**/*.hpp', '**/*.c', '**/*.cpp']
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [assigned, opened, synchronize, reopened]
     paths: ['.github/workflows/test.yml', '**/Makefile', '**/*.h', '**/*.hpp', '**/*.c', '**/*.cpp']
 
 # env:
@@ -47,9 +43,14 @@ jobs:
               --tsv      test_1/in/simulations.tsv \
               --ref      test_1/in/reference.tsv \
               --bed      test_1/in/regions.bed \
-              --det-out  current_test_1.out
+              --det-out  current_test_1.out &> current_test_1_stdout
               
-          echo 'Diff expected vs produced'
+          echo 'Diff expected vs produced detailed output'
 
           diff test_1/out/detailed.out \
                current_test_1.out
+
+          echo 'Diff expected vs produced stdout'
+
+          diff test_1/out/stdout \
+               current_test_1_stdout.out
