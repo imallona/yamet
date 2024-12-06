@@ -1,4 +1,4 @@
-chr     start   end     test_1/in/simulations.tsv
+chr	start	end	test_1/in/simulations.tsv
 chrM	1	201	0
 chrU	1	201	0
 chr1_1	1	201	0
