@@ -10,14 +10,15 @@
 import os.path as op
 import pandas as pd
         
+print('Caution needs R from the host to run "harmonize_ecker_metadata"')
 
 ## the shuffling is to have as many permutations as len(seed) of each of the annotations, to build
 ##   multiple entropy background distributions
 rule all:
     input:
-        # op.join('ecker_data', 'downloaded.flag'),
-        op.join('annotation', 'mm10', 'done.flag'),
-        op.join('ecker_data', 'harmonized_ecker_metadata.tsv.gz')
+        # op.join('ecker_data', 'downloaded.flag'), ## this is to download Ecker's cytosine reports
+        op.join('annotation', 'mm10', 'done.flag'), ## this to download regions
+        op.join('ecker_data', 'harmonized_ecker_metadata.tsv.gz') ## this to download Ecker's metadata
         # expand(op.join('shuffled', '{seed}', '{annotation}.bed.gz'),
                # seed = [1,2],
                # annotation = ['transcripts', 'promoters'])
@@ -66,25 +67,25 @@ rule harmonize_ecker_metadata:
         'src/harmonize_ecker_metadata.R'
         
     
-## reports the AllcPath (basename) of cells matching the harmonized metadata
-##   'column' equals 'value'
-def slice_eckers_metadata(column, value):
-    meta_fn = op.join('ecker_data','harmonized_ecker_metadata.tsv.gz')
+# ## reports the AllcPath (basename) of cells matching the harmonized metadata
+# ##   'column' equals 'value'
+# def slice_eckers_metadata(column, value):
+#     meta_fn = op.join('ecker_data','harmonized_ecker_metadata.tsv.gz')
     
-    if not op.exists(meta_fn):
-        raise Exception("No metadata found.")
+#     if not op.exists(meta_fn):
+#         raise Exception("No metadata found.")
     
-    meta = pd.read_csv(filepath_or_buffer = meta_fn,
-                       sep='\t',
-                       compression='gzip', header=0, quotechar='"')
+#     meta = pd.read_csv(filepath_or_buffer = meta_fn,
+#                        sep='\t',
+#                        compression='gzip', header=0, quotechar='"')
     
-    if set([column]).issubset(meta.columns):
-        return [i for i in meta[meta[column] == value]['basename']]
-    else:
-        return None
+#     if set([column]).issubset(meta.columns):
+#         return [i for i in meta[meta[column] == value]['basename']]
+#     else:
+#         return None
 
-## this is a long one!
-print(slice_eckers_metadata('SubType', 'IT-L4 Shc3'))
+# ## this is a long one!
+# print(slice_eckers_metadata('SubType', 'IT-L4 Shc3'))
 
 rule download_ecker:
     conda:
