@@ -121,7 +121,7 @@ Reference parseRef(const std::string &filename, Intervals intervals) {
         ref[chrIndex].positions[intervalIndex].emplace_back(pos);
       }
     }
-    if (bytesRead < bufferSize - 1 && partialLine.empty()) {
+    if (bytesRead < bufferSize - 1) {
       break;
     }
   }
