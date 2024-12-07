@@ -44,30 +44,29 @@ int main(int argc, char **argv) {
       std::cout << std::endl;
     }
 
-    std::cout << "--Cell Files------------------" << std::endl << std::endl;
-
     FileMap fileMap = alignWithRef(filenames, ref);
-    // for (const auto &filename : filenames)
-    // {
-    //   std::cout << "Filename: " << filename << std::endl;
-    //   for (unsigned int chrIndex = 0; chrIndex < fileMap[filename].size(); chrIndex++)
-    //   {
-    //     std::cout << "  Chromosome: " << fileMap[filename][chrIndex].chr << std::endl;
-    //     for (unsigned int binIndex = 0; binIndex < fileMap[filename][chrIndex].meth.size();
-    //     binIndex++)
-    //     {
-    //       std::cout << "    Bin: " << binIndex << ", size: " <<
-    //       fileMap[filename][chrIndex].meth[binIndex].size() << std::endl; for (const auto
-    //       &methValue : fileMap[filename][chrIndex].meth[binIndex])
-    //       {
-    //         std::cout << "      Meth: " << methValue << std::endl;
-    //       }
-    //     }
-    //   }
-    //   std::cout << std::endl;
-    // }
 
-    std::cout << std::endl;
+    if (vm.count("print-tsv")) {
+      std::cout << "--Cell Files------------------" << std::endl << std::endl;
+      for (const auto &filename : filenames) {
+        std::cout << "Filename: " << filename << std::endl;
+        for (unsigned int chrIndex = 0; chrIndex < fileMap[filename].size(); chrIndex++) {
+          std::cout << "  Chromosome: " << fileMap[filename][chrIndex].chr << std::endl;
+          for (unsigned int binIndex = 0; binIndex < fileMap[filename][chrIndex].meth.size();
+               binIndex++) {
+            std::cout << "    Bin: " << binIndex
+                      << ", size: " << fileMap[filename][chrIndex].meth[binIndex].size()
+                      << std::endl;
+            for (const auto &methValue : fileMap[filename][chrIndex].meth[binIndex]) {
+              std::cout << "      Meth: " << methValue << std::endl;
+            }
+          }
+        }
+        std::cout << std::endl;
+      }
+      std::cout << std::endl;
+    }
+
     std::cout << "--Sample Entropies------------------" << std::endl << std::endl;
 
     SampEns sampens = sampEn(fileMap, 2);
