@@ -65,7 +65,6 @@ Reference parseRef(const std::string &filename, Intervals intervals) {
       std::string        chr, temp;
       unsigned int       pos;
       lineStream >> chr >> pos >> temp;
-      std::cout << "chr: " << chr << "| pos: " << pos << std::endl;
 
       if (chr != currentChr) {
         currentChr = chr;
