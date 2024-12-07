@@ -1,11 +1,10 @@
 #pragma once
 
-#include <vector>
 #include <unordered_map>
+#include <vector>
 
-struct ChrMeth
-{
-  std::string chr;
+struct ChrMeth {
+  std::string                    chr;
   std::vector<std::vector<char>> meth;
 
   ChrMeth(const std::string &c, const std::vector<std::vector<char>> &p) : chr(c), meth(p) {}
