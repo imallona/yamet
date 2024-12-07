@@ -15,31 +15,35 @@ int main(int argc, char **argv) {
     auto                     vm        = parseCommandLine(argc, argv);
     std::vector<std::string> filenames = getTsvFiles(vm);
 
-    std::cout << "--Search Regions------------------" << std::endl << std::endl;
-
     Intervals intervals = parseSearch(getBed(vm));
-    for (const auto &[chr, intervals] : intervals) {
-      std::cout << "Chromosome: " << chr << std::endl;
-      for (const auto &[start, end] : intervals) {
-        std::cout << "  Start: " << start << ", End: " << end << std::endl;
-      }
-    }
 
-    std::cout << std::endl;
-    std::cout << "--Reference CPGs------------------" << std::endl << std::endl;
-
-    Reference ref = parseRef(getRef(vm), intervals);
-    for (const auto &[chr, positions] : ref) {
-      std::cout << "Chromosome: " << chr << std::endl;
-      for (unsigned int binIndex = 0; binIndex < positions.size(); binIndex++) {
-        std::cout << "  Bin: " << binIndex << std::endl;
-        for (const auto &pos : positions[binIndex]) {
-          std::cout << "    Pos: " << pos << std::endl;
+    if (vm.count("print-bed")) {
+      std::cout << "--Search Regions------------------" << std::endl << std::endl;
+      for (const auto &[chr, intervals] : intervals) {
+        std::cout << "Chromosome: " << chr << std::endl;
+        for (const auto &[start, end] : intervals) {
+          std::cout << "  Start: " << start << ", End: " << end << std::endl;
         }
       }
+      std::cout << std::endl;
     }
 
-    std::cout << std::endl;
+    Reference ref = parseRef(getRef(vm), intervals);
+
+    if (vm.count("print-ref")) {
+      std::cout << "--Reference CPGs------------------" << std::endl << std::endl;
+      for (const auto &[chr, positions] : ref) {
+        std::cout << "Chromosome: " << chr << std::endl;
+        for (unsigned int binIndex = 0; binIndex < positions.size(); binIndex++) {
+          std::cout << "  Bin: " << binIndex << std::endl;
+          for (const auto &pos : positions[binIndex]) {
+            std::cout << "    Pos: " << pos << std::endl;
+          }
+        }
+      }
+      std::cout << std::endl;
+    }
+
     std::cout << "--Cell Files------------------" << std::endl << std::endl;
 
     FileMap fileMap = alignWithRef(filenames, ref);
