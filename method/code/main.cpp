@@ -12,11 +12,11 @@
 
 int main(int argc, char **argv) {
   try {
-    auto                     vm        = parseCommandLine(argc, argv);
+    auto vm = parseCommandLine(argc, argv);
+
     std::vector<std::string> filenames = getTsvFiles(vm);
 
     Intervals intervals = parseSearch(getBed(vm));
-
     if (vm.count("print-bed")) {
       std::cout << "--Search Regions------------------" << std::endl << std::endl;
       for (const auto &[chr, intervals] : intervals) {
@@ -29,7 +29,6 @@ int main(int argc, char **argv) {
     }
 
     Reference ref = parseRef(getRef(vm), intervals);
-
     if (vm.count("print-ref")) {
       std::cout << "--Reference CPGs------------------" << std::endl << std::endl;
       for (const auto &[chr, positions] : ref) {
@@ -45,7 +44,6 @@ int main(int argc, char **argv) {
     }
 
     FileMap fileMap = alignWithRef(filenames, ref);
-
     if (vm.count("print-tsv")) {
       std::cout << "--Cell Files------------------" << std::endl << std::endl;
       for (const auto &filename : filenames) {
@@ -68,7 +66,6 @@ int main(int argc, char **argv) {
     }
 
     SampEns sampens = sampEn(fileMap, 2);
-
     if (printSampens(vm)) {
       std::cout << "--Sample Entropies------------------" << std::endl << std::endl;
       for (const auto &file : fileMap) {
