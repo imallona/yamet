@@ -7,16 +7,30 @@
 #include <chrData.h>
 #include <methData.h>
 
+/**
+ * Parse a tab separated file of all covered positions of a reference genome into a nested structure
+ * from which the sample entropies can be calculated. The function is called in an asynchronous
+ * manner for different files.
+ *
+ * @param filename[in] path to tab separated file to be parsed.
+ * @param ref[in] Reference object with all positions of interest in the genome.
+ * @param fileMap[out] FileMap object of key value pairs where the parsed methylation data is stored
+ * in a FileMeths object against the filename as key.
+ */
 void alignSingleWithRef(const std::string &filename, Reference &ref, FileMap &fileMap) {
   gzFile file = gzopen(filename.c_str(), "rb");
   if (!file) {
     std::cerr << "Failed to open file: " << filename << std::endl;
   }
 
+  /**
+   * buffer size of 64M - this is the total amount of information from a file stored at any time as
+   * a chunk
+   */
   constexpr int bufferSize = 64 * 1024;
   char          buffer[bufferSize];
   std::string   partialLine;
-  bool          headerSkipped = false;
+  // bool          headerSkipped = false;
 
   FileMeths meths;
 
@@ -28,7 +42,11 @@ void alignSingleWithRef(const std::string &filename, Reference &ref, FileMap &fi
   bool         start      = true;
   std::string  currentChr = "";
   bool         foundChr   = false;
-  int          lastBinPos = -1;
+  /**
+   * for keeping track of the last covered position discovered, used so that we can register breaks
+   * between covered positions, if any
+   */
+  int lastBinPos = -1;
 
   while (true) {
     int bytesRead = gzread(file, buffer, bufferSize - 1);
@@ -51,10 +69,10 @@ void alignSingleWithRef(const std::string &filename, Reference &ref, FileMap &fi
         partialLine = line;
         break;
       }
-      if (!headerSkipped) {
-        headerSkipped = true;
-        continue;
-      }
+      // if (!headerSkipped) {
+      //   headerSkipped = true;
+      //   continue;
+      // }
       std::istringstream lineStream(line);
       std::string        chr, temp;
       unsigned int       pos;
@@ -82,7 +100,6 @@ void alignSingleWithRef(const std::string &filename, Reference &ref, FileMap &fi
       }
 
       while (true) {
-        // std::cout << chrIndex << "  " << binIndex << "  " << posIndex << std::endl;
         bool increment = false, exit = false;
         if (ref[chrIndex].positions[binIndex].size() > 0) {
           if (pos == ref[chrIndex].positions[binIndex][posIndex]) {
@@ -93,13 +110,13 @@ void alignSingleWithRef(const std::string &filename, Reference &ref, FileMap &fi
             increment = true, exit = true;
             lastBinPos = posIndex;
           } else if (pos < ref[chrIndex].positions[binIndex][posIndex])
-            exit = true; // break;
+            exit = true;
           else {
             increment = true;
           }
         } else {
           if (binIndex == ref[chrIndex].positions.size() - 1) {
-            exit = true; // break;
+            exit = true;
           } else {
             binIndex += 1, posIndex = 0, lastBinPos = -1;
           }
@@ -132,16 +149,26 @@ void alignSingleWithRef(const std::string &filename, Reference &ref, FileMap &fi
   fileMap[filename] = std::move(meths);
 }
 
+/**
+ * A wrapper function for alignSingleWithRef which allows multiple cell files to be parsed
+ * simultaneously in a multi-threaded fashion
+ *
+ * @param filenames list of tab separated files to be parsed.
+ * @param ref Reference object with all positions of interest in the genome.
+ * @return FileMap object of key value pairs where the parsed methylation data of every file is
+ * stored in a FileMeths object against the filename as key
+ */
 FileMap alignWithRef(const std::vector<std::string> &filenames, Reference &ref) {
   FileMap fileMap;
   fileMap.reserve(filenames.size());
   std::vector<std::future<void>> futures;
 
+  /// Launch asynchronous tasks for each filename
   for (const auto &filename : filenames) {
-    // Launch asynchronous tasks for each filename
     futures.push_back(
         std::async(std::launch::async, [&]() { alignSingleWithRef(filename, ref, fileMap); }));
   }
+  /// wait for all tasks to be executed
   for (auto &future : futures) {
     future.get();
   }
