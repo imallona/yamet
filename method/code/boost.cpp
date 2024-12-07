@@ -18,8 +18,8 @@ po::variables_map parseCommandLine(int argc, char **argv) {
       "out,o", po::value<std::string>(), "(optional) path to simple output file");
 
   po::options_description ver("verbose");
-  ver.add_options()("print-bed", "print parsed regions file")("print-ref",
-                                                              "print parsed reference file");
+  ver.add_options()("print-bed", "print parsed regions file")(
+      "print-ref", "print parsed reference file")("print-tsv", "print parsed cell files");
 
   po::options_description all;
   all.add(gen).add(ver);
