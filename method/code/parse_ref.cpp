@@ -19,16 +19,23 @@ Reference parseRef(const std::string &filename, Intervals intervals) {
     std::cerr << "Failed to open file: " << filename << std::endl;
   }
 
+  /* create output reference variable and initialise accordingly with chromosomes where search
+   * regions are present */
   Reference ref;
   for (const auto &[chr, intervals] : intervals) {
     ref.emplace_back(chr, std::vector<std::vector<unsigned int>>(intervals.size()));
   }
 
+  /* buffer size of 64M - this is the total amount of information from a file stored at any time as
+   * a chunk */
   constexpr int bufferSize = 64 * 1024;
   char          buffer[bufferSize];
   std::string   partialLine;
-  std::string   currentChr = "";
-  bool          firstFound = false;
+
+  // current chromosome being parsed from reference file
+  std::string currentChr = "";
+  // indicates whether there is a region requested for a particular chromosome
+  bool firstFound = false;
   // bool headerSkipped = false;
 
   int          chrIndex      = -1;
@@ -36,6 +43,7 @@ Reference parseRef(const std::string &filename, Intervals intervals) {
   bool         done          = false;
 
   while (!done) {
+    // read a chunk of data from a file
     int bytesRead = gzread(file, buffer, bufferSize - 1);
 
     if (bytesRead < 0) {
@@ -51,7 +59,9 @@ Reference parseRef(const std::string &filename, Intervals intervals) {
     std::istringstream ss(fullBuffer);
     std::string        line;
 
+    // iterate over lines in a chunk
     while (std::getline(ss, line)) {
+      // save partial line to be processed later
       if (ss.eof() && line.back() != '\n') {
         partialLine = line;
         break;
@@ -61,16 +71,21 @@ Reference parseRef(const std::string &filename, Intervals intervals) {
       //   headerSkipped = true;
       //   continue;
       // }
+
+      // parsing a line from reference
       std::istringstream lineStream(line);
       std::string        chr, temp;
       unsigned int       pos;
       lineStream >> chr >> pos >> temp;
 
+      // updates chromosome currently being evaluated and resets firstFound
       if (chr != currentChr) {
         currentChr = chr;
         firstFound = false;
       }
 
+      /* once done with all positions in a chromosome, move to next chromosome with regions of
+       * interest, ignoring chromosomes in between */
       if (chrIndex < (int)(intervals.size() - 1)) {
         if (chr == intervals[chrIndex + 1].chr) {
           chrIndex++;
@@ -84,9 +99,13 @@ Reference parseRef(const std::string &filename, Intervals intervals) {
         break;
       }
 
+      // discard positions outside regions of interest
       if (pos < intervals[chrIndex].intervals[intervalIndex].start) {
         continue;
       }
+
+      /* for a particular postion, finds the closest region on the chromosome (if it exists)
+       * enclosing or before the position */
       while (intervals[chrIndex].intervals[intervalIndex].end <= pos) {
         if (intervalIndex < intervals[chrIndex].intervals.size() - 1) {
           intervalIndex++;
@@ -95,13 +114,14 @@ Reference parseRef(const std::string &filename, Intervals intervals) {
         }
       }
 
+      // add valid position to output reference variable
       if (chr == intervals[chrIndex].chr &&
           intervals[chrIndex].intervals[intervalIndex].start <= pos &&
           pos < intervals[chrIndex].intervals[intervalIndex].end) {
         ref[chrIndex].positions[intervalIndex].emplace_back(pos);
       }
     }
-    if (bytesRead < bufferSize - 1) {
+    if (bytesRead < bufferSize - 1 && partialLine.empty()) {
       break;
     }
   }
