@@ -5,6 +5,14 @@
 #include "methData.h"
 #include "samp_en.h"
 
+/**
+ * Exports a .tsv file with sample entropies per region for every cell file
+ *
+ * @param out path to .tsv file where detailed sample entropy outputs are to be stored
+ * @param filenames vector of filenames of all cell files
+ * @param sampens SampEns object with detailed sample entropy data
+ * @param intervals Intervals object with search intervals
+ */
 void exportDetOut(const std::string &out, const std::vector<std::string> &filenames,
                   SampEns &sampens, Intervals &intervals) {
   std::ofstream outStream(out);
@@ -21,8 +29,10 @@ void exportDetOut(const std::string &out, const std::vector<std::string> &filena
 
   for (unsigned int i = 0; i < intervals.size(); i++) {
     for (unsigned int j = 0; j < intervals[i].intervals.size(); j++) {
+      // print the region information
       outStream << intervals[i].chr << "\t" << intervals[i].intervals[j].start << "\t"
                 << intervals[i].intervals[j].end;
+      // print sample entropies for all files at that region
       for (const auto &filename : filenames) {
         outStream << "\t" << sampens[filename].raw[i][j];
       }
@@ -32,6 +42,13 @@ void exportDetOut(const std::string &out, const std::vector<std::string> &filena
   outStream.close();
 }
 
+/**
+ * Exports a .tsv file with sample entropies aggregated for every cell file
+ *
+ * @param out path to .tsv file where sample entropy outputs are to be stored
+ * @param filenames vector of filenames of all cell files
+ * @param sampens SampEns object with detailed sample entropy data
+ */
 void exportOut(const std::string &out, const std::vector<std::string> &filenames,
                SampEns &sampens) {
   std::ofstream outStream(out);
@@ -42,6 +59,7 @@ void exportOut(const std::string &out, const std::vector<std::string> &filenames
   }
   outStream << "file\tvalue" << std::endl;
 
+  // print aggregated sample entropy for each file
   for (const auto &filename : filenames) {
     outStream << filename << "\t" << sampens[filename].agg;
     outStream << std::endl;

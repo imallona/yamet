@@ -25,6 +25,7 @@ std::vector<ChrIntervals> parseSearch(const std::string &filename) {
   std::vector<Position> currentIntervals;
 
   while (std::getline(bedFile, line)) {
+    // parsing a line from regions file
     std::istringstream iss(line);
     std::string        chr;
     unsigned int       start, end;
