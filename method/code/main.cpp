@@ -67,22 +67,24 @@ int main(int argc, char **argv) {
       std::cout << std::endl;
     }
 
-    std::cout << "--Sample Entropies------------------" << std::endl << std::endl;
-
     SampEns sampens = sampEn(fileMap, 2);
-    for (const auto &file : fileMap) {
-      std::cout << "Filename: " << file.first << std::endl;
-      std::cout << "  Aggregate: " << sampens[file.first].agg << std::endl;
-      std::cout << "  Detailed:" << std::endl;
-      for (unsigned int chrIndex = 0; chrIndex < sampens[file.first].raw.size(); chrIndex++) {
-        std::cout << "    Chromosome: " << file.second[chrIndex].chr << std::endl;
-        for (unsigned int binIndex = 0; binIndex < sampens[file.first].raw[chrIndex].size();
-             binIndex++) {
-          std::cout << "      Bin " << binIndex << " -> "
-                    << sampens[file.first].raw[chrIndex][binIndex] << std::endl;
+
+    if (printSampens(vm)) {
+      std::cout << "--Sample Entropies------------------" << std::endl << std::endl;
+      for (const auto &file : fileMap) {
+        std::cout << "Filename: " << file.first << std::endl;
+        std::cout << "  Aggregate: " << sampens[file.first].agg << std::endl;
+        std::cout << "  Detailed:" << std::endl;
+        for (unsigned int chrIndex = 0; chrIndex < sampens[file.first].raw.size(); chrIndex++) {
+          std::cout << "    Chromosome: " << file.second[chrIndex].chr << std::endl;
+          for (unsigned int binIndex = 0; binIndex < sampens[file.first].raw[chrIndex].size();
+               binIndex++) {
+            std::cout << "      Bin " << binIndex << " -> "
+                      << sampens[file.first].raw[chrIndex][binIndex] << std::endl;
+          }
         }
+        std::cout << std::endl;
       }
-      std::cout << std::endl;
     }
 
     if (vm.count("det-out")) {
@@ -91,9 +93,6 @@ int main(int argc, char **argv) {
     if (vm.count("out")) {
       exportOut(getOut(vm), filenames, sampens);
     }
-    // filter(filenames[0], data, getChr(vm));
-    // const DataRow &firstRow = data[0]; // Access the first element
-    // std::cout << sampEn(data, 2) << std::endl;
     return 0;
   } catch (const std::runtime_error &e) {
     return 0;

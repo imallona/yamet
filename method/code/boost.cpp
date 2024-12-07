@@ -19,7 +19,9 @@ po::variables_map parseCommandLine(int argc, char **argv) {
 
   po::options_description ver("verbose");
   ver.add_options()("print-bed", "print parsed regions file")(
-      "print-ref", "print parsed reference file")("print-tsv", "print parsed cell files");
+      "print-ref", "print parsed reference file")("print-tsv", "print parsed cell files")(
+      "print-sampens", po::value<std::string>()->default_value("true"),
+      "print computed sample entropies");
 
   po::options_description all;
   all.add(gen).add(ver);
@@ -55,4 +57,13 @@ std::string getDetOut(const po::variables_map &vm) {
 
 std::string getOut(const po::variables_map &vm) {
   return vm["out"].as<std::string>();
+}
+
+bool printSampens(const po::variables_map &vm) {
+  char t = (char)std::tolower(vm["print-sampens"].as<std::string>()[0]);
+  if (t == 't' || t == '1') {
+    return true;
+  } else {
+    return false;
+  }
 }
