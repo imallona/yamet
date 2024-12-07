@@ -1,31 +1,27 @@
 #include <iostream>
-#include <zlib.h>
 #include <sstream>
+#include <zlib.h>
 
 #include "datarow.h"
 #include "filter.h"
 
-void filter(const std::string &filename, std::vector<DataRow> &data, const std::string &chr)
-{
+void filter(const std::string &filename, std::vector<DataRow> &data, const std::string &chr) {
   gzFile file = gzopen(filename.c_str(), "rb");
-  if (!file)
-  {
+  if (!file) {
     std::cerr << "Failed to open file: " << filename << std::endl;
     return;
   }
 
   constexpr int bufferSize = 32 * 1024;
-  char buffer[bufferSize];
-  std::string partialLine;
-  bool headerSkipped = false;
-  bool foundChr = false;
+  char          buffer[bufferSize];
+  std::string   partialLine;
+  bool          headerSkipped = false;
+  bool          foundChr      = false;
 
-  while (true)
-  {
+  while (true) {
     int bytesRead = gzread(file, buffer, bufferSize - 1);
 
-    if (bytesRead < 0)
-    {
+    if (bytesRead < 0) {
       std::cerr << "Error reading gzip file" << std::endl;
       gzclose(file);
       return;
@@ -37,36 +33,33 @@ void filter(const std::string &filename, std::vector<DataRow> &data, const std::
     partialLine.clear();
 
     std::istringstream ss(fullBuffer);
-    std::string line;
+    std::string        line;
 
-    while (std::getline(ss, line))
-    {
-      if (ss.eof() && line.back() != '\n')
-      {
+    while (std::getline(ss, line)) {
+      if (ss.eof() && line.back() != '\n') {
         partialLine = line;
         break;
       }
-      if (!headerSkipped)
-      {
+      if (!headerSkipped) {
         headerSkipped = true;
         continue;
       }
       std::istringstream lineStream(line);
-      DataRow row;
-      std::string temp;
+      DataRow            row;
+      std::string        temp;
       lineStream >> row.chr >> row.pos >> temp >> temp >> row.rate;
-      if (row.chr == chr)
-      {
+      if (row.chr == chr) {
         foundChr = true;
         data.push_back(row);
-      }
-      else if (foundChr)
+      } else if (foundChr) {
         break;
-      else
+      } else {
         continue;
+      }
     }
-    if (bytesRead < bufferSize - 1)
+    if (bytesRead < bufferSize - 1) {
       break;
+    }
   }
   gzclose(file);
 }
