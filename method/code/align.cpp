@@ -124,7 +124,7 @@ void alignSingleWithRef(const std::string &filename, Reference &ref, FileMap &fi
         }
       }
     }
-    if (bytesRead < bufferSize - 1 && partialLine.empty()) {
+    if (bytesRead < bufferSize - 1) {
       break;
     }
   }
