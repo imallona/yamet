@@ -56,7 +56,8 @@ int main(int argc, char **argv) {
                       << ", size: " << fileMap[filename][chrIndex].meth[binIndex].size()
                       << std::endl;
             for (const auto &methValue : fileMap[filename][chrIndex].meth[binIndex]) {
-              std::cout << "      Meth: " << methValue << std::endl;
+              std::cout << "      Meth: " << (methValue == -1 ? '?' : (char)(methValue + '0'))
+                        << std::endl;
             }
           }
         }
