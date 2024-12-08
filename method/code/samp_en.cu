@@ -1,4 +1,5 @@
 #include <array>
+#include <cstdint>
 #include <cuda_runtime.h>
 #include <iostream>
 #include <vector>
@@ -6,9 +7,9 @@
 #include "methData.h"
 #include "samp_en.h"
 
-__global__ void templateMatcher(char *data, const unsigned int cumulativeSize, const unsigned int m,
-                                unsigned int *d_prefixSum, const unsigned int numBins,
-                                unsigned int *cm, unsigned int *cm_1) {
+__global__ void templateMatcher(int8_t *data, const unsigned int cumulativeSize,
+                                const unsigned int m, unsigned int *d_prefixSum,
+                                const unsigned int numBins, unsigned int *cm, unsigned int *cm_1) {
   unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
 
   if (i >= cumulativeSize - m || numBins == 0)
@@ -47,9 +48,9 @@ __global__ void templateMatcher(char *data, const unsigned int cumulativeSize, c
     idx += (data[i + k]) * (1 << k);
   }
   if (add && data[i + m] != -1) {
-    atomicAdd(&cm[binIndex + idx], 1);
+    atomicAdd(&cm[(1 << m) * binIndex + idx], 1);
     idx += (data[i + m]) * (1 << m);
-    atomicAdd(&cm_1[binIndex + idx], 1);
+    atomicAdd(&cm_1[(1 << (m + 1)) * binIndex + idx], 1);
   }
 }
 
@@ -72,7 +73,7 @@ SampEns sampEn(FileMap &fileMap, const unsigned int m) {
     cudaStreamCreate(&streams[i]);
   }
 
-  char                                *d_flatBins[num_streams];
+  int8_t                              *d_flatBins[num_streams];
   unsigned int                        *d_cm[num_streams];
   unsigned int                        *d_cm_1[num_streams];
   unsigned int                        *d_prefix_sum[num_streams];
@@ -95,7 +96,7 @@ SampEns sampEn(FileMap &fileMap, const unsigned int m) {
         }
       }
 
-      cudaMallocAsync(&d_flatBins[streamIdx], cumulativeSize[streamIdx] * sizeof(char),
+      cudaMallocAsync(&d_flatBins[streamIdx], cumulativeSize[streamIdx] * sizeof(int8_t),
                       streams[streamIdx]);
       cudaMallocAsync(&d_prefix_sum[streamIdx], prefix_sum.size() * sizeof(unsigned int),
                       streams[streamIdx]);
@@ -110,7 +111,7 @@ SampEns sampEn(FileMap &fileMap, const unsigned int m) {
         unsigned int rowIndex = goodBins[streamIdx][i];
         cudaMemcpyAsync(d_flatBins[streamIdx] + prefix_sum[i],
                         fileMeths[chrIndex].meth[rowIndex].data(),
-                        fileMeths[chrIndex].meth[rowIndex].size() * sizeof(char),
+                        fileMeths[chrIndex].meth[rowIndex].size() * sizeof(int8_t),
                         cudaMemcpyHostToDevice, streams[streamIdx]);
       }
 
@@ -156,13 +157,15 @@ SampEns sampEn(FileMap &fileMap, const unsigned int m) {
             unsigned long long cm   = 0;
             unsigned long long cm_1 = 0;
             for (unsigned int k = 0; k < (1 << (m + 1)); k++) {
-              if (k < (1 << m) && h_cm[i + k] > 1) {
-                cm += ((unsigned long long)h_cm[i + k] * (unsigned long long)(h_cm[i + k] - 1)) / 2;
+              if (k < (1 << m) && h_cm[(1 << m) * i + k] > 1) {
+                cm += ((unsigned long long)h_cm[(1 << m) * i + k] *
+                       (unsigned long long)(h_cm[(1 << m) * i + k] - 1)) /
+                      2;
               }
-              if (h_cm_1[i + k] > 1) {
-                cm_1 +=
-                    ((unsigned long long)h_cm_1[i + k] * (unsigned long long)(h_cm_1[i + k] - 1)) /
-                    2;
+              if (h_cm_1[(1 << (m + 1)) * i + k] > 1) {
+                cm_1 += ((unsigned long long)(h_cm_1[(1 << (m + 1)) * i + k]) *
+                         (unsigned long long)(h_cm_1[(1 << (m + 1)) * i + k] - 1)) /
+                        2;
               }
             }
             if (cm != 0 && cm_1 != 0) {

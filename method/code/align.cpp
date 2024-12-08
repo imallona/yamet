@@ -1,3 +1,4 @@
+#include <cstdint>
 #include <future>
 #include <iostream>
 #include <sstream>
@@ -35,7 +36,8 @@ void alignSingleWithRef(const std::string &filename, Reference &ref, FileMap &fi
   FileMeths meths;
 
   for (const auto &[chr, positions] : ref) {
-    meths.emplace_back(chr, std::vector<std::vector<char>>(positions.size(), std::vector<char>()));
+    meths.emplace_back(chr,
+                       std::vector<std::vector<int8_t>>(positions.size(), std::vector<int8_t>()));
   }
 
   unsigned int chrIndex = 0, binIndex = 0, posIndex = 0;
