@@ -76,7 +76,7 @@ void alignSingleWithRef(const std::string &filename, Reference &ref, FileMap &fi
       std::istringstream lineStream(line);
       std::string        chr, temp;
       unsigned int       pos;
-      char               methValue;
+      unsigned int       methValue;
       lineStream >> chr >> pos >> temp >> temp >> methValue;
 
       if (chr != currentChr) {
