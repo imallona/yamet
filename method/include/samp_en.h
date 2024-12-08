@@ -15,8 +15,8 @@ struct FileSampEns {
 using SampEns = std::unordered_map<std::string, FileSampEns>;
 
 struct FileCounts {
-  unsigned int cm;
-  unsigned int cm_1;
+  unsigned long long cm;
+  unsigned long long cm_1;
 };
 
 using Counts = std::unordered_map<std::string, FileCounts>;
