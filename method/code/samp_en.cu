@@ -10,9 +10,8 @@ __global__ void templateMatcher(char *data, const unsigned int cumulativeSize, c
                                 unsigned int *d_prefixSum, const unsigned int numBins,
                                 unsigned int *cm, unsigned int *cm_1) {
   unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
-  unsigned int j = blockIdx.y * blockDim.y + threadIdx.y;
 
-  if (j > cumulativeSize - m || i >= j || numBins == 0)
+  if (i >= cumulativeSize - m || numBins == 0)
     return;
   unsigned int low  = 0;
   unsigned int high = numBins - 1;
@@ -21,10 +20,10 @@ __global__ void templateMatcher(char *data, const unsigned int cumulativeSize, c
 
   while (low <= high) {
     mid = low + (high - low) / 2;
-    if (d_prefixSum[mid] == j) {
+    if (d_prefixSum[mid] == i) {
       binIndex = mid;
       break;
-    } else if (d_prefixSum[mid] < j) {
+    } else if (d_prefixSum[mid] < i) {
       binIndex = mid;
       low      = mid + 1;
     } else {
@@ -33,22 +32,24 @@ __global__ void templateMatcher(char *data, const unsigned int cumulativeSize, c
   }
   unsigned int binEnd  = (binIndex == numBins - 1) ? cumulativeSize : d_prefixSum[binIndex + 1];
   unsigned int binSize = binEnd - d_prefixSum[binIndex];
-  unsigned int j_rel   = j - d_prefixSum[binIndex];
+  unsigned int i_rel   = i - d_prefixSum[binIndex];
 
-  if (i < d_prefixSum[binIndex] || j_rel >= binSize - m)
+  if (i_rel >= binSize - m)
     return;
 
-  bool eq = true;
+  bool         add = true;
+  unsigned int idx = 0;
   for (unsigned int k = 0; k < m; k++) {
-    if (data[i + k] == -1 || data[j + k] == -1 || data[i + k] != data[j + k]) {
-      eq = false;
+    if (data[i + k] == -1) {
+      add = false;
       break;
     }
+    idx += (data[i + k]) * (1 << k);
   }
-  if (eq && data[i + m] != -1 && data[j + m] != -1) {
-    atomicAdd(&cm[binIndex], 1);
-    if (data[i + m] == data[j + m])
-      atomicAdd(&cm_1[binIndex], 1);
+  if (add && data[i + m] != -1) {
+    atomicAdd(&cm[binIndex + idx], 1);
+    idx += (data[i + m]) * (1 << m);
+    atomicAdd(&cm_1[binIndex + idx], 1);
   }
 }
 
@@ -98,9 +99,11 @@ SampEns sampEn(FileMap &fileMap, const unsigned int m) {
                       streams[streamIdx]);
       cudaMallocAsync(&d_prefix_sum[streamIdx], prefix_sum.size() * sizeof(unsigned int),
                       streams[streamIdx]);
-      cudaMallocAsync(&d_cm[streamIdx], goodBins[streamIdx].size() * sizeof(unsigned int),
+      cudaMallocAsync(&d_cm[streamIdx],
+                      goodBins[streamIdx].size() * (1 << m) * sizeof(unsigned int),
                       streams[streamIdx]);
-      cudaMallocAsync(&d_cm_1[streamIdx], goodBins[streamIdx].size() * sizeof(unsigned int),
+      cudaMallocAsync(&d_cm_1[streamIdx],
+                      goodBins[streamIdx].size() * (1 << (m + 1)) * sizeof(unsigned int),
                       streams[streamIdx]);
 
       for (unsigned int i = 0; i < goodBins[streamIdx].size(); i++) {
@@ -114,14 +117,15 @@ SampEns sampEn(FileMap &fileMap, const unsigned int m) {
       cudaMemcpyAsync(d_prefix_sum[streamIdx], prefix_sum.data(),
                       prefix_sum.size() * sizeof(unsigned int), cudaMemcpyHostToDevice,
                       streams[streamIdx]);
-      cudaMemsetAsync(d_cm[streamIdx], 0, goodBins[streamIdx].size() * sizeof(unsigned int),
+      cudaMemsetAsync(d_cm[streamIdx], 0,
+                      goodBins[streamIdx].size() * (1 << m) * sizeof(unsigned int),
                       streams[streamIdx]);
-      cudaMemsetAsync(d_cm_1[streamIdx], 0, goodBins[streamIdx].size() * sizeof(unsigned int),
+      cudaMemsetAsync(d_cm_1[streamIdx], 0,
+                      goodBins[streamIdx].size() * (1 << (m + 1)) * sizeof(unsigned int),
                       streams[streamIdx]);
 
-      dim3 threadsPerBlock(32, 32);
-      dim3 numBlocks((cumulativeSize[streamIdx] + threadsPerBlock.x) / threadsPerBlock.x,
-                     (cumulativeSize[streamIdx] + threadsPerBlock.y) / threadsPerBlock.y);
+      unsigned int threadsPerBlock = 1024;
+      unsigned int numBlocks = (cumulativeSize[streamIdx] + threadsPerBlock) / threadsPerBlock;
 
       templateMatcher<<<numBlocks, threadsPerBlock, 0, streams[streamIdx]>>>(
           d_flatBins[streamIdx], cumulativeSize[streamIdx], m, d_prefix_sum[streamIdx],
@@ -133,12 +137,12 @@ SampEns sampEn(FileMap &fileMap, const unsigned int m) {
           (fileIndex == fileMap.size() - 1 && chrIndex == fileMeths.size() - 1)) {
         for (unsigned int j = 0; j < streamIdx; j++) {
           cudaStreamSynchronize(streams[j]);
-          unsigned int *h_cm   = new unsigned int[goodBins[j].size()]();
-          unsigned int *h_cm_1 = new unsigned int[goodBins[j].size()]();
+          unsigned int *h_cm   = new unsigned int[goodBins[j].size() * (1 << m)]();
+          unsigned int *h_cm_1 = new unsigned int[goodBins[j].size() * (1 << (m + 1))]();
 
-          cudaMemcpy(h_cm, d_cm[j], goodBins[j].size() * sizeof(unsigned int),
+          cudaMemcpy(h_cm, d_cm[j], goodBins[j].size() * (1 << m) * sizeof(unsigned int),
                      cudaMemcpyDeviceToHost);
-          cudaMemcpy(h_cm_1, d_cm_1[j], goodBins[j].size() * sizeof(unsigned int),
+          cudaMemcpy(h_cm_1, d_cm_1[j], goodBins[j].size() * (1 << (m + 1)) * sizeof(unsigned int),
                      cudaMemcpyDeviceToHost);
 
           // std::cout << "file: " << streamInfo[j].first << std::endl;
@@ -149,11 +153,23 @@ SampEns sampEn(FileMap &fileMap, const unsigned int m) {
             // std::cout << "    Bin " << i << ":" << std::endl;
             // std::cout << "      cm:" << h_cm[i] << std::endl;
             // std::cout << "      cm_1:" << h_cm_1[i] << std::endl;
-            if (h_cm[i] != 0 && h_cm_1[i] != 0) {
+            unsigned long long cm   = 0;
+            unsigned long long cm_1 = 0;
+            for (unsigned int k = 0; k < (1 << (m + 1)); k++) {
+              if (k < (1 << m) && h_cm[i + k] > 1) {
+                cm += ((unsigned long long)h_cm[i + k] * (unsigned long long)(h_cm[i + k] - 1)) / 2;
+              }
+              if (h_cm_1[i + k] > 1) {
+                cm_1 +=
+                    ((unsigned long long)h_cm_1[i + k] * (unsigned long long)(h_cm_1[i + k] - 1)) /
+                    2;
+              }
+            }
+            if (cm != 0 && cm_1 != 0) {
               sampens[streamInfo[j].first].raw[streamInfo[j].second][goodBins[j][i]] =
-                  log((double)h_cm[i] / (double)h_cm_1[i]);
-              counts[streamInfo[j].first].cm += h_cm[i];
-              counts[streamInfo[j].first].cm_1 += h_cm_1[i];
+                  log((double)cm / (double)cm_1);
+              counts[streamInfo[j].first].cm += cm;
+              counts[streamInfo[j].first].cm_1 += cm_1;
             }
           }
           // std::cout << std::endl

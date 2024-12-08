@@ -70,8 +70,7 @@ Reference parseRef(const std::string &filename, Intervals intervals) {
         partialLine = line;
         break;
       }
-      // if (!headerSkipped)
-      // {
+      // if (!headerSkipped) {
       //   headerSkipped = true;
       //   continue;
       // }
