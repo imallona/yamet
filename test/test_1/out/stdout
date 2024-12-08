@@ -1,7 +1,7 @@
 --Sample Entropies------------------
 
 Filename: test_1/in/simulations.tsv
-  Aggregate: 0.0865326
+  Aggregate: 0.0856317
   Detailed:
     Chromosome: chrM
       Bin 0 -> 0
