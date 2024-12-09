@@ -66,7 +66,7 @@ int main(int argc, char **argv) {
       std::cout << std::endl;
     }
 
-    SampEns sampens = sampEn(fileMap, 2);
+    SampEns sampens = sampEn(fileMap, 2, getNStreams(vm));
     if (printSampens(vm)) {
       std::cout << "--Sample Entropies------------------" << std::endl << std::endl;
       for (const auto &file : fileMap) {
@@ -92,8 +92,14 @@ int main(int argc, char **argv) {
       exportOut(getOut(vm), filenames, sampens);
     }
     return 0;
-  } catch (const boost::program_options::error &e) {
+  } catch (const po::error &e) {
     std::cerr << e.what() << std::endl;
+    return 1;
+  } catch (const std::system_error &e) {
+    if (e.code().value() == 99) {
+      return 0;
+    }
+    std::cerr << "Error: " << e.what() << std::endl;
     return 1;
   } catch (const std::runtime_error &e) {
     std::cerr << "Error: " << e.what() << std::endl;
