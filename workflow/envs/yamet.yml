@@ -1,0 +1,9 @@
+name: yamet-dev
+channels:
+  - conda-forge
+  - nodefaults
+dependencies:
+  - conda-forge::mariadb
+  - conda-forge::wget
+  - bioconda::bedtools
+  - conda-forge::pandas
