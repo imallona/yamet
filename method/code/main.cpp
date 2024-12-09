@@ -43,7 +43,7 @@ int main(int argc, char **argv) {
       std::cout << std::endl;
     }
 
-    FileMap fileMap = alignWithRef(filenames, ref);
+    FileMap fileMap = alignWithRef(filenames, ref, getNCores(vm), getNThreadsPerCore(vm));
     if (vm.count("print-tsv")) {
       std::cout << "--Cell Files------------------" << std::endl << std::endl;
       for (const auto &filename : filenames) {
@@ -92,7 +92,11 @@ int main(int argc, char **argv) {
       exportOut(getOut(vm), filenames, sampens);
     }
     return 0;
+  } catch (const boost::program_options::error &e) {
+    std::cerr << e.what() << std::endl;
+    return 1;
   } catch (const std::runtime_error &e) {
-    return 0;
+    std::cerr << "Error: " << e.what() << std::endl;
+    return 1;
   }
 }
