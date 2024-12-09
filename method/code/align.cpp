@@ -1,12 +1,23 @@
+#include <atomic>
+#include <condition_variable>
 #include <cstdint>
-#include <future>
 #include <iostream>
+#include <mutex>
+#include <queue>
 #include <sstream>
+#include <thread>
 #include <unordered_map>
 #include <zlib.h>
 
 #include <chrData.h>
 #include <methData.h>
+
+#if defined(__linux__) || defined(__APPLE__)
+#include <pthread.h>
+#include <sched.h>
+#elif defined(_WIN32) // Windows
+#include <windows.h>
+#endif
 
 /**
  * Parse a tab separated file of all covered positions of a reference genome into a nested structure
@@ -151,6 +162,24 @@ void alignSingleWithRef(const std::string &filename, Reference &ref, FileMap &fi
   fileMap[filename] = std::move(meths);
 }
 
+// Function to set thread affinity to a specific core
+void set_thread_affinity(int core_id) {
+#if defined(__linux__) || defined(__APPLE__) // POSIX systems
+  cpu_set_t cpuset;
+  CPU_ZERO(&cpuset);
+  CPU_SET(core_id, &cpuset);
+  int rc = pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
+  if (rc != 0) {
+    std::cerr << "Error setting thread affinity: " << rc << "\n";
+  }
+#elif defined(_WIN32) // Windows
+  DWORD_PTR mask = 1 << core_id;
+  if (!SetThreadAffinityMask(GetCurrentThread(), mask)) {
+    std::cerr << "Error setting thread affinity\n";
+  }
+#endif
+}
+
 /**
  * A wrapper function for alignSingleWithRef which allows multiple cell files to be parsed
  * simultaneously in a multi-threaded fashion
@@ -160,19 +189,65 @@ void alignSingleWithRef(const std::string &filename, Reference &ref, FileMap &fi
  * @return FileMap object of key value pairs where the parsed methylation data of every file is
  * stored in a FileMeths object against the filename as key
  */
-FileMap alignWithRef(const std::vector<std::string> &filenames, Reference &ref) {
+FileMap alignWithRef(const std::vector<std::string> &filenames, Reference &ref,
+                     unsigned int n_cores, unsigned int n_threads_per_core) {
   FileMap fileMap;
   fileMap.reserve(filenames.size());
-  std::vector<std::future<void>> futures;
 
-  /// Launch asynchronous tasks for each filename
+  std::vector<std::thread> threads;
+  std::atomic<bool>        done(false);
+  std::mutex               queueMutex;
+  std::condition_variable  cv;
+
+  std::queue<std::string> taskQueue;
   for (const auto &filename : filenames) {
-    futures.push_back(
-        std::async(std::launch::async, [&]() { alignSingleWithRef(filename, ref, fileMap); }));
+    taskQueue.push(filename);
   }
-  /// wait for all tasks to be executed
-  for (auto &future : futures) {
-    future.get();
+
+  for (unsigned i = 0; i < n_cores * n_threads_per_core; ++i) {
+    threads.emplace_back([&, i] {
+      // Set thread affinity
+      set_thread_affinity(i / n_threads_per_core);
+
+      // Process tasks
+      while (true) {
+        std::string filename;
+
+        // Fetch task
+        {
+          std::unique_lock<std::mutex> lock(queueMutex);
+          cv.wait(lock, [&]() { return done || !taskQueue.empty(); });
+
+          if (taskQueue.empty()) {
+            return; // Exit thread if no tasks remain
+          }
+
+          filename = taskQueue.front();
+          taskQueue.pop();
+        }
+
+        // Process task
+        alignSingleWithRef(filename, ref, fileMap);
+
+        // Notify waiting threads
+        cv.notify_all();
+      }
+    });
   }
+
+  // Notify threads when all tasks are queued
+  {
+    std::unique_lock<std::mutex> lock(queueMutex);
+    done = true;
+  }
+  cv.notify_all();
+
+  // Join threads
+  for (auto &t : threads) {
+    if (t.joinable()) {
+      t.join();
+    }
+  }
+
   return fileMap;
 }
