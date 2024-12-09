@@ -1,8 +1,11 @@
 #include <iostream>
 #include <sstream>
+#include <string>
+#include <vector>
 #include <zlib.h>
 
 #include "chrData.h"
+#include "parse_ref.h"
 
 /**
  * Parse a tab separated file of all positions of a reference genome into a nested structure
@@ -25,7 +28,7 @@ Reference parseRef(const std::string &filename, Intervals intervals) {
    */
   Reference ref;
   for (const auto &[chr, intervals] : intervals) {
-    ref.emplace_back(chr, std::vector<std::vector<unsigned int>>(intervals.size()));
+    ref.emplace_back(chr, intervals.size());
   }
 
   /**

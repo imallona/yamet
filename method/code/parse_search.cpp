@@ -2,8 +2,11 @@
 #include <iostream>
 #include <list>
 #include <sstream>
+#include <string>
+#include <vector>
 
 #include "chrData.h"
+#include "parse_search.h"
 
 /**
  * Parse a bed file of search intervals into a nested structure to be used for extracting the
@@ -23,7 +26,7 @@ Intervals parseSearch(const std::string &filename) {
 
   std::string           line;
   std::string           currentChr = "";
-  std::vector<Position> currentIntervals;
+  std::vector<Interval> currentIntervals;
 
   while (std::getline(bedFile, line)) {
     /// parsing a line from regions file
