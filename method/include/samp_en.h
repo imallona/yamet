@@ -1,8 +1,9 @@
 #pragma once
 
+#include <string>
+#include <unordered_map>
 #include <vector>
 
-#include "datarow.h"
 #include "methData.h"
 
 struct FileSampEns {

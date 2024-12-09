@@ -1,6 +1,5 @@
 #include <atomic>
 #include <condition_variable>
-#include <cstdint>
 #include <iostream>
 #include <mutex>
 #include <queue>
@@ -9,15 +8,16 @@
 #include <unordered_map>
 #include <zlib.h>
 
-#include <chrData.h>
-#include <methData.h>
-
 #if defined(__linux__) || defined(__APPLE__)
 #include <pthread.h>
 #include <sched.h>
 #elif defined(_WIN32) // Windows
 #include <windows.h>
 #endif
+
+#include <align.h>
+#include <chrData.h>
+#include <methData.h>
 
 /**
  * Parse a tab separated file of all covered positions of a reference genome into a nested structure
@@ -47,8 +47,7 @@ void alignSingleWithRef(const std::string &filename, Reference &ref, FileMap &fi
   FileMeths meths;
 
   for (const auto &[chr, positions] : ref) {
-    meths.emplace_back(chr,
-                       std::vector<std::vector<int8_t>>(positions.size(), std::vector<int8_t>()));
+    meths.emplace_back(chr, positions.size());
   }
 
   unsigned int chrIndex = 0, binIndex = 0, posIndex = 0;

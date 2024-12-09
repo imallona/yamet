@@ -1,7 +1,10 @@
 #include <fstream>
 #include <iostream>
+#include <string>
+#include <vector>
 
 #include "chrData.h"
+#include "export.h"
 #include "methData.h"
 #include "samp_en.h"
 
