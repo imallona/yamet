@@ -19,6 +19,7 @@ __global__ void templateMatcher(int8_t *data, const unsigned int cumulativeSize,
   unsigned int mid;
   int          binIndex = -1;
 
+  /// use binary search to find the bin to which the position belongs
   while (low <= high) {
     mid = low + (high - low) / 2;
     if (d_prefixSum[mid] == i) {
@@ -54,9 +55,24 @@ __global__ void templateMatcher(int8_t *data, const unsigned int cumulativeSize,
   }
 }
 
-SampEns sampEn(FileMap &fileMap, const unsigned int m) {
+/**
+ * Compute sample entropies at a bin level and aggregated at a file level for multiple files
+ * simultaneously.
+ *
+ * @param fileMap FileMap object storing parsed methylation data of all files
+ * @param m base length of templates
+ * @return SampEns object storing per bin and file aggregated entropies
+ */
+SampEns sampEn(FileMap &fileMap, const unsigned int m, unsigned int n_streams) {
   SampEns sampens;
   Counts  counts;
+
+  /**
+   * initialise sampens with the default value of -1.0 which indicates that the sample entropy was
+   * not computable
+   * also initialise counts which keeps track of the total count of matching m-length and
+   * (m+1)-length templates in every file
+   */
   for (const auto &[file, fileMeths] : fileMap) {
     std::vector<std::vector<double>> x;
     for (const auto &chrBins : fileMeths)
@@ -65,21 +81,47 @@ SampEns sampEn(FileMap &fileMap, const unsigned int m) {
     counts[file]  = FileCounts{0, 0};
   }
 
-  unsigned short num_streams = 50;
-
-  // create CUDA streams
-  cudaStream_t streams[num_streams];
-  for (unsigned short i = 0; i < num_streams; ++i) {
+  /// create CUDA streams
+  cudaStream_t streams[n_streams];
+  for (unsigned short i = 0; i < n_streams; ++i) {
     cudaStreamCreate(&streams[i]);
   }
 
-  int8_t                              *d_flatBins[num_streams];
-  unsigned int                        *d_cm[num_streams];
-  unsigned int                        *d_cm_1[num_streams];
-  unsigned int                        *d_prefix_sum[num_streams];
-  std::vector<unsigned int>            goodBins[num_streams]       = {};
-  unsigned int                         cumulativeSize[num_streams] = {0};
-  std::pair<std::string, unsigned int> streamInfo[num_streams]     = {{"", 0}};
+  /**
+   * array of pointers where each pointer is responsible for all methylation information for a
+   * chromosome in a file
+   */
+  int8_t *d_flatBins[n_streams];
+  /**
+   * array of pointers where each pointer is responsible for tracking the number of m-length
+   * templates of different types for a chromosome in a file
+   */
+  unsigned int *d_cm[n_streams];
+  /**
+   * array of pointers where each pointer is responsible for tracking the number of (m+1)-length
+   * templates of different types for a chromosome in a file
+   */
+  unsigned int *d_cm_1[n_streams];
+  /**
+   * array of pointers where each pointer is responsible for tracking the starting positions of non
+   * empty bins in d_flatBins
+   */
+  unsigned int *d_prefix_sum[n_streams];
+  /**
+   * array of pointers where each pointer is responsible for tracking the original indices of non
+   * empty bins in a chromosome of a file
+   */
+  std::vector<unsigned int> goodBins[n_streams] = {};
+  /**
+   * array of pointers where each pointer is responsible for tracking the total number of positions
+   * in a chromosome of a file
+   */
+  unsigned int cumulativeSize[n_streams] = {0};
+  /**
+   * array of pairs keeping track of the current filenames and chromosomes being worked on by the
+   * different streams
+   */
+  std::pair<std::string, unsigned int> streamInfo[n_streams] = {{"", 0}};
 
   unsigned int   fileIndex = 0;
   unsigned short streamIdx = 0;
@@ -88,6 +130,8 @@ SampEns sampEn(FileMap &fileMap, const unsigned int m) {
     for (unsigned int chrIndex = 0; chrIndex < fileMeths.size(); chrIndex++) {
       streamInfo[streamIdx] = {file, chrIndex};
       std::vector<unsigned int> prefix_sum;
+
+      /// store the starting indices of good bins for a stream
       for (unsigned int i = 0; i < fileMeths[chrIndex].meth.size(); i++) {
         if (!fileMeths[chrIndex].meth[i].empty()) {
           goodBins[streamIdx].push_back(i);
@@ -107,6 +151,7 @@ SampEns sampEn(FileMap &fileMap, const unsigned int m) {
                       goodBins[streamIdx].size() * (1 << (m + 1)) * sizeof(unsigned int),
                       streams[streamIdx]);
 
+      /// store methylation information of all the bins in a flattened array
       for (unsigned int i = 0; i < goodBins[streamIdx].size(); i++) {
         unsigned int rowIndex = goodBins[streamIdx][i];
         cudaMemcpyAsync(d_flatBins[streamIdx] + prefix_sum[i],
@@ -134,7 +179,7 @@ SampEns sampEn(FileMap &fileMap, const unsigned int m) {
 
       streamIdx++;
 
-      if (streamIdx == num_streams ||
+      if (streamIdx == n_streams ||
           (fileIndex == fileMap.size() - 1 && chrIndex == fileMeths.size() - 1)) {
         for (unsigned int j = 0; j < streamIdx; j++) {
           cudaStreamSynchronize(streams[j]);
@@ -156,6 +201,8 @@ SampEns sampEn(FileMap &fileMap, const unsigned int m) {
             // std::cout << "      cm_1:" << h_cm_1[i] << std::endl;
             unsigned long long cm   = 0;
             unsigned long long cm_1 = 0;
+
+            /// compute the number of matching m-length and (m+1)-length templates
             for (unsigned int k = 0; k < (1 << (m + 1)); k++) {
               if (k < (1 << m) && h_cm[(1 << m) * i + k] > 1) {
                 cm += ((unsigned long long)h_cm[(1 << m) * i + k] *
@@ -168,6 +215,10 @@ SampEns sampEn(FileMap &fileMap, const unsigned int m) {
                         2;
               }
             }
+            /**
+             * compute sample entropy only when the number of matching m-length and (m+1)-length
+             * templates are non-zero
+             */
             if (cm != 0 && cm_1 != 0) {
               sampens[streamInfo[j].first].raw[streamInfo[j].second][goodBins[j][i]] =
                   log((double)cm / (double)cm_1);
@@ -195,6 +246,7 @@ SampEns sampEn(FileMap &fileMap, const unsigned int m) {
   }
   // std::cout << std::endl;
 
+  /// compute aggregated sample entropies at file level
   for (auto &[file, samp] : sampens) {
     if (counts[file].cm > 0 && counts[file].cm_1 > 0) {
       samp.agg = log((double)counts[file].cm / (double)counts[file].cm_1);
@@ -202,126 +254,126 @@ SampEns sampEn(FileMap &fileMap, const unsigned int m) {
   }
 
   return sampens;
-
-  // for (unsigned chrIndex = 0; chrIndex < meths.size(); chrIndex++)
-  // {
-  // std::vector<unsigned int> prefixSum;
-  // std::vector<unsigned int> goodBins;
-  // unsigned int *cm;
-  // unsigned int *cm_1;
-  // unsigned int *d_prefixSum;
-  // unsigned int cumulativeSize = 0;
-
-  // for (unsigned int i = 0; i < meths[chrIndex].meth.size(); i++)
-  // {
-  //   if (!meths[chrIndex].meth[i].empty())
-  //   {
-  //     goodBins.push_back(i);
-  //     prefixSum.push_back(cumulativeSize);
-  //     cumulativeSize += meths[chrIndex].meth[i].size();
-  //   }
-  // }
-
-  // cudaMalloc((void **)&d_flatBins, cumulativeSize * sizeof(char));
-
-  // for (unsigned int i = 0; i < goodBins.size(); i++)
-  // {
-  //   unsigned int rowIndex = goodBins[i];
-  //   cudaMemcpy(d_flatBins + prefixSum[i], meths[chrIndex].meth[rowIndex].data(),
-  //              meths[chrIndex].meth[rowIndex].size() * sizeof(char), cudaMemcpyHostToDevice);
-  // }
-
-  // cudaMalloc(&d_prefixSum, prefixSum.size() * sizeof(unsigned int));
-  // cudaMalloc((void **)&cm, goodBins.size() * sizeof(unsigned int));
-  // cudaMalloc((void **)&cm_1, goodBins.size() * sizeof(unsigned int));
-
-  // cudaMemset(cm, 0, goodBins.size() * sizeof(unsigned int));
-  // cudaMemset(cm_1, 0, goodBins.size() * sizeof(unsigned int));
-
-  // cudaMemcpy(d_prefixSum, prefixSum.data(), prefixSum.size() * sizeof(unsigned int),
-  // cudaMemcpyHostToDevice);
-
-  // dim3 threadsPerBlock(32, 32);
-  // dim3 numBlocks((cumulativeSize + threadsPerBlock.x) / threadsPerBlock.x, (cumulativeSize +
-  // threadsPerBlock.y) / threadsPerBlock.y);
-
-  // templateMatcher<<<numBlocks, threadsPerBlock>>>(d_flatBins, cumulativeSize, m, d_prefixSum,
-  // goodBins.size(), cm, cm_1);
-
-  // unsigned int *h_cm = new unsigned int[goodBins.size()];
-  // unsigned int *h_cm_1 = new unsigned int[goodBins.size()];
-
-  // cudaMemcpy(h_cm, cm, goodBins.size() * sizeof(unsigned int), cudaMemcpyDeviceToHost);
-  // cudaMemcpy(h_cm_1, cm_1, goodBins.size() * sizeof(unsigned int), cudaMemcpyDeviceToHost);
-
-  // cudaFree(d_flatBins);
-  // cudaFree(d_prefixSum);
-  // cudaFree(cm);
-  // cudaFree(cm_1);
-
-  // std::cout << "chr: " << meths[chrIndex].chr << std::endl;
-  // std::cout << "  cm: ";
-  // for (unsigned int i = 0; i < goodBins.size(); i++)
-  // {
-  //   std::cout << h_cm[i] << " ";
-  // }
-  // std::cout << std::endl;
-
-  // std::cout << "  cm_1: ";
-  // for (unsigned int i = 0; i < goodBins.size(); i++)
-  // {
-  //   std::cout << h_cm_1[i] << " ";
-  //   if (h_cm[i] != 0 && h_cm_1[i] != 0)
-  //     sampens[chrIndex][goodBins[i]] = log((double)h_cm[i] / (double)h_cm_1[i]);
-  // }
-  // std::cout << std::endl;
-  // }
-  // return sampens;
-
-  // DataRow *d_data;
-  // unsigned int *d_cm, *d_cm_1;
-  // unsigned int h_cm = 0, h_cm_1 = 0;
-
-  // cudaMalloc(&d_data, N * sizeof(DataRow));
-  // cudaMalloc(&d_cm, sizeof(unsigned int));
-  // cudaMalloc(&d_cm_1, sizeof(unsigned int));
-
-  // cudaMemcpy(d_data, data.data(), N * sizeof(DataRow), cudaMemcpyHostToDevice);
-  // cudaMemcpy(d_cm, &h_cm, sizeof(unsigned int), cudaMemcpyHostToDevice);
-  // cudaMemcpy(d_cm_1, &h_cm_1, sizeof(unsigned int), cudaMemcpyHostToDevice);
-
-  // dim3 threadsPerBlock(32, 32);
-  // dim3 numBlocks((N - m + threadsPerBlock.x) / threadsPerBlock.x, (N - m + threadsPerBlock.y) /
-  // threadsPerBlock.y);
-
-  // cudaEvent_t start, stop;
-  // cudaEventCreate(&start);
-  // cudaEventCreate(&stop);
-  // cudaEventRecord(start);
-  // templateMatcher<<<numBlocks, threadsPerBlock>>>(d_data, N, m, d_cm, d_cm_1);
-  // cudaEventRecord(stop);
-  // cudaEventSynchronize(stop);
-
-  // size_t free_mem, total_mem;
-  // cudaMemGetInfo(&free_mem, &total_mem);
-  // std::cout << "GPU Memory Used: " << (total_mem - free_mem) / (1024 * 1024) << "MB" <<
-  // std::endl;
-
-  // float milliseconds = 0;
-  // cudaEventElapsedTime(&milliseconds, start, stop);
-  // std::cout << "Sample Entropy computation time: " << milliseconds << " ms" << std::endl;
-
-  // cudaEventDestroy(start);
-  // cudaEventDestroy(stop);
-
-  // cudaMemcpy(&h_cm, d_cm, sizeof(unsigned int), cudaMemcpyDeviceToHost);
-  // cudaMemcpy(&h_cm_1, d_cm_1, sizeof(unsigned int), cudaMemcpyDeviceToHost);
-
-  // cudaFree(d_data);
-  // cudaFree(d_cm);
-  // cudaFree(d_cm_1);
-  // return log((double)h_cm / (double)h_cm_1);
 }
+
+// for (unsigned chrIndex = 0; chrIndex < meths.size(); chrIndex++)
+// {
+// std::vector<unsigned int> prefixSum;
+// std::vector<unsigned int> goodBins;
+// unsigned int *cm;
+// unsigned int *cm_1;
+// unsigned int *d_prefixSum;
+// unsigned int cumulativeSize = 0;
+
+// for (unsigned int i = 0; i < meths[chrIndex].meth.size(); i++)
+// {
+//   if (!meths[chrIndex].meth[i].empty())
+//   {
+//     goodBins.push_back(i);
+//     prefixSum.push_back(cumulativeSize);
+//     cumulativeSize += meths[chrIndex].meth[i].size();
+//   }
+// }
+
+// cudaMalloc((void **)&d_flatBins, cumulativeSize * sizeof(char));
+
+// for (unsigned int i = 0; i < goodBins.size(); i++)
+// {
+//   unsigned int rowIndex = goodBins[i];
+//   cudaMemcpy(d_flatBins + prefixSum[i], meths[chrIndex].meth[rowIndex].data(),
+//              meths[chrIndex].meth[rowIndex].size() * sizeof(char), cudaMemcpyHostToDevice);
+// }
+
+// cudaMalloc(&d_prefixSum, prefixSum.size() * sizeof(unsigned int));
+// cudaMalloc((void **)&cm, goodBins.size() * sizeof(unsigned int));
+// cudaMalloc((void **)&cm_1, goodBins.size() * sizeof(unsigned int));
+
+// cudaMemset(cm, 0, goodBins.size() * sizeof(unsigned int));
+// cudaMemset(cm_1, 0, goodBins.size() * sizeof(unsigned int));
+
+// cudaMemcpy(d_prefixSum, prefixSum.data(), prefixSum.size() * sizeof(unsigned int),
+// cudaMemcpyHostToDevice);
+
+// dim3 threadsPerBlock(32, 32);
+// dim3 numBlocks((cumulativeSize + threadsPerBlock.x) / threadsPerBlock.x, (cumulativeSize +
+// threadsPerBlock.y) / threadsPerBlock.y);
+
+// templateMatcher<<<numBlocks, threadsPerBlock>>>(d_flatBins, cumulativeSize, m, d_prefixSum,
+// goodBins.size(), cm, cm_1);
+
+// unsigned int *h_cm = new unsigned int[goodBins.size()];
+// unsigned int *h_cm_1 = new unsigned int[goodBins.size()];
+
+// cudaMemcpy(h_cm, cm, goodBins.size() * sizeof(unsigned int), cudaMemcpyDeviceToHost);
+// cudaMemcpy(h_cm_1, cm_1, goodBins.size() * sizeof(unsigned int), cudaMemcpyDeviceToHost);
+
+// cudaFree(d_flatBins);
+// cudaFree(d_prefixSum);
+// cudaFree(cm);
+// cudaFree(cm_1);
+
+// std::cout << "chr: " << meths[chrIndex].chr << std::endl;
+// std::cout << "  cm: ";
+// for (unsigned int i = 0; i < goodBins.size(); i++)
+// {
+//   std::cout << h_cm[i] << " ";
+// }
+// std::cout << std::endl;
+
+// std::cout << "  cm_1: ";
+// for (unsigned int i = 0; i < goodBins.size(); i++)
+// {
+//   std::cout << h_cm_1[i] << " ";
+//   if (h_cm[i] != 0 && h_cm_1[i] != 0)
+//     sampens[chrIndex][goodBins[i]] = log((double)h_cm[i] / (double)h_cm_1[i]);
+// }
+// std::cout << std::endl;
+// }
+// return sampens;
+
+// DataRow *d_data;
+// unsigned int *d_cm, *d_cm_1;
+// unsigned int h_cm = 0, h_cm_1 = 0;
+
+// cudaMalloc(&d_data, N * sizeof(DataRow));
+// cudaMalloc(&d_cm, sizeof(unsigned int));
+// cudaMalloc(&d_cm_1, sizeof(unsigned int));
+
+// cudaMemcpy(d_data, data.data(), N * sizeof(DataRow), cudaMemcpyHostToDevice);
+// cudaMemcpy(d_cm, &h_cm, sizeof(unsigned int), cudaMemcpyHostToDevice);
+// cudaMemcpy(d_cm_1, &h_cm_1, sizeof(unsigned int), cudaMemcpyHostToDevice);
+
+// dim3 threadsPerBlock(32, 32);
+// dim3 numBlocks((N - m + threadsPerBlock.x) / threadsPerBlock.x, (N - m + threadsPerBlock.y) /
+// threadsPerBlock.y);
+
+// cudaEvent_t start, stop;
+// cudaEventCreate(&start);
+// cudaEventCreate(&stop);
+// cudaEventRecord(start);
+// templateMatcher<<<numBlocks, threadsPerBlock>>>(d_data, N, m, d_cm, d_cm_1);
+// cudaEventRecord(stop);
+// cudaEventSynchronize(stop);
+
+// size_t free_mem, total_mem;
+// cudaMemGetInfo(&free_mem, &total_mem);
+// std::cout << "GPU Memory Used: " << (total_mem - free_mem) / (1024 * 1024) << "MB" <<
+// std::endl;
+
+// float milliseconds = 0;
+// cudaEventElapsedTime(&milliseconds, start, stop);
+// std::cout << "Sample Entropy computation time: " << milliseconds << " ms" << std::endl;
+
+// cudaEventDestroy(start);
+// cudaEventDestroy(stop);
+
+// cudaMemcpy(&h_cm, d_cm, sizeof(unsigned int), cudaMemcpyDeviceToHost);
+// cudaMemcpy(&h_cm_1, d_cm_1, sizeof(unsigned int), cudaMemcpyDeviceToHost);
+
+// cudaFree(d_data);
+// cudaFree(d_cm);
+// cudaFree(d_cm_1);
+// return log((double)h_cm / (double)h_cm_1);
 
 // CPU only code below
 

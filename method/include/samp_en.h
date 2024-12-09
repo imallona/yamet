@@ -22,4 +22,4 @@ struct FileCounts {
 
 using Counts = std::unordered_map<std::string, FileCounts>;
 
-SampEns sampEn(FileMap &fileMap, const unsigned int m);
+SampEns sampEn(FileMap &fileMap, const unsigned int m, unsigned int n_streams);
