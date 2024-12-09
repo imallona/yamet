@@ -1,7 +1,11 @@
 #pragma once
 
-#include "methData.h"
-#include "chrData.h"
+#include <string>
+#include <vector>
 
-void alignSingleWithRef(const std::string &filename, std::vector<ChrPositions> &positions, std::unordered_map<std::string, std::vector<ChrMeth>> &fileMap);
-FileMap alignWithRef(const std::vector<std::string> &filenames, Reference &ref);
+#include "chrData.h"
+#include "methData.h"
+
+void    alignSingleWithRef(const std::string &filename, Reference &ref, FileMap &fileMap);
+FileMap alignWithRef(const std::vector<std::string> &filenames, Reference &ref,
+                     unsigned int n_cores, unsigned int n_threads_per_core);
