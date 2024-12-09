@@ -1,0 +1,36 @@
+--Reference CPGs------------------
+
+Chromosome: 2
+  Bin: 0
+    Pos: 3
+    Pos: 5
+    Pos: 7
+Chromosome: 4
+  Bin: 0
+    Pos: 3
+    Pos: 5
+    Pos: 7
+    Pos: 9
+Chromosome: 7
+  Bin: 0
+    Pos: 7
+    Pos: 9
+Chromosome: 8
+  Bin: 0
+    Pos: 5
+    Pos: 7
+  Bin: 1
+    Pos: 13
+    Pos: 15
+    Pos: 17
+Chromosome: 9
+  Bin: 0
+    Pos: 21
+    Pos: 23
+    Pos: 25
+    Pos: 27
+  Bin: 1
+    Pos: 31
+Chromosome: 10
+  Bin: 0
+
