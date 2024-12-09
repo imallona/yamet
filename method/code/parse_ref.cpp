@@ -1,45 +1,59 @@
 #include <iostream>
-#include <zlib.h>
 #include <sstream>
+#include <string>
+#include <vector>
+#include <zlib.h>
 
 #include "chrData.h"
+#include "parse_ref.h"
 
 /**
- * Parse a bed.gz file of all CpGs of a reference genome into a nested structure to be used for aligning the relevant regions of different cell files.
+ * Parse a tab separated file of all positions of a reference genome into a nested structure
+ * to be used for aligning the relevant regions of different cell files.
  *
  * @param filename path to bed.gz file to be extracted.
  * @param intervals Intervals object with search intervals.
- * @return Reference object which contain the chr information and intervals corresponding to it.
+ * @return Reference object which contain the chr information and intervals
+ * corresponding to it.
  */
-Reference parseRef(const std::string &filename, Intervals intervals)
-{
+Reference parseRef(const std::string &filename, Intervals intervals) {
   gzFile file = gzopen(filename.c_str(), "rb");
-  if (!file)
-  {
+  if (!file) {
     std::cerr << "Failed to open file: " << filename << std::endl;
   }
 
+  /**
+   *  create output reference variable and initialise accordingly with chromosomes where search
+   * regions are present
+   */
   Reference ref;
-  for (const auto &[chr, intervals] : intervals)
-  {
-    ref.emplace_back(chr, std::vector<std::vector<unsigned int>>(intervals.size()));
+  for (const auto &[chr, intervals] : intervals) {
+    ref.emplace_back(chr, intervals.size());
   }
 
+  /**
+   * buffer size of 64M - this is the total amount of information from a file stored at any time as
+   * a chunk
+   */
   constexpr int bufferSize = 64 * 1024;
-  char buffer[bufferSize];
-  std::string partialLine;
+  char          buffer[bufferSize];
+  std::string   partialLine;
+
+  /// current chromosome being parsed from reference file
+  std::string currentChr = "";
+  /// indicates whether there is a region requested for a particular chromosome
   bool firstFound = false;
   // bool headerSkipped = false;
 
-  unsigned int chrIndex = 0, intervalIndex = 0;
-  bool done = false;
+  int          chrIndex      = -1;
+  unsigned int intervalIndex = 0;
+  bool         done          = false;
 
-  while (!done)
-  {
+  while (!done) {
+    /// read a chunk of data from a file
     int bytesRead = gzread(file, buffer, bufferSize - 1);
 
-    if (bytesRead < 0)
-    {
+    if (bytesRead < 0) {
       std::cerr << "Error reading gzip file" << std::endl;
       gzclose(file);
     }
@@ -50,99 +64,76 @@ Reference parseRef(const std::string &filename, Intervals intervals)
     partialLine.clear();
 
     std::istringstream ss(fullBuffer);
-    std::string line;
+    std::string        line;
 
-    while (std::getline(ss, line))
-    {
-      if (ss.eof() && line.back() != '\n')
-      {
+    /// iterate over lines in a chunk
+    while (std::getline(ss, line)) {
+      /// save partial line to be processed later
+      if (ss.eof() && line.back() != '\n') {
         partialLine = line;
         break;
       }
-      // if (!headerSkipped)
-      // {
+      // if (!headerSkipped) {
       //   headerSkipped = true;
       //   continue;
       // }
-      std::istringstream lineStream(line);
-      std::string chr, temp;
-      unsigned int pos;
-      lineStream >> chr >> pos >> temp;
-      // std::cout << chr << " " << pos << std::endl;
-      // std::cout << chrIndex << " " << intervalIndex << std::endl;
 
-      if (chr != intervals[chrIndex].chr)
-        if (firstFound)
-        {
-          if (chrIndex < intervals.size() - 1)
-          {
-            chrIndex++;
-            intervalIndex = 0;
-          }
-        }
-        else
-        {
+      /// parsing a line from reference
+      std::istringstream lineStream(line);
+      std::string        chr, temp;
+      unsigned int       pos;
+      lineStream >> chr >> pos >> temp;
+
+      /// updates chromosome currently being evaluated and resets firstFound
+      if (chr != currentChr) {
+        currentChr = chr;
+        firstFound = false;
+      }
+
+      /**
+       * once done with all positions in a chromosome, move to next chromosome with regions of
+       * interest, ignoring chromosomes in between
+       */
+      if (chrIndex < (int)(intervals.size() - 1)) {
+        if (chr == intervals[chrIndex + 1].chr) {
+          chrIndex++;
+          intervalIndex = 0;
+          firstFound    = true;
+        } else if (!firstFound) {
           continue;
         }
-      firstFound = true;
-      if (pos < intervals[chrIndex].intervals[intervalIndex].start)
+      } else if (chr != intervals[chrIndex].chr) {
+        done = true;
+        break;
+      }
+
+      /// discard positions outside regions of interest
+      if (pos < intervals[chrIndex].intervals[intervalIndex].start) {
         continue;
-      while (intervals[chrIndex].intervals[intervalIndex].end <= pos)
-      {
-        if (intervalIndex < intervals[chrIndex].intervals.size() - 1)
-        {
+      }
+
+      /**
+       * for a particular postion, finds the closest region on the chromosome (if it exists)
+       * enclosing or before the position
+       */
+      while (intervals[chrIndex].intervals[intervalIndex].end <= pos) {
+        if (intervalIndex < intervals[chrIndex].intervals.size() - 1) {
           intervalIndex++;
-        }
-        else
-        {
-          if (chrIndex < intervals.size() - 1)
-          {
-            chrIndex++;
-            intervalIndex = 0;
-          }
+        } else {
           break;
         }
       }
 
-      // if (pos < intervals[chrIndex].intervals[intervalIndex].start)
-      //   continue;
-      // while (intervals[chrIndex].intervals[intervalIndex].end <= pos)
-      // {
-      //   if (chrIndex == intervals.size() - 1)
-      //   {
-      //     if (intervalIndex == intervals[chrIndex].intervals.size() - 1)
-      //     {
-      //       done = true;
-      //       break;
-      //     }
-      //     intervalIndex++;
-      //   }
-      //   else
-      //   {
-      //     if (intervalIndex == intervals[chrIndex].intervals.size() - 1)
-      //     {
-      //       chrIndex++;
-      //       intervalIndex = 0;
-      //       break;
-      //     }
-      //     else
-      //     {
-      //       intervalIndex++;
-      //     }
-      //   }
-      // }
-
-      // if (done)
-      //   break;
-      if (chr == intervals[chrIndex].chr && intervals[chrIndex].intervals[intervalIndex].start <= pos && pos < intervals[chrIndex].intervals[intervalIndex].end)
-      {
+      /// add valid position to output reference variable
+      if (chr == intervals[chrIndex].chr &&
+          intervals[chrIndex].intervals[intervalIndex].start <= pos &&
+          pos < intervals[chrIndex].intervals[intervalIndex].end) {
         ref[chrIndex].positions[intervalIndex].emplace_back(pos);
       }
     }
-    // if (done)
-    //   break;
-    if (bytesRead < bufferSize - 1)
+    if (bytesRead < bufferSize - 1) {
       break;
+    }
   }
   return ref;
 }
