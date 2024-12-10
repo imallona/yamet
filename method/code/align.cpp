@@ -17,7 +17,8 @@
 
 #include <align.h>
 #include <chrData.h>
-#include <methData.h>
+#include <file_classes.h>
+#include <window.h>
 
 /**
  * Parse a tab separated file of all covered positions of a reference genome into a nested structure
@@ -29,14 +30,15 @@
  * @param fileMap[out] FileMap object of key value pairs where the parsed methylation data is stored
  * in a FileMeths object against the filename as key.
  */
-void alignSingleWithRef(const std::string &filename, Reference &ref, FileMap &fileMap) {
+void alignSingleWithRef(const std::string &filename, Reference &ref, const unsigned int m,
+                        FileMap &fileMap) {
   gzFile file = gzopen(filename.c_str(), "rb");
   if (!file) {
     std::cerr << "Failed to open file: " << filename << std::endl;
   }
 
   /**
-   * buffer size of 64M - this is the total amount of information from a file stored at any time as
+   * buffer size of 64K - this is the total amount of information from a file stored at any time as
    * a chunk
    */
   constexpr int bufferSize = 64 * 1024;
@@ -44,19 +46,16 @@ void alignSingleWithRef(const std::string &filename, Reference &ref, FileMap &fi
   std::string   partialLine;
   // bool          headerSkipped = false;
 
-  FileMeths meths;
-
-  for (const auto &[chr, positions] : ref) {
-    meths.emplace_back(chr, positions.size());
-  }
-
   unsigned int chrIndex = 0, binIndex = 0, posIndex = 0;
   bool         start      = true;
   std::string  currentChr = "";
   bool         foundChr   = false;
+  Window       window(m + 1);
+
+  FileCounts fileCounts(ref, m);
   /**
-   * for keeping track of the last covered position discovered, used so that we can register breaks
-   * between covered positions, if any
+   * for keeping track of the last covered position discovered, used so that we can register
+   * breaks between covered positions, if any
    */
   int lastBinPos = -1;
 
@@ -93,6 +92,7 @@ void alignSingleWithRef(const std::string &filename, Reference &ref, FileMap &fi
 
       if (chr != currentChr) {
         binIndex = 0, posIndex = 0;
+        window.clear();
         foundChr   = false;
         currentChr = chr;
       } else if (!foundChr) {
@@ -116,9 +116,9 @@ void alignSingleWithRef(const std::string &filename, Reference &ref, FileMap &fi
         if (ref[chrIndex].positions[binIndex].size() > 0) {
           if (pos == ref[chrIndex].positions[binIndex][posIndex]) {
             if (lastBinPos > -1 && posIndex - lastBinPos > 1) {
-              meths[chrIndex].meth[binIndex].push_back(-1);
+              window.append(-1).notify(fileCounts, chrIndex, binIndex);
             }
-            meths[chrIndex].meth[binIndex].push_back(methValue);
+            window.append(methValue).notify(fileCounts, chrIndex, binIndex);
             increment = true, exit = true;
             lastBinPos = posIndex;
           } else if (pos < ref[chrIndex].positions[binIndex][posIndex])
@@ -131,6 +131,7 @@ void alignSingleWithRef(const std::string &filename, Reference &ref, FileMap &fi
             exit = true;
           } else {
             binIndex += 1, posIndex = 0, lastBinPos = -1;
+            window.clear();
           }
         }
         if (increment) {
@@ -143,6 +144,7 @@ void alignSingleWithRef(const std::string &filename, Reference &ref, FileMap &fi
           } else {
             if (posIndex == ref[chrIndex].positions[binIndex].size() - 1) {
               binIndex += 1, lastBinPos = -1, posIndex = 0;
+              window.clear();
             } else {
               posIndex++;
             }
@@ -158,7 +160,7 @@ void alignSingleWithRef(const std::string &filename, Reference &ref, FileMap &fi
     }
   }
   gzclose(file);
-  fileMap[filename] = std::move(meths);
+  fileMap.addFile(filename, fileCounts.getContainer());
 }
 
 // Function to set thread affinity to a specific core
@@ -185,11 +187,12 @@ void set_thread_affinity(int core_id) {
  *
  * @param filenames list of tab separated files to be parsed.
  * @param ref Reference object with all positions of interest in the genome.
+ * @param m size of window.
  * @return FileMap object of key value pairs where the parsed methylation data of every file is
  * stored in a FileMeths object against the filename as key
  */
 FileMap alignWithRef(const std::vector<std::string> &filenames, Reference &ref,
-                     unsigned int n_cores, unsigned int n_threads_per_core) {
+                     const unsigned int m, unsigned int n_cores, unsigned int n_threads_per_core) {
   FileMap fileMap;
   fileMap.reserve(filenames.size());
 
@@ -226,7 +229,7 @@ FileMap alignWithRef(const std::vector<std::string> &filenames, Reference &ref,
         }
 
         // Process task
-        alignSingleWithRef(filename, ref, fileMap);
+        alignSingleWithRef(filename, ref, m, fileMap);
 
         // Notify waiting threads
         cv.notify_all();
@@ -247,6 +250,8 @@ FileMap alignWithRef(const std::vector<std::string> &filenames, Reference &ref,
       t.join();
     }
   }
+
+  fileMap.aggregate();
 
   return fileMap;
 }
