@@ -3,12 +3,9 @@
 #include "align.h"
 #include "boost.h"
 #include "chrData.h"
-#include "export.h"
-#include "methData.h"
+#include "file_classes.h"
 #include "parse_ref.h"
 #include "parse_search.h"
-#include "samp_en.h"
-// #include "filter.h"
 
 int main(int argc, char **argv) {
   try {
@@ -43,53 +40,16 @@ int main(int argc, char **argv) {
       std::cout << std::endl;
     }
 
-    FileMap fileMap = alignWithRef(filenames, ref, getNCores(vm), getNThreadsPerCore(vm));
-    if (vm.count("print-tsv")) {
-      std::cout << "--Cell Files------------------" << std::endl << std::endl;
-      for (const auto &filename : filenames) {
-        std::cout << "Filename: " << filename << std::endl;
-        for (unsigned int chrIndex = 0; chrIndex < fileMap[filename].size(); chrIndex++) {
-          std::cout << "  Chromosome: " << fileMap[filename][chrIndex].chr << std::endl;
-          for (unsigned int binIndex = 0; binIndex < fileMap[filename][chrIndex].meth.size();
-               binIndex++) {
-            std::cout << "    Bin: " << binIndex
-                      << ", size: " << fileMap[filename][chrIndex].meth[binIndex].size()
-                      << std::endl;
-            for (const auto &methValue : fileMap[filename][chrIndex].meth[binIndex]) {
-              std::cout << "      Meth: " << (methValue == -1 ? '?' : (char)(methValue + '0'))
-                        << std::endl;
-            }
-          }
-        }
-        std::cout << std::endl;
-      }
-      std::cout << std::endl;
-    }
-
-    SampEns sampens = sampEn(fileMap, 2, getNStreams(vm));
+    FileMap fileMap = alignWithRef(filenames, ref, 2, getNCores(vm), getNThreadsPerCore(vm));
     if (printSampens(vm)) {
-      std::cout << "--Sample Entropies------------------" << std::endl << std::endl;
-      for (const auto &file : fileMap) {
-        std::cout << "Filename: " << file.first << std::endl;
-        std::cout << "  Aggregate: " << sampens[file.first].agg << std::endl;
-        std::cout << "  Detailed:" << std::endl;
-        for (unsigned int chrIndex = 0; chrIndex < sampens[file.first].raw.size(); chrIndex++) {
-          std::cout << "    Chromosome: " << file.second[chrIndex].chr << std::endl;
-          for (unsigned int binIndex = 0; binIndex < sampens[file.first].raw[chrIndex].size();
-               binIndex++) {
-            std::cout << "      Bin " << binIndex << " -> "
-                      << sampens[file.first].raw[chrIndex][binIndex] << std::endl;
-          }
-        }
-        std::cout << std::endl;
-      }
+      fileMap.print(filenames);
     }
 
     if (vm.count("det-out")) {
-      exportDetOut(getDetOut(vm), filenames, sampens, intervals);
+      fileMap.exportDetOut(getDetOut(vm), filenames, intervals);
     }
     if (vm.count("out")) {
-      exportOut(getOut(vm), filenames, sampens);
+      fileMap.exportOut(getOut(vm), filenames);
     }
     return 0;
   } catch (const po::error &e) {
