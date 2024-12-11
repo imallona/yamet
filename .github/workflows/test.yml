@@ -20,12 +20,12 @@ jobs:
       - name: Build
         run: |
           cd method
-          make
+          bash build.sh
 
       - name: Test Ref Parsing
         run: |
           cd test
-          ../method/yamet \
+          ~/.local/bin/yamet \
               --tsv      test_parse/in/simulations.tsv \
               --ref      test_parse/in/reference.tsv \
               --bed      test_parse/in/regions.bed \
@@ -39,7 +39,7 @@ jobs:
       - name: Test_0
         run: |
           cd test
-          ../method/yamet \
+          ~/.local/bin/yamet \
               --tsv      test_0/in/cell1.bed.gz \
               --ref      test_0/in/ref.bed.gz \
               --bed      test_0/in/regions.bed \
@@ -53,7 +53,7 @@ jobs:
       - name: Test_1
         run: |
           cd test
-          ../method/yamet \
+          ~/.local/bin/yamet \
               --tsv      test_1/in/simulations.tsv \
               --ref      test_1/in/reference.tsv \
               --bed      test_1/in/regions.bed \
