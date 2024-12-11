@@ -1,9 +1,12 @@
 #!/bin/bash
 ##
 ## Retrieves the mm10 ensGene transcript and sends them to stdout
+## DEPRECATED, use download_mm10_promoters.sh instead
 ##
 ## Izaskun Mallona
 ## 2nd Dec 2024
+
+echo Deprecated
 
 mysql --user=genome --host=genome-mysql.cse.ucsc.edu -N -s -e \
       'SELECT chrom, txStart, txEnd, name, alignID,  strand 

@@ -17,7 +17,7 @@ print('Caution needs R from the host to run "harmonize_ecker_metadata"')
 rule all:
     input:
         # op.join('ecker_data', 'downloaded.flag'), ## this is to download Ecker's cytosine reports
-        op.join('annotation', 'mm10', 'done.flag'), ## this to download regions
+        op.join('annotation', 'mm10', 'done.flag'), ## this to download regions for Ecker's
         op.join('ecker_data', 'harmonized_ecker_metadata.tsv.gz') ## this to download Ecker's metadata
         # expand(op.join('shuffled', '{seed}', '{annotation}.bed.gz'),
                # seed = [1,2],
@@ -117,7 +117,7 @@ rule download_mm10_annotation_for_ecker:
         op.join("envs", "yamet.yml")
     input:
         promoters = op.join('annotation', 'mm10', 'promoters.bed.gz'),
-        txs = op.join('annotation', 'mm10', 'transcripts.bed.gz'),
+        txs = op.join('annotation', 'mm10', 'genes.bed.gz'),
         encode = op.join('annotation', 'mm10', 'h3k27ac.bed.gz')
     output:
         flag = op.join('annotation', 'mm10', 'done.flag')
@@ -144,18 +144,18 @@ rule download_mm10_promoters:
         bash src/download_mm10_promoters.sh | gzip -c > {output.promoters}
         """
 
-rule download_mm10_transcripts:
+rule download_mm10_geness:
     conda:
         op.join("envs", "yamet.yml")
     output:
-        txs = op.join('annotation', 'mm10', 'transcripts.bed.gz')
+        txs = op.join('annotation', 'mm10', 'genes.bed.gz')
     params:
         path = op.join('annotation', 'mm10')
     threads:
         1
     shell:
         """
-        bash src/download_mm10_transcripts.sh | gzip -c > {output.txs}
+        bash src/download_mm10_genes.sh | gzip -c > {output.txs}
         """
         
 rule download_mm10_encode:
