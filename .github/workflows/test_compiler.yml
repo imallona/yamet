@@ -1,0 +1,43 @@
+name: compiler_debug
+
+on:
+  workflow_dispatch:
+  pull_request:
+    # types: [assigned, opened, synchronize, reopened]
+    # paths: ['.github/workflows/test.yml', '**/Makefile', '**/*.h', '**/*.hpp', '**/*.c', '**/*.cpp']
+
+# env:
+#   BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
+
+jobs:
+  build_ubuntu_latest_cuda:
+    runs-on: self-hosted
+    strategy:       
+        matrix:
+            gcc-version: [gcc-13, gcc-12, gcc-11]
+            gpp-version: [g++-13, g++-12, g++-11]
+        fail-fast: false
+    steps:
+      - name: Clone
+        id: checkout
+        uses: actions/checkout@v4
+
+      - name: Build and test_0
+        env:
+          CC:   ${{ matrix.gcc-version }} 
+          CXX:  ${{ matrix.gpp-version }}
+        run: |
+          cd method
+          bash build.sh
+
+          cd ../test
+          ~/.local/bin/yamet \
+              --tsv      test_0/in/cell1.bed.gz \
+              --ref      test_0/in/ref.bed.gz \
+              --bed      test_0/in/regions.bed \
+              --det-out  current_test_0.out
+
+          echo 'Diff expected vs produced'
+
+          diff test_0/out/detailed.out \
+               current_test_0.out
