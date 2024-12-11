@@ -35,7 +35,7 @@ void Window::notify(FileCounts &fileCounts, unsigned int chrIndex, unsigned int 
   std::pair<unsigned int, unsigned int> idx = {0, 0};
   bool                                  add = true;
 
-  for (unsigned int k; k < window_size - 1; k++) {
+  for (unsigned int k = 0; k < window_size - 1; k++) {
     if (container[k] == -1) {
       add = false;
       break;
