@@ -10,7 +10,7 @@ on:
 #   BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
 
 jobs:
-  build_ubuntu_latest_cuda:
+  build_ubuntu_latest:
     runs-on: self-hosted
     steps:
       - name: Clone
