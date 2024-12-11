@@ -56,7 +56,7 @@ int main(int argc, char **argv) {
     std::cerr << e.what() << std::endl;
     return 1;
   } catch (const std::system_error &e) {
-    if (e.code().value() == 99) {
+    if (e.code().value() == 99 || e.code().value() == 199) {
       return 0;
     }
     std::cerr << "Error: " << e.what() << std::endl;

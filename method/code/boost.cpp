@@ -6,12 +6,13 @@
 #include <thread>
 
 #include "boost.h"
+#include "version.h"
 
 po::variables_map parseCommandLine(int argc, char **argv) {
   po::variables_map vm;
 
   po::options_description gen("general");
-  gen.add_options()("help,h", "produce help message")(
+  gen.add_options()("help,h", "produce help message")("version", "current version information")(
       "tsv,t", po::value<std::vector<std::string>>()->composing(),
       ".tsv files for different cells")("ref,r", po::value<std::string>(),
                                         "path to tsv.gz file for reference CpG sites")(
@@ -42,9 +43,13 @@ po::variables_map parseCommandLine(int argc, char **argv) {
   po::notify(vm);
 
   if (vm.count("help")) {
-    std::cout << "yamet" << std::endl << all << std::endl;
+    std::cout << PROJECT_NAME << std::endl << all << std::endl;
     std::error_code ec(99, std::generic_category());
     throw std::system_error(ec, "Help message displayed");
+  } else if (vm.count("version")) {
+    std::cout << PROJECT_NAME << " version " << PROJECT_VERSION << std::endl;
+    std::error_code ec(199, std::generic_category());
+    throw std::system_error(ec, "Version message displayed");
   }
   return vm;
 }
