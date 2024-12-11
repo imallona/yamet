@@ -10,7 +10,11 @@
 
 #if defined(__linux__) || defined(__APPLE__)
 #include <pthread.h>
-#include <sched.h>
+// #include <sched.h>
+#if defined(__APPLE__)
+#include <mach/thread_act.h> // For pthread_mach_thread_np
+// #include <mach/thread_policy.h> // For macOS-specific thread affinity API
+#endif
 #elif defined(_WIN32) // Windows
 #include <windows.h>
 #endif
@@ -165,7 +169,7 @@ void alignSingleWithRef(const std::string &filename, Reference &ref, const unsig
 
 // Function to set thread affinity to a specific core
 void set_thread_affinity(int core_id) {
-#if defined(__linux__) || defined(__APPLE__) // POSIX systems
+#if defined(__linux__) // POSIX systems
   cpu_set_t cpuset;
   CPU_ZERO(&cpuset);
   CPU_SET(core_id, &cpuset);
@@ -173,6 +177,11 @@ void set_thread_affinity(int core_id) {
   if (rc != 0) {
     std::cerr << "Error setting thread affinity: " << rc << "\n";
   }
+#elif defined(__APPLE__)
+  // macOS-specific implementation
+  thread_affinity_policy policy = {core_id};
+  thread_policy_set(pthread_mach_thread_np(pthread_self()), THREAD_AFFINITY_POLICY,
+                    (thread_policy_t)&policy, 1);
 #elif defined(_WIN32) // Windows
   DWORD_PTR mask = 1 << core_id;
   if (!SetThreadAffinityMask(GetCurrentThread(), mask)) {
