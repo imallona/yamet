@@ -98,6 +98,54 @@ void FileMap::exportDetOut(const std::string &out, const std::vector<std::string
 }
 
 /**
+ * Exports a tab separated file with shannon entropies binned by template counts considering all
+ * cell files per region.
+ *
+ * @param out path to tab separated file where shannon entropy outputs are to be stored.
+ * @param intervals Intervals object with search intervals.
+ */
+void FileMap::exportShannon(const std::string &out, Intervals &intervals) {
+  std::ofstream outStream(out);
+
+  if (!outStream.is_open()) {
+    std::cerr << "Error: Could not open file " << out << " for writing." << std::endl;
+    return;
+  }
+  outStream << "chr\tstart\tend\tshannon";
+  outStream << std::endl;
+
+  for (unsigned int i = 0; i < intervals.size(); i++) {
+    for (unsigned int j = 0; j < intervals[i].intervals.size(); j++) {
+      /// print the region information
+      outStream << intervals[i].chr << "\t" << intervals[i].intervals[j].start << "\t"
+                << intervals[i].intervals[j].end << "\t";
+
+      std::vector<unsigned int> shan((*this->begin()).second.chrCounts[0].bins[0].cm.size(), 0);
+      /// print shannon entropies at that region
+      unsigned int total = 0;
+      for (const auto &[_, file] : *this) {
+        for (size_t k = 0; k < shan.size(); k++) {
+          shan[k] += file.chrCounts[i].bins[j].cm[k];
+          total += file.chrCounts[i].bins[j].cm[k];
+        }
+      }
+      double shannon = -1;
+      if (total > 0) {
+        shannon = 0;
+        for (size_t k = 0; k < shan.size(); k++) {
+          if (((double)shan[k]) / ((double)total) > 0) {
+            shannon -=
+                (((double)shan[k]) / ((double)total)) * log(((double)shan[k]) / ((double)total));
+          }
+        }
+      }
+      outStream << shannon << std::endl;
+    }
+  }
+  outStream.close();
+}
+
+/**
  * Exports a tab separated file with sample entropies aggregated for every cell file.
  *
  * @param out path to tab separated file where sample entropy outputs are to be stored.

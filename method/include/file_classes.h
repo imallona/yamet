@@ -56,5 +56,6 @@ public:
   void print(std::vector<std::string> filenames);
   void exportDetOut(const std::string &out, const std::vector<std::string> &filenames,
                     Intervals &intervals);
+  void exportShannon(const std::string &out, Intervals &intervals);
   void exportOut(const std::string &out, const std::vector<std::string> &filenames);
 };

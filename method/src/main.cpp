@@ -48,6 +48,9 @@ int main(int argc, char **argv) {
     if (vm.count("det-out")) {
       fileMap.exportDetOut(getDetOut(vm), filenames, intervals);
     }
+    if (vm.count("shannon-out")) {
+      fileMap.exportShannon(getShannonOut(vm), intervals);
+    }
     if (vm.count("out")) {
       fileMap.exportOut(getOut(vm), filenames);
     }
