@@ -7,10 +7,10 @@ on:
 jobs:
   unsupported_gpp_should_fail:
     runs-on: self-hosted
-    strategy:       
-        matrix:
-            compiler: [ {cpp: g++-12, c: gcc-12} ]
-        fail-fast: false
+    strategy:
+      matrix:
+        compiler: [{ cpp: g++-12, c: gcc-12 }]
+      fail-fast: false
     steps:
       - name: Clone
         id: checkout
@@ -18,10 +18,11 @@ jobs:
 
       - name: Build and test_0
         env:
-          CC:   ${{ matrix.compiler.c }}
-          CXX:  ${{ matrix.compiler.cpp }}
+          CC: ${{ matrix.compiler.c }}
+          CXX: ${{ matrix.compiler.cpp }}
         run: |
           cd method
+          export PREFIX="$HOME/.local"
           bash build.sh
 
           cd ../test
@@ -38,10 +39,10 @@ jobs:
 
   supported_gpp_should_work:
     runs-on: self-hosted
-    strategy:       
-        matrix:
-            compiler: [ {cpp: g++-13, c: gcc-13} ]
-        fail-fast: false
+    strategy:
+      matrix:
+        compiler: [{ cpp: g++-13, c: gcc-13 }]
+      fail-fast: false
     steps:
       - name: Clone
         id: checkout
@@ -49,10 +50,11 @@ jobs:
 
       - name: Build and test_0
         env:
-          CC:   ${{ matrix.compiler.c }}
-          CXX:  ${{ matrix.compiler.cpp }}
+          CC: ${{ matrix.compiler.c }}
+          CXX: ${{ matrix.compiler.cpp }}
         run: |
           cd method
+          export PREFIX="$HOME/.local"
           bash build.sh
 
           cd ../test
