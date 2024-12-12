@@ -3,8 +3,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
+  build:
+    runs-on: ubuntu-24.04
     steps:
       - name: Clone
         id: checkout
@@ -13,13 +13,14 @@ jobs:
       - name: Build
         run: |
           cd method
-          export PREFIX="$HOME/.local"
+          export PREFIX="."
           bash build.sh
-   
-      - uses: LazyPanda07/check-memory-leaks@1.4
-        with:
-          path: "$HOME/.local/bin"
-          name: yamet
-          pre-execute: "cd test"
-          args: "--tsv" "test_0/in/cell1.bed.gz" "--ref" "test_0/in/ref.bed.gz" "--bed" "test_0/in/regions.bed" "--det-out" "current_test_0.out"
 
+      - name: Memory leak test
+        uses: LazyPanda07/check-memory-leaks@v1.4
+        with:
+          path: bin
+          name: yamet
+          max-threads: 1
+          pre-execute: export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:$(pwd)
+          args: "--tsv" "tests/test_0/in/cell1.bed.gz" "--ref" "tests/test_0/in/ref.bed.gz" "--bed" "tests/test_0/in/regions.bed" "--det-out" "current_test_0.out"
