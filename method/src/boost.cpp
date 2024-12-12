@@ -51,6 +51,9 @@ po::variables_map parseCommandLine(int argc, char **argv) {
     std::cout << PROJECT_NAME << " version " << PROJECT_VERSION << std::endl;
     std::error_code ec(199, std::generic_category());
     throw std::system_error(ec, "Version message displayed");
+  } else if (!vm.count("tsv")) {
+    std::error_code ec(499, std::generic_category());
+    throw std::system_error(ec, "no input!");
   }
   return vm;
 }

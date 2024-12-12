@@ -12,9 +12,12 @@ struct BinCounts {
   std::vector<unsigned int> cm_1;
   unsigned long long        A;
   unsigned long long        B;
+  unsigned int              m;
+  unsigned int              t;
   double                    sampen;
 
-  BinCounts(unsigned int m) : cm(1 << m, 0), cm_1(1 << (m + 1), 0), A(0), B(0), sampen(-1.0) {}
+  BinCounts(unsigned int m)
+      : cm(1 << m, 0), cm_1(1 << (m + 1), 0), A(0), B(0), m(0), t(0), sampen(-1.0) {}
 };
 
 struct ChrCounts {
@@ -31,8 +34,9 @@ private:
 public:
   explicit FileCounts(Reference &ref, unsigned int m);
 
-  void                    count(std::pair<unsigned int, unsigned int> idx, unsigned int chrIndex,
-                                unsigned int binIndex);
+  void count(std::pair<unsigned int, unsigned int> idx, unsigned int chrIndex,
+             unsigned int binIndex);
+  void addReads(unsigned int m, unsigned int t, unsigned int chrIndex, unsigned int binIndex);
   std::vector<ChrCounts> &getContainer();
 };
 

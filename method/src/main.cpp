@@ -61,6 +61,9 @@ int main(int argc, char **argv) {
   } catch (const std::system_error &e) {
     if (e.code().value() == 99 || e.code().value() == 199) {
       return 0;
+    } else if (e.code().value() == 499) {
+      std::cout << "Error: no input!" << std::endl;
+      return 1;
     }
     std::cerr << "Error: " << e.what() << std::endl;
     return 1;
