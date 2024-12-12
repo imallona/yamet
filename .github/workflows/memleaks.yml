@@ -4,6 +4,9 @@ on:
   pull_request:
   workflow_dispatch:
 
+env:
+  PREFIX: $HOME/build/
+  
 jobs:
   build:
     runs-on: ubuntu-24.04
@@ -15,19 +18,40 @@ jobs:
       - name: Installs
         run: |
           sudo apt-get install zlib1g-dev build-essential libboost-system-dev \
-             libboost-thread-dev libboost-program-options-dev libboost-test-dev
+             libboost-thread-dev libboost-program-options-dev libboost-test-dev \
+             valgrind
         
-      - name: Build
+      - name: Build and valgrind
         run: |
+          mkdir -p $PREFIX
           cd method
-          export PREFIX="$HOME"
+          ## export PREFIX=$PREFIX # ???
           bash build.sh
+          ## ls -lR $PREFIX
 
-      - name: Memory leak test
-        uses: LazyPanda07/check-memory-leaks@v1.4
-        with:
-          path: $HOME/bin/
-          name: yamet
-          max-threads: 1
-          pre-execute: export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:$(pwd)
-          args: --tsv $GITHUB_WORKSPACE/test/test_0/in/cell1.bed.gz --ref $GITHUB_WORKSPACE/test/test_0/in/ref.bed.gz --bed $GITHUB_WORKSPACE/test/test_0/in/regions.bed --det-out current_test_0.out
+          echo 'Permissions'
+          cd $PREFIX/bin
+          chmod +x yamet
+          ## ls -l yamet
+
+          ## echo 'Path'
+          ## export PATH=$PREFIX/bin:"$PATH"         
+          ## echo $PATH
+
+          ## echo 'Valgrind dummy call'
+          ## valgrind --leak-check=yes ls -la
+          
+          ## echo 'Normal call'
+          ## ./yamet --tsv $GITHUB_WORKSPACE/test/test_0/in/cell1.bed.gz --ref $GITHUB_WORKSPACE/test/test_0/in/ref.bed.gz --bed $GITHUB_WORKSPACE/test/test_0/in/regions.bed --det-out current_test_0.out
+          
+          echo 'Pre valgrind call'
+          
+          export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:$(pwd)
+          export PATH=$(pwd):$PREFIX/bin:$PATH
+          ## which yamet
+          ## echo $PATH
+          ## pwd
+          ## ls -la
+          
+          echo 'Valgrind call'
+          valgrind --leak-check=full ./yamet --tsv $GITHUB_WORKSPACE/test/test_0/in/cell1.bed.gz --ref $GITHUB_WORKSPACE/test/test_0/in/ref.bed.gz --bed $GITHUB_WORKSPACE/test/test_0/in/regions.bed --det-out valgrind_test_0.out
