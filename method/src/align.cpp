@@ -91,8 +91,8 @@ void alignSingleWithRef(const std::string &filename, Reference &ref, const unsig
       std::istringstream lineStream(line);
       std::string        chr, temp;
       unsigned int       pos;
-      unsigned int       methValue;
-      lineStream >> chr >> pos >> temp >> temp >> methValue;
+      unsigned int       mVal, tVal, methValue;
+      lineStream >> chr >> pos >> mVal >> tVal >> methValue;
 
       if (chr != currentChr) {
         binIndex = 0, posIndex = 0;
@@ -123,6 +123,7 @@ void alignSingleWithRef(const std::string &filename, Reference &ref, const unsig
               window.append(-1).notify(fileCounts, chrIndex, binIndex);
             }
             window.append(methValue).notify(fileCounts, chrIndex, binIndex);
+            fileCounts.addReads(mVal, tVal, chrIndex, binIndex);
             increment = true, exit = true;
             lastBinPos = posIndex;
           } else if (pos < ref[chrIndex].positions[binIndex][posIndex])

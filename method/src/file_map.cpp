@@ -111,7 +111,7 @@ void FileMap::exportShannon(const std::string &out, Intervals &intervals) {
     std::cerr << "Error: Could not open file " << out << " for writing." << std::endl;
     return;
   }
-  outStream << "chr\tstart\tend\tshannon";
+  outStream << "chr\tstart\tend\tshannon\tavg";
   outStream << std::endl;
 
   for (unsigned int i = 0; i < intervals.size(); i++) {
@@ -139,7 +139,18 @@ void FileMap::exportShannon(const std::string &out, Intervals &intervals) {
           }
         }
       }
-      outStream << shannon << std::endl;
+      outStream << shannon << "\t";
+      unsigned int m_agg = 0, t_agg = 0;
+      for (const auto &[_, file] : *this) {
+        m_agg += file.chrCounts[i].bins[j].m;
+        std::cout << file.chrCounts[i].bins[j].m << file.chrCounts[i].bins[j].t << std::endl;
+        t_agg += file.chrCounts[i].bins[j].t;
+      }
+      if (t_agg == 0) {
+        outStream << -1.0 << std::endl;
+      } else {
+        outStream << (((double)m_agg) / ((double)t_agg)) << std::endl;
+      }
     }
   }
   outStream.close();
