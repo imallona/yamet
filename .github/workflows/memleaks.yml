@@ -20,13 +20,13 @@ jobs:
       - name: Build
         run: |
           cd method
-          export PREFIX="."
+          export PREFIX="$HOME"
           bash build.sh
 
       - name: Memory leak test
         uses: LazyPanda07/check-memory-leaks@v1.4
         with:
-          path: bin
+          path: $HOME/bin
           name: yamet
           max-threads: 1
           pre-execute: export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:$(pwd)
