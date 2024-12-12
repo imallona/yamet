@@ -2,7 +2,26 @@
 cmake_minimum_required(VERSION 3.15)
 
 # Project name and version
-project(yamet VERSION 0.1.0 LANGUAGES CXX)
+project(yamet VERSION ${PROJECT_VERSION} LANGUAGES CXX)
+
+set(CMAKE_PREFIX_PATH ${CONDA_PREFIX} ${CMAKE_PREFIX_PATH})
+
+# Check for the compiler and its version
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+  if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "11.0")
+    message(FATAL_ERROR "GCC 11.0 or higher is required. Found: ${CMAKE_CXX_COMPILER_VERSION}")
+  endif()
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+  if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "14.0")
+    message(FATAL_ERROR "Clang 14.0 or higher is required. Found: ${CMAKE_CXX_COMPILER_VERSION}")
+  endif()
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
+  if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "14.0")
+    message(FATAL_ERROR "AppleClang 14.0 or higher is required. Found: ${CMAKE_CXX_COMPILER_VERSION}")
+  endif()
+else()
+  message(FATAL_ERROR "Unsupported compiler. This project requires GCC >= 11 or Clang >= 14.")
+endif()
 
 # Set version information
 configure_file(
@@ -19,7 +38,7 @@ find_package(Boost REQUIRED COMPONENTS program_options)
 find_package(ZLIB REQUIRED)
 
 # Add your source files (adjust the paths as needed)
-file(GLOB SOURCES "code/*.cpp")
+file(GLOB SOURCES "src/*.cpp")
 file(GLOB HEADERS "include/*.h")
 
 # Define the executable target
