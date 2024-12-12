@@ -1,0 +1,25 @@
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone
+        id: checkout
+        uses: actions/checkout@v4
+
+      - name: Build
+        run: |
+          cd method
+          export PREFIX="$HOME/.local"
+          bash build.sh
+   
+      - uses: LazyPanda07/check-memory-leaks@1.4
+        with:
+          path: "$HOME/.local/bin"
+          name: yamet
+          pre-execute: "cd test"
+          args: "--tsv" "test_0/in/cell1.bed.gz" "--ref" "test_0/in/ref.bed.gz" "--bed" "test_0/in/regions.bed" "--det-out" "current_test_0.out"
+
