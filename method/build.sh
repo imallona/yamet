@@ -12,10 +12,7 @@ if [ ! -d "$BUILD_DIR" ]; then
 fi
 
 # Run CMake from the parent directory, pointing to the build directory
-cmake -DCMAKE_INSTALL_PREFIX="$PREFIX" \
-      -DCMAKE_BUILD_TYPE=Release \
-      -DPROJECT_VERSION=${PKG_VERSION} \
-      -DCONDA_PREFIX=${CONDA_PREFIX} \
+cmake -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
       -B"$BUILD_DIR" -S"$PWD"
 
 # Build the project
