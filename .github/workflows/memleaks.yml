@@ -26,8 +26,8 @@ jobs:
       - name: Memory leak test
         uses: LazyPanda07/check-memory-leaks@v1.4
         with:
-          path: $HOME/bin
+          path: $HOME/bin/
           name: yamet
           max-threads: 1
           pre-execute: export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:$(pwd)
-          args: --tsv tests/test_0/in/cell1.bed.gz --ref tests/test_0/in/ref.bed.gz --bed tests/test_0/in/regions.bed --det-out current_test_0.out
+          args: --tsv $GITHUB_WORKSPACE/test/test_0/in/cell1.bed.gz --ref $GITHUB_WORKSPACE/test/test_0/in/ref.bed.gz --bed $GITHUB_WORKSPACE/test/test_0/in/regions.bed --det-out current_test_0.out
