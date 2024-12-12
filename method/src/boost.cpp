@@ -6,12 +6,13 @@
 #include <thread>
 
 #include "boost.h"
+#include "version.h"
 
 po::variables_map parseCommandLine(int argc, char **argv) {
   po::variables_map vm;
 
   po::options_description gen("general");
-  gen.add_options()("help,h", "produce help message")(
+  gen.add_options()("help,h", "produce help message")("version", "current version information")(
       "tsv,t", po::value<std::vector<std::string>>()->composing(),
       ".tsv files for different cells")("ref,r", po::value<std::string>(),
                                         "path to tsv.gz file for reference CpG sites")(
@@ -24,13 +25,11 @@ po::variables_map parseCommandLine(int argc, char **argv) {
                     "number of cores used for simultaneously parsing methylation files")(
       "n-threads-per-core",
       po::value<unsigned int>()->default_value(1)->notifier(validate_num_threads_per_core),
-      "number of threads per core used for simultaneously parsing methylation files")(
-      "n-streams", po::value<unsigned int>()->default_value(1)->notifier(validate_num_streams),
-      "number of CUDA streams used for simultaneously calculating methylation entropy");
+      "number of threads per core used for simultaneously parsing methylation files");
 
   po::options_description ver("verbose");
-  ver.add_options()("print-bed", "print parsed regions file")(
-      "print-ref", "print parsed reference file")("print-tsv", "print parsed cell files")(
+  ver.add_options()("print-bed", "print parsed regions file")("print-ref",
+                                                              "print parsed reference file")(
       "print-sampens", po::value<std::string>()->default_value("true")->implicit_value("true"),
       "print computed sample entropies");
 
@@ -44,9 +43,13 @@ po::variables_map parseCommandLine(int argc, char **argv) {
   po::notify(vm);
 
   if (vm.count("help")) {
-    std::cout << "yamet" << std::endl << all << std::endl;
+    std::cout << PROJECT_NAME << std::endl << all << std::endl;
     std::error_code ec(99, std::generic_category());
     throw std::system_error(ec, "Help message displayed");
+  } else if (vm.count("version")) {
+    std::cout << PROJECT_NAME << " version " << PROJECT_VERSION << std::endl;
+    std::error_code ec(199, std::generic_category());
+    throw std::system_error(ec, "Version message displayed");
   }
   return vm;
 }
@@ -87,10 +90,6 @@ unsigned int getNThreadsPerCore(const po::variables_map &vm) {
   return vm["n-threads-per-core"].as<unsigned int>();
 }
 
-unsigned int getNStreams(const po::variables_map &vm) {
-  return vm["n-streams"].as<unsigned int>();
-}
-
 bool printSampens(const po::variables_map &vm) {
   char t = (char)std::tolower(vm["print-sampens"].as<std::string>()[0]);
   if (t == 't' || t == '1') {
@@ -110,13 +109,6 @@ void validate_num_cores(const int cores) {
   } else if (cores > max_cores) {
     throw po::error("Error: 'n-cores' set to " + std::to_string(cores) +
                     " exceeds the maximum number of available cores, " + std::to_string(max_cores));
-  }
-}
-
-void validate_num_streams(const int n_streams) {
-  if (n_streams < 1) {
-    throw po::error("Error: 'n-streams' set to " + std::to_string(n_streams) +
-                    " is invalid. It must be atleast 1");
   }
 }
 
