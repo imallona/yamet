@@ -20,6 +20,7 @@ jobs:
       - name: Build
         run: |
           cd method
+          export PREFIX="$HOME/.local"
           bash build.sh
 
       - name: Test Ref Parsing
