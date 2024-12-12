@@ -11,6 +11,7 @@ std::vector<std::string> getTsvFiles(const po::variables_map &vm);
 std::string              getBed(const po::variables_map &vm);
 std::string              getRef(const po::variables_map &vm);
 std::string              getDetOut(const po::variables_map &vm);
+std::string              getShannonOut(const po::variables_map &vm);
 std::string              getOut(const po::variables_map &vm);
 unsigned int             getNCores(const po::variables_map &vm);
 unsigned int             getNThreadsPerCore(const po::variables_map &vm);

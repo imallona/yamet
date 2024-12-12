@@ -18,6 +18,7 @@ po::variables_map parseCommandLine(int argc, char **argv) {
                                         "path to tsv.gz file for reference CpG sites")(
       "bed,b", po::value<std::string>(), "path to bed file for regions of interest")(
       "det-out,d", po::value<std::string>(), "(optional) path to detailed output file")(
+      "shannon-out,s", po::value<std::string>(), "(optional) path to shannon entropies file")(
       "out,o", po::value<std::string>(), "(optional) path to simple output file");
 
   po::options_description res("resource utilisation");
@@ -68,6 +69,10 @@ std::string getRef(const po::variables_map &vm) {
 
 std::string getDetOut(const po::variables_map &vm) {
   return vm["det-out"].as<std::string>();
+}
+
+std::string getShannonOut(const po::variables_map &vm) {
+  return vm["shannon-out"].as<std::string>();
 }
 
 std::string getOut(const po::variables_map &vm) {
