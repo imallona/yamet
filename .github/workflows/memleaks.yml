@@ -32,26 +32,18 @@ jobs:
           echo 'Permissions'
           cd $PREFIX/bin
           chmod +x yamet
-          ## ls -l yamet
-
-          ## echo 'Path'
-          ## export PATH=$PREFIX/bin:"$PATH"         
-          ## echo $PATH
-
-          ## echo 'Valgrind dummy call'
-          ## valgrind --leak-check=yes ls -la
-          
-          ## echo 'Normal call'
-          ## ./yamet --tsv $GITHUB_WORKSPACE/test/test_0/in/cell1.bed.gz --ref $GITHUB_WORKSPACE/test/test_0/in/ref.bed.gz --bed $GITHUB_WORKSPACE/test/test_0/in/regions.bed --det-out current_test_0.out
           
           echo 'Pre valgrind call'
           
           export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:$(pwd)
           export PATH=$(pwd):$PREFIX/bin:$PATH
-          ## which yamet
-          ## echo $PATH
-          ## pwd
-          ## ls -la
-          
+        
           echo 'Valgrind call'
-          valgrind --leak-check=full ./yamet --tsv $GITHUB_WORKSPACE/test/test_0/in/cell1.bed.gz --ref $GITHUB_WORKSPACE/test/test_0/in/ref.bed.gz --bed $GITHUB_WORKSPACE/test/test_0/in/regions.bed --det-out valgrind_test_0.out
+          valgrind --leak-check=full \
+            --show-leak-kinds=all \
+            --track-origins=yes \
+            --verbose \
+            ./yamet --tsv $GITHUB_WORKSPACE/test/test_0/in/cell1.bed.gz \
+               --ref $GITHUB_WORKSPACE/test/test_0/in/ref.bed.gz \
+               --bed $GITHUB_WORKSPACE/test/test_0/in/regions.bed \
+               --det-out valgrind_test_0.out
