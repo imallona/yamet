@@ -1,0 +1,6 @@
+chr	start	end	shannon	avg
+chrM	1	201	0	1
+chrU	1	201	0	0
+chr1_1	1	201	0.693029	0.338346
+chr3_1	1	201	1.03427	0.603604
+chr_random	1	201	1.38022	0.318519

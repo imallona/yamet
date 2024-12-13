@@ -70,5 +70,9 @@ jobs:
               --bed      test_2/in/regions.bed \
               --det-out  current_test_2.out &> current_test_2.stdout \
               --shannon-out current_test_2_shannon.out
+              
+                        
+          echo 'Diff expected vs produced Shannon'
 
-          cat current_test_2_shannon.out
+          diff test_2/out/shannon.out \
+               current_test_2_shannon.out
