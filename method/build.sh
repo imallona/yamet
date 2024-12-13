@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Set the install prefix (you can modify this to another path if needed)
-INSTALL_PREFIX="$HOME/.local"
+INSTALL_PREFIX="$HOME/.local/yamet"
 
 # Set the build directory (relative to the current working directory)
 BUILD_DIR="build"
