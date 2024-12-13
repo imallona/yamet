@@ -10,14 +10,14 @@
 struct BinCounts {
   std::vector<unsigned int> cm;
   std::vector<unsigned int> cm_1;
-  unsigned long long        A;
-  unsigned long long        B;
-  unsigned int              m;
-  unsigned int              t;
-  double                    sampen;
+  unsigned long long        A        = 0;
+  unsigned long long        B        = 0;
+  unsigned int              m        = 0;
+  unsigned int              t        = 0;
+  double                    avg_meth = -1.0;
+  double                    sampen   = -1.0;
 
-  BinCounts(unsigned int m)
-      : cm(1 << m, 0), cm_1(1 << (m + 1), 0), A(0), B(0), m(0), t(0), sampen(-1.0) {}
+  BinCounts(unsigned int m) : cm(1 << m, 0), cm_1(1 << (m + 1), 0) {}
 };
 
 struct ChrCounts {
@@ -42,13 +42,16 @@ public:
 
 struct File {
   std::vector<ChrCounts> chrCounts;
-  unsigned long long     A;
-  unsigned long long     B;
-  double                 sampen;
+  unsigned long long     A        = 0;
+  unsigned long long     B        = 0;
+  unsigned int           m        = 0;
+  unsigned int           t        = 0;
+  double                 avg_meth = -1.0;
+  double                 sampen   = -1.0;
 
-  File() : A(0), B(0), sampen(-1.0) {}
+  File() {}
 
-  File(std::vector<ChrCounts> &&c) : chrCounts(std::move(c)), A(0), B(0), sampen(-1.0) {}
+  File(std::vector<ChrCounts> &&c) : chrCounts(std::move(c)) {}
 };
 
 using FileMapContainer = std::unordered_map<std::string, File>;
@@ -60,6 +63,5 @@ public:
   void print(std::vector<std::string> filenames);
   void exportDetOut(const std::string &out, const std::vector<std::string> &filenames,
                     Intervals &intervals);
-  void exportShannon(const std::string &out, Intervals &intervals);
   void exportOut(const std::string &out, const std::vector<std::string> &filenames);
 };

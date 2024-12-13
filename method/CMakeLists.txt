@@ -50,4 +50,4 @@ target_include_directories(yamet PUBLIC include ${CMAKE_BINARY_DIR}/config)
 
 # Install target (binary and headers)
 install(TARGETS yamet DESTINATION bin)
-install(DIRECTORY include/ DESTINATION include/yamet)
+install(DIRECTORY include/ DESTINATION include)

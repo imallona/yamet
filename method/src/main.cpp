@@ -41,19 +41,20 @@ int main(int argc, char **argv) {
     }
 
     FileMap fileMap = alignWithRef(filenames, ref, 2, getNCores(vm), getNThreadsPerCore(vm));
-    if (printSampens(vm)) {
-      fileMap.print(filenames);
+
+    if (printSampens(vm) || vm.count("det-out") || vm.count("out")) {
+      fileMap.aggregate();
+      if (printSampens(vm)) {
+        fileMap.print(filenames);
+      }
+      if (vm.count("det-out")) {
+        fileMap.exportDetOut(getDetOut(vm), filenames, intervals);
+      }
+      if (vm.count("out")) {
+        fileMap.exportOut(getOut(vm), filenames);
+      }
     }
 
-    if (vm.count("det-out")) {
-      fileMap.exportDetOut(getDetOut(vm), filenames, intervals);
-    }
-    if (vm.count("shannon-out")) {
-      fileMap.exportShannon(getShannonOut(vm), intervals);
-    }
-    if (vm.count("out")) {
-      fileMap.exportOut(getOut(vm), filenames);
-    }
     return 0;
   } catch (const po::error &e) {
     std::cerr << e.what() << std::endl;

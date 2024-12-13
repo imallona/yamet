@@ -35,10 +35,19 @@ void FileMap::aggregate() {
           file.chrCounts[i].bins[j].sampen =
               log(((double)file.chrCounts[i].bins[j].A) / ((double)file.chrCounts[i].bins[j].B));
         }
+        if (file.chrCounts[i].bins[j].t > 0) {
+          file.m += file.chrCounts[i].bins[j].m;
+          file.t += file.chrCounts[i].bins[j].t;
+          file.chrCounts[i].bins[j].avg_meth =
+              ((double)file.chrCounts[i].bins[j].m) / ((double)file.chrCounts[i].bins[j].t);
+        }
       }
     }
     if (file.A > 0 && file.B > 0) {
       file.sampen = log(((double)file.A) / ((double)file.B));
+    }
+    if (file.t > 0) {
+      file.avg_meth = ((double)file.m) / ((double)file.t);
     }
   }
 }
@@ -62,7 +71,8 @@ void FileMap::print(std::vector<std::string> filenames) {
 }
 
 /**
- * Exports a tab separated file with sample entropies per region for every cell file.
+ * Exports a tab separated file with sample entropies, shannon entropies and average methylation per
+ * region for every cell file.
  *
  * @param out path to tab separated file where detailed sample entropy outputs are to be stored.
  * @param filenames vector of filenames of all cell files.
@@ -80,55 +90,27 @@ void FileMap::exportDetOut(const std::string &out, const std::vector<std::string
   for (const auto &filename : filenames) {
     outStream << "\t" << filename;
   }
-  outStream << std::endl;
-
-  for (unsigned int i = 0; i < intervals.size(); i++) {
-    for (unsigned int j = 0; j < intervals[i].intervals.size(); j++) {
-      /// print the region information
-      outStream << intervals[i].chr << "\t" << intervals[i].intervals[j].start << "\t"
-                << intervals[i].intervals[j].end;
-      /// print sample entropies for all files at that region
-      for (const auto &filename : filenames) {
-        outStream << "\t" << (*this)[filename].chrCounts[i].bins[j].sampen;
-      }
-      outStream << std::endl;
-    }
-  }
-  outStream.close();
-}
-
-/**
- * Exports a tab separated file with shannon entropies binned by template counts considering all
- * cell files per region.
- *
- * @param out path to tab separated file where shannon entropy outputs are to be stored.
- * @param intervals Intervals object with search intervals.
- */
-void FileMap::exportShannon(const std::string &out, Intervals &intervals) {
-  std::ofstream outStream(out);
-
-  if (!outStream.is_open()) {
-    std::cerr << "Error: Could not open file " << out << " for writing." << std::endl;
-    return;
-  }
-  outStream << "chr\tstart\tend\tshannon\tavg";
-  outStream << std::endl;
+  outStream << "\tshannon\tavg_meth" << std::endl;
 
   for (unsigned int i = 0; i < intervals.size(); i++) {
     for (unsigned int j = 0; j < intervals[i].intervals.size(); j++) {
       /// print the region information
       outStream << intervals[i].chr << "\t" << intervals[i].intervals[j].start << "\t"
                 << intervals[i].intervals[j].end << "\t";
-
+      /// print sample entropies for all files at that region
+      unsigned int              total = 0;
       std::vector<unsigned int> shan((*this->begin()).second.chrCounts[0].bins[0].cm.size(), 0);
-      /// print shannon entropies at that region
-      unsigned int total = 0;
-      for (const auto &[_, file] : *this) {
+      unsigned int              m_agg = 0, t_agg = 0;
+      for (const auto &filename : filenames) {
         for (size_t k = 0; k < shan.size(); k++) {
-          shan[k] += file.chrCounts[i].bins[j].cm[k];
-          total += file.chrCounts[i].bins[j].cm[k];
+          shan[k] += (*this)[filename].chrCounts[i].bins[j].cm[k];
+          total += (*this)[filename].chrCounts[i].bins[j].cm[k];
         }
+        m_agg += (*this)[filename].chrCounts[i].bins[j].m;
+        t_agg += (*this)[filename].chrCounts[i].bins[j].t;
+        outStream << (*this)[filename].chrCounts[i].bins[j].sampen << "\t";
       }
+      /// print shannon entropies at that region
       double shannon = -1;
       if (total > 0) {
         shannon = 0;
@@ -140,17 +122,13 @@ void FileMap::exportShannon(const std::string &out, Intervals &intervals) {
         }
       }
       outStream << shannon << "\t";
-      unsigned int m_agg = 0, t_agg = 0;
-      for (const auto &[_, file] : *this) {
-        m_agg += file.chrCounts[i].bins[j].m;
-        std::cout << file.chrCounts[i].bins[j].m << file.chrCounts[i].bins[j].t << std::endl;
-        t_agg += file.chrCounts[i].bins[j].t;
-      }
+      /// print average methylation at that region
       if (t_agg == 0) {
-        outStream << -1.0 << std::endl;
+        outStream << -1.0;
       } else {
-        outStream << (((double)m_agg) / ((double)t_agg)) << std::endl;
+        outStream << (((double)m_agg) / ((double)t_agg));
       }
+      outStream << std::endl;
     }
   }
   outStream.close();
@@ -169,11 +147,11 @@ void FileMap::exportOut(const std::string &out, const std::vector<std::string> &
     std::cerr << "Error: Could not open file " << out << " for writing." << std::endl;
     return;
   }
-  outStream << "file\tvalue" << std::endl;
+  outStream << "file\tsampen\tavg_meth" << std::endl;
 
   /// print aggregated sample entropy for each file
   for (const auto &filename : filenames) {
-    outStream << filename << "\t" << (*this)[filename].sampen;
+    outStream << filename << "\t" << (*this)[filename].sampen << "\t" << (*this)[filename].avg_meth;
     outStream << std::endl;
   }
   outStream.close();

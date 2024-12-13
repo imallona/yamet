@@ -261,7 +261,5 @@ FileMap alignWithRef(const std::vector<std::string> &filenames, Reference &ref,
     }
   }
 
-  fileMap.aggregate();
-
   return fileMap;
 }
