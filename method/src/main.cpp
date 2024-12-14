@@ -16,9 +16,9 @@ int main(int argc, char **argv) {
     Intervals intervals = parseSearch(getBed(vm));
     if (vm.count("print-bed")) {
       std::cout << "--Search Regions------------------" << std::endl << std::endl;
-      for (const auto &[chr, intervals] : intervals) {
+      for (const auto &[chr, chrIntervals] : intervals) {
         std::cout << "Chromosome: " << chr << std::endl;
-        for (const auto &[start, end] : intervals) {
+        for (const auto &[start, end] : chrIntervals) {
           std::cout << "  Start: " << start << ", End: " << end << std::endl;
         }
       }

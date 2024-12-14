@@ -17,14 +17,15 @@ struct BinCounts {
   double                    avg_meth = -1.0;
   double                    sampen   = -1.0;
 
-  BinCounts(unsigned int m) : cm(1 << m, 0), cm_1(1 << (m + 1), 0) {}
+  explicit BinCounts(unsigned int m) : cm(1 << m, 0), cm_1(1 << (m + 1), 0) {}
 };
 
 struct ChrCounts {
   std::string            chr;
   std::vector<BinCounts> bins;
 
-  ChrCounts(std::string c, unsigned int size, unsigned int m) : chr(c), bins(size, BinCounts(m)) {}
+  explicit ChrCounts(std::string c, unsigned int size, unsigned int m)
+      : chr(c), bins(size, BinCounts(m)) {}
 };
 
 class FileCounts {
@@ -32,7 +33,7 @@ private:
   std::vector<ChrCounts> container;
 
 public:
-  explicit FileCounts(Reference &ref, unsigned int m);
+  explicit FileCounts(const Reference &ref, unsigned int m);
 
   void count(std::pair<unsigned int, unsigned int> idx, unsigned int chrIndex,
              unsigned int binIndex);
@@ -51,7 +52,7 @@ struct File {
 
   File() {}
 
-  File(std::vector<ChrCounts> &&c) : chrCounts(std::move(c)) {}
+  explicit File(std::vector<ChrCounts> &&c) : chrCounts(std::move(c)) {}
 };
 
 using FileMapContainer = std::unordered_map<std::string, File>;
@@ -60,8 +61,8 @@ class FileMap : public FileMapContainer {
 public:
   void addFile(const std::string &key, std::vector<ChrCounts> &chrCounts);
   void aggregate();
-  void print(std::vector<std::string> filenames);
+  void print(const std::vector<std::string> &filenames);
   void exportDetOut(const std::string &out, const std::vector<std::string> &filenames,
-                    Intervals &intervals);
+                    const Intervals &intervals);
   void exportOut(const std::string &out, const std::vector<std::string> &filenames);
 };

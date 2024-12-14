@@ -52,9 +52,9 @@ void FileMap::aggregate() {
   }
 }
 
-void FileMap::print(std::vector<std::string> filenames) {
+void FileMap::print(const std::vector<std::string> &filenames) {
   std::cout << "--Sample Entropies------------------" << std::endl << std::endl;
-  for (const auto filename : filenames) {
+  for (const auto &filename : filenames) {
     std::cout << "Filename: " << filename << std::endl;
     std::cout << "  Aggregate: " << (*this)[filename].sampen << std::endl;
     std::cout << "  Detailed:" << std::endl;
@@ -79,7 +79,7 @@ void FileMap::print(std::vector<std::string> filenames) {
  * @param intervals Intervals object with search intervals.
  */
 void FileMap::exportDetOut(const std::string &out, const std::vector<std::string> &filenames,
-                           Intervals &intervals) {
+                           const Intervals &intervals) {
   std::ofstream outStream(out);
 
   if (!outStream.is_open()) {
