@@ -16,7 +16,7 @@
  * @return Reference object which contain the chr information and intervals
  * corresponding to it.
  */
-Reference parseRef(const std::string &filename, Intervals intervals) {
+Reference parseRef(const std::string &filename, const Intervals &intervals) {
   gzFile file = gzopen(filename.c_str(), "rb");
   if (!file) {
     std::cerr << "Failed to open file: " << filename << std::endl;
@@ -27,8 +27,8 @@ Reference parseRef(const std::string &filename, Intervals intervals) {
    * regions are present
    */
   Reference ref;
-  for (const auto &[chr, intervals] : intervals) {
-    ref.emplace_back(chr, intervals.size());
+  for (const auto &[chr, chrIntervals] : intervals) {
+    ref.emplace_back(chr, chrIntervals.size());
   }
 
   /**

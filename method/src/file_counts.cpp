@@ -3,8 +3,8 @@
 #include "chrData.h"
 #include "file_classes.h"
 
-FileCounts::FileCounts(Reference &ref, unsigned int m) {
-  for (const auto chrPositions : ref) {
+FileCounts::FileCounts(const Reference &ref, unsigned int m) {
+  for (const auto &chrPositions : ref) {
     container.emplace_back(chrPositions.chr, chrPositions.positions.size(), m);
   }
 }

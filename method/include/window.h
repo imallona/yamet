@@ -18,5 +18,5 @@ public:
   void    clear();
   size_t  size();
   bool    full();
-  void    notify(FileCounts &fileCounts, unsigned int binIndex, unsigned int ChrIndex);
+  void    notify(FileCounts &fileCounts, unsigned int chrIndex, unsigned int binIndex);
 };

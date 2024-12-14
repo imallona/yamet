@@ -34,7 +34,7 @@
  * @param fileMap[out] FileMap object of key value pairs where the parsed methylation data is stored
  * in a FileMeths object against the filename as key.
  */
-void alignSingleWithRef(const std::string &filename, Reference &ref, const unsigned int m,
+void alignSingleWithRef(const std::string &filename, const Reference &ref, const unsigned int m,
                         FileMap &fileMap) {
   gzFile file = gzopen(filename.c_str(), "rb");
   if (!file) {
@@ -51,7 +51,6 @@ void alignSingleWithRef(const std::string &filename, Reference &ref, const unsig
   // bool          headerSkipped = false;
 
   unsigned int chrIndex = 0, binIndex = 0, posIndex = 0;
-  bool         start      = true;
   std::string  currentChr = "";
   bool         foundChr   = false;
   Window       window(m + 1);
@@ -89,7 +88,7 @@ void alignSingleWithRef(const std::string &filename, Reference &ref, const unsig
       //   continue;
       // }
       std::istringstream lineStream(line);
-      std::string        chr, temp;
+      std::string        chr;
       unsigned int       pos;
       unsigned int       mVal, tVal, methValue;
       lineStream >> chr >> pos >> mVal >> tVal >> methValue;
@@ -201,7 +200,7 @@ void set_thread_affinity(int core_id) {
  * @return FileMap object of key value pairs where the parsed methylation data of every file is
  * stored in a FileMeths object against the filename as key
  */
-FileMap alignWithRef(const std::vector<std::string> &filenames, Reference &ref,
+FileMap alignWithRef(const std::vector<std::string> &filenames, const Reference &ref,
                      const unsigned int m, unsigned int n_cores, unsigned int n_threads_per_core) {
   FileMap fileMap;
   fileMap.reserve(filenames.size());
