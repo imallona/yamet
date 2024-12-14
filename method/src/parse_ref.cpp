@@ -135,5 +135,6 @@ Reference parseRef(const std::string &filename, Intervals intervals) {
       break;
     }
   }
+  gzclose(file);
   return ref;
 }
