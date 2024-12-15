@@ -11,30 +11,74 @@
 po::variables_map parseCommandLine(int argc, char **argv) {
   po::variables_map vm;
 
-  po::options_description gen("general");
-  gen.add_options()("help,h", "produce help message")("version", "current version information")(
-      "tsv,t", po::value<std::vector<std::string>>()->composing(),
-      ".tsv files for different cells")("ref,r", po::value<std::string>(),
-                                        "path to tsv.gz file for reference CpG sites")(
-      "bed,b", po::value<std::string>(), "path to bed file for regions of interest")(
-      "det-out,d", po::value<std::string>(), "(optional) path to detailed output file")(
-      "out,o", po::value<std::string>(), "(optional) path to simple output file");
+  po::options_description inp("input");
+  // clang-format off
+  inp.add_options()
+    ("tsv,t", po::value<std::vector<std::string>>()->composing(), 
+        "tab separated files for different cells in the following format\n"
+        "\n"
+        " 1    5    0    2    0\n"
+        " 1    9    1    1    1\n"
+        " 2    2    3    4    1\n"
+        "\n"
+        "where the columns are the chromosome, position, number of methylated reads, "
+        "total number of reads and the rate respectively")
+    ("ref,r", po::value<std::string>(),
+        "tab separated file for reference sites in the following format\n"
+        "\n"
+        " 1    5     7\n"
+        " 1    7     9\n"
+        " 1    9     11\n"
+        " 1    11    13\n"
+        " 2    2     4\n"
+        " 2    4     6\n"
+        "\n"
+        "where the columns are the chromosome, start position and the end position respectively")
+    ("bed,b", po::value<std::string>(),
+        "path to bed file for regions of interest in the following format\n"
+        "\n"
+        " 1    5     7\n"
+        " 1    10    30\n"
+        " 2    1     6\n"
+        "\n"
+        "where the columns are the chromosome, start position and the end position respectively");
+  // clang-format on
 
-  po::options_description res("resource utilisation");
-  res.add_options()("n-cores", po::value<int>()->default_value(0)->notifier(validate_num_cores),
-                    "number of cores used for simultaneously parsing methylation files")(
-      "n-threads-per-core",
-      po::value<unsigned int>()->default_value(1)->notifier(validate_num_threads_per_core),
-      "number of threads per core used for simultaneously parsing methylation files");
+  po::options_description out("output");
+  // clang-format off
+  out.add_options()
+    ("det-out,d", po::value<std::string>(), "(optional) path to detailed output file")
+    ("out,o", po::value<std::string>(), "(optional) path to simple output file");
+  // clang-format on
 
   po::options_description ver("verbose");
-  ver.add_options()("print-bed", "print parsed regions file")("print-ref",
-                                                              "print parsed reference file")(
-      "print-sampens", po::value<std::string>()->default_value("true")->implicit_value("true"),
-      "print computed sample entropies");
+  // clang-format off
+  ver.add_options()
+    ("print-bed", "print parsed regions file")
+    ("print-ref", "print parsed reference file")
+    ("print-sampens", po::value<std::string>()->default_value("true")->implicit_value("true"),
+        "print computed sample entropies");
+  // clang-format on
+
+  po::options_description res("resource utilisation");
+  // clang-format off
+  res.add_options()
+    ("n-cores", po::value<int>()->default_value(0)->notifier(validate_num_cores),
+        "number of cores used for simultaneously parsing methylation files")
+    ("n-threads-per-core",
+        po::value<unsigned int>()->default_value(1)->notifier(validate_num_threads_per_core),
+        "number of threads per core used for simultaneously parsing methylation files");
+  // clang-format on
+
+  po::options_description mis("misc");
+  // clang-format off
+  mis.add_options()
+    ("help,h", "produce help message")
+    ("version", "current version information");
+  // clang-format on
 
   po::options_description all;
-  all.add(gen).add(res).add(ver);
+  all.add(inp).add(out).add(res).add(ver).add(mis);
 
   po::positional_options_description p;
   p.add("tsv", -1);
