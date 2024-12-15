@@ -51,6 +51,10 @@ jobs:
         id: checkout
         uses: actions/checkout@v4
 
+      - name: Installs
+        run: |
+          sudo apt-get install zlib1g-dev build-essential libboost-program-options-dev libboost-test-dev
+
       - name: Build and test_0
         env:
           CC: ${{ matrix.compiler.c }}
