@@ -5,7 +5,6 @@
 #include <zlib.h>
 
 #include "chrData.h"
-#include "parse_ref.h"
 
 /**
  * Parse a tab separated file of all positions of a reference genome into a nested structure
@@ -137,4 +136,18 @@ Reference parseRef(const std::string &filename, const Intervals &intervals) {
   }
   gzclose(file);
   return ref;
+}
+
+void Reference::print() {
+  std::cout << "--Reference CPGs------------------" << std::endl << std::endl;
+  for (const auto &[chr, positions] : *this) {
+    std::cout << "Chromosome: " << chr << std::endl;
+    for (unsigned int binIndex = 0; binIndex < positions.size(); binIndex++) {
+      std::cout << "  Bin: " << binIndex << std::endl;
+      for (const auto &pos : positions[binIndex]) {
+        std::cout << "    Pos: " << pos << std::endl;
+      }
+    }
+  }
+  std::cout << std::endl;
 }

@@ -4,9 +4,9 @@
 #include "file_classes.h"
 
 FileCounts::FileCounts(const Reference &ref, unsigned int m) {
-  for (const auto &chrPositions : ref) {
+  std::for_each(ref.begin(), ref.end(), [this, m](const auto &chrPositions) {
     container.emplace_back(chrPositions.chr, chrPositions.positions.size(), m);
-  }
+  });
 }
 
 void FileCounts::count(std::pair<unsigned int, unsigned int> idx, unsigned int chrIndex,
