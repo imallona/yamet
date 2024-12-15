@@ -28,7 +28,7 @@ bool Window::full() {
 }
 
 void Window::notify(FileCounts &fileCounts, unsigned int chrIndex, unsigned int binIndex) {
-  if (container.size() < window_size) {
+  if (!full()) {
     return;
   }
 

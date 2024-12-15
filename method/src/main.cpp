@@ -4,8 +4,6 @@
 #include "boost.h"
 #include "chrData.h"
 #include "file_classes.h"
-#include "parse_ref.h"
-#include "parse_search.h"
 
 int main(int argc, char **argv) {
   try {
@@ -15,29 +13,12 @@ int main(int argc, char **argv) {
 
     Intervals intervals = parseSearch(getBed(vm));
     if (vm.count("print-bed")) {
-      std::cout << "--Search Regions------------------" << std::endl << std::endl;
-      for (const auto &[chr, chrIntervals] : intervals) {
-        std::cout << "Chromosome: " << chr << std::endl;
-        for (const auto &[start, end] : chrIntervals) {
-          std::cout << "  Start: " << start << ", End: " << end << std::endl;
-        }
-      }
-      std::cout << std::endl;
+      intervals.print();
     }
 
     Reference ref = parseRef(getRef(vm), intervals);
     if (vm.count("print-ref")) {
-      std::cout << "--Reference CPGs------------------" << std::endl << std::endl;
-      for (const auto &[chr, positions] : ref) {
-        std::cout << "Chromosome: " << chr << std::endl;
-        for (unsigned int binIndex = 0; binIndex < positions.size(); binIndex++) {
-          std::cout << "  Bin: " << binIndex << std::endl;
-          for (const auto &pos : positions[binIndex]) {
-            std::cout << "    Pos: " << pos << std::endl;
-          }
-        }
-      }
-      std::cout << std::endl;
+      ref.print();
     }
 
     FileMap fileMap = alignWithRef(filenames, ref, 2, getNCores(vm), getNThreadsPerCore(vm));

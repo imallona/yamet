@@ -6,7 +6,6 @@
 #include <vector>
 
 #include "chrData.h"
-#include "parse_search.h"
 
 /**
  * Parse a bed file of search intervals into a nested structure to be used for extracting the
@@ -51,4 +50,15 @@ Intervals parseSearch(const std::string &filename) {
 
   bedFile.close();
   return intervals;
+}
+
+void Intervals::print() {
+  std::cout << "--Search Regions------------------" << std::endl << std::endl;
+  for (const auto &[chr, chrIntervals] : *this) {
+    std::cout << "Chromosome: " << chr << std::endl;
+    for (const auto &[start, end] : chrIntervals) {
+      std::cout << "  Start: " << start << ", End: " << end << std::endl;
+    }
+  }
+  std::cout << std::endl;
 }
