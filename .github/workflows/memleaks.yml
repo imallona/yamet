@@ -17,9 +17,8 @@ jobs:
 
       - name: Installs
         run: |
-          sudo apt-get install zlib1g-dev build-essential libboost-system-dev \
-             libboost-thread-dev libboost-program-options-dev libboost-test-dev \
-             valgrind
+          sudo apt-get install zlib1g-dev build-essential \
+            libboost-program-options-dev valgrind
 
       - name: Build and valgrind
         run: |
