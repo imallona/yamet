@@ -37,7 +37,7 @@ jobs:
               --tsv      test_0/in/cell1.bed.gz \
               --ref      test_0/in/ref.bed.gz \
               --bed      test_0/in/regions.bed \
-              --det-out  current_test_0.out
+              --det-out  current_test_0.out \
               --print-sampens F
 
           echo 'Diff expected vs produced'
