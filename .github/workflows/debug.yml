@@ -41,7 +41,7 @@ jobs:
                current_test_0.out || test $? -eq 0 || echo 'Failed as expected'
 
   supported_gpp_should_work:
-    runs-on: self-hosted
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         compiler: [{ cpp: g++-13, c: gcc-13 }]
