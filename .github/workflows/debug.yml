@@ -6,7 +6,7 @@ on:
 
 jobs:
   unsupported_gpp_should_fail:
-    runs-on: self-hosted
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         compiler: [{ cpp: g++-12, c: gcc-12 }]
@@ -15,6 +15,10 @@ jobs:
       - name: Clone
         id: checkout
         uses: actions/checkout@v4
+
+      - name: Installs
+        run: |
+          sudo apt-get install zlib1g-dev build-essential libboost-program-options-dev libboost-test-dev
 
       - name: Build and test_0
         env:
@@ -25,7 +29,7 @@ jobs:
           bash build.sh
 
           cd ../test
-          ~/.local/bin/yamet \
+          ../method/build/yamet \
               --tsv      test_0/in/cell1.bed.gz \
               --ref      test_0/in/ref.bed.gz \
               --bed      test_0/in/regions.bed \
@@ -56,7 +60,7 @@ jobs:
           bash build.sh
 
           cd ../test
-          ~/.local/bin/yamet \
+          ../method/build/yamet \
               --tsv      test_0/in/cell1.bed.gz \
               --ref      test_0/in/ref.bed.gz \
               --bed      test_0/in/regions.bed \

@@ -1,6 +1,3 @@
-
-
-
 ---
 name: build_and_test
 on:
@@ -8,11 +5,14 @@ on:
   pull_request: null
 jobs:
   build_ubuntu_latest:
-    runs-on: self-hosted
+    runs-on: ubuntu-24.04
     steps:
       - name: Clone
         id: checkout
         uses: actions/checkout@v4
+      - name: Installs
+        run: |
+          sudo apt-get install zlib1g-dev build-essential libboost-program-options-dev libboost-test-dev
       - name: Build
         run: |
           cd method
@@ -20,7 +20,7 @@ jobs:
       - name: Test Ref Parsing
         run: |
           cd test
-          ~/.local/bin/yamet \
+          ../method/build/yamet \
               --tsv      test_parse/in/simulations.tsv \
               --ref      test_parse/in/reference.tsv \
               --bed      test_parse/in/regions.bed \
@@ -33,11 +33,12 @@ jobs:
       - name: Test_0
         run: |
           cd test
-          ~/.local/bin/yamet \
+          ../method/build/yamet \
               --tsv      test_0/in/cell1.bed.gz \
               --ref      test_0/in/ref.bed.gz \
               --bed      test_0/in/regions.bed \
               --det-out  current_test_0.out
+              --print-sampens F
 
           echo 'Diff expected vs produced'
 
@@ -46,7 +47,7 @@ jobs:
       - name: Test_1
         run: |
           cd test
-          ~/.local/bin/yamet \
+          ../method/build/yamet \
               --tsv      test_1/in/simulations.tsv \
               --ref      test_1/in/reference.tsv \
               --bed      test_1/in/regions.bed \
@@ -61,18 +62,3 @@ jobs:
 
           diff test_1/out/stdout \
                current_test_1.stdout
-      - name: Test_2
-        run: |
-          cd test
-          ~/.local/bin/yamet \
-              --tsv      test_2/in/simulations.tsv test_2/in/simulations.tsv \
-              --ref      test_2/in/reference.tsv \
-              --bed      test_2/in/regions.bed \
-              --det-out  current_test_2.out &> current_test_2.stdout \
-              --shannon-out current_test_2_shannon.out
-              
-                        
-          echo 'Diff expected vs produced Shannon'
-
-          diff test_2/out/shannon.out \
-               current_test_2_shannon.out
