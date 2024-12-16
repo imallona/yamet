@@ -21,6 +21,7 @@ jobs:
           VERSION=$(echo ${{ github.ref_name }} | sed 's/^v//; s/-.*$//')
           cmake -S. \
             -Bbuild \
+            -DZLIB_ROOT="/opt/homebrew/opt/zlib" \
             -DVERSION=$VERSION \
             -DCMAKE_INSTALL_PREFIX=install \
             -DCMAKE_BUILD_TYPE=Release
