@@ -32,9 +32,9 @@ jobs:
         run: |
           ls method/install
           ls LICENSE
-          tar -czvf yamet-${{ github.ref_name }}.tar.gz LICENSE -C method/install .
+          tar -czvf yamet-${{ github.ref_name }}-MacOSX-arm64.tar.gz LICENSE -C method/install .
 
       - name: Create GitHub Release and upload tarball
         uses: softprops/action-gh-release@v2
         with:
-          files: yamet-${{ github.ref_name }}.tar.gz
+          files: yamet-${{ github.ref_name }}-MacOSX-arm64.tar.gz
