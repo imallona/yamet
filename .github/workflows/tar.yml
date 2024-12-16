@@ -18,10 +18,10 @@ jobs:
       - name: Build
         run: |
           cd method
-          VERSION=$(echo ${{ github.ref_name }} | sed 's/^v//')
+          VERSION=$(echo ${{ github.ref_name }} | sed 's/^v//; s/-.*$//')
           cmake -S. \
             -Bbuild \
-            -DVERSION=$VERSION
+            -DVERSION=$VERSION \
             -DCMAKE_INSTALL_PREFIX=install \
             -DCMAKE_BUILD_TYPE=Release
           cmake --build build --config Release
