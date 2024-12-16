@@ -1,3 +1,4 @@
+#include <cerrno>
 #include <fstream>
 #include <iostream>
 #include <list>
@@ -6,7 +7,6 @@
 #include <vector>
 
 #include "chrData.h"
-#include "parse_search.h"
 
 /**
  * Parse a bed file of search intervals into a nested structure to be used for extracting the
@@ -19,7 +19,7 @@
 Intervals parseSearch(const std::string &filename) {
   std::ifstream bedFile(filename);
   if (!bedFile.is_open()) {
-    std::cerr << "Error: Could not open file " << filename << std::endl;
+    throw std::system_error(errno, std::generic_category(), "Opening " + filename);
   }
 
   Intervals intervals;
@@ -51,4 +51,15 @@ Intervals parseSearch(const std::string &filename) {
 
   bedFile.close();
   return intervals;
+}
+
+void Intervals::print() {
+  std::cout << "--Search Regions------------------" << std::endl << std::endl;
+  for (const auto &[chr, chrIntervals] : *this) {
+    std::cout << "Chromosome: " << chr << std::endl;
+    for (const auto &[start, end] : chrIntervals) {
+      std::cout << "  Start: " << start << ", End: " << end << std::endl;
+    }
+  }
+  std::cout << std::endl;
 }

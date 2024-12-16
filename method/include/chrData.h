@@ -17,7 +17,14 @@ struct ChrIntervals {
   ChrIntervals(const std::string &c, const std::vector<Interval> &i) : chr(c), intervals(i) {}
 };
 
-using Intervals = std::vector<ChrIntervals>;
+using IntervalsContainer = std::vector<ChrIntervals>;
+
+class Intervals : public IntervalsContainer {
+public:
+  void print();
+};
+
+Intervals parseSearch(const std::string &filename);
 
 struct ChrPositions {
   std::string                            chr;
@@ -29,4 +36,11 @@ struct ChrPositions {
   ChrPositions(const std::string &c, size_t size) : chr(c), positions(size) {}
 };
 
-using Reference = std::vector<ChrPositions>;
+using ReferenceContainer = std::vector<ChrPositions>;
+
+class Reference : public ReferenceContainer {
+public:
+  void print();
+};
+
+Reference parseRef(const std::string &filename, const Intervals &intervals);

@@ -1,3 +1,4 @@
+#include <cerrno>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -5,7 +6,6 @@
 #include <zlib.h>
 
 #include "chrData.h"
-#include "parse_ref.h"
 
 /**
  * Parse a tab separated file of all positions of a reference genome into a nested structure
@@ -16,10 +16,10 @@
  * @return Reference object which contain the chr information and intervals
  * corresponding to it.
  */
-Reference parseRef(const std::string &filename, Intervals intervals) {
+Reference parseRef(const std::string &filename, const Intervals &intervals) {
   gzFile file = gzopen(filename.c_str(), "rb");
   if (!file) {
-    std::cerr << "Failed to open file: " << filename << std::endl;
+    throw std::system_error(errno, std::generic_category(), "Opening " + filename);
   }
 
   /**
@@ -27,8 +27,8 @@ Reference parseRef(const std::string &filename, Intervals intervals) {
    * regions are present
    */
   Reference ref;
-  for (const auto &[chr, intervals] : intervals) {
-    ref.emplace_back(chr, intervals.size());
+  for (const auto &[chr, chrIntervals] : intervals) {
+    ref.emplace_back(chr, chrIntervals.size());
   }
 
   /**
@@ -54,8 +54,8 @@ Reference parseRef(const std::string &filename, Intervals intervals) {
     int bytesRead = gzread(file, buffer, bufferSize - 1);
 
     if (bytesRead < 0) {
-      std::cerr << "Error reading gzip file" << std::endl;
       gzclose(file);
+      throw std::system_error(errno, std::generic_category(), filename);
     }
 
     buffer[bytesRead] = '\0';
@@ -135,5 +135,20 @@ Reference parseRef(const std::string &filename, Intervals intervals) {
       break;
     }
   }
+  gzclose(file);
   return ref;
+}
+
+void Reference::print() {
+  std::cout << "--Reference CPGs------------------" << std::endl << std::endl;
+  for (const auto &[chr, positions] : *this) {
+    std::cout << "Chromosome: " << chr << std::endl;
+    for (unsigned int binIndex = 0; binIndex < positions.size(); binIndex++) {
+      std::cout << "  Bin: " << binIndex << std::endl;
+      for (const auto &pos : positions[binIndex]) {
+        std::cout << "    Pos: " << pos << std::endl;
+      }
+    }
+  }
+  std::cout << std::endl;
 }

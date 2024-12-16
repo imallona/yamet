@@ -1,0 +1,22 @@
+name: cppcheck-annotations
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: cppcheck-test
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v2
+          
+      - name: cppcheck
+        uses: deep5050/cppcheck-action@main
+        with:
+          output_file: cppcheck_report.txt
+          other_options: --bug-hunting --verbose
+
+      - name: show cppcheck report
+        run: |
+          cat cppcheck_report.txt
