@@ -2,7 +2,12 @@
 cmake_minimum_required(VERSION 3.15)
 
 # Project name and version
-project(yamet VERSION 0.1.0 LANGUAGES CXX)
+project(yamet VERSION 0.0.0 LANGUAGES CXX)
+
+# Allow overriding the version from the command line
+if(DEFINED VERSION)
+  project(yamet VERSION ${VERSION} LANGUAGES CXX)
+endif()
 
 # Check for the compiler and its version
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
