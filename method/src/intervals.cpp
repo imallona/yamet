@@ -1,3 +1,4 @@
+#include <cerrno>
 #include <fstream>
 #include <iostream>
 #include <list>
@@ -18,7 +19,7 @@
 Intervals parseSearch(const std::string &filename) {
   std::ifstream bedFile(filename);
   if (!bedFile.is_open()) {
-    std::cerr << "Error: Could not open file " << filename << std::endl;
+    throw std::system_error(errno, std::generic_category(), "Opening " + filename);
   }
 
   Intervals intervals;

@@ -1,4 +1,5 @@
 #include <atomic>
+#include <cerrno>
 #include <condition_variable>
 #include <iostream>
 #include <mutex>
@@ -38,7 +39,7 @@ void alignSingleWithRef(const std::string &filename, const Reference &ref, const
                         FileMap &fileMap) {
   gzFile file = gzopen(filename.c_str(), "rb");
   if (!file) {
-    std::cerr << "Failed to open file: " << filename << std::endl;
+    throw std::system_error(errno, std::generic_category(), "Opening " + filename);
   }
 
   /**
@@ -66,8 +67,8 @@ void alignSingleWithRef(const std::string &filename, const Reference &ref, const
     int bytesRead = gzread(file, buffer, bufferSize - 1);
 
     if (bytesRead < 0) {
-      std::cerr << "Error reading gzip file" << std::endl;
       gzclose(file);
+      throw std::system_error(errno, std::generic_category(), filename);
     }
 
     buffer[bytesRead] = '\0';
@@ -92,6 +93,13 @@ void alignSingleWithRef(const std::string &filename, const Reference &ref, const
       unsigned int       pos;
       unsigned int       mVal, tVal, methValue;
       lineStream >> chr >> pos >> mVal >> tVal >> methValue;
+
+      if (mVal > tVal) {
+        throw std::system_error(
+            5, std::generic_category(),
+            "in line\n\n\t\033[33m" + line + "\033[0m\n\nof file " + filename +
+                ". Total number of reads must exceed number of methylated reads.");
+      }
 
       if (chr != currentChr) {
         binIndex = 0, posIndex = 0;
@@ -207,8 +215,10 @@ FileMap alignWithRef(const std::vector<std::string> &filenames, const Reference 
 
   std::vector<std::thread> threads;
   std::atomic<bool>        done(false);
+  std::atomic<bool>        exceptionOccurred(false);
   std::mutex               queueMutex;
   std::condition_variable  cv;
+  std::exception_ptr       threadException;
 
   std::queue<std::string> taskQueue;
   for (const auto &filename : filenames) {
@@ -217,31 +227,40 @@ FileMap alignWithRef(const std::vector<std::string> &filenames, const Reference 
 
   for (unsigned i = 0; i < n_cores * n_threads_per_core; ++i) {
     threads.emplace_back([&, i] {
-      // Set thread affinity
-      set_thread_affinity(i / n_threads_per_core);
+      try {
+        // Set thread affinity
+        set_thread_affinity(i / n_threads_per_core);
 
-      // Process tasks
-      while (true) {
-        std::string filename;
-
-        // Fetch task
-        {
-          std::unique_lock<std::mutex> lock(queueMutex);
-          cv.wait(lock, [&]() { return done || !taskQueue.empty(); });
-
-          if (taskQueue.empty()) {
-            return; // Exit thread if no tasks remain
+        // Process tasks
+        while (true) {
+          if (exceptionOccurred.load()) {
+            return;
           }
 
-          filename = taskQueue.front();
-          taskQueue.pop();
+          std::string filename;
+
+          // Fetch task
+          {
+            std::unique_lock<std::mutex> lock(queueMutex);
+            cv.wait(lock, [&]() { return done || !taskQueue.empty(); });
+
+            if (taskQueue.empty()) {
+              return; // Exit thread if no tasks remain
+            }
+
+            filename = taskQueue.front();
+            taskQueue.pop();
+          }
+
+          // Process task
+          alignSingleWithRef(filename, ref, m, fileMap);
+
+          // Notify waiting threads
+          cv.notify_all();
         }
-
-        // Process task
-        alignSingleWithRef(filename, ref, m, fileMap);
-
-        // Notify waiting threads
-        cv.notify_all();
+      } catch (...) {
+        exceptionOccurred.store(true);
+        threadException = std::current_exception();
       }
     });
   }
@@ -258,6 +277,10 @@ FileMap alignWithRef(const std::vector<std::string> &filenames, const Reference 
     if (t.joinable()) {
       t.join();
     }
+  }
+
+  if (exceptionOccurred.load() && threadException) {
+    std::rethrow_exception(threadException);
   }
 
   return fileMap;

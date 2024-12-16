@@ -1,3 +1,4 @@
+#include <cerrno>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -18,7 +19,7 @@
 Reference parseRef(const std::string &filename, const Intervals &intervals) {
   gzFile file = gzopen(filename.c_str(), "rb");
   if (!file) {
-    std::cerr << "Failed to open file: " << filename << std::endl;
+    throw std::system_error(errno, std::generic_category(), "Opening " + filename);
   }
 
   /**
@@ -53,8 +54,8 @@ Reference parseRef(const std::string &filename, const Intervals &intervals) {
     int bytesRead = gzread(file, buffer, bufferSize - 1);
 
     if (bytesRead < 0) {
-      std::cerr << "Error reading gzip file" << std::endl;
       gzclose(file);
+      throw std::system_error(errno, std::generic_category(), filename);
     }
 
     buffer[bytesRead] = '\0';
