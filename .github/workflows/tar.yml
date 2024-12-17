@@ -18,23 +18,46 @@ jobs:
       - name: Build
         run: |
           cd method
-          VERSION=$(echo ${{ github.ref_name }} | sed 's/^v//; s/-.*$//')
           cmake -S. \
             -Bbuild \
             -DZLIB_ROOT="/opt/homebrew/opt/zlib" \
-            -DVERSION=$VERSION \
+            -DVERSION=${{ github.ref_name }} \
             -DCMAKE_INSTALL_PREFIX=install \
+            -DCPACK_GENERATOR=TGZ \
+            -DCPACK_PACKAGING_INSTALL_PREFIX=/ \
             -DCMAKE_BUILD_TYPE=Release
           cmake --build build --config Release
-          cmake --install build
-
-      - name: Tar
-        run: |
-          ls method/install
-          ls LICENSE
-          tar -czvf yamet-${{ github.ref_name }}-MacOSX-arm64.tar.gz LICENSE -C method/install .
+          cpack --config build/CPackConfig.cmake --verbose
 
       - name: Create GitHub Release and upload tarball
         uses: softprops/action-gh-release@v2
         with:
-          files: yamet-${{ github.ref_name }}-MacOSX-arm64.tar.gz
+          files: method/yamet-${{ github.ref_name }}-*-*.tar.gz
+
+  build-linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: sudo apt update && sudo apt install -y libboost-program-options-dev zlib1g-dev
+
+      - name: Build
+        run: |
+          cd method
+          cmake -S. \
+            -Bbuild \
+            -DZLIB_ROOT="/usr/include" \
+            -DVERSION=${{ github.ref_name }} \
+            -DCMAKE_INSTALL_PREFIX=install \
+            -DCPACK_GENERATOR=DEB \
+            -DCPACK_PACKAGING_INSTALL_PREFIX=/usr \
+            -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --config Release
+          cpack --config build/CPackConfig.cmake --verbose
+
+      - name: Create GitHub Release and upload tarball
+        uses: softprops/action-gh-release@v2
+        with:
+          files: method/yamet-${{ github.ref_name }}-Linux-*.deb
