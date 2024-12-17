@@ -6,7 +6,8 @@ project(yamet VERSION 0.0.0 LANGUAGES CXX)
 
 # Allow overriding the version from the command line
 if(DEFINED VERSION)
-  project(yamet VERSION ${VERSION} LANGUAGES CXX)
+  string(REGEX REPLACE "^v([0-9]+\\.[0-9]+\\.[0-9]+).*" "\\1" CLEANED_VERSION ${VERSION})
+  project(yamet VERSION ${CLEANED_VERSION} LANGUAGES CXX)
 endif()
 
 # Check for the compiler and its version
@@ -56,3 +57,23 @@ target_include_directories(yamet PUBLIC include ${CMAKE_BINARY_DIR}/config)
 # Install target (binary and headers)
 install(TARGETS yamet DESTINATION bin)
 install(DIRECTORY include/ DESTINATION include)
+
+# General package metadata
+set(CPACK_PACKAGE_NAME ${PROJECT_NAME})
+set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Yet Another Methylation Entropy Tool")
+set(CPACK_PACKAGE_VENDOR "Atreya Choudhury")
+set(CPACK_PACKAGE_CONTACT "atreyachoudhury@hotmail.com")
+set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/imallona/yamet")
+set(CPACK_PACKAGE_LICENSE "GPL-3.0-only")
+
+# Debian-specific metadata
+set(CPACK_DEBIAN_PACKAGE_DEPENDS "zlib1g-dev (>= 1.2.0), libboost-program-options-dev (>= 1.70.0)")
+set(CPACK_DEBIAN_PACKAGE_SECTION "utils")
+set(CPACK_DEBIAN_ARCHITECTURE ${CMAKE_SYSTEM_PROCESSOR})
+
+# Optional: Specify the package output file name
+set(CPACK_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}-${VERSION}-${CMAKE_SYSTEM_NAME}-${CPACK_DEBIAN_ARCHITECTURE}")
+
+# Add CPack configuration for packaging
+include(CPack)
