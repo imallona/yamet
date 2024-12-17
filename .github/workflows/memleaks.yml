@@ -1,0 +1,48 @@
+name: memleaks
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+env:
+  PREFIX: $HOME/build/
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Clone
+        id: checkout
+        uses: actions/checkout@v4
+
+      - name: Installs
+        run: |
+          sudo apt-get install zlib1g-dev build-essential \
+            libboost-program-options-dev valgrind
+
+      - name: Build and valgrind
+        run: |
+          mkdir -p $PREFIX
+          cd method
+          ## export PREFIX=$PREFIX # ???
+          bash build.sh
+          ## ls -lR $PREFIX
+
+          ## echo 'Permissions'
+          ## cd $PREFIX/bin
+          ## chmod +x yamet
+
+          echo 'Pre valgrind call'
+
+          export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:$(pwd)
+          export PATH=$(pwd):$PREFIX/bin:$PATH
+
+          echo 'Valgrind call'
+          valgrind --leak-check=full \
+            --show-leak-kinds=all \
+            --track-origins=yes \
+            --verbose \
+            ./build/yamet --tsv $GITHUB_WORKSPACE/test/test_0/in/cell1.bed.gz \
+               --ref $GITHUB_WORKSPACE/test/test_0/in/ref.bed.gz \
+               --bed $GITHUB_WORKSPACE/test/test_0/in/regions.bed \
+               --det-out valgrind_test_0.out

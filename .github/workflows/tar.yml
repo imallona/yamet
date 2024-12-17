@@ -1,0 +1,34 @@
+name: Cross-Platform Build
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: brew install boost
+
+      - name: Build
+        run: |
+          cd method
+          cmake -Bbuild -DCMAKE_INSTALL_PREFIX=install -DCMAKE_BUILD_TYPE=Release -S.
+          cmake --build build --config Release
+          cmake --install build
+
+      - name: Tar
+        run: |
+          ls method/install
+          ls LICENSE
+          tar -czvf yamet-${{ github.ref_name }}.tar.gz LICENSE -C method/install .
+
+      - name: Create GitHub Release and upload tarball
+        uses: softprops/action-gh-release@v2
+        with:
+          files: yamet-${{ github.ref_name }}.tar.gz

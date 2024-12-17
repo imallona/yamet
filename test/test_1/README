@@ -1,1 +1,1 @@
-Simulated data from `generate_test_inputs.R`.
+Simulated data from `generate_test_inputs.R`. Aims to check whether sample entropy, Shannon entropy and methylation avg calculations work.

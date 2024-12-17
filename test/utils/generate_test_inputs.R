@@ -43,11 +43,16 @@ regions <- data.frame(chr = unique(ref$chr),
                       start = min(ref$start),
                       end = max(ref$end) + 1)
 
-## we are not filling the 'methylated reads' and 'unmethylated reads' columns but will fill them with zeroes
-collapsed$placeholder <- 0
+## num methylated reads
+collapsed$methylated <- collapsed$beta
+
+## total num reads
+collapsed$total <- ifelse(collapsed$beta == 0, yes = 2, no = 1)
+
+stopifnot(all(collapsed$beta == collapsed$methylated/collapsed$total))
 
 ## and add sparsity by eliminating every nineth element of the simulated data
-collapsed <- collapsed[1:nrow(collapsed) %% 9 != 0, c('chr', 'start', 'placeholder', 'placeholder', 'beta')]
+collapsed <- collapsed[1:nrow(collapsed) %% 9 != 0, c('chr', 'start', 'methylated', 'total', 'beta')]
 
 ## write outputs
 write.table(regions, file = 'regions.bed', quote = FALSE, row.names = FALSE, col.names = FALSE, sep = " ")
