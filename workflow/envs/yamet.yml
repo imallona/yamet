@@ -7,3 +7,4 @@ dependencies:
   - conda-forge::wget
   - bioconda::bedtools
   - conda-forge::pandas
+  - bioconda::entrez-direct

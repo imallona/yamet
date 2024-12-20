@@ -19,6 +19,7 @@ rule all:
         # op.join('ecker_data', 'downloaded.flag'), ## this is to download Ecker's cytosine reports
         op.join('annotation', 'mm10', 'done.flag'), ## this to download regions for Ecker's
         op.join('ecker_data', 'harmonized_ecker_metadata.tsv.gz') ## this to download Ecker's metadata
+        # op.join('crc_data', 'crc_done.flag') # this to download CRC cytosine reports
         # expand(op.join('shuffled', '{seed}', '{annotation}.bed.gz'),
                # seed = [1,2],
                # annotation = ['transcripts', 'promoters'])
@@ -221,6 +222,24 @@ rule run_yamet:
         echo 'not implemented but slice_eckers_metadata(column, value) is key'
         """
 
+rule download_crc:
+    conda:
+        op.join("envs", "yamet.yml")
+    output:
+        crc = op.join('crc_data', 'crc_done.flag')
+    params:
+        crc_path = 'crc_data'
+    message:
+        """
+        CRC download
+        """
+    shell:
+        """
+        mkdir -p {params.crc_path}
+        bash src/get_crc_meth_files.sh
+        mv crc_done.flag {params.crc_path}
+        mv G*singleC.txt.gz {params.crc_path} 
+        """
 
 # ## data download - pending stuff
 
