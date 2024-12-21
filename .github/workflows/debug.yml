@@ -18,7 +18,7 @@ jobs:
 
       - name: Installs
         run: |
-          sudo apt-get install zlib1g-dev build-essential libboost-program-options-dev libboost-test-dev
+          sudo apt update && sudo apt install -y libboost-program-options-dev zlib1g-dev
 
       - name: Build and test_0
         env:
@@ -30,15 +30,15 @@ jobs:
 
           cd ../test
           ../method/build/yamet \
-              --tsv      test_0/in/cell1.bed.gz \
-              --ref      test_0/in/ref.bed.gz \
-              --bed      test_0/in/regions.bed \
+              test_0/in/cell1.bed.gz \
+              -r test_0/in/ref.bed.gz \
+              -i test_0/in/regions.bed \
               --det-out  current_test_0.out
 
           echo 'Diff expected vs produced'
 
           diff test_0/out/detailed.out \
-               current_test_0.out || test $? -eq 0 || echo 'Failed as expected'
+              current_test_0.out || test $? -eq 0 || echo 'Failed as expected'
 
   supported_gpp_should_work:
     runs-on: ubuntu-24.04
@@ -53,7 +53,7 @@ jobs:
 
       - name: Installs
         run: |
-          sudo apt-get install zlib1g-dev build-essential libboost-program-options-dev libboost-test-dev
+          sudo apt update && sudo apt install -y libboost-program-options-dev zlib1g-dev
 
       - name: Build and test_0
         env:
@@ -65,12 +65,12 @@ jobs:
 
           cd ../test
           ../method/build/yamet \
-              --tsv      test_0/in/cell1.bed.gz \
-              --ref      test_0/in/ref.bed.gz \
-              --bed      test_0/in/regions.bed \
+              test_0/in/cell1.bed.gz \
+              -r test_0/in/ref.bed.gz \
+              -i test_0/in/regions.bed \
               --det-out  current_test_0.out
 
           echo 'Diff expected vs produced'
 
           diff test_0/out/detailed.out \
-               current_test_0.out
+              current_test_0.out

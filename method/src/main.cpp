@@ -11,19 +11,19 @@ int main(int argc, char **argv) {
   try {
     auto vm = parseCommandLine(argc, argv);
 
-    std::vector<std::string> filenames = getTsvFiles(vm);
+    std::vector<std::string> filenames = getCellFiles(vm);
 
-    Intervals intervals = parseSearch(getBed(vm));
-    if (vm.count("print-bed")) {
+    Intervals intervals = parseSearch(getIntervals(vm));
+    if (vm.count("print-intervals")) {
       intervals.print();
     }
 
     Reference ref = parseRef(getRef(vm), intervals);
-    if (vm.count("print-ref")) {
+    if (vm.count("print-reference")) {
       ref.print();
     }
 
-    FileMap fileMap = alignWithRef(filenames, ref, 2, getNCores(vm), getNThreadsPerCore(vm));
+    FileMap fileMap = alignWithRef(filenames, ref, 2, getCores(vm), getThreadsPerCore(vm));
 
     if (printSampens(vm) || vm.count("det-out") || vm.count("out")) {
       fileMap.aggregate();

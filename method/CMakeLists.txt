@@ -4,6 +4,10 @@ cmake_minimum_required(VERSION 3.15)
 # Project name and version
 project(yamet VERSION 0.0.0 LANGUAGES CXX)
 
+# Set C++ standard
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 # Allow overriding the version from the command line
 if(DEFINED VERSION)
   string(REGEX REPLACE "^v([0-9]+\\.[0-9]+\\.[0-9]+).*" "\\1" CLEANED_VERSION ${VERSION})
@@ -26,16 +30,6 @@ elseif(CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
 else()
   message(FATAL_ERROR "Unsupported compiler. This project requires GCC >= 8, Clang >= 8 or AppleClang >= 8")
 endif()
-
-# Set version information
-configure_file(
-  ${CMAKE_SOURCE_DIR}/config/version.h.in
-  ${CMAKE_BINARY_DIR}/config/version.h
-)
-
-# Set C++ standard
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Find Boost Program Options and zlib
 find_package(Boost REQUIRED COMPONENTS program_options)
@@ -73,7 +67,13 @@ set(CPACK_DEBIAN_PACKAGE_SECTION "utils")
 set(CPACK_DEBIAN_ARCHITECTURE ${CMAKE_SYSTEM_PROCESSOR})
 
 # Optional: Specify the package output file name
-set(CPACK_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}-${VERSION}-${CMAKE_SYSTEM_NAME}-${CPACK_DEBIAN_ARCHITECTURE}")
+set(CPACK_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}-${CMAKE_SYSTEM_NAME}-${CPACK_DEBIAN_ARCHITECTURE}-${VERSION}")
+
+# Set version information
+configure_file(
+  ${CMAKE_SOURCE_DIR}/config/version.h.in
+  ${CMAKE_BINARY_DIR}/config/version.h
+)
 
 # Add CPack configuration for packaging
 include(CPack)
