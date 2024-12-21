@@ -12,7 +12,7 @@ jobs:
         uses: actions/checkout@v4
       - name: Installs
         run: |
-          sudo apt-get install zlib1g-dev build-essential libboost-program-options-dev libboost-test-dev
+          sudo apt update && sudo apt install -y libboost-program-options-dev zlib1g-dev
       - name: Build
         run: |
           cd method
@@ -21,44 +21,45 @@ jobs:
         run: |
           cd test
           ../method/build/yamet \
-              --tsv      test_parse/in/simulations.tsv \
-              --ref      test_parse/in/reference.tsv \
-              --bed      test_parse/in/regions.bed \
-              --print-ref --print-sampens F &> current_test_parse.stdout
+              test_parse/in/simulations.tsv \
+              -r test_parse/in/reference.tsv \
+              -i test_parse/in/regions.bed \
+              --print-reference \
+              --print-sampens F &> current_test_parse.stdout
 
           echo 'Diff expected vs produced stdout'
 
           diff test_parse/out/stdout \
-               current_test_parse.stdout
+              current_test_parse.stdout
       - name: Test_0
         run: |
           cd test
           ../method/build/yamet \
-              --tsv      test_0/in/cell1.bed.gz \
-              --ref      test_0/in/ref.bed.gz \
-              --bed      test_0/in/regions.bed \
-              --det-out  current_test_0.out \
-              --print-sampens F
+              test_0/in/cell1.bed.gz \
+              -r test_0/in/ref.bed.gz \
+              -i test_0/in/regions.bed \
+              --print-sampens F \
+              --det-out current_test_0.out
 
           echo 'Diff expected vs produced'
 
           diff test_0/out/detailed.out \
-               current_test_0.out
+              current_test_0.out
       - name: Test_1
         run: |
           cd test
           ../method/build/yamet \
-              --tsv      test_1/in/simulations.tsv \
-              --ref      test_1/in/reference.tsv \
-              --bed      test_1/in/regions.bed \
-              --det-out  current_test_1.out &> current_test_1.stdout
+              test_1/in/simulations.tsv \
+              -r test_1/in/reference.tsv \
+              -i test_1/in/regions.bed \
+              --det-out current_test_1.out &> current_test_1.stdout
 
           echo 'Diff expected vs produced detailed output'
 
           diff test_1/out/detailed.out \
-               current_test_1.out
+              current_test_1.out
 
           echo 'Diff expected vs produced stdout'
 
           diff test_1/out/stdout \
-               current_test_1.stdout
+              current_test_1.stdout
