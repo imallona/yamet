@@ -32,7 +32,7 @@ jobs:
       - name: Create GitHub Release and upload tarball
         uses: softprops/action-gh-release@v2
         with:
-          files: method/yamet-${{ github.ref_name }}-*-*.tar.gz
+          files: method/yamet-*.tar.gz
 
   build-linux:
     runs-on: ubuntu-24.04
@@ -60,4 +60,4 @@ jobs:
       - name: Create GitHub Release and upload tarball
         uses: softprops/action-gh-release@v2
         with:
-          files: method/yamet-${{ github.ref_name }}-Linux-*.deb
+          files: method/yamet-*.deb
