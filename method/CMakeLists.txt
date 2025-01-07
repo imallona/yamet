@@ -1,5 +1,5 @@
 # Minimum required CMake version
-cmake_minimum_required(VERSION 3.15)
+cmake_minimum_required(VERSION 3.30)
 
 # Project name and version
 project(yamet VERSION 0.0.0 LANGUAGES CXX)
