@@ -96,7 +96,7 @@ void alignSingleWithRef(const std::string &filename, const Reference &ref, const
 
       if (mVal > tVal) {
         throw std::system_error(
-            5, std::generic_category(),
+            EIO, std::generic_category(),
             "in line\n\n\t\033[33m" + line + "\033[0m\n\nof file " + filename +
                 ". Total number of reads must exceed number of methylated reads.");
       }

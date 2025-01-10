@@ -1,4 +1,5 @@
 #include <boost/program_options.hpp>
+#include <cerrno>
 #include <cmath>
 #include <iostream>
 #include <stdexcept>
@@ -88,30 +89,33 @@ po::variables_map parseCommandLine(int argc, char **argv) {
 
   if (vm.count("help") || argc == 1) {
     std::cout << PROJECT_NAME << std::endl << all << std::endl;
-    throw std::system_error(99, std::generic_category(), "Help message displayed");
+    throw std::system_error(ECANCELED, std::generic_category(), "Help message displayed");
   } else if (vm.count("version")) {
     std::cout << PROJECT_NAME << " version " << PROJECT_VERSION << std::endl
               << "Created by " << PROJECT_MAINTAINER << std::endl;
-    throw std::system_error(199, std::generic_category(), "Version message displayed");
-  } else if (!vm.count("cell")) {
-    throw std::system_error(22, std::generic_category(), "No cell coverage files provided");
-  } else if (!vm.count("reference")) {
-    throw std::system_error(22, std::generic_category(), "No reference file provided");
-  } else if (!vm.count("intervals")) {
-    throw std::system_error(22, std::generic_category(), "No intervals file provided");
+    throw std::system_error(ECANCELED, std::generic_category(), "Version message displayed");
   }
   return vm;
 }
 
 std::vector<std::string> getCellFiles(const po::variables_map &vm) {
+  if (!vm.count("cell")) {
+    throw std::system_error(EINVAL, std::generic_category(), "No cell coverage files provided");
+  }
   return vm["cell"].as<std::vector<std::string>>();
 }
 
 std::string getIntervals(const po::variables_map &vm) {
+  if (!vm.count("intervals")) {
+    throw std::system_error(EINVAL, std::generic_category(), "No intervals file provided");
+  }
   return vm["intervals"].as<std::string>();
 }
 
 std::string getRef(const po::variables_map &vm) {
+  if (!vm.count("reference")) {
+    throw std::system_error(EINVAL, std::generic_category(), "No reference file provided");
+  }
   return vm["reference"].as<std::string>();
 }
 
@@ -152,18 +156,23 @@ void validate_cores(const int cores) {
   const int max_cores = std::thread::hardware_concurrency();
 
   if (cores < -1) {
-    throw po::error("Error: 'cores' set to " + std::to_string(cores) +
-                    " is invalid. It can be\n-1 : use all cores\n 0 : let the program decide\n>0 : "
-                    "specified number of cores");
+    throw std::system_error(
+        EINVAL, std::generic_category(),
+        "Invalid value " + std::to_string(cores) +
+            " for 'cores'. Allowed values are\n  -1 : use all cores\n   0 : let the program "
+            "decide\n > 0 : specify the number of cores\n");
   } else if (cores > max_cores) {
-    throw po::error("Error: 'cores' set to " + std::to_string(cores) +
-                    " exceeds the maximum number of available cores, " + std::to_string(max_cores));
+    throw std::system_error(EINVAL, std::generic_category(),
+                            "Invalid value " + std::to_string(cores) +
+                                " for 'cores', exceeds the maximum number of available cores, " +
+                                std::to_string(max_cores));
   }
 }
 
 void validate_threads_per_core(const int threads_per_core) {
   if (threads_per_core < 1) {
-    throw po::error("Error: 'threads-per-core' set to " + std::to_string(threads_per_core) +
-                    " is invalid. It must be atleast 1");
+    throw std::system_error(EINVAL, std::generic_category(),
+                            "Invalid value " + std::to_string(threads_per_core) +
+                                " for 'threads-per-core'. It must be atleast 1");
   }
 }
