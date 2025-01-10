@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <cerrno>
 #include <iostream>
 #include <vector>
 
@@ -39,16 +40,9 @@ int main(int argc, char **argv) {
     }
 
     return 0;
-  } catch (const po::error &e) {
-    std::cerr << e.what() << std::endl;
-    return 1;
   } catch (const std::system_error &e) {
-    std::vector<int> codes = {2, 5, 22};
-    if (e.code().value() == 99 || e.code().value() == 199) {
+    if (e.code().value() == ECANCELED) {
       return 0;
-    } else if (std::find(codes.begin(), codes.end(), e.code().value()) != codes.end()) {
-      std::cerr << "\033[31mError:\033[0m " << e.what() << std::endl;
-      return 1;
     }
     std::cerr << "\033[31mError:\033[0m " << e.what() << std::endl;
     return 1;
