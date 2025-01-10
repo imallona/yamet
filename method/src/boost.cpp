@@ -16,7 +16,8 @@ po::variables_map parseCommandLine(int argc, char **argv) {
   // clang-format off
   inp.add_options()
     ("cell,c", po::value<std::vector<std::string>>()->composing(), 
-        "tab separated files for different cells in the following format\n"
+        "tab separated files, sorted by chromosome and position, for "
+        "different cells in the following format\n"
         "\n"
         " chr1    5    0    2    0\n"
         " chr1    9    1    1    1\n"
@@ -25,7 +26,8 @@ po::variables_map parseCommandLine(int argc, char **argv) {
         "where the columns are the chromosome, position, number of methylated reads, "
         "total number of reads and the rate respectively")
     ("reference,r", po::value<std::string>(),
-        "tab separated file for reference sites in the following format\n"
+        "tab separated file, sorted by chromosome and position, for "
+        "reference sites in the following format\n"
         "\n"
         " chr1    5     7\n"
         " chr1    7     9\n"
@@ -36,7 +38,8 @@ po::variables_map parseCommandLine(int argc, char **argv) {
         "\n"
         "where the columns are the chromosome, start position and the end position respectively")
     ("intervals,i", po::value<std::string>(),
-        "path to bed file for intervals of interest in the following format\n"
+        "bed file, sorted by chromosome and start position, for "
+        "intervals of interest in the following format\n"
         "\n"
         " chr1    5     7\n"
         " chr1    10    30\n"
