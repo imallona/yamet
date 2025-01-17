@@ -1,0 +1,28 @@
+name: Brew Bottle
+
+on:
+  push:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "The version tag to build the bottle for (e.g., v1.0.0)"
+        required: true
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - name: Update brew and tap
+        run: |
+          brew update
+          brew tap atchox/brew
+
+      - name: Install and Bottle
+        run: |
+          brew install --build-bottle yamet
+
+      - name: Create GitHub Release and upload tarball
+        uses: softprops/action-gh-release@v2
+        with:
+          files: method/yamet-*.tar.gz
+          tag_name: "${{ github.event.inputs.version }}"
