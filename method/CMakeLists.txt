@@ -10,8 +10,11 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Allow overriding the version from the command line
 if(DEFINED VERSION)
-  string(REGEX REPLACE "^v([0-9]+\\.[0-9]+\\.[0-9]+).*" "\\1" CLEANED_VERSION ${VERSION})
-  project(yamet VERSION ${CLEANED_VERSION} LANGUAGES CXX)
+  string(REGEX REPLACE "^v" "" VERSION "${VERSION}")
+  set(PROJECT_VERSION ${VERSION})
+  string(REGEX REPLACE "^([0-9]+).*" "\\1" PROJECT_VERSION_MAJOR ${VERSION})
+  string(REGEX REPLACE "^[0-9]+\.([0-9]+).*" "\\1" PROJECT_VERSION_MINOR ${VERSION})
+  string(REGEX REPLACE "^[0-9]+\.[0-9]+\.([0-9]+).*" "\\1" PROJECT_VERSION_PATCH ${VERSION})
 endif()
 
 # Check for the compiler and its version
