@@ -17,8 +17,8 @@ jobs:
 
       - name: Installs
         run: |
-          sudo apt-get install zlib1g-dev build-essential \
-            libboost-program-options-dev valgrind
+          sudo apt update && sudo apt install -y \
+            libboost-program-options-dev zlib1g-dev valgrind
 
       - name: Build and valgrind
         run: |
@@ -42,7 +42,7 @@ jobs:
             --show-leak-kinds=all \
             --track-origins=yes \
             --verbose \
-            ./build/yamet --tsv $GITHUB_WORKSPACE/test/test_0/in/cell1.bed.gz \
-               --ref $GITHUB_WORKSPACE/test/test_0/in/ref.bed.gz \
-               --bed $GITHUB_WORKSPACE/test/test_0/in/regions.bed \
-               --det-out valgrind_test_0.out
+            ./build/yamet $GITHUB_WORKSPACE/test/test_0/in/cell1.bed.gz \
+              -r $GITHUB_WORKSPACE/test/test_0/in/ref.bed.gz \
+              -i $GITHUB_WORKSPACE/test/test_0/in/regions.bed \
+              --det-out valgrind_test_0.out

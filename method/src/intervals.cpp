@@ -26,6 +26,7 @@ Intervals parseSearch(const std::string &filename) {
 
   std::string           line;
   std::string           currentChr = "";
+  int                   lastStart = -1, lastEnd = -1;
   std::vector<Interval> currentIntervals;
 
   while (std::getline(bedFile, line)) {
@@ -35,13 +36,26 @@ Intervals parseSearch(const std::string &filename) {
     unsigned int       start, end;
     iss >> chr >> start >> end;
 
+    if (start >= end) {
+      throw std::system_error(EIO, std::generic_category(),
+                              "in line\n\n\t\033[33m" + line + "\033[0m\n\nof file " + filename +
+                                  ". Interval starts after interval end.");
+    }
+
     if (chr != currentChr) {
       if (!currentIntervals.empty()) {
         intervals.emplace_back(currentChr, currentIntervals);
         currentIntervals.clear();
       }
       currentChr = chr;
+      lastStart = lastEnd = -1;
     }
+    if (lastStart != -1 && lastEnd != -1 && lastEnd > start) {
+      throw std::system_error(EIO, std::generic_category(),
+                              "in line\n\n\t\033[33m" + line + "\033[0m\n\nof file " + filename +
+                                  ". Overlaps with previous interval.");
+    }
+    lastStart = start, lastEnd = end;
     currentIntervals.emplace_back(start, end);
   }
 

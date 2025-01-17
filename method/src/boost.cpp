@@ -1,4 +1,5 @@
 #include <boost/program_options.hpp>
+#include <cerrno>
 #include <cmath>
 #include <iostream>
 #include <stdexcept>
@@ -14,32 +15,35 @@ po::variables_map parseCommandLine(int argc, char **argv) {
   po::options_description inp("input");
   // clang-format off
   inp.add_options()
-    ("tsv,t", po::value<std::vector<std::string>>()->composing(), 
-        "tab separated files for different cells in the following format\n"
+    ("cell,c", po::value<std::vector<std::string>>()->composing(), 
+        "tab separated files, sorted by chromosome and position, for "
+        "different cells in the following format\n"
         "\n"
-        " 1    5    0    2    0\n"
-        " 1    9    1    1    1\n"
-        " 2    2    3    4    1\n"
+        " chr1    5    0    2    0\n"
+        " chr1    9    1    1    1\n"
+        " chr2    2    3    4    1\n"
         "\n"
         "where the columns are the chromosome, position, number of methylated reads, "
         "total number of reads and the rate respectively")
-    ("ref,r", po::value<std::string>(),
-        "tab separated file for reference sites in the following format\n"
+    ("reference,r", po::value<std::string>(),
+        "tab separated file, sorted by chromosome and position, for "
+        "reference sites in the following format\n"
         "\n"
-        " 1    5     7\n"
-        " 1    7     9\n"
-        " 1    9     11\n"
-        " 1    11    13\n"
-        " 2    2     4\n"
-        " 2    4     6\n"
+        " chr1    5     7\n"
+        " chr1    7     9\n"
+        " chr1    9     11\n"
+        " chr1    11    13\n"
+        " chr2    2     4\n"
+        " chr2    4     6\n"
         "\n"
         "where the columns are the chromosome, start position and the end position respectively")
-    ("bed,b", po::value<std::string>(),
-        "path to bed file for regions of interest in the following format\n"
+    ("intervals,i", po::value<std::string>(),
+        "bed file, sorted by chromosome and start position, for "
+        "intervals of interest in the following format\n"
         "\n"
-        " 1    5     7\n"
-        " 1    10    30\n"
-        " 2    1     6\n"
+        " chr1    5     7\n"
+        " chr1    10    30\n"
+        " chr2    1     6\n"
         "\n"
         "where the columns are the chromosome, start position and the end position respectively");
   // clang-format on
@@ -54,8 +58,8 @@ po::variables_map parseCommandLine(int argc, char **argv) {
   po::options_description ver("verbose");
   // clang-format off
   ver.add_options()
-    ("print-bed", "print parsed regions file")
-    ("print-ref", "print parsed reference file")
+    ("print-intervals", "print parsed intervals file")
+    ("print-reference", "print parsed reference file")
     ("print-sampens", po::value<std::string>()->default_value("true")->implicit_value("true"),
         "print computed sample entropies");
   // clang-format on
@@ -63,10 +67,10 @@ po::variables_map parseCommandLine(int argc, char **argv) {
   po::options_description res("resource utilisation");
   // clang-format off
   res.add_options()
-    ("n-cores", po::value<int>()->default_value(0)->notifier(validate_num_cores),
+    ("cores", po::value<int>()->default_value(0)->notifier(validate_cores),
         "number of cores used for simultaneously parsing methylation files")
-    ("n-threads-per-core",
-        po::value<unsigned int>()->default_value(1)->notifier(validate_num_threads_per_core),
+    ("threads-per-core",
+        po::value<unsigned int>()->default_value(1)->notifier(validate_threads_per_core),
         "number of threads per core used for simultaneously parsing methylation files");
   // clang-format on
 
@@ -81,36 +85,41 @@ po::variables_map parseCommandLine(int argc, char **argv) {
   all.add(inp).add(out).add(res).add(ver).add(mis);
 
   po::positional_options_description p;
-  p.add("tsv", -1);
+  p.add("cell", -1);
 
   po::store(po::command_line_parser(argc, argv).options(all).positional(p).run(), vm);
   po::notify(vm);
 
-  if (vm.count("help")) {
+  if (vm.count("help") || argc == 1) {
     std::cout << PROJECT_NAME << std::endl << all << std::endl;
-    std::error_code ec(99, std::generic_category());
-    throw std::system_error(ec, "Help message displayed");
+    throw std::system_error(ECANCELED, std::generic_category(), "Help message displayed");
   } else if (vm.count("version")) {
-    std::cout << PROJECT_NAME << " version " << PROJECT_VERSION << std::endl;
-    std::error_code ec(199, std::generic_category());
-    throw std::system_error(ec, "Version message displayed");
-  } else if (!vm.count("tsv")) {
-    std::error_code ec(22, std::generic_category());
-    throw std::system_error(ec, "no input");
+    std::cout << PROJECT_NAME << " version " << PROJECT_VERSION << std::endl
+              << "Created by " << PROJECT_MAINTAINER << std::endl;
+    throw std::system_error(ECANCELED, std::generic_category(), "Version message displayed");
   }
   return vm;
 }
 
-std::vector<std::string> getTsvFiles(const po::variables_map &vm) {
-  return vm["tsv"].as<std::vector<std::string>>();
+std::vector<std::string> getCellFiles(const po::variables_map &vm) {
+  if (!vm.count("cell")) {
+    throw std::system_error(EINVAL, std::generic_category(), "No cell coverage files provided");
+  }
+  return vm["cell"].as<std::vector<std::string>>();
 }
 
-std::string getBed(const po::variables_map &vm) {
-  return vm["bed"].as<std::string>();
+std::string getIntervals(const po::variables_map &vm) {
+  if (!vm.count("intervals")) {
+    throw std::system_error(EINVAL, std::generic_category(), "No intervals file provided");
+  }
+  return vm["intervals"].as<std::string>();
 }
 
 std::string getRef(const po::variables_map &vm) {
-  return vm["ref"].as<std::string>();
+  if (!vm.count("reference")) {
+    throw std::system_error(EINVAL, std::generic_category(), "No reference file provided");
+  }
+  return vm["reference"].as<std::string>();
 }
 
 std::string getDetOut(const po::variables_map &vm) {
@@ -121,9 +130,9 @@ std::string getOut(const po::variables_map &vm) {
   return vm["out"].as<std::string>();
 }
 
-unsigned int getNCores(const po::variables_map &vm) {
+unsigned int getCores(const po::variables_map &vm) {
   const unsigned int max_cores = std::thread::hardware_concurrency();
-  const int          c         = vm["n-cores"].as<int>();
+  const int          c         = vm["cores"].as<int>();
   if (c == -1) {
     return max_cores;
   } else if (c == 0) {
@@ -133,8 +142,8 @@ unsigned int getNCores(const po::variables_map &vm) {
   }
 }
 
-unsigned int getNThreadsPerCore(const po::variables_map &vm) {
-  return vm["n-threads-per-core"].as<unsigned int>();
+unsigned int getThreadsPerCore(const po::variables_map &vm) {
+  return vm["threads-per-core"].as<unsigned int>();
 }
 
 bool printSampens(const po::variables_map &vm) {
@@ -146,22 +155,27 @@ bool printSampens(const po::variables_map &vm) {
   }
 }
 
-void validate_num_cores(const int cores) {
+void validate_cores(const int cores) {
   const int max_cores = std::thread::hardware_concurrency();
 
   if (cores < -1) {
-    throw po::error("Error: 'n-cores' set to " + std::to_string(cores) +
-                    " is invalid. It can be\n-1 : use all cores\n 0 : let the program decide\n>0 : "
-                    "specified number of cores");
+    throw std::system_error(
+        EINVAL, std::generic_category(),
+        "Invalid value " + std::to_string(cores) +
+            " for 'cores'. Allowed values are\n  -1 : use all cores\n   0 : let the program "
+            "decide\n > 0 : specify the number of cores\n");
   } else if (cores > max_cores) {
-    throw po::error("Error: 'n-cores' set to " + std::to_string(cores) +
-                    " exceeds the maximum number of available cores, " + std::to_string(max_cores));
+    throw std::system_error(EINVAL, std::generic_category(),
+                            "Invalid value " + std::to_string(cores) +
+                                " for 'cores', exceeds the maximum number of available cores, " +
+                                std::to_string(max_cores));
   }
 }
 
-void validate_num_threads_per_core(const int n_threads_per_core) {
-  if (n_threads_per_core < 1) {
-    throw po::error("Error: 'n-threads-per-core' set to " + std::to_string(n_threads_per_core) +
-                    " is invalid. It must be atleast 1");
+void validate_threads_per_core(const int threads_per_core) {
+  if (threads_per_core < 1) {
+    throw std::system_error(EINVAL, std::generic_category(),
+                            "Invalid value " + std::to_string(threads_per_core) +
+                                " for 'threads-per-core'. It must be atleast 1");
   }
 }
