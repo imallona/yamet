@@ -1,6 +1,7 @@
 name: Brew Bottle
 
 on:
+  push:
   workflow_dispatch:
     inputs:
       version:
@@ -13,6 +14,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Update brew and tap
         run: |
@@ -30,9 +33,10 @@ jobs:
       - name: Install and Bottle
         run: |
           brew install --build-bottle yamet
+          brew bottle yamet
 
       - name: Create GitHub Release and upload tarball
         uses: softprops/action-gh-release@v2
         with:
-          files: method/yamet-*.tar.gz
+          files: yamet--*.tar.gz
           tag_name: "${{ env.LATEST_TAG }}"
