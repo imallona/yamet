@@ -33,7 +33,7 @@ jobs:
       - name: Install and Bottle
         run: |
           brew install --build-bottle yamet
-          brew bottle yamet
+          brew bottle --no-rebuild yamet
 
       - name: Create GitHub Release and upload tarball
         uses: softprops/action-gh-release@v2
