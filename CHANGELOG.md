@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## [v1.1.0-rc.1](https://github.com/imallona/yamet/releases/tag/v1.0.0-rc.1)
 
 ### Overview
 
@@ -39,3 +39,87 @@ All files must be tab separated. The cell files are the cytosine reports for all
   1. chromosome
   2. start position
   3. end position
+     
+## [v0.1.0-rc.1](https://github.com/imallona/yamet/releases/tag/v.1.0-rc.1)
+
+### Capabilities
+
+This is the first release candidate of `yamet` v0.1.0 after refactoring and rewriting in C++. 
+
+- Offers a sample entropy within cells, Shannon's entropy across cells, average methylation by/across cells in C++
+- Includes simplistic tests on simulated data and valgrind and cppcheck profiling
+
+### Known issues
+
+Requires GCC > 13.
+
+### Installation
+
+```{bash}
+cd method
+bash build.sh
+```
+
+### Usage
+
+- CLI takes a reference file listing cytosine coordinates, as many (covered) cytosine reports as cells, and a bedfile to filter in regions to calculate the metrics from. Metrics are calculated per bedfile interval. 
+- CLI help:
+
+```
+input:
+  -t [ --tsv ] arg                      tab separated files for different cells
+                                        in the following format
+                                        
+                                         1    5    0    2    0
+                                         1    9    1    1    1
+                                         2    2    3    4    1
+                                        
+                                        where the columns are the chromosome, 
+                                        position, number of methylated reads, 
+                                        total number of reads and the rate 
+                                        respectively
+  -r [ --ref ] arg                      tab separated file for reference sites 
+                                        in the following format
+                                        
+                                         1    5     7
+                                         1    7     9
+                                         1    9     11
+                                         1    11    13
+                                         2    2     4
+                                         2    4     6
+                                        
+                                        where the columns are the chromosome, 
+                                        start position and the end position 
+                                        respectively
+  -b [ --bed ] arg                      path to bed file for regions of 
+                                        interest in the following format
+                                        
+                                         1    5     7
+                                         1    10    30
+                                         2    1     6
+                                        
+                                        where the columns are the chromosome, 
+                                        start position and the end position 
+                                        respectively
+
+output:
+  -d [ --det-out ] arg                  (optional) path to detailed output file
+  -o [ --out ] arg                      (optional) path to simple output file
+
+resource utilisation:
+  --n-cores arg (=0)                    number of cores used for simultaneously
+                                        parsing methylation files
+  --n-threads-per-core arg (=1)         number of threads per core used for 
+                                        simultaneously parsing methylation 
+                                        files
+
+verbose:
+  --print-bed                           print parsed regions file
+  --print-ref                           print parsed reference file
+  --print-sampens [=arg(=true)] (=true) print computed sample entropies
+
+misc:
+  -h [ --help ]                         produce help message
+  --version                             current version information
+
+```
