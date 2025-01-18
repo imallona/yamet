@@ -22,9 +22,13 @@ jobs:
 
       - name: Install Homebrew on Ubuntu
         run: |
-          if ! command -v brew &> /dev/null; then
+          if [[ "$RUNNER_OS" == "Linux" ]] && ! command -v brew &> /dev/null; then
             echo "Homebrew not found, installing..."
             /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+            echo >> /home/runner/.bashrc
+            echo 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"' >> /home/runner/.bashrc
+            eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+            sudo apt-get install build-essential
           else
             echo "Homebrew already installed"
           fi
