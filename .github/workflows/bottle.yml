@@ -15,23 +15,14 @@ jobs:
         os: ["macos-14", "macos-15", "ubuntu-24.04"]
     runs-on: ${{ matrix.os }}
     steps:
+      - name: Install Homebrew on Ubuntu
+        if: runner.os == 'Linux'
+        uses: Homebrew/actions/setup-homebrew@master
+
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Install Homebrew on Ubuntu
-        run: |
-          if [[ "$RUNNER_OS" == "Linux" ]] && ! command -v brew &> /dev/null; then
-            echo "Homebrew not found, installing..."
-            /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-            echo >> /home/runner/.bashrc
-            echo 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"' >> /home/runner/.bashrc
-            eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
-            sudo apt-get install build-essential
-          else
-            echo "Homebrew already installed"
-          fi
 
       - name: Update brew and tap
         run: |
