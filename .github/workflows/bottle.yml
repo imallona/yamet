@@ -41,9 +41,12 @@ jobs:
         run: |
           brew install --build-bottle yamet
           brew bottle --no-rebuild yamet
+          for file in yamet--*.tar.gz; do
+            mv "$file" "${file//--/-}"
+          done
 
       - name: Create GitHub Release and upload tarball
         uses: softprops/action-gh-release@v2
         with:
-          files: yamet--*.tar.gz
+          files: yamet-*.tar.gz
           tag_name: "${{ env.LATEST_TAG }}"
