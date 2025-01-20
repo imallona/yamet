@@ -145,7 +145,7 @@ rule download_mm10_promoters:
         bash src/download_mm10_promoters.sh | gzip -c > {output.promoters}
         """
 
-rule download_mm10_geness:
+rule download_mm10_genes:
     conda:
         op.join("envs", "yamet.yml")
     output:
@@ -243,6 +243,23 @@ rule download_crc:
 
 # ## data download - pending stuff
 
+rule simulate_features:
+    conda:
+        op.join("envs", "yamet.yml")
+    output:
+        cell = op.join('feature_simulations', "{scenario}", 'simulations.cell.gz')
+    params:
+        path = op.join('feature_simulations', "{scenario}")
+    message:
+        """
+        CRC download
+        """
+    shell:
+        """
+        mkdir -p {params.path}
+        bash src/simulate_features.sh {wildcards.scenario}
+        """
+    
 # def download_scnmt_gastrulation():
 #     return NULL
 
