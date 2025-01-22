@@ -1,0 +1,12 @@
+name: yamet-dev
+channels:
+  - anaconda
+  - conda-forge
+  - nodefaults
+dependencies:
+  - conda-forge::mariadb
+  - conda-forge::wget
+  - bioconda::bedtools
+  - conda-forge::pandas
+  - bioconda::entrez-direct
+  - anaconda::cmake==3.31.2

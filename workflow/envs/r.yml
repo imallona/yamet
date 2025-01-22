@@ -1,0 +1,7 @@
+name: R_4.3.2
+channels:
+ - conda-forge
+ - bioconda
+dependencies:
+ - conda-forge::r-base=4.3.2
+ - conda-forge::r-readxl
