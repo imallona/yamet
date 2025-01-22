@@ -68,7 +68,7 @@
 
 .simLengths <- function(nCells, nCpGs, data=NULL, mode=c("nb", "random"),
                         estimateParams=FALSE,
-                        probParams=NULL,
+                        probParam=NULL,
                         sizeParams=NULL,
                         seed=43){
   set.seed(seed)
@@ -93,17 +93,16 @@
         nb+1}
     }
     else{
-      probCov <-  pmin(rep(probParams[2], nCells)+rnorm(100, sd=0.01), 0.99)
-      probMissing <- 1-probCov
-
-      sizeMissing <- pmax(rep(sizeParams[2], nCells)+rnorm(100, sd=0.5),0.5)
+      probCov <-  pmin(rep(probParam, nCells)+rnorm(100, sd=0.01), 0.99)
       sizeCov <- pmax(rep(sizeParams[1], nCells)+rnorm(100, sd=0.5),0.5)
-
-      paramMissing <- lapply(1:length(probCov), function(i) c(sizeMissing[i],
-                                                              probMissing[i]))
       paramCov <- lapply(1:length(probCov), function(i) c(sizeCov[i],
                                                           probCov[i]))
-
+      
+      probMissing <- 1-probCov
+      sizeMissing <- pmax(rep(sizeParams[2], nCells)+rnorm(100, sd=0.5),0.5)
+      paramMissing <- lapply(1:length(probCov), function(i) c(sizeMissing[i],
+                                                              probMissing[i]))
+  
       sampNB<- function(params, nCpGs){
         nb <- rnbinom(n=nCpGs,
                       size=params[1],
@@ -140,7 +139,7 @@
         probs <- sample(probs, nCells, replace=FALSE)
       }
       else{
-        probs <- probParams[1]
+        probs <- probParam[1]
         probs <- rep(probs, nCells)
       }
 
@@ -248,11 +247,10 @@
 #'@param nCells number of cells to simulate
 #'@param mode Mode for simulating lengths of missing and covered stretches,
 #'either "nb" (sampling from a negative binomial) or "rand" (repeated bernoulli)
-#'@param probParams vector of prob parameters for rnbinom to sample length of stretches.
-#' First element corresponds to the prob parameter for sampling covered stretches, second for missing stretches.
+#'@param probParam Probability parameter (`prob`) for [stats::rnbinom] to sample length of covered stretches.
 #'@param sizeParams vector of size parameters for rnbinom to sample length of stretches.
-#' First element corresponds to the size parameter for sampling covered stretches, second for missing stretches.
-#'@param states states to draw for 
+#' First element corresponds to the size parameter for sampling covered stretches, second for missing stretches (with `prob=1-probParam`).
+#'@param states states to draw from
 #'@param estimateCovParams Should coverage parameters be estimated from provided methylation data
 #'@param estimateTransMat Should transition matrix be estimated from provided methylation data
 #'@param transMat 2 by 2 transition matrix for markov chain
@@ -261,7 +259,7 @@
 #'@return
 simMetPattern <- function(nCpGs, nCells,
                           mode=c("nb", "random"),
-                          probParams=c(2, 18),
+                          probParam=0.5,
                           sizeParams=c(1, 1),
                           estimateCovParams=FALSE,
                           estimateTransMat=FALSE,
@@ -277,7 +275,7 @@ simMetPattern <- function(nCpGs, nCells,
   
   lenSamp <- .simLengths(nCells, nCpGs, data=metTable, mode=mode,
                          estimateParams=estimateCovParams,
-                         probParams=probParams,
+                         probParam=probParam,
                          sizeParams=sizeParams,
                          seed=seed)
   # quick fix

@@ -13,8 +13,8 @@ output:
 
 ```{r, setup}
 # quick fix to avoid interference with configurations from R / new R process creating upon render
-#condaEnvPath <- file.path(Sys.getenv("CONDA_PREFIX"), "lib", "R", "library")
-#.libPaths(condaEnvPath)
+condaEnvPath <- file.path(Sys.getenv("CONDA_PREFIX"), "lib", "R", "library")
+.libPaths(condaEnvPath)
 
 suppressPackageStartupMessages({
 library(BSgenome.Mmusculus.UCSC.mm10)
@@ -65,7 +65,7 @@ getCpGPositions <- function(genome, chr, shift=0) {
 ```
 
 
-```{r, required external data, eval=FALSE}
+```{r, required external data, eval=TRUE}
 # rather read from config
 if("low_real" %in% paramGrid$covParams){
   
@@ -112,27 +112,27 @@ lapply(nCpGs, function(nCpG){
 ```
 
 ## Simulate
-```{r, simulate nb, eval=TRUE, warning=FALSE,eval=FALSE}
+```{r, simulate nb, warning=FALSE, eval=TRUE}
 for(i in 1:nrow(paramGrid)){
   paramsSet <- paramGrid[i, ]
   # get the coverage parameters ------------------------------------------------
   if(paramsSet$covParams=="low"){
-    probParams=c(0.03,0.97)
+    probParam=0.03
     sizeParams=c(1, 1)
     estimateCovParams=FALSE
   }
   else if(paramsSet$covParams=="medium"){
-    probParams=c(0.15,0.85)
+    probParam=0.15
     sizeParams=c(1.2, 1)
     estimateCovParams=FALSE
   }
   else if(paramsSet$covParams=="high"){
-    probParams=c(0.5,0.5)
+    probParam=0.5
     sizeParams=c(2, 1)
     estimateCovParams=FALSE
   }
   else{
-    probParams=NULL
+    probParam=NULL
     sizeParams=NULL
     estimateCovParams=TRUE
   }
@@ -161,14 +161,14 @@ for(i in 1:nrow(paramGrid)){
   simTable <- simMetPattern(paramsSet$n_cpgs,
                             paramsSet$n_cells,
                             mode=as.character(paramsSet$mode),
-                            probParams=probParams,
+                            probParam=probParam,
                             sizeParams=sizeParams,
-                            states=c('0', '1'),
                             estimateCovParams=estimateCovParams,
                             estimateTransMat=estimateTransMat,
                             transMat=transMat,
                             metTable=metDt,
                             seed=seed)
+  
   paramsSet <- lapply(paramsSet, as.character)
   cellIds <- setdiff(colnames(simTable), c("pos", "chr"))
   lapply(cellIds, function(cellId){
