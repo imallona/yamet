@@ -117,13 +117,18 @@ for (i in 2:nrow(ref)) {
 regions <- as.data.frame(do.call(rbind, sel))
 colnames(regions) <- c('chr', 'start', 'end', 'status')
 regions$start <- as.numeric(regions$start)
-regions <- regions[order(regions$chr, regions$start),]
 
 ## num methylated reads
 collapsed$methylated <- collapsed$beta
 
 ## total num reads
 collapsed$total <- ifelse(collapsed$beta == 0, yes = 2, no = 1)
+
+
+## sorting
+collapsed <- collapsed[order(collapsed$chr, collapsed$start),]
+regions <- regions[order(regions$chr, regions$start),]
+ref <- ref[order(ref$chr, ref$start),]
 
 stopifnot(all(collapsed$beta == collapsed$methylated/collapsed$total))
 

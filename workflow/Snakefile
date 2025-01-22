@@ -17,13 +17,27 @@ print('Caution needs R from the host to run "harmonize_ecker_metadata"')
 rule all:
     input:
         # op.join('ecker_data', 'downloaded.flag'), ## this is to download Ecker's cytosine reports
-        op.join('annotation', 'mm10', 'done.flag'), ## this to download regions for Ecker's
-        op.join('ecker_data', 'harmonized_ecker_metadata.tsv.gz') ## this to download Ecker's metadata
+        # op.join('annotation', 'mm10', 'done.flag'), ## this to download regions for Ecker's
+        # op.join('ecker_data', 'harmonized_ecker_metadata.tsv.gz') ## this to download Ecker's metadata
         # op.join('crc_data', 'crc_done.flag') # this to download CRC cytosine reports
         # expand(op.join('shuffled', '{seed}', '{annotation}.bed.gz'),
                # seed = [1,2],
-               # annotation = ['transcripts', 'promoters'])
-    
+               # annotation = ['transcripts', 'promoters']),
+        op.join('feature_simulations', 'detailed.out')
+
+## yamet is compiled by install_yamet and exported for each shell directive
+shell.prefix("export PATH=../method/build:$PATH;")
+
+rule install_yamet:
+    conda:
+        "envs/yamet.yml" # for cmake mainly
+    output:
+        op.join("..", "method", "build", "yamet")
+    shell:
+        """
+        bash ../method/build.sh
+        """
+
 rule download_nemo_ecker_metadata:
     conda:
         "envs/yamet.yml"
@@ -247,19 +261,46 @@ rule simulate_features:
     conda:
         op.join("envs", "yamet.yml")
     output:
-        cell = op.join('feature_simulations', "{scenario}", 'simulations.cell.gz')
+        cell = op.join('feature_simulations', 'simulations.tsv'),
+        reference = op.join('feature_simulations', 'reference.tsv'),
+        regions = op.join('feature_simulations', 'regions.bed')
     params:
-        path = op.join('feature_simulations', "{scenario}")
-    message:
-        """
-        CRC download
-        """
+        path = op.join('feature_simulations')        
     shell:
         """
         mkdir -p {params.path}
-        bash src/simulate_features.sh {wildcards.scenario}
+        Rscript src/feature_simulation.R
+        mv regions.bed {params.path}
+        mv simulations.tsv {params.path}
+        mv reference.tsv {params.path}
         """
-    
+
+rule run_yamet_simulated_features:
+    conda:
+        op.join("envs", "yamet.yml")
+    input:
+        yamet = op.join("..", "method", "build", "yamet"),
+        cell = op.join('feature_simulations', 'simulations.tsv'),
+        reference = op.join('feature_simulations', 'reference.tsv'),
+        regions = op.join('feature_simulations', 'regions.bed')
+    output:
+        out = op.join('feature_simulations', 'summarized.out'),
+        detailed_output = op.join('feature_simulations', 'detailed.out')
+    threads:
+        4
+    log:
+        op.join('feature_simulations', 'run.log')
+    shell:
+        """
+        yamet --cell {input.cell} \
+              --reference {input.reference} \
+              --intervals {input.regions} \
+              --det-out {output.detailed_output} \
+              --out {output.out} \
+              --cores {threads} \
+              --print-intervals &> {log}        
+        """
+
 # def download_scnmt_gastrulation():
 #     return NULL
 
