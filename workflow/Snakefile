@@ -10,20 +10,19 @@
 import os.path as op
 import pandas as pd
         
-print('Caution needs R from the host to run "harmonize_ecker_metadata"')
-
 ## the shuffling is to have as many permutations as len(seed) of each of the annotations, to build
 ##   multiple entropy background distributions
 rule all:
     input:
-        # op.join('ecker_data', 'downloaded.flag'), ## this is to download Ecker's cytosine reports
-        # op.join('annotation', 'mm10', 'done.flag'), ## this to download regions for Ecker's
-        # op.join('ecker_data', 'harmonized_ecker_metadata.tsv.gz') ## this to download Ecker's metadata
-        # op.join('crc_data', 'crc_done.flag') # this to download CRC cytosine reports
-        # expand(op.join('shuffled', '{seed}', '{annotation}.bed.gz'),
-               # seed = [1,2],
-               # annotation = ['transcripts', 'promoters']),
-        op.join('feature_simulations', 'detailed.out')
+        op.join('ecker_data', 'downloaded_ecker.flag'), ## this is to download Ecker's cytosine reports
+        op.join('annotation', 'mm10', 'done.flag'), ## this to download regions for Ecker's
+        op.join('ecker_data', 'harmonized_ecker_metadata.tsv.gz'), ## this to download Ecker's metadata
+        op.join('crc_data', 'downloaded_crc.flag'), # this to download CRC cytosine reports
+        expand(op.join('annotation', 'shuffled', '{assembly}', '{seed}', '{annotation}.bed.gz'),
+               seed = [1,2],
+               assembly = 'mm10',
+               annotation = ['transcripts', 'promoters']), ## to get a random background features
+        op.join('feature_simulations', 'output', 'yamet_detailed.out') ## feature simulations
 
 ## yamet is compiled by install_yamet and exported for each shell directive
 shell.prefix("export PATH=../method/build:$PATH;")
@@ -68,7 +67,7 @@ rule download_ecker_paper_metadata:
 
 rule harmonize_ecker_metadata:
     conda:
-        "envs/yamet.yml"
+        "envs/r.yml"
     input:
         paper = op.join('ecker_data', '41586_2020_3182_MOESM9_ESM.xlsx'),
         nemo = op.join('ecker_data', 'MOp_Metadata.tsv.gz')
@@ -76,8 +75,6 @@ rule harmonize_ecker_metadata:
         metadata = op.join('ecker_data', 'harmonized_ecker_metadata.tsv.gz')
     params:
         path = 'ecker_data'
-    message:
-        "not implemented"
     script:        
         'src/harmonize_ecker_metadata.R'
         
@@ -110,7 +107,7 @@ rule download_ecker:
     output:
         raw_urls = temp(op.join('ecker_data', 'raw_urls')),
         urls = op.join('ecker_data', 'urls'),
-        flag = op.join('ecker_data', 'downloaded.flag')
+        flag = op.join('ecker_data', 'downloaded_ecker.flag')
         
     params:
         base_url = "https://data.nemoarchive.org/biccn/grant/u19_cemba/cemba/epigenome/sncell/mCseq/mouse/processed/counts/",
@@ -205,12 +202,15 @@ rule shuffle_background:
     conda:
         op.join("envs", "yamet.yml")
     input:
-        bed = op.join('annotation', 'mm10', '{annotation}.bed.gz'),
-        genome = op.join('annotation', 'mm10','genome.sizes')
+        bed = op.join('annotation', '{assembly}', '{annotation}.bed.gz'),
+        genome = op.join('annotation', '{assembly}','genome.sizes')
     output:
-        op.join('shuffled', '{seed}', '{annotation}.bed.gz')
+        op.join('annotation', 'shuffled','{assembly}', '{seed}', '{annotation}.bed.gz')
+    params:
+        path = op.join('annotation', 'shuffled','{assembly}', '{seed}')
     shell:
         """
+        mkdir -p {params.path}
         zcat {input.bed} | \
             bedtools shuffle -i - -g {input.genome} -seed {wildcards.seed} | \
             gzip -c > {output}
@@ -240,7 +240,7 @@ rule download_crc:
     conda:
         op.join("envs", "yamet.yml")
     output:
-        crc = op.join('crc_data', 'crc_done.flag')
+        crc = op.join('crc_data', 'downloaded_crc.flag')
     params:
         crc_path = 'crc_data'
     message:
@@ -252,7 +252,7 @@ rule download_crc:
         mkdir -p {params.crc_path}
         bash src/get_crc_meth_files.sh
         mv crc_done.flag {params.crc_path}
-        mv G*singleC.txt.gz {params.crc_path} 
+        mv G*singleC.txt.gz {params.crc_path}
         """
 
 # ## data download - pending stuff
@@ -261,11 +261,11 @@ rule simulate_features:
     conda:
         op.join("envs", "yamet.yml")
     output:
-        cell = op.join('feature_simulations', 'simulations.tsv'),
-        reference = op.join('feature_simulations', 'reference.tsv'),
-        regions = op.join('feature_simulations', 'regions.bed')
+        cell = op.join('feature_simulations', 'output', 'simulations.tsv'),
+        reference = op.join('feature_simulations', 'output', 'reference.tsv'),
+        regions = op.join('feature_simulations', 'output', 'regions.bed')
     params:
-        path = op.join('feature_simulations')        
+        path = op.join('feature_simulations', 'output')        
     shell:
         """
         mkdir -p {params.path}
@@ -280,12 +280,12 @@ rule run_yamet_simulated_features:
         op.join("envs", "yamet.yml")
     input:
         yamet = op.join("..", "method", "build", "yamet"),
-        cell = op.join('feature_simulations', 'simulations.tsv'),
-        reference = op.join('feature_simulations', 'reference.tsv'),
-        regions = op.join('feature_simulations', 'regions.bed')
+        cell = op.join('feature_simulations', 'output', 'simulations.tsv'),
+        reference = op.join('feature_simulations', 'output', 'reference.tsv'),
+        regions = op.join('feature_simulations', 'output', 'regions.bed')
     output:
-        out = op.join('feature_simulations', 'summarized.out'),
-        detailed_output = op.join('feature_simulations', 'detailed.out')
+        out = op.join('feature_simulations', 'ouput', 'yamet_summarized.out'),
+        detailed_output = op.join('feature_simulations', 'output', 'yamet_detailed.out')
     threads:
         4
     log:
