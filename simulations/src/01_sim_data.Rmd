@@ -112,7 +112,7 @@ lapply(nCpGs, function(nCpG){
 ```
 
 ## Simulate
-```{r, simulate nb, warning=FALSE, eval=TRUE}
+```{r, simulate, warning=FALSE, eval=TRUE}
 for(i in 1:nrow(paramGrid)){
   paramsSet <- paramGrid[i, ]
   # get the coverage parameters ------------------------------------------------

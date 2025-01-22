@@ -128,7 +128,7 @@
                 "len_cov"=strDt$len_cov))
     })
   }
-  else if(mode=="random"){
+  else if(mode=="rand"){
       # estimate covered
 
       if(estimateParams  & !is.null(data)){
@@ -247,7 +247,7 @@
 #'@param nCells number of cells to simulate
 #'@param mode Mode for simulating lengths of missing and covered stretches,
 #'either "nb" (sampling from a negative binomial) or "rand" (repeated bernoulli)
-#'@param probParam Probability parameter (`prob`) for [stats::rnbinom] to sample length of covered stretches.
+#'@param probParam Probability parameter (`prob`) for [stats::rnbinom] (or [sample] when `mode="rand"`) to sample length of covered stretches.
 #'@param sizeParams vector of size parameters for rnbinom to sample length of stretches.
 #' First element corresponds to the size parameter for sampling covered stretches, second for missing stretches (with `prob=1-probParam`).
 #'@param states states to draw from
@@ -258,7 +258,7 @@
 #'@param seed random seed
 #'@return
 simMetPattern <- function(nCpGs, nCells,
-                          mode=c("nb", "random"),
+                          mode=c("nb", "rand"),
                           probParam=0.5,
                           sizeParams=c(1, 1),
                           estimateCovParams=FALSE,
@@ -268,7 +268,7 @@ simMetPattern <- function(nCpGs, nCells,
                           seed=43)
 {
   set.seed(seed)
-  mode <- match.arg(mode, choices=c("nb", "random"))
+  mode <- match.arg(mode, choices=c("nb", "rand"))
   
   # states of markovchain
   states=c('0', '1')
