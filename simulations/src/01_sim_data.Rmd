@@ -35,7 +35,7 @@ refChr <- "chr19"
 ```
 
 ```{r, paths}
-lowRealDir <- "./data/low_real/met/cpg_level"
+lowRealDir <- "./data/lowReal/met/cpg_level"
 outDir <- file.path(params$working_dir, "./output/sim_data")
 if(!dir.exists(outDir)) dir.create(outDir)
 ```
@@ -67,7 +67,7 @@ getCpGPositions <- function(genome, chr, shift=0) {
 
 ```{r, required external data, eval=TRUE}
 # rather read from config
-if("low_real" %in% paramGrid$covParams){
+if("lowReal" %in% paramGrid$covParams){
   
   # get CpG positions of chromosome 19
   cpgPos <- getCpGPositions(genome, refChr, shift=0)
@@ -112,7 +112,7 @@ lapply(nCpGs, function(nCpG){
 ```
 
 ## Simulate
-```{r, simulate, warning=FALSE, eval=TRUE}
+```{r, simulate, warning=FALSE}
 for(i in 1:nrow(paramGrid)){
   paramsSet <- paramGrid[i, ]
   # get the coverage parameters ------------------------------------------------
@@ -131,6 +131,11 @@ for(i in 1:nrow(paramGrid)){
     sizeParams=c(2, 1)
     estimateCovParams=FALSE
   }
+  else if(paramsSet$covParams=="complete"){
+    probParam=1
+    sizeParams=c(2, 1)
+    estimateCovParams=FALSE
+  }
   else{
     probParam=NULL
     sizeParams=NULL
@@ -145,11 +150,11 @@ for(i in 1:nrow(paramGrid)){
     transMat <- matrix(c(0.8,0.8,0.2,0.2), nrow=2, ncol=2)
     estimateTransMat=FALSE
   }
-  else if(paramsSet$transMat=="imr_cons"){
+  else if(paramsSet$transMat=="imrCons"){
     transMat <- matrix(c(0.8,0.2,0.2,0.8), nrow=2, ncol=2)
     estimateTransMat=FALSE
   }
-  else if(paramsSet$transMat=="imr_rand"){
+  else if(paramsSet$transMat=="imrRand"){
     transMat <- matrix(c(0.5,0.5,0.5,0.5), nrow=2, ncol=2)
     estimateTransMat=FALSE
   }

@@ -1,7 +1,9 @@
 n_cells	n_cpgs	mode	covParams	transMat
-10	50	nb	low_real	hmr
+10	50	nb	lowReal	hmr
+10	50	rand	complete	hmr
+10	50	nb	complete	hmr
 10	50	nb	medium	lmr
-10	50	nb	medium	imr_cons
-10	50	nb	medium	imr_rand
-10	50	rand	medium	imr_cons
-10	50	rand	medium	imr_rand
+10	50	nb	medium	imrCons
+10	50	nb	medium	imrRand
+10	50	rand	medium	imrCons
+10	50	rand	medium	imrRand

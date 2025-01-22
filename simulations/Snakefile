@@ -9,7 +9,7 @@ import pandas as pd
 
 # dictionary with keys being the dataset names => place this in the config
 EXTERNAL_ORIGIN = {
-  "low_real": "ftp://ftp.ebi.ac.uk/pub/databases/scnmt_gastrulation/scnmt_gastrulation.tar.gz",
+  "lowReal": "ftp://ftp.ebi.ac.uk/pub/databases/scnmt_gastrulation/scnmt_gastrulation.tar.gz",
 }
 
 rule all:

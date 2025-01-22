@@ -53,10 +53,14 @@
       stretchesTable <- subset(stretchesTable, !is.na(rate))
     }
 
-
-    stretchesTable <- stretchesTable[,.(length_stretch=.N),
-                                     by=c("temp_id", "bin")]
-
+    
+    if(nrow(stretchesTable)>0){
+      stretchesTable <- stretchesTable[,.(length_stretch=.N),
+                                     by=c("temp_id", "bin")]}
+    else{
+      stretchesTable <- data.table(length_stretch=0)
+    }
+    
     return(stretchesTable$length_stretch)
   }
 
@@ -77,11 +81,11 @@
       lenMissing <- .getStretchLength(data, nCpGs, naLength=TRUE)
       sampCells <- sample(1:length(lenMissing), nCells)
       lenMissing <- lenMissing[sampCells]
-      lenMissing <- lapply(lenMissing, function(l) l-1)
+      lenMissing <- lapply(lenMissing, function(l) pmax(l-1,0))
 
       lenCov <- .getStretchLength(data, nCpGs, naLength=FALSE)
       lenCov <- lenCov[sampCells]
-      lenCov <- lapply(lenCov, function(l) l-1)
+      lenCov <- lapply(lenCov, function(l) pmax(l-1,0))
 
       paramMissing <- lapply(lenMissing, fitdistr, densfun="negative binomial")
       paramCov <- lapply(lenCov, fitdistr, densfun="negative binomial")
@@ -98,10 +102,14 @@
       paramCov <- lapply(1:length(probCov), function(i) c(sizeCov[i],
                                                           probCov[i]))
       
-      probMissing <- 1-probCov
-      sizeMissing <- pmax(rep(sizeParams[2], nCells)+rnorm(100, sd=0.5),0.5)
-      paramMissing <- lapply(1:length(probCov), function(i) c(sizeMissing[i],
-                                                              probMissing[i]))
+      if(probParam<1){
+        probMissing <- 1-probCov
+        sizeMissing <- pmax(rep(sizeParams[2], nCells)+rnorm(100, sd=0.5),0.5)
+        paramMissing <- lapply(1:length(probCov), function(i) c(sizeMissing[i],
+                                                                probMissing[i]))}
+      else{
+        paramMissing <- NULL
+      }
   
       sampNB<- function(params, nCpGs){
         nb <- rnbinom(n=nCpGs,
@@ -109,12 +117,17 @@
                       prob=params[2])
         nb+1}
     }
-    lenMissingSamp <- lapply(paramMissing, sampNB, nCpGs=nCpGs)
+    
+    if(!is.null(paramMissing)){
+      lenMissingSamp <- lapply(paramMissing, sampNB, nCpGs=nCpGs)}
+    else{
+      lenMissingSamp <- as.list(replicate(nCells, rep(0, nCpGs), simplify=FALSE))
+    }
+    
     lenCovSamp <- lapply(paramCov, sampNB, nCpGs=nCpGs)
 
     # loop over and construct the per-cell data
     lenSamp <- lapply(1:nCells, function(i){
-      lenMissingSamp
       strDt <- data.table(len_miss=lenMissingSamp[[i]],
                           len_cov=lenCovSamp[[i]])
 
@@ -146,11 +159,12 @@
       sampRand <- function(p, nCpGs){
         p <- c(1-p,p)
         ss <- sample(c(as.numeric(NA),1), size=nCpGs, prob=p, replace=TRUE)
-        lenMissingSamp <- .getStretchLength(data.table(a=ss,
+        lenMissingSamp <- .getStretchLength(data.table(seq_bern=ss,
                                                        pos=1:length(ss),
                                                        chr=rep(1, length(ss))),
                                            nCpGs, naLength=TRUE)
-        lenCovSamp <- .getStretchLength(data.table(a=ss,
+
+        lenCovSamp <- .getStretchLength(data.table(seq_bern=ss,
                                                    pos=1:length(ss),
                                                    chr=rep(1, length(ss))),
                                        nCpGs, naLength=FALSE)
@@ -225,7 +239,7 @@
     str <- lenMissingSamp[[i]]
     seq <- lapply(1:length(str), function(j){
 
-      if(j<length(str)){
+      if(j<length(str) | (length(str)==1 & str[[j]]==0)){
         covSeq <- metPattern[[i]][[j]]
         }
       else{
@@ -248,6 +262,7 @@
 #'@param mode Mode for simulating lengths of missing and covered stretches,
 #'either "nb" (sampling from a negative binomial) or "rand" (repeated bernoulli)
 #'@param probParam Probability parameter (`prob`) for [stats::rnbinom] (or [sample] when `mode="rand"`) to sample length of covered stretches.
+#' If `probParam=1` a sequence with no-missing data will be simulated.
 #'@param sizeParams vector of size parameters for rnbinom to sample length of stretches.
 #' First element corresponds to the size parameter for sampling covered stretches, second for missing stretches (with `prob=1-probParam`).
 #'@param states states to draw from
@@ -278,7 +293,7 @@ simMetPattern <- function(nCpGs, nCells,
                          probParam=probParam,
                          sizeParams=sizeParams,
                          seed=seed)
-  # quick fix
+
   lenMissing <- lapply(lenSamp$length_missing, function(str){
     str <- fifelse(!is.finite(str),nCpGs, str)
   })              
