@@ -3,7 +3,6 @@ title: "Coverage Simulations"
 date: "5/1/2025"
 params: 
   parameters_path: 
-  working_dir:
 output:
     bookdown::html_document2:
     code_folding: hide
@@ -35,16 +34,15 @@ refChr <- "chr19"
 ```
 
 ```{r, paths}
-lowRealDir <- "./data/lowReal/met/cpg_level"
-outDir <- file.path(params$working_dir, "./output/sim_data")
+lowRealDir <- "../data/lowReal/met/cpg_level"
+outDir <- "../output/sim_data"
 if(!dir.exists(outDir)) dir.create(outDir)
 ```
 
 ## Load simulation parameters
 
 ```{r, load parameters}
-paramGrid <- fread(file.path(params$working_dir,
-                             params$parameters_path))
+paramGrid <- fread(file.path("..", params$parameters_path))
 nCpGs <- unique(paramGrid$n_cpgs)
 ```
 
@@ -75,8 +73,7 @@ if("lowReal" %in% paramGrid$covParams){
   cpgPosDt <- data.table(pos=cpgPos, chr=refChrAlt, rate=NA)
     
   # read data
-  metFiles <- list.files(file.path(params$working_dir,
-                                   lowRealDir), full.names=TRUE)
+  metFiles <- list.files(file.path(lowRealDir), full.names=TRUE)
   metFiles <- metFiles[grepl("E7.5", basename(metFiles))]
   metFiles <- sample(metFiles, 200)
   metDts <- lapply(metFiles, function(metFile){

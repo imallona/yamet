@@ -69,16 +69,13 @@ rule simulate_data:
   downloaded_data="data/downloaded_data.tsv"
  output: 
     html_output_path="output/01_sim_data.html"
- params:
-    working_dir=os.getcwd()
  conda:
     "envs/r_sim.yaml"
  shell: 
   """
     Rscript -e 'rmarkdown::render("src/01_sim_data.Rmd", "html_document", 
                                   output_file="../{output.html_output_path}",
-                                  params=list(parameters_path="{input.parameters_path}", 
-                                              working_dir="{params.working_dir}"))'
+                                  params=list(parameters_path="{input.parameters_path}"))'
   """
 
 
