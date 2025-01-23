@@ -20,7 +20,7 @@ include: op.join('rules', 'scnmt_gastrulation.smk')
 ##   multiple entropy background distributions
 rule all:
     input:
-        op.join('ecker_data', 'downloaded_ecker.flag'), ## this is to download Ecker's cytosine reports
+        # op.join('ecker_data', 'downloaded_ecker.flag'), ## this is to download Ecker's cytosine reports
         op.join('ecker_data', 'harmonized_ecker_metadata.tsv.gz'), ## this to download Ecker's metadata
         op.join('annotation', 'mm10', 'done.flag'), ## this to download regions for Ecker's
         op.join('crc_data', 'downloaded_crc.flag'), # this to download CRC cytosine reports
@@ -129,15 +129,18 @@ rule get_mm10_genome:
         genome = op.join('annotation', 'mm10', 'mm10.fa.gz')
     params:
         path = op.join('annotation', 'mm10')
+    message:
+        "chr19 only! warning"
     shell:
         """
         mkdir -p {params.path}
         cd {params.path}
-        wget https://hgdownload.soe.ucsc.edu/goldenPath/mm10/bigZips/mm10.fa.gz
+        ## wget https://hgdownload.soe.ucsc.edu/goldenPath/mm10/bigZips/mm10.fa.gz
+        ## shortcut here
+        wget https://hgdownload.cse.ucsc.edu/goldenpath/mm10/chromosomes/chr19.fa.gz -O mm10.fa.gz
         """
 
-## to-do, how were we doing that? this feels like the n-time I code this. Replace with older
-##  if more efficient
+## to be optimized https://github.com/emsonder/MethQuant-analysis/commit/be6c8e6e50a0a07b82973b99a91d56fdf088b3c7
 rule get_mm10_reference_cpgs:
     conda:
         op.join("envs", "yamet.yml")
@@ -145,13 +148,18 @@ rule get_mm10_reference_cpgs:
         genome = op.join('annotation', 'mm10', 'mm10.fa.gz')
     output:
         genome_uncomp = temp(op.join('annotation', 'mm10', 'mm10.fa')),
-        dreg = temp(op.join('annotation', 'mm10', 'mm10_unstranded_cg_ref.tsv.dreg')),
-        reference = op.join('annotation', 'mm10', 'mm10_unstranded_cg_ref.tsv.gz')
+        reference = op.join('annotation', 'mm10', 'mm10_unstranded_cg_ref.tsv.gz'),
+        sizes = temp('fa.sizes')
     shell:
         """
         gunzip --keep {input.genome}
-        dreg -sequence {output.genome_uncomp} -pattern "cg|gc" --rformat3 excel -outfile {output.dreg}
-        grep -v SeqName {output.dreg} | cut -f 1-3 | gzip -c > {output.reference}
+        faSize {output.genome_uncomp} -detailed > {output.sizes}
+
+        ## extract coordinates were `CG` nucleotides are (-pattern CG),
+        ##   via sliding (-s) dinucleotides (-w 2) scan with bedtools
+        bedtools makewindows -g {output.sizes} -w 2 -s 1 | \
+          bedtools nuc -fi {output.genome_uncomp} -bed stdin -pattern CG | \
+          grep "1$" | cut -f1-3 | gzip -c > {output.reference}
 
         """
     
@@ -173,15 +181,19 @@ rule run_yamet_scnmt_gastrulation_example:
                           'genomic_contexts', 'H3K4me3_E7.5_Mes.bed'),
         reference = op.join('annotation', 'mm10', 'mm10_unstranded_cg_ref.tsv.gz')
     output:
+        yamet_friendly = temp('current_friendly.tsv.gz'),
         out = op.join('scnmt_gastrulation_data', 'output', 'yamet_summarized.out'),
         detailed_output = op.join('scnmt_gastrulation_data', 'output', 'yamet_detailed.out')
     threads:
         4
     log:
         op.join('feature_simulations', 'run.log')
+    message:
+        "fails I guess due to the reference file overlap"
     shell:
         """
-        yamet --cell {input.cell} \
+        zcat {input.cell} | awk '{{OFS=FS="\t" ;print $1,$2,$2,$2+$3,$4}}' | gzip -c > {output.yamet_friendly}
+        yamet --cell {output.yamet_friendly} \
               --reference {input.reference} \
               --intervals {input.regions} \
               --det-out {output.detailed_output} \
