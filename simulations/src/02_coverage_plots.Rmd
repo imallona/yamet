@@ -131,10 +131,10 @@ if("lowReal" %in% simParams$coverage_mode){
 strLenDt$coverage_mode <- factor(strLenDt$coverage_mode, 
                            levels=c("low", "lowReal", "real", "medium",
                                     "high", "complete"))
-
-ggplot(subset(strLenDt, n_cpgs==1e4 & what=="covered"), 
+maxCpGs <- max(simParams$n_cpgs)
+ggplot(subset(strLenDt, n_cpgs==maxCpGs & what=="covered"), 
        aes(x=length, color=coverage_mode, fill=type))+
-ggtitle("Length of covered stretches (N-CpGs: 1e4)")+
+ggtitle(paste("Length of covered stretches (N-CpGs:", maxCpGs, ")"))+
 facet_grid(rows=vars(coverage_mode), cols=vars(mode), scales="free")+
 xlim(c(0,25))+
 geom_histogram()+
@@ -152,7 +152,7 @@ quantLen$coverage_mode <- factor(quantLen$coverage_mode,
                            levels=c("low", "lowReal", "real", "medium",
                                     "high", "complete"))
 
-ggplot(subset(quantLen, n_cpgs==max(simParams$n_cpgs)),
+ggplot(subset(quantLen, n_cpgs==maxCpGs),
        aes(x=quant_name, y=quant, color=coverage_mode,
            group=coverage_mode, shape=type))+
   geom_line()+
