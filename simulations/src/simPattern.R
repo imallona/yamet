@@ -78,54 +78,68 @@
   set.seed(seed)
   if(mode=="nb"){
     if(estimateParams & !is.null(data)){
-      lenMissing <- .getStretchLength(data, nCpGs, naLength=TRUE)
-      sampCells <- sample(1:length(lenMissing), nCells)
-      lenMissing <- lenMissing[sampCells]
+      lenMissing <- .getStretchLength(data, 1e4, naLength=TRUE)
       lenMissing <- lapply(lenMissing, function(l) pmax(l-1,0))
 
-      lenCov <- .getStretchLength(data, nCpGs, naLength=FALSE)
-      lenCov <- lenCov[sampCells]
+      lenCov <- .getStretchLength(data, 1e4, naLength=FALSE)
+      nStr <- unlist(lapply(lenCov, length))
       lenCov <- lapply(lenCov, function(l) pmax(l-1,0))
-
+      
+      sampCells <- sample(which(nStr>20), nCells)
+      lenCov <- lenCov[sampCells]
+      lenMissing <- lenMissing[sampCells]
+      
       paramMissing <- lapply(lenMissing, fitdistr, densfun="negative binomial")
       paramCov <- lapply(lenCov, fitdistr, densfun="negative binomial")
-
-      sampNB <- function(params, nCpGs){
-        nb <- rnbinom(n=nCpGs,
-                      size=params$estimate[1],
-                      mu=params$estimate[2])
-        nb+1}
+      
+      paramMissing <- lapply(paramMissing, function(p){
+        p <- p$estimate
+        size <- p[1]
+        prob <- size/(size+p[2])
+        c(size, prob)})
+      paramCov <- lapply(paramCov, function(p){
+        p <- p$estimate
+        size <- p[1]
+        prob <- size/(size+p[2])
+        c(size, prob)
+      })
     }
     else{
-      probCov <-  pmin(rep(probParam, nCells)+rnorm(100, sd=0.01), 0.99)
-      sizeCov <- pmax(rep(sizeParams[1], nCells)+rnorm(100, sd=0.5),0.5)
-      paramCov <- lapply(1:length(probCov), function(i) c(sizeCov[i],
-                                                          probCov[i]))
-      
       if(probParam<1){
-        probMissing <- 1-probCov
-        sizeMissing <- pmax(rep(sizeParams[2], nCells)+rnorm(100, sd=0.5),0.5)
+        probCov <-  pmax(rep(probParam, nCells)+rnorm(nCells, sd=0.01), 0.01)
+      }
+      else{
+        probCov <-  rep(1, nCells)
+      }
+      sizeCov <- rep(sizeParams[1], nCells)
+      probMissing <- 1-probCov
+      sizeMissing <- rep(sizeParams[2], nCells)
+      paramCov <- lapply(1:length(probCov), function(i) c(sizeCov[i],
+                                                          probMissing[i]))
+     
+      if(probParam<1){
         paramMissing <- lapply(1:length(probCov), function(i) c(sizeMissing[i],
-                                                                probMissing[i]))}
+                                                                probCov[i]))}
       else{
         paramMissing <- NULL
       }
-  
-      sampNB<- function(params, nCpGs){
-        nb <- rnbinom(n=nCpGs,
-                      size=params[1],
-                      prob=params[2])
-        nb+1}
     }
+    
+    sampNB <- function(params, nCpGs){
+      nb <- rnbinom(n=nCpGs,
+                    size=params[1],
+                    prob=params[2])
+      nb+1}
     
     if(!is.null(paramMissing)){
-      lenMissingSamp <- lapply(paramMissing, sampNB, nCpGs=nCpGs)}
+      lenMissingSamp <- lapply(paramMissing, sampNB, nCpGs=nCpGs)
+      lenCovSamp <- lapply(paramCov, sampNB, nCpGs=nCpGs)
+    }
     else{
       lenMissingSamp <- as.list(replicate(nCells, rep(0, nCpGs), simplify=FALSE))
+      lenCovSamp <- as.list(replicate(nCells, nCpGs, simplify=FALSE))
     }
     
-    lenCovSamp <- lapply(paramCov, sampNB, nCpGs=nCpGs)
-
     # loop over and construct the per-cell data
     lenSamp <- lapply(1:nCells, function(i){
       strDt <- data.table(len_miss=lenMissingSamp[[i]],
@@ -145,14 +159,14 @@
       # estimate covered
 
       if(estimateParams  & !is.null(data)){
-        cellIds <- setdiff(colnames(metTable), c("chr", "pos", "bin"))
-        probs <- colSums(!is.na(metTable[, cellIds, with=FALSE]))/nrow(metTable)
+        cellIds <- setdiff(colnames(data), c("chr", "pos", "bin"))
+        probs <- colSums(!is.na(data[, cellIds, with=FALSE]))/nrow(data)
 
         if(nCells>length(cellIds)) beRep <- TRUE else beRep <- FALSE
         probs <- sample(probs, nCells, replace=FALSE)
       }
       else{
-        probs <- probParam[1]
+        probs <- probParam
         probs <- rep(probs, nCells)
       }
 

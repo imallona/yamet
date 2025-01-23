@@ -90,7 +90,8 @@ if("lowReal" %in% paramGrid$covParams){
   })
   metDt <- Reduce("cbind", metDts[-1], metDts[[1]])
   colnames(metDt) <- gsub(".tsv.gz", "", basename(metFiles))
-  metDt <- cbind(cpgPosDt, metDt)
+  metDt <- cbind(cpgPosDt[,c("pos", "chr")], metDt)
+  saveRDS(metDt, file.path(outDir, "metData.rds"))
 } else{
   metDt <- NULL
 }
@@ -130,7 +131,7 @@ for(i in 1:nrow(paramGrid)){
   }
   else if(paramsSet$covParams=="complete"){
     probParam=1
-    sizeParams=c(2, 1)
+    sizeParams=c(1, 1)
     estimateCovParams=FALSE
   }
   else{
