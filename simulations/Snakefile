@@ -14,7 +14,7 @@ EXTERNAL_ORIGIN = {
 
 rule all:
   input: 
-    "output/01_sim_data.html"
+    "output/02_coverage_plots.html"
 
 # every row in the parameter file is a parameterization of one simulation
 rule check_required_data:
@@ -65,10 +65,10 @@ rule download_data:
   
 rule simulate_data: 
  input: 
-  parameters_path="input/parameters.tsv",
-  downloaded_data="data/downloaded_data.tsv"
+    parameters_path="input/parameters.tsv",
+    downloaded_data="data/downloaded_data.tsv"
  output: 
-    html_output_path="output/01_sim_data.html"
+    html_output_path="output/01_sim_data.html",
  conda:
     "envs/r_sim.yaml"
  shell: 
@@ -78,9 +78,21 @@ rule simulate_data:
                                   params=list(parameters_path="{input.parameters_path}"))'
   """
 
+rule visualize_coverage:
+ input: 
+    sim_data_dir="output/sim_data",
+    sim_data_file="output/01_sim_data.html"
+ output: 
+    html_output_path="output/02_coverage_plots.html"
+ conda:
+    "envs/r_plot.yaml"
+ shell: 
+  """
+    Rscript -e 'rmarkdown::render("src/02_coverage_plots.Rmd", "html_document", 
+                                  output_file="../{output.html_output_path}",
+                                  params=list(sim_data_dir="{input.sim_data_dir}"))'
+  """
 
-#rule visualize_coverage:
-# save plots
 
 #rule run_yamet
 
