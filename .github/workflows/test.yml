@@ -3,6 +3,10 @@ name: build_and_test
 on:
   workflow_dispatch: null
   pull_request: null
+    paths:
+      - 'method/src/**.cpp'
+      - 'method/CMakeLists.txt'
+
 jobs:
   build_ubuntu_latest:
     runs-on: ubuntu-24.04
