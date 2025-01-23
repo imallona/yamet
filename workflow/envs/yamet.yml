@@ -10,3 +10,4 @@ dependencies:
   - conda-forge::pandas
   - bioconda::entrez-direct
   - anaconda::cmake==3.31.2
+  - bioconda::emboss==6.6.0
