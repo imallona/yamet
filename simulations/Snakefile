@@ -68,6 +68,7 @@ rule simulate_data:
     parameters_path="input/parameters.tsv",
     downloaded_data="data/downloaded_data.tsv"
  output: 
+    directory("output/sim_data"),
     html_output_path="output/01_sim_data.html",
  conda:
     "envs/r_sim.yaml"
@@ -80,8 +81,8 @@ rule simulate_data:
 
 rule visualize_coverage:
  input: 
-    sim_data_dir="output/sim_data",
-    sim_data_file="output/01_sim_data.html"
+    sim_data_file="output/01_sim_data.html",
+    sim_data_dir="output/sim_data"
  output: 
     html_output_path="output/02_coverage_plots.html"
  conda:
