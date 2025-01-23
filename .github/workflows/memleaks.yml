@@ -3,6 +3,9 @@ name: memleaks
 on:
   pull_request:
   workflow_dispatch:
+    paths:
+      - 'method/src/**.cpp'
+      - 'method/CMakeLists.txt'
 
 env:
   PREFIX: $HOME/build/
