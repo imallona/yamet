@@ -34,43 +34,58 @@ else()
   message(FATAL_ERROR "Unsupported compiler. This project requires GCC >= 8, Clang >= 8 or AppleClang >= 8")
 endif()
 
+set(Boost_USE_STATIC_LIBS ON)
+
 # Find Boost Program Options and zlib
 find_package(Boost REQUIRED COMPONENTS program_options)
 find_package(ZLIB REQUIRED)
 
 # Add your source files (adjust the paths as needed)
-file(GLOB SOURCES "src/*.cpp")
-file(GLOB HEADERS "include/*.h")
+file(GLOB SOURCES src/*.cpp)
+list(REMOVE_ITEM SOURCES src/main.cpp src/boost.cpp)
+file(GLOB HEADERS include/*.h)
 
-# Define the executable target
-add_executable(yamet ${SOURCES} ${HEADERS})
+# Define the library target
+add_library(${PROJECT_NAME}_lib STATIC ${SOURCES} ${HEADERS})
+
+# Set library properties
+set_target_properties(${PROJECT_NAME}_lib PROPERTIES OUTPUT_NAME ${PROJECT_NAME})
 
 # Link Boost and zlib
-target_link_libraries(yamet PUBLIC Boost::program_options ZLIB::ZLIB)
+target_link_libraries(${PROJECT_NAME}_lib PUBLIC Boost::program_options ZLIB::ZLIB)
 
 # Add include directories for headers
-target_include_directories(yamet PUBLIC include ${CMAKE_BINARY_DIR}/config)
+target_include_directories(${PROJECT_NAME}_lib PUBLIC include ${CMAKE_BINARY_DIR}/config)
+
+# Define the executable target
+add_executable(${PROJECT_NAME} src/main.cpp src/boost.cpp)
+
+# Link library to executable
+target_link_libraries(${PROJECT_NAME} PRIVATE ${PROJECT_NAME}_lib)
 
 # Install target (binary and headers)
-install(TARGETS yamet DESTINATION bin)
-install(DIRECTORY include/ DESTINATION include)
+install(TARGETS ${PROJECT_NAME} ${PROJECT_NAME}_lib
+  RUNTIME DESTINATION bin
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib)
+install(DIRECTORY include/ DESTINATION include/${PROJECT_NAME})
 
 # General package metadata
 set(CPACK_PACKAGE_NAME ${PROJECT_NAME})
-set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
+set(CPACK_PACKAGE_VERSION ${PROJECT_VERSION})
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Yet Another Methylation Entropy Tool")
 set(CPACK_PACKAGE_VENDOR "Atreya Choudhury")
 set(CPACK_PACKAGE_CONTACT "atreyachoudhury@hotmail.com")
-set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/imallona/yamet")
-set(CPACK_PACKAGE_LICENSE "GPL-3.0-only")
+set(CPACK_PACKAGE_HOMEPAGE_URL https://github.com/imallona/yamet)
+set(CPACK_PACKAGE_LICENSE GPL-3.0-only)
 
 # Debian-specific metadata
-set(CPACK_DEBIAN_PACKAGE_DEPENDS "zlib1g-dev (>= 1.2.0), libboost-program-options-dev (>= 1.70.0)")
+set(CPACK_DEBIAN_PACKAGE_DEPENDS "zlib1g-dev (>= 1.2.0)")
 set(CPACK_DEBIAN_PACKAGE_SECTION "utils")
 set(CPACK_DEBIAN_ARCHITECTURE ${CMAKE_SYSTEM_PROCESSOR})
 
 # Optional: Specify the package output file name
-set(CPACK_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}-${CMAKE_SYSTEM_NAME}-${CPACK_DEBIAN_ARCHITECTURE}-${VERSION}")
+set(CPACK_PACKAGE_FILE_NAME ${CPACK_PACKAGE_NAME}-${CMAKE_SYSTEM_NAME}-${CPACK_DEBIAN_ARCHITECTURE}-${PROJECT_VERSION})
 
 # Set version information
 configure_file(
