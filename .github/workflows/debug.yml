@@ -3,6 +3,9 @@ name: check_unsupported_g++
 on:
   workflow_dispatch:
   pull_request:
+    paths:
+      - 'method/src/**.cpp'
+      - 'method/CMakeLists.txt'
 
 jobs:
   unsupported_gpp_should_fail:
