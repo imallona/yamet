@@ -34,41 +34,116 @@ else()
   message(FATAL_ERROR "Unsupported compiler. This project requires GCC >= 8, Clang >= 8 or AppleClang >= 8")
 endif()
 
+# Set up dependencies
 set(Boost_USE_STATIC_LIBS ON)
-
-# Find Boost Program Options and zlib
 find_package(Boost REQUIRED COMPONENTS program_options)
 find_package(ZLIB REQUIRED)
+find_package(Threads REQUIRED)
 
-# Add your source files (adjust the paths as needed)
-file(GLOB SOURCES src/*.cpp)
-list(REMOVE_ITEM SOURCES src/main.cpp src/boost.cpp)
-file(GLOB HEADERS include/*.h)
+# ============================
+# Library Target Configuration
+# ============================
+
+# Library source file paths
+file(GLOB LIB_SOURCES src/*.cpp)
+list(FILTER LIB_SOURCES EXCLUDE REGEX "src/main.cpp|src/boost.cpp")
 
 # Define the library target
-add_library(${PROJECT_NAME}_lib STATIC ${SOURCES} ${HEADERS})
+add_library(${PROJECT_NAME}_lib STATIC ${LIB_SOURCES})
 
-# Set library properties
-set_target_properties(${PROJECT_NAME}_lib PROPERTIES OUTPUT_NAME ${PROJECT_NAME})
+# Set library export details
+set_target_properties(${PROJECT_NAME}_lib PROPERTIES
+  OUTPUT_NAME ${PROJECT_NAME}
+  EXPORT_NAME ${PROJECT_NAME}
+)
 
-# Link Boost and zlib
-target_link_libraries(${PROJECT_NAME}_lib PUBLIC Boost::program_options ZLIB::ZLIB)
+# Link zlib and threads to library target
+target_link_libraries(${PROJECT_NAME}_lib PRIVATE ZLIB::ZLIB Threads::Threads)
 
-# Add include directories for headers
-target_include_directories(${PROJECT_NAME}_lib PUBLIC include ${CMAKE_BINARY_DIR}/config)
+# Include directories for the library
+target_include_directories(${PROJECT_NAME}_lib PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include/lib>
+  $<INSTALL_INTERFACE:include>
+)
+
+# ===============================
+# Executable Target Configuration
+# ===============================
 
 # Define the executable target
 add_executable(${PROJECT_NAME} src/main.cpp src/boost.cpp)
 
-# Link library to executable
-target_link_libraries(${PROJECT_NAME} PRIVATE ${PROJECT_NAME}_lib)
+# Link library and Boost program options to executable
+target_link_libraries(${PROJECT_NAME} PRIVATE ${PROJECT_NAME}_lib Boost::program_options)
 
-# Install target (binary and headers)
-install(TARGETS ${PROJECT_NAME} ${PROJECT_NAME}_lib
-  RUNTIME DESTINATION bin
-  ARCHIVE DESTINATION lib
-  LIBRARY DESTINATION lib)
-install(DIRECTORY include/ DESTINATION include/${PROJECT_NAME})
+# Link include directories for headers to executable target
+target_include_directories(${PROJECT_NAME} PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include/cli>
+  $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/config>
+)
+
+# ============================
+# Installation and Packaging
+# ============================
+
+# Include standard installation directories
+include(GNUInstallDirs)
+
+# Install library target
+install(TARGETS ${PROJECT_NAME}_lib
+  EXPORT ${PROJECT_NAME}Targets
+  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
+
+# Install executable target
+install(TARGETS ${PROJECT_NAME}
+  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
+
+# Install public include folder for headers
+install(DIRECTORY include/lib/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME})
+
+# Export the library's targets
+install(EXPORT ${PROJECT_NAME}Targets
+  FILE ${PROJECT_NAME}Targets.cmake
+  NAMESPACE ${PROJECT_NAME}::
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
+)
+
+include(CMakePackageConfigHelpers)
+
+# Generate a config file for find_package
+configure_package_config_file(
+  ${CMAKE_SOURCE_DIR}/cmake/Config.cmake.in
+  ${CMAKE_CURRENT_BINARY_DIR}/cmake/${PROJECT_NAME}Config.cmake
+  INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
+)
+
+# Generate a config version file
+write_basic_package_version_file(
+  ${CMAKE_CURRENT_BINARY_DIR}/cmake/${PROJECT_NAME}ConfigVersion.cmake
+  VERSION ${PROJECT_VERSION}
+  COMPATIBILITY SameMajorVersion
+)
+
+# Export targets file to build folder
+export(EXPORT ${PROJECT_NAME}Targets
+  FILE ${CMAKE_CURRENT_BINARY_DIR}/cmake/${PROJECT_NAME}Targets.cmake
+  NAMESPACE ${PROJECT_NAME}::
+)
+
+# Install the config and config version files
+install(FILES
+  ${CMAKE_CURRENT_BINARY_DIR}/cmake/${PROJECT_NAME}Config.cmake
+  ${CMAKE_CURRENT_BINARY_DIR}/cmake/${PROJECT_NAME}ConfigVersion.cmake
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
+)
+
+# ===================
+# CPack Configuration
+# ===================
 
 # General package metadata
 set(CPACK_PACKAGE_NAME ${PROJECT_NAME})
@@ -84,7 +159,7 @@ set(CPACK_DEBIAN_PACKAGE_DEPENDS "zlib1g-dev (>= 1.2.0)")
 set(CPACK_DEBIAN_PACKAGE_SECTION "utils")
 set(CPACK_DEBIAN_ARCHITECTURE ${CMAKE_SYSTEM_PROCESSOR})
 
-# Optional: Specify the package output file name
+# Package output file name
 set(CPACK_PACKAGE_FILE_NAME ${CPACK_PACKAGE_NAME}-${CMAKE_SYSTEM_NAME}-${CPACK_DEBIAN_ARCHITECTURE}-${PROJECT_VERSION})
 
 # Set version information
