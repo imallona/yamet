@@ -2,6 +2,7 @@
 #include <cerrno>
 #include <cmath>
 #include <iostream>
+#include <regex>
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -71,7 +72,9 @@ po::variables_map parseCommandLine(int argc, char **argv) {
         "number of cores used for simultaneously parsing methylation files")
     ("threads-per-core",
         po::value<unsigned int>()->default_value(1)->notifier(validate_threads_per_core),
-        "number of threads per core used for simultaneously parsing methylation files");
+        "number of threads per core used for simultaneously parsing methylation files")
+    ("chunk-size", po::value<std::string>()->default_value("64K")->notifier(validate_chunk_size),
+        "size of the buffer (per file) used for reading data");
   // clang-format on
 
   po::options_description mis("misc");
@@ -95,11 +98,13 @@ po::variables_map parseCommandLine(int argc, char **argv) {
     throw std::system_error(ECANCELED, std::generic_category(), "Help message displayed");
   } else if (vm.count("version")) {
     std::cout << PROJECT_NAME << " version " << PROJECT_VERSION << std::endl
-              << "Created by " << PROJECT_MAINTAINER << std::endl;
+              << "created and maintained by " << PROJECT_MAINTAINER << std::endl;
     throw std::system_error(ECANCELED, std::generic_category(), "Version message displayed");
   }
   return vm;
 }
+
+// Helper get functions for different arguments
 
 std::vector<std::string> getCellFiles(const po::variables_map &vm) {
   if (!vm.count("cell")) {
@@ -146,12 +151,51 @@ unsigned int getThreadsPerCore(const po::variables_map &vm) {
   return vm["threads-per-core"].as<unsigned int>();
 }
 
+unsigned int getChunkSize(const po::variables_map &vm) {
+  static const std::regex pattern(R"(^(\d+(\.\d+)?)(B|K|M|G)?$)", std::regex::icase);
+  std::smatch             match;
+  const auto              chunk_size = vm["chunk-size"].as<std::string>();
+
+  std::regex_match(chunk_size, match, pattern);
+
+  double num  = std::stod(match[1].str());
+  char   unit = match[3].str().empty() ? 'B' : std::toupper(match[3].str()[0]);
+
+  switch (unit) {
+  case 'K':
+    num *= 1024;
+    break;
+  case 'M':
+    num *= 1024 * 1024;
+    break;
+  case 'G':
+    num *= 1024 * 1024 * 1024;
+    break;
+  }
+  if (num < 1) {
+    throw std::system_error(EINVAL, std::generic_category(),
+                            "Invalid value " + chunk_size + " for 'chunk_size', less than 1 byte");
+  }
+  return static_cast<unsigned int>(num);
+}
+
 bool printSampens(const po::variables_map &vm) {
   char t = (char)std::tolower(vm["print-sampens"].as<std::string>()[0]);
   if (t == 't' || t == '1') {
     return true;
   } else {
     return false;
+  }
+}
+
+// Validators
+
+void validate_chunk_size(const std::string &chunk_size) {
+  static const std::regex pattern(R"(^(\d+(\.\d+)?)(B|K|M|G)?$)", std::regex::icase);
+
+  if (!std::regex_match(chunk_size, pattern)) {
+    throw std::system_error(EINVAL, std::generic_category(),
+                            "Invalid format " + chunk_size + " for 'chunk_size'");
   }
 }
 

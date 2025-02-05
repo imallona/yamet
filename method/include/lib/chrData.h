@@ -43,4 +43,5 @@ public:
   void print();
 };
 
-Reference parseRef(const std::string &filename, const Intervals &intervals);
+Reference parseRef(const std::string &filename, const Intervals &intervals,
+                   const unsigned int chunk_size);
