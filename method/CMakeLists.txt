@@ -40,6 +40,13 @@ find_package(Boost REQUIRED COMPONENTS program_options)
 find_package(ZLIB REQUIRED)
 find_package(Threads REQUIRED)
 
+# set RPATH for executable
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  set(CMAKE_INSTALL_RPATH "$ORIGIN/../lib")
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+  set(CMAKE_INSTALL_RPATH "@loader_path/../lib")
+endif()
+
 # ============================
 # Library Target Configuration
 # ============================
@@ -49,19 +56,24 @@ file(GLOB LIB_SOURCES src/*.cpp)
 list(FILTER LIB_SOURCES EXCLUDE REGEX "src/main.cpp|src/boost.cpp")
 
 # Define the library target
-add_library(${PROJECT_NAME}_lib STATIC ${LIB_SOURCES})
+add_library(${PROJECT_NAME}_static STATIC ${LIB_SOURCES})
+add_library(${PROJECT_NAME}_shared SHARED ${LIB_SOURCES})
 
 # Set library export details
-set_target_properties(${PROJECT_NAME}_lib PROPERTIES
+set_target_properties(${PROJECT_NAME}_static ${PROJECT_NAME}_shared PROPERTIES
   OUTPUT_NAME ${PROJECT_NAME}
-  EXPORT_NAME ${PROJECT_NAME}
 )
 
 # Link zlib and threads to library target
-target_link_libraries(${PROJECT_NAME}_lib PRIVATE ZLIB::ZLIB Threads::Threads)
+target_link_libraries(${PROJECT_NAME}_static PRIVATE ZLIB::ZLIB Threads::Threads)
+target_link_libraries(${PROJECT_NAME}_shared PRIVATE ZLIB::ZLIB Threads::Threads)
 
 # Include directories for the library
-target_include_directories(${PROJECT_NAME}_lib PUBLIC
+target_include_directories(${PROJECT_NAME}_static PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include/lib>
+  $<INSTALL_INTERFACE:include>
+)
+target_include_directories(${PROJECT_NAME}_shared PUBLIC
   $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include/lib>
   $<INSTALL_INTERFACE:include>
 )
@@ -74,7 +86,7 @@ target_include_directories(${PROJECT_NAME}_lib PUBLIC
 add_executable(${PROJECT_NAME} src/main.cpp src/boost.cpp)
 
 # Link library and Boost program options to executable
-target_link_libraries(${PROJECT_NAME} PRIVATE ${PROJECT_NAME}_lib Boost::program_options)
+target_link_libraries(${PROJECT_NAME} PRIVATE ${PROJECT_NAME}_shared Boost::program_options)
 
 # Link include directories for headers to executable target
 target_include_directories(${PROJECT_NAME} PUBLIC
@@ -90,7 +102,7 @@ target_include_directories(${PROJECT_NAME} PUBLIC
 include(GNUInstallDirs)
 
 # Install library target
-install(TARGETS ${PROJECT_NAME}_lib
+install(TARGETS ${PROJECT_NAME}_static ${PROJECT_NAME}_shared
   EXPORT ${PROJECT_NAME}Targets
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
