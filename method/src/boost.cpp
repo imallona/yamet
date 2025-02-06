@@ -74,7 +74,9 @@ po::variables_map parseCommandLine(int argc, char **argv) {
         po::value<unsigned int>()->default_value(1)->notifier(validate_threads_per_core),
         "number of threads per core used for simultaneously parsing methylation files")
     ("chunk-size", po::value<std::string>()->default_value("64K")->notifier(validate_chunk_size),
-        "size of the buffer (per file) used for reading data");
+        "size of the buffer (per file) used for reading data. Can be specified as a "
+        "positive integer (bytes) or with a suffix: B (bytes), K (kilobytes), "
+        "M (megabytes), G (gigabytes). Example: 4096, 64K, 128M, 2G");
   // clang-format on
 
   po::options_description mis("misc");
