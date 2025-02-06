@@ -13,10 +13,12 @@
  *
  * @param filename path to bed.gz file to be extracted.
  * @param intervals Intervals object with search intervals.
+ * @param chunk_size size of file chunk.
  * @return Reference object which contain the chr information and intervals
  * corresponding to it.
  */
-Reference parseRef(const std::string &filename, const Intervals &intervals) {
+Reference parseRef(const std::string &filename, const Intervals &intervals,
+                   const unsigned int chunk_size) {
   gzFile file = gzopen(filename.c_str(), "rb");
   if (!file) {
     throw std::system_error(errno, std::generic_category(), "Opening " + filename);
@@ -32,12 +34,11 @@ Reference parseRef(const std::string &filename, const Intervals &intervals) {
   }
 
   /**
-   * buffer size of 64M - this is the total amount of information from a file stored at any time as
-   * a chunk
+   * buffer size of 64K by default - this is the total amount of information from a file stored at
+   * any time as a chunk
    */
-  constexpr int bufferSize = 64 * 1024;
-  char          buffer[bufferSize];
-  std::string   partialLine;
+  std::vector<char> buffer(chunk_size);
+  std::string       fullBuffer;
 
   /// current chromosome being parsed from reference file
   std::string currentChr = "";
@@ -51,17 +52,14 @@ Reference parseRef(const std::string &filename, const Intervals &intervals) {
 
   while (!done) {
     /// read a chunk of data from a file
-    int bytesRead = gzread(file, buffer, bufferSize - 1);
+    int bytesRead = gzread(file, buffer.data(), chunk_size);
 
     if (bytesRead < 0) {
       gzclose(file);
       throw std::system_error(errno, std::generic_category(), filename);
     }
 
-    buffer[bytesRead] = '\0';
-
-    std::string fullBuffer = partialLine + buffer;
-    partialLine.clear();
+    fullBuffer.append(buffer.begin(), buffer.begin() + bytesRead);
 
     std::istringstream ss(fullBuffer);
     std::string        line;
@@ -69,9 +67,13 @@ Reference parseRef(const std::string &filename, const Intervals &intervals) {
     /// iterate over lines in a chunk
     while (std::getline(ss, line)) {
       /// save partial line to be processed later
-      if (ss.eof() && line.back() != '\n') {
-        partialLine = line;
-        break;
+      if (ss.peek() == EOF) {
+        if (fullBuffer.back() == '\n') {
+          fullBuffer.clear();
+        } else {
+          fullBuffer = line;
+          break;
+        }
       }
       // if (!headerSkipped) {
       //   headerSkipped = true;
@@ -131,7 +133,7 @@ Reference parseRef(const std::string &filename, const Intervals &intervals) {
         ref[chrIndex].positions[intervalIndex].emplace_back(pos);
       }
     }
-    if (bytesRead < bufferSize - 1) {
+    if (bytesRead < chunk_size) {
       break;
     }
   }

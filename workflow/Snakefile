@@ -9,20 +9,28 @@
 
 import os.path as op
 import pandas as pd
-        
+
+include: op.join('rules', 'ecker.smk')
+include: op.join('rules', 'mm10_annotations.smk')
+include: op.join('rules', 'crc.smk')
+include: op.join('rules', 'feature_simulations.smk')
+include: op.join('rules', 'scnmt_gastrulation.smk')
+
 ## the shuffling is to have as many permutations as len(seed) of each of the annotations, to build
 ##   multiple entropy background distributions
 rule all:
     input:
-        op.join('ecker_data', 'downloaded_ecker.flag'), ## this is to download Ecker's cytosine reports
+        # op.join('ecker_data', 'downloaded_ecker.flag'), ## this is to download Ecker's cytosine reports
+        # op.join('ecker_data', 'harmonized_ecker_metadata.tsv.gz'), ## this to download Ecker's metadata
         op.join('annotation', 'mm10', 'done.flag'), ## this to download regions for Ecker's
-        op.join('ecker_data', 'harmonized_ecker_metadata.tsv.gz'), ## this to download Ecker's metadata
-        op.join('crc_data', 'downloaded_crc.flag'), # this to download CRC cytosine reports
+        # op.join('crc_data', 'downloaded_crc.flag'), # this to download CRC cytosine reports
+        # op.join('scnmt_gastrulation_data', 'downloaded_data.tsv'), ## this is Argelaguet's gastrulation
         expand(op.join('annotation', 'shuffled', '{assembly}', '{seed}', '{annotation}.bed.gz'),
                seed = [1,2],
                assembly = 'mm10',
-               annotation = ['transcripts', 'promoters']), ## to get a random background features
-        op.join('feature_simulations', 'output', 'yamet_detailed.out') ## feature simulations
+               annotation = ['genes', 'promoters']), ## to get a random background features
+        op.join('feature_simulations', 'output', 'yamet_detailed.out'), ## feature simulations,
+        # op.join('scnmt_gastrulation_data', 'output', 'yamet_summarized.out') ## an scNMT example
 
 ## yamet is compiled by install_yamet and exported for each shell directive
 shell.prefix("export PATH=../method/build:$PATH;")
@@ -36,169 +44,9 @@ rule install_yamet:
         """
         bash ../method/build.sh
         """
-
-rule download_nemo_ecker_metadata:
-    conda:
-        "envs/yamet.yml"
-    output:
-        meta = op.join('ecker_data', 'MOp_Metadata.tsv.gz')
-    params:
-        path = 'ecker_data'
-    shell:
-        """
-        mkdir -p {params.path}
-        curl "https://data.nemoarchive.org/biccn/grant/u19_cemba/cemba/epigenome/sncell/mCseq/mouse/processed/analysis/EckerRen_Mouse_MOp_methylation_ATAC/metadata/mc/MOp_Metadata.tsv.gz" -o {output.meta}
-        """
-
-rule download_ecker_paper_metadata:
-    conda:
-        "envs/yamet.yml"
-    output:
-        meta = op.join('ecker_data', '41586_2020_3182_MOESM9_ESM.xlsx')#,
-        # csv = op.join('ecker_data', '41586_2020_3182_MOESM9_ESM.csv')
-    params:
-        path = 'ecker_data'
-    shell:
-        """
-        mkdir -p {params.path}
-        curl "https://static-content.springer.com/esm/art%3A10.1038%2Fs41586-020-03182-8/MediaObjects/41586_2020_3182_MOESM9_ESM.xlsx" -o {output.meta}
-        # ssconvert {output.meta} output.meta_csv
-        """
-
-rule harmonize_ecker_metadata:
-    conda:
-        "envs/r.yml"
-    input:
-        paper = op.join('ecker_data', '41586_2020_3182_MOESM9_ESM.xlsx'),
-        nemo = op.join('ecker_data', 'MOp_Metadata.tsv.gz')
-    output:
-        metadata = op.join('ecker_data', 'harmonized_ecker_metadata.tsv.gz')
-    params:
-        path = 'ecker_data'
-    script:        
-        'src/harmonize_ecker_metadata.R'
         
-    
-# ## reports the AllcPath (basename) of cells matching the harmonized metadata
-# ##   'column' equals 'value'
-# def slice_eckers_metadata(column, value):
-#     meta_fn = op.join('ecker_data','harmonized_ecker_metadata.tsv.gz')
-    
-#     if not op.exists(meta_fn):
-#         raise Exception("No metadata found.")
-    
-#     meta = pd.read_csv(filepath_or_buffer = meta_fn,
-#                        sep='\t',
-#                        compression='gzip', header=0, quotechar='"')
-    
-#     if set([column]).issubset(meta.columns):
-#         return [i for i in meta[meta[column] == value]['basename']]
-#     else:
-#         return None
-
-# ## this is a long one!
-# print(slice_eckers_metadata('SubType', 'IT-L4 Shc3'))
-
-rule download_ecker:
-    conda:
-        "envs/yamet.yml"
-    input:
-        meta = op.join('ecker_data', 'MOp_Metadata.tsv.gz')
-    output:
-        raw_urls = temp(op.join('ecker_data', 'raw_urls')),
-        urls = op.join('ecker_data', 'urls'),
-        flag = op.join('ecker_data', 'downloaded_ecker.flag')
         
-    params:
-        base_url = "https://data.nemoarchive.org/biccn/grant/u19_cemba/cemba/epigenome/sncell/mCseq/mouse/processed/counts/",
-        path = 'ecker_data/'
-    threads:
-        2
-    shell:
-        """
-        zcat {input.meta} | cut -f2 | grep -v AllcPath > {output.raw_urls}
-        sed 's\\/gale/raidix/rdx-4/CEMBA_RS1/\\{params.base_url}\\g' {output.raw_urls} | \
-           sed 's\\/allc/\\/\\g' | sed 's\\.gz\\.tar\\g' > {output.urls}
-        
-        wget -i {output.urls} --directory-prefix={params.path}
-        touch {output.flag}
-        """
-
-rule download_mm10_annotation_for_ecker:
-    conda:
-        op.join("envs", "yamet.yml")
-    input:
-        promoters = op.join('annotation', 'mm10', 'promoters.bed.gz'),
-        txs = op.join('annotation', 'mm10', 'genes.bed.gz'),
-        encode = op.join('annotation', 'mm10', 'h3k27ac.bed.gz')
-    output:
-        flag = op.join('annotation', 'mm10', 'done.flag')
-    params:
-        path = op.join('annotation', 'mm10')
-    threads:
-        1
-    shell:
-        """
-        date > {output.flag}
-        """
-    
-rule download_mm10_promoters:
-    conda:
-        op.join("envs", "yamet.yml")
-    output:
-        promoters = op.join('annotation', 'mm10', 'promoters.bed.gz')    
-    params:
-        path = op.join('annotation', 'mm10')
-    threads:
-        1
-    shell:
-        """
-        bash src/download_mm10_promoters.sh | gzip -c > {output.promoters}
-        """
-
-rule download_mm10_genes:
-    conda:
-        op.join("envs", "yamet.yml")
-    output:
-        txs = op.join('annotation', 'mm10', 'genes.bed.gz')
-    params:
-        path = op.join('annotation', 'mm10')
-    threads:
-        1
-    shell:
-        """
-        bash src/download_mm10_genes.sh | gzip -c > {output.txs}
-        """
-        
-rule download_mm10_encode:
-    conda:
-        op.join("envs", "yamet.yml")
-    output:
-        last = op.join('annotation', 'mm10', 'h3k27ac.bed.gz')
-    params:
-        path = op.join('annotation', 'mm10')
-    threads:
-        1
-    shell:
-        """
-        bash src/download_encode_mm10_epigenomics.sh
-        """
-
-rule get_mm10_genome_sizes:
-    conda:
-        op.join("envs", "yamet.yml")
-    output:
-        genome = op.join('annotation', 'mm10','genome.sizes')
-    params:
-        path = op.join('annotation', 'mm10')
-    threads:
-        1
-    shell:
-        """
-        bash src/download_mm10_genome_sizes.sh > {output.genome}
-        """
-        
-rule shuffle_background:
+rule shuffle_annotations:
     conda:
         op.join("envs", "yamet.yml")
     input:
@@ -216,65 +64,31 @@ rule shuffle_background:
             gzip -c > {output}
         """
 
-## how do we run yamet? in batches of cells? how to automate this so the shuffled backgrounds
-##   are coupled as well?
-##  we can use `slice_eckers_metadata(column, value)` to generate the cell inputs
-rule run_yamet:
-    conda:
-        op.join("envs", "yamet.yml")
-    input:
-        bed = op.join('annotation', 'mm10', '{annotation}.bed.gz'),
-        genome = op.join('annotation', 'mm10','genome.sizes')
-    output:
-        detailed = op.join('yamet', '{annotation}', '{cells}')
-    message:
-        """
-        echo running yamet on {input.bed} and {input.annotation}
-        """
-    shell:
-        """
-        echo 'not implemented but slice_eckers_metadata(column, value) is key'
-        """
+# ## inputs from ecker.smk
+# ## how do we run yamet? in batches of cells? how to automate this so the shuffled backgrounds
+# ##   are coupled as well?
+# ##  we can use `slice_eckers_metadata(column, value)` to generate the cell inputs
+# rule run_yamet_on_ecker:
+#     conda:
+#         op.join("envs", "yamet.yml")
+#     input:
+#         bed = op.join('annotation', 'mm10', '{annotation}.bed.gz'),
+#         genome = op.join('annotation', 'mm10','genome.sizes')
+#     output:
+#         detailed = op.join('yamet', '{annotation}', '{cells}')
+#     message:
+#         """
+#         echo running yamet on {input.bed} and {input.annotation}
+#         """
+#     shell:
+#         """
+#         echo 'not implemented but slice_eckers_metadata(column, value) is key'
+#         """
 
-rule download_crc:
-    conda:
-        op.join("envs", "yamet.yml")
-    output:
-        crc = op.join('crc_data', 'downloaded_crc.flag')
-    params:
-        crc_path = 'crc_data'
-    message:
-        """
-        CRC download
-        """
-    shell:
-        """
-        mkdir -p {params.crc_path}
-        bash src/get_crc_meth_files.sh
-        mv crc_done.flag {params.crc_path}
-        mv G*singleC.txt.gz {params.crc_path}
-        """
 
 # ## data download - pending stuff
 
-rule simulate_features:
-    conda:
-        op.join("envs", "yamet.yml")
-    output:
-        cell = op.join('feature_simulations', 'output', 'simulations.tsv'),
-        reference = op.join('feature_simulations', 'output', 'reference.tsv'),
-        regions = op.join('feature_simulations', 'output', 'regions.bed')
-    params:
-        path = op.join('feature_simulations', 'output')        
-    shell:
-        """
-        mkdir -p {params.path}
-        Rscript src/feature_simulation.R
-        mv regions.bed {params.path}
-        mv simulations.tsv {params.path}
-        mv reference.tsv {params.path}
-        """
-
+## inputs from feature_simulations.smk
 rule run_yamet_simulated_features:
     conda:
         op.join("envs", "yamet.yml")
@@ -284,7 +98,7 @@ rule run_yamet_simulated_features:
         reference = op.join('feature_simulations', 'output', 'reference.tsv'),
         regions = op.join('feature_simulations', 'output', 'regions.bed')
     output:
-        out = op.join('feature_simulations', 'ouput', 'yamet_summarized.out'),
+        out = op.join('feature_simulations', 'output', 'yamet_summarized.out'),
         detailed_output = op.join('feature_simulations', 'output', 'yamet_detailed.out')
     threads:
         4
@@ -308,3 +122,84 @@ rule run_yamet_simulated_features:
 # def download_mm10_repeats(assembly = 'mm10'):
 #     return NULL
 
+rule get_mm10_genome:
+    conda:
+        op.join("envs", "yamet.yml")
+    output:
+        genome = op.join('annotation', 'mm10', 'mm10.fa.gz')
+    params:
+        path = op.join('annotation', 'mm10')
+    message:
+        "chr19 only! warning"
+    shell:
+        """
+        mkdir -p {params.path}
+        cd {params.path}
+        ## wget https://hgdownload.soe.ucsc.edu/goldenPath/mm10/bigZips/mm10.fa.gz
+        ## shortcut here
+        wget https://hgdownload.cse.ucsc.edu/goldenpath/mm10/chromosomes/chr19.fa.gz -O mm10.fa.gz
+        """
+
+## to be optimized https://github.com/emsonder/MethQuant-analysis/commit/be6c8e6e50a0a07b82973b99a91d56fdf088b3c7
+rule get_mm10_reference_cpgs:
+    conda:
+        op.join("envs", "yamet.yml")
+    input:
+        genome = op.join('annotation', 'mm10', 'mm10.fa.gz')
+    output:
+        genome_uncomp = temp(op.join('annotation', 'mm10', 'mm10.fa')),
+        reference = op.join('annotation', 'mm10', 'mm10_unstranded_cg_ref.tsv.gz'),
+        sizes = temp('fa.sizes')
+    shell:
+        """
+        gunzip --keep {input.genome}
+        faSize {output.genome_uncomp} -detailed > {output.sizes}
+
+        ## extract coordinates were `CG` nucleotides are (-pattern CG),
+        ##   via sliding (-s) dinucleotides (-w 2) scan with bedtools
+        bedtools makewindows -g {output.sizes} -w 2 -s 1 | \
+          bedtools nuc -fi {output.genome_uncomp} -bed stdin -pattern CG | \
+          grep "1$" | cut -f1-3 | gzip -c > {output.reference}
+
+        """
+    
+# Multi-omics profiling of mouse gastrulation at single cell resolution
+#
+# Ricard Argelaguet 2,#, Stephen J Clark 1,*,#, Hisham Mohammed 1,#, L Carine Stapel 1,#, Christel Krueger 1, Chantriolnt-Andreas Kapourani 5,14, Ivan Imaz-Rosshandler 11, Tim Lohoff 1,11, Yunlong Xiang 9,10, Courtney W Hanna 1,8, Sebastien Smallwood 1, Ximena Ibarra-Soria 4, Florian Buettner 12, Guido Sanguinetti 5, Wei Xie 9,10, Felix Krueger 7, Berthold Göttgens 11, Peter J Rugg-Gunn 1,8,11, Gavin Kelsey 1,8, Wendy Dean 13, Jennifer Nichols 11, Oliver Stegle 2,3,15,*, John C Marioni 2,4,6,*, Wolf Reik 1,6,8,*
+#
+# https://pmc.ncbi.nlm.nih.gov/articles/PMC6924995
+# https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE121708
+#
+# this is GRCm38 == mm10
+rule run_yamet_scnmt_gastrulation_example:
+    conda:
+        op.join( "envs", "yamet.yml")
+    input: 
+        downloaded_data = op.join("scnmt_gastrulation_data", "downloaded_data.tsv"),
+        cell = op.join('scnmt_gastrulation_data', 'low_real', 'met', 'cpg_level', 'E6.5_Plate2_G6.tsv.gz'),
+        regions = op.join('scnmt_gastrulation_data', 'low_real', 'features',
+                          'genomic_contexts', 'H3K4me3_E7.5_Mes.bed'),
+        reference = op.join('annotation', 'mm10', 'mm10_unstranded_cg_ref.tsv.gz')
+    output:
+        yamet_friendly = temp('current_friendly.tsv.gz'),
+        out = op.join('scnmt_gastrulation_data', 'output', 'yamet_summarized.out'),
+        detailed_output = op.join('scnmt_gastrulation_data', 'output', 'yamet_detailed.out')
+    threads:
+        4
+    log:
+        op.join('feature_simulations', 'run.log')
+    message:
+        "fails I guess due to the reference file overlap"
+    shell:
+        """
+        zcat {input.cell} | awk '{{OFS=FS="\t" ;print $1,$2,$2,$2+$3,$4}}' | gzip -c > {output.yamet_friendly}
+        yamet --cell {output.yamet_friendly} \
+              --reference {input.reference} \
+              --intervals {input.regions} \
+              --det-out {output.detailed_output} \
+              --out {output.out} \
+              --cores {threads} \
+              --print-intervals &> {log}        
+        """
+    
+        

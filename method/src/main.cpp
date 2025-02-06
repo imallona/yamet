@@ -19,12 +19,13 @@ int main(int argc, char **argv) {
       intervals.print();
     }
 
-    Reference ref = parseRef(getRef(vm), intervals);
+    Reference ref = parseRef(getRef(vm), intervals, getChunkSize(vm));
     if (vm.count("print-reference")) {
       ref.print();
     }
 
-    FileMap fileMap = alignWithRef(filenames, ref, 2, getCores(vm), getThreadsPerCore(vm));
+    FileMap fileMap =
+        alignWithRef(filenames, ref, 2, getCores(vm), getThreadsPerCore(vm), getChunkSize(vm));
 
     if (printSampens(vm) || vm.count("det-out") || vm.count("out")) {
       fileMap.aggregate();

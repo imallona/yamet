@@ -1,68 +1,59 @@
-# Current release
+# Description
 
-Under development! :confetti_ball:
+`yamet` is `y`et `a`nother `m`ethylation `e`ntropy `t`ool.
+
+`yamet` is under development! :confetti_ball:
 
 Please also check (probably side branches of):
 
 - https://github.com/emsonder/MethQuant
 - https://github.com/emsonder/MethQuant-analysis
 
-# Old release
+# Repository
 
-## Repo organization
+- `method`: yamet code. See [our releases](https://github.com/imallona/yamet/releases) (including binaries)
+- `workflow`: yamet applications, including simulations
+- `.github/workflows` and `test`: testing
+- `old`: archived codebase from old version to be removed
 
-- `schemas`, yaml sample and configs, includes `samples.schema.yaml` and `config.schema.yaml`
-- `runs`,  data getters, config files and accessors for specific runs, e.g. `encode`, `glios`, `simulations`, `test`
-- `snakefiles`, snakefiles for different runs
+# Installation
 
-## Current runs
-- `glios`, explores entropies from https://www.ebi.ac.uk/ega/datasets/EGAD00001004074, for which clinical data are available
-- `encode`, explores the association between entropies and HMM segmentations using data from ENCODE
-- `test`, uses the methtuple bismark bam testfiles
+### Brew
 
+**yamet** can be installed via `brew` on MacOS and Ubuntu
 
-## To do
+```bash
+brew tap atchox/brew
 
-Implementation
+# stable version
+brew install yamet
 
-- Tests
-- Config yaml for multisample handling
+# or build latest version from source
+brew install --HEAD yamet
+```
 
-Metric
+### Compiled Binaries
 
-- Scores: explore alternatives to methylation-standardized entropy
-- Strand specificity, skipped currently
+Compiled binaries can be downloaded from the [releases](https://github.com/imallona/yamet/releases) page.
 
-Simulations
+### Build from source
 
-- Simulations based en epiallele diversity
-- Simulations based in DNA meth
-- Simulations based in sequencing depth
-- Simulations based in read length
+```bash
+git clone https://github.com/imallona/yamet.git
+cd yamet/method
+bash build.sh
+./build/yamet --help
+```
 
-Use cases
+# How to run the workflow
 
-- Test dataset provided by `methtuple`
-- HMM cell-line specificity, e.g. enhancer detection
-- RRBS-derived outcome prediction (glioblastomas)
+Lorem ipsum
 
-Use cases challenges
+```
+cd workflow
+snakemake --use-conda --cores 1
+```
 
-- Confounding with purity/deconvolution of purity
-- ASM
-- CNV
+# License
 
-Further capabilities?
-
-- Differential entropy?
-- Regional differential entropy?
-
-Benchmark
-
-- Feinberg's matlab
-- Guo et al 2017
-- ?
-
-Global
-
-- Get a name
+GPLv3
