@@ -187,7 +187,7 @@ for(i in 1:nrow(paramGrid)){
                              paste0(paste(cellId, 
                                           paste(paramsSet, 
                                                 collapse="_"), sep="_"), ".tsv")),
-              quote=FALSE, sep='\t', row.names=FALSE)
+              quote=FALSE, sep='\t', row.names=FALSE, col.names=FALSE)
   })
 }
 ```

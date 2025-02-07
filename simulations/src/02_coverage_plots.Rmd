@@ -39,7 +39,7 @@ simParams[,c("n_cells", "n_cpgs",
 
 ## Overall coverage
 
-```{r}
+```{r, warning=FALSE}
 ovCovDts <- lapply(1:nrow(simParams), function(i){
   simDt <- fread(file.path(dataDir, simParams[i,]$file_name))
   covDt <- data.table(coverage=nrow(simDt)/simParams[i,]$n_cpgs)
@@ -86,9 +86,20 @@ ggplot(ovCovDt, aes(x=coverage_mode, y=coverage, color=coverage_mode,
 
 ## Length of stretches
 
-```{r}
+```{r, warning=FALSE}
 strLenDts <- lapply(1:nrow(simParams), function(i){
-  simDt <- fread(file.path(dataDir, simParams[i,]$file_name))
+  simDt <- fread(file.path(dataDir, simParams[i,]$file_name), header=FALSE, 
+                 col.names=c("chr", "pos", "met_reads", "total_reads", "rate"))
+  if(nrow(simDt)>0){
+    colnames(simDt) <- c("chr", "pos", "met_reads", "total_reads", "rate")}
+  else{
+    simDt <- data.table(chr=character(), 
+                        pos=integer(), 
+                        met_reads=integer(),
+                        total_reads=integer(), 
+                        rate=numeric())
+  }
+
   nCpGs <- simParams[i,]$n_cpgs
   missDt <-  data.table(pos=setdiff(1:nCpGs, simDt$pos))
   missDt$chr <- "chrSim"
