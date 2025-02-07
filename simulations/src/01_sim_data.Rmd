@@ -180,7 +180,8 @@ for(i in 1:nrow(paramGrid)){
     setnames(simCell, cellId, "rate")
     simCell[,met_reads:=fifelse(rate==1,1,0)]
     simCell[,nonmet_reads:=fifelse(rate==0,1,0)]
-    simCell <- simCell[,c("chr", "pos", "met_reads", "nonmet_reads", "rate")]
+    simCell[,total_reads:=met_reads+nonmet_reads]
+    simCell <- simCell[,c("chr", "pos", "met_reads", "total_reads", "rate")]
     write.table(simCell,
               file=file.path(outDir,
                              paste0(paste(cellId, 
