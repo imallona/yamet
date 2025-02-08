@@ -82,9 +82,13 @@ Reference parseRef(const std::string &filename, const Intervals &intervals,
 
       /// parsing a line from reference
       std::istringstream lineStream(line);
-      std::string        chr, temp;
+      std::string        chr;
       unsigned int       pos;
-      lineStream >> chr >> pos >> temp;
+      if (!(lineStream >> chr >> pos)) {
+        throw std::system_error(EIO, std::generic_category(),
+                                "in line\n\n\t\033[33m" + line +
+                                    "\033[0m\n\nparsing reference file " + filename);
+      }
 
       /// updates chromosome currently being evaluated and resets firstFound
       if (chr != currentChr) {

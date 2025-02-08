@@ -98,7 +98,11 @@ void alignSingleWithRef(const std::string &filename, const Reference &ref, const
       std::string        chr;
       unsigned int       pos;
       unsigned int       mVal, tVal, methValue;
-      lineStream >> chr >> pos >> mVal >> tVal >> methValue;
+      if (!(lineStream >> chr >> pos >> mVal >> tVal >> methValue)) {
+        throw std::system_error(EIO, std::generic_category(),
+                                "in line\n\n\t\033[33m" + line + "\033[0m\n\nparsing cell file " +
+                                    filename);
+      }
 
       if (mVal > tVal) {
         throw std::system_error(
