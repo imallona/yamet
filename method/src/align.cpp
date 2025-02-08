@@ -39,7 +39,8 @@
  * in a FileMeths object against the filename as key.
  */
 void alignSingleWithRef(const std::string &filename, const Reference &ref, const unsigned int m,
-                        const unsigned int chunk_size, FileMap &fileMap) {
+                        const unsigned int skip_header, const unsigned int chunk_size,
+                        FileMap &fileMap) {
   gzFile file = gzopen(filename.c_str(), "rb");
   if (!file) {
     throw std::system_error(errno, std::generic_category(), "Opening " + filename);
@@ -51,11 +52,11 @@ void alignSingleWithRef(const std::string &filename, const Reference &ref, const
    */
   std::vector<char> buffer(chunk_size);
   std::string       fullBuffer;
-  // bool          headerSkipped = false;
 
   unsigned int chrIndex = 0, binIndex = 0, posIndex = 0;
-  std::string  currentChr = "";
-  bool         foundChr   = false;
+  std::string  currentChr      = "";
+  bool         foundChr        = false;
+  unsigned int skipped_headers = 0;
   Window       window(m + 1);
 
   FileCounts fileCounts(ref, m);
@@ -89,10 +90,10 @@ void alignSingleWithRef(const std::string &filename, const Reference &ref, const
           break;
         }
       }
-      // if (!headerSkipped) {
-      //   headerSkipped = true;
-      //   continue;
-      // }
+      if (skipped_headers < skip_header) {
+        skipped_headers++;
+        continue;
+      }
       std::istringstream lineStream(line);
       std::string        chr;
       unsigned int       pos;
@@ -215,8 +216,8 @@ void set_thread_affinity(int core_id) {
  * stored in a FileMeths object against the filename as key
  */
 FileMap alignWithRef(const std::vector<std::string> &filenames, const Reference &ref,
-                     const unsigned int m, unsigned int n_cores, unsigned int n_threads_per_core,
-                     const unsigned int chunk_size) {
+                     const unsigned int m, const unsigned int skip_header, unsigned int n_cores,
+                     unsigned int n_threads_per_core, const unsigned int chunk_size) {
   FileMap fileMap;
   fileMap.reserve(filenames.size());
 
@@ -259,7 +260,7 @@ FileMap alignWithRef(const std::vector<std::string> &filenames, const Reference 
             taskQueue.pop();
           }
           // Process task
-          alignSingleWithRef(filename, ref, m, chunk_size, fileMap);
+          alignSingleWithRef(filename, ref, m, skip_header, chunk_size, fileMap);
 
           // Notify waiting threads
           cv.notify_all();

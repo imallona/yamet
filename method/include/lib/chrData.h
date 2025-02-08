@@ -24,7 +24,7 @@ public:
   void print();
 };
 
-Intervals parseSearch(const std::string &filename);
+Intervals parseSearch(const std::string &filename, const unsigned int skip_header);
 
 struct ChrPositions {
   std::string                            chr;
@@ -44,4 +44,4 @@ public:
 };
 
 Reference parseRef(const std::string &filename, const Intervals &intervals,
-                   const unsigned int chunk_size);
+                   const unsigned int skip_header, const unsigned int chunk_size);
