@@ -14,18 +14,18 @@ int main(int argc, char **argv) {
 
     std::vector<std::string> filenames = getCellFiles(vm);
 
-    Intervals intervals = parseSearch(getIntervals(vm));
+    Intervals intervals = parseSearch(getIntervals(vm), getSkipHeaderIntervals(vm));
     if (vm.count("print-intervals")) {
       intervals.print();
     }
 
-    Reference ref = parseRef(getRef(vm), intervals, getChunkSize(vm));
+    Reference ref = parseRef(getRef(vm), intervals, getSkipHeaderReference(vm), getChunkSize(vm));
     if (vm.count("print-reference")) {
       ref.print();
     }
 
-    FileMap fileMap =
-        alignWithRef(filenames, ref, 2, getCores(vm), getThreadsPerCore(vm), getChunkSize(vm));
+    FileMap fileMap = alignWithRef(filenames, ref, 2, getSkipHeaderCell(vm), getCores(vm),
+                                   getThreadsPerCore(vm), getChunkSize(vm));
 
     if (printSampens(vm) || vm.count("det-out") || vm.count("out")) {
       fileMap.aggregate();
