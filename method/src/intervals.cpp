@@ -39,7 +39,11 @@ Intervals parseSearch(const std::string &filename, const unsigned int skip_heade
     std::istringstream iss(line);
     std::string        chr;
     unsigned int       start, end;
-    iss >> chr >> start >> end;
+    if (!(iss >> chr >> start >> end)) {
+      throw std::system_error(EIO, std::generic_category(),
+                              "in line\n\n\t\033[33m" + line +
+                                  "\033[0m\n\nparsing intervals file " + filename);
+    }
 
     if (start >= end) {
       throw std::system_error(EIO, std::generic_category(),
