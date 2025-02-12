@@ -1,0 +1,51 @@
+name: Brew Bottle
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "The version tag to build the bottle for (e.g., v1.0.0)"
+        required: true
+
+jobs:
+  build-macos:
+    strategy:
+      matrix:
+        os: ["macos-14", "macos-15", "ubuntu-24.04"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Install Homebrew on Ubuntu
+        if: runner.os == 'Linux'
+        uses: Homebrew/actions/setup-homebrew@master
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Update brew and tap
+        run: |
+          brew update
+          brew tap atchox/brew
+
+      - name: Get latest version tag
+        id: get_latest_tag
+        run: |
+          git fetch --tags
+          LATEST_TAG=$(git describe --tags --match 'v*' --abbrev=0)
+          echo "Latest tag: $LATEST_TAG"
+          echo "LATEST_TAG=${LATEST_TAG}" >> $GITHUB_ENV
+
+      - name: Install and Bottle
+        run: |
+          brew install --build-bottle yamet
+          brew bottle --no-rebuild yamet
+          for file in yamet--*.tar.gz; do
+            mv "$file" "${file//--/-}"
+          done
+
+      - name: Create GitHub Release and upload tarball
+        uses: softprops/action-gh-release@v2
+        with:
+          files: yamet-*.tar.gz
+          tag_name: "${{ env.LATEST_TAG }}"

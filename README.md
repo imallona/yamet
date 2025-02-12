@@ -16,12 +16,31 @@ Please also check (probably side branches of):
 - `.github/workflows` and `test`: testing
 - `old`: archived codebase from old version to be removed
 
-# How to run `yamet`
+# Installation
 
-Lorem ipsum
+### Brew
 
+**yamet** can be installed via `brew` on MacOS and Ubuntu
+
+```bash
+brew tap atchox/brew
+
+# stable version
+brew install yamet
+
+# or build latest version from source
+brew install --HEAD yamet
 ```
-cd method
+
+### Compiled Binaries
+
+Compiled binaries can be downloaded from the [releases](https://github.com/imallona/yamet/releases) page.
+
+### Build from source
+
+```bash
+git clone https://github.com/imallona/yamet.git
+cd yamet/method
 bash build.sh
 ./build/yamet --help
 ```
