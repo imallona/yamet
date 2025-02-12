@@ -1,0 +1,8 @@
+name: simulations
+channels:
+  - conda-forge
+dependencies:
+  - cmake
+  - boost-cpp
+  - zlib
+  - cxx-compiler

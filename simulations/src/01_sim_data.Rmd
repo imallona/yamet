@@ -16,12 +16,12 @@ condaEnvPath <- file.path(Sys.getenv("CONDA_PREFIX"), "lib", "R", "library")
 .libPaths(condaEnvPath)
 
 suppressPackageStartupMessages({
-library(BSgenome.Mmusculus.UCSC.mm10)
-library(Biostrings)
-library(data.table)
-library(GenomicRanges)
-library(MASS)
-library(markovchain)
+  library(BSgenome.Mmusculus.UCSC.mm10)
+  library(Biostrings)
+  library(data.table)
+  library(GenomicRanges)
+  library(MASS)
+  library(markovchain)
 })
 
 source("simPattern.R")
@@ -36,7 +36,7 @@ refChr <- "chr19"
 ```{r, paths}
 lowRealDir <- "../data/lowReal/met/cpg_level"
 outDir <- "../output/sim_data"
-if(!dir.exists(outDir)) dir.create(outDir)
+if (!dir.exists(outDir)) dir.create(outDir)
 ```
 
 ## Load simulation parameters
@@ -49,15 +49,16 @@ nCpGs <- unique(paramGrid$n_cpgs)
 ## Prepare parameters
 
 ```{r, CpG positons helper function}
-getCpGPositions <- function(genome, chr, shift=0) {
-
+getCpGPositions <- function(genome, chr, shift = 0) {
   seq <- genome[[chr]]
-  
-  # get the relative positions of CGs within the probes
-  cpgPos <- start(matchPattern(pattern="CG", subject=seq, 
-                               algorithm="naive-exact"))
 
-  cpgPos <- cpgPos+shift
+  # get the relative positions of CGs within the probes
+  cpgPos <- start(matchPattern(
+    pattern = "CG", subject = seq,
+    algorithm = "naive-exact"
+  ))
+
+  cpgPos <- cpgPos + shift
   return(cpgPos)
 }
 ```
@@ -65,129 +66,137 @@ getCpGPositions <- function(genome, chr, shift=0) {
 
 ```{r, required external data, eval=TRUE}
 # rather read from config
-if("lowReal" %in% paramGrid$covParams){
-  
+if ("lowReal" %in% paramGrid$covParams) {
   # get CpG positions of chromosome 19
-  cpgPos <- getCpGPositions(genome, refChr, shift=0)
+  cpgPos <- getCpGPositions(genome, refChr, shift = 0)
   refChrAlt <- as.integer(gsub("chr", "", refChr))
-  cpgPosDt <- data.table(pos=cpgPos, chr=refChrAlt, rate=NA)
-    
+  cpgPosDt <- data.table(pos = cpgPos, chr = refChrAlt, rate = NA)
+
   # read data
-  metFiles <- list.files(file.path(lowRealDir), full.names=TRUE)
+  metFiles <- list.files(file.path(lowRealDir), full.names = TRUE)
   metFiles <- metFiles[grepl("E7.5", basename(metFiles))]
   metFiles <- sample(metFiles, 200)
-  metDts <- lapply(metFiles, function(metFile){
-    metDt <- fread(metFile, select=c(1:2,5))
-    metDt <- subset(metDt, chr==refChrAlt)
-    metDt[,chr:=as.integer(chr)]
-    metDt <- merge(cpgPosDt, 
-                   metDt, by=c("chr", "pos"), all.x=TRUE)
-    metDt[,rate:=fifelse(!is.na(rate.y), as.numeric(rate.y), 
-                                         as.numeric(rate.x))]
+  metDts <- lapply(metFiles, function(metFile) {
+    metDt <- fread(metFile, select = c(1:2, 5))
+    metDt <- subset(metDt, chr == refChrAlt)
+    metDt[, chr := as.integer(chr)]
+    metDt <- merge(cpgPosDt,
+      metDt,
+      by = c("chr", "pos"), all.x = TRUE
+    )
+    metDt[, rate := fifelse(
+      !is.na(rate.y), as.numeric(rate.y),
+      as.numeric(rate.x)
+    )]
     metDt$rate.x <- metDt$rate.y <- NULL
     setorder(metDt, chr, pos)
-    metDt[,c("rate"),with=FALSE]
+    metDt[, c("rate"), with = FALSE]
   })
   metDt <- Reduce("cbind", metDts[-1], metDts[[1]])
   colnames(metDt) <- gsub(".tsv.gz", "", basename(metFiles))
-  metDt <- cbind(cpgPosDt[,c("pos", "chr")], metDt)
+  metDt <- cbind(cpgPosDt[, c("pos", "chr")], metDt)
   saveRDS(metDt, file.path(outDir, "metData.rds"))
-} else{
+} else {
   metDt <- NULL
 }
 ```
 
 ```{r, CpG reference table, eval=TRUE}
-lapply(nCpGs, function(nCpG){
-  cpgTable <- write.table(data.table(chr=rep("chrSim", nCpG),
-                                   pos=1:nCpG),
-                          file=file.path(outDir,
-                                         paste0(paste("cpgPositions", nCpG, sep="_"), ".tsv")),
-                          sep="\t",
-                          row.names=FALSE,
-                          quote=FALSE)
+lapply(nCpGs, function(nCpG) {
+  cpgTable <- write.table(
+    data.table(
+      chr = rep("chrSim", nCpG),
+      pos = 1:nCpG
+    ),
+    file = file.path(
+      outDir,
+      paste0(paste("cpgPositions", nCpG, sep = "_"), ".tsv")
+    ),
+    sep = "\t",
+    row.names = FALSE,
+    quote = FALSE
+  )
 })
 ```
 
 ## Simulate
 ```{r, simulate, warning=FALSE}
-for(i in 1:nrow(paramGrid)){
+for (i in 1:nrow(paramGrid)) {
   paramsSet <- paramGrid[i, ]
   # get the coverage parameters ------------------------------------------------
-  if(paramsSet$covParams=="low"){
-    probParam=0.03
-    sizeParams=c(1, 1)
-    estimateCovParams=FALSE
-  }
-  else if(paramsSet$covParams=="medium"){
-    probParam=0.15
-    sizeParams=c(1.2, 1)
-    estimateCovParams=FALSE
-  }
-  else if(paramsSet$covParams=="high"){
-    probParam=0.5
-    sizeParams=c(2, 1)
-    estimateCovParams=FALSE
-  }
-  else if(paramsSet$covParams=="complete"){
-    probParam=1
-    sizeParams=c(1, 1)
-    estimateCovParams=FALSE
-  }
-  else{
-    probParam=NULL
-    sizeParams=NULL
-    estimateCovParams=TRUE
+  if (paramsSet$covParams == "low") {
+    probParam <- 0.03
+    sizeParams <- c(1, 1)
+    estimateCovParams <- FALSE
+  } else if (paramsSet$covParams == "medium") {
+    probParam <- 0.15
+    sizeParams <- c(1.2, 1)
+    estimateCovParams <- FALSE
+  } else if (paramsSet$covParams == "high") {
+    probParam <- 0.5
+    sizeParams <- c(2, 1)
+    estimateCovParams <- FALSE
+  } else if (paramsSet$covParams == "complete") {
+    probParam <- 1
+    sizeParams <- c(1, 1)
+    estimateCovParams <- FALSE
+  } else {
+    probParam <- NULL
+    sizeParams <- NULL
+    estimateCovParams <- TRUE
   }
   # get the transition probability parameters ----------------------------------
-  if(paramsSet$transMat=="hmr"){
-    transMat <- matrix(c(0.2,0.2,0.8,0.8), nrow=2, ncol=2)
-    estimateTransMat=FALSE
-  }
-  else if(paramsSet$transMat=="lmr"){
-    transMat <- matrix(c(0.8,0.8,0.2,0.2), nrow=2, ncol=2)
-    estimateTransMat=FALSE
-  }
-  else if(paramsSet$transMat=="imrCons"){
-    transMat <- matrix(c(0.8,0.2,0.2,0.8), nrow=2, ncol=2)
-    estimateTransMat=FALSE
-  }
-  else if(paramsSet$transMat=="imrRand"){
-    transMat <- matrix(c(0.5,0.5,0.5,0.5), nrow=2, ncol=2)
-    estimateTransMat=FALSE
-  }
-  else{
-    estimateTransMat=TRUE
+  if (paramsSet$transMat == "hmr") {
+    transMat <- matrix(c(0.2, 0.2, 0.8, 0.8), nrow = 2, ncol = 2)
+    estimateTransMat <- FALSE
+  } else if (paramsSet$transMat == "lmr") {
+    transMat <- matrix(c(0.8, 0.8, 0.2, 0.2), nrow = 2, ncol = 2)
+    estimateTransMat <- FALSE
+  } else if (paramsSet$transMat == "imrCons") {
+    transMat <- matrix(c(0.8, 0.2, 0.2, 0.8), nrow = 2, ncol = 2)
+    estimateTransMat <- FALSE
+  } else if (paramsSet$transMat == "imrRand") {
+    transMat <- matrix(c(0.5, 0.5, 0.5, 0.5), nrow = 2, ncol = 2)
+    estimateTransMat <- FALSE
+  } else {
+    estimateTransMat <- TRUE
     transMat <- NULL
   }
-  if(!is.null(transMat)) colnames(transMat) <- c("0", "1")
+  if (!is.null(transMat)) colnames(transMat) <- c("0", "1")
   simTable <- simMetPattern(paramsSet$n_cpgs,
-                            paramsSet$n_cells,
-                            mode=as.character(paramsSet$mode),
-                            probParam=probParam,
-                            sizeParams=sizeParams,
-                            estimateCovParams=estimateCovParams,
-                            estimateTransMat=estimateTransMat,
-                            transMat=transMat,
-                            metTable=metDt,
-                            seed=seed)
-  
+    paramsSet$n_cells,
+    mode = as.character(paramsSet$mode),
+    probParam = probParam,
+    sizeParams = sizeParams,
+    estimateCovParams = estimateCovParams,
+    estimateTransMat = estimateTransMat,
+    transMat = transMat,
+    metTable = metDt,
+    seed = seed
+  )
+
   paramsSet <- lapply(paramsSet, as.character)
   cellIds <- setdiff(colnames(simTable), c("pos", "chr"))
-  lapply(cellIds, function(cellId){
-    simCell <- simTable[, c(cellId, "pos", "chr"), with=FALSE]
-    simCell <- simCell[complete.cases(simCell),]
+  lapply(cellIds, function(cellId) {
+    simCell <- simTable[, c(cellId, "pos", "chr"), with = FALSE]
+    simCell <- simCell[complete.cases(simCell), ]
     setnames(simCell, cellId, "rate")
-    simCell[,met_reads:=fifelse(rate==1,1,0)]
-    simCell[,nonmet_reads:=fifelse(rate==0,1,0)]
-    simCell[,total_reads:=met_reads+nonmet_reads]
-    simCell <- simCell[,c("chr", "pos", "met_reads", "total_reads", "rate")]
+    simCell[, met_reads := fifelse(rate == 1, 1, 0)]
+    simCell[, nonmet_reads := fifelse(rate == 0, 1, 0)]
+    simCell[, total_reads := met_reads + nonmet_reads]
+    simCell <- simCell[, c("chr", "pos", "met_reads", "total_reads", "rate")]
     write.table(simCell,
-              file=file.path(outDir,
-                             paste0(paste(cellId, 
-                                          paste(paramsSet, 
-                                                collapse="_"), sep="_"), ".tsv")),
-              quote=FALSE, sep='\t', row.names=FALSE, col.names=FALSE)
+      file = file.path(
+        outDir,
+        paste0(paste(cellId,
+          paste(paramsSet,
+            collapse = "_"
+          ),
+          sep = "_"
+        ), ".tsv")
+      ),
+      quote = FALSE, sep = "\t", row.names = FALSE, col.names = FALSE
+    )
   })
 }
 ```

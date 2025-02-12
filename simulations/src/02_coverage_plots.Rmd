@@ -19,8 +19,10 @@ suppressPackageStartupMessages({
   library(ggplot2)
   library(data.table)
 })
-cbbPalette <- c("#000000", "#E69F00", "#56B4E9", "#009E73",
-                "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+cbbPalette <- c(
+  "#000000", "#E69F00", "#56B4E9", "#009E73",
+  "#F0E442", "#0072B2", "#D55E00", "#CC79A7"
+)
 
 source("simPattern.R")
 ```
@@ -28,152 +30,199 @@ source("simPattern.R")
 ```{r, paths}
 dataDir <- file.path("..", params$sim_data_dir)
 
-simFiles <- list.files(dataDir, full.names=TRUE)
+simFiles <- list.files(dataDir, full.names = TRUE)
 simFiles <- simFiles[!grepl("cpgPositions_", simFiles)]
 simFiles <- simFiles[!grepl("metData", simFiles)]
-simParams <- data.table(file_name=basename(simFiles))
-simParams[,c("n_cells", "n_cpgs", 
-             "mode", "coverage_mode", "state"):=tstrsplit(file_name, split="_", 
-                                                     keep=4:8, type.convert=TRUE)]
+simParams <- data.table(file_name = basename(simFiles))
+simParams[, c(
+  "n_cells", "n_cpgs",
+  "mode", "coverage_mode", "state"
+) := tstrsplit(file_name,
+  split = "_",
+  keep = 4:8, type.convert = TRUE
+)]
 ```
 
 ## Overall coverage
 
 ```{r, warning=FALSE}
-ovCovDts <- lapply(1:nrow(simParams), function(i){
-  simDt <- fread(file.path(dataDir, simParams[i,]$file_name))
-  covDt <- data.table(coverage=nrow(simDt)/simParams[i,]$n_cpgs)
-  covDt <- cbind(covDt, simParams[i,])
+ovCovDts <- lapply(1:nrow(simParams), function(i) {
+  simDt <- fread(file.path(dataDir, simParams[i, ]$file_name))
+  covDt <- data.table(coverage = nrow(simDt) / simParams[i, ]$n_cpgs)
+  covDt <- cbind(covDt, simParams[i, ])
   covDt
 })
 ovCovDt <- rbindlist(ovCovDts)
 ovCovDt$type <- "simulated"
 
-if("lowReal" %in% simParams$coverage_mode){
+if ("lowReal" %in% simParams$coverage_mode) {
   metDt <- readRDS(file.path(dataDir, "metData.rds"))
-  realCovDt <- metDt[,lapply(.SD, function(col){sum(!is.na(col))/length(col)}), 
-                     .SDcols=setdiff(colnames(metDt), c("pos", "chr", "bin"))]
+  realCovDt <- metDt[, lapply(.SD, function(col) {
+    sum(!is.na(col)) / length(col)
+  }),
+  .SDcols = setdiff(colnames(metDt), c("pos", "chr", "bin"))
+  ]
   realCov <- unlist(realCovDt)
-  realCovDt <- data.table(coverage=realCov,
-                          file_name=names(realCov), 
-                          coverage_mode=rep("real", length(realCov)))
-  
+  realCovDt <- data.table(
+    coverage = realCov,
+    file_name = names(realCov),
+    coverage_mode = rep("real", length(realCov))
+  )
+
   # just for plotting
-  realCovDts <- lapply(unique(simParams$n_cpgs), function(n_cpgs){
+  realCovDts <- lapply(unique(simParams$n_cpgs), function(n_cpgs) {
     realCovDt$n_cpgs <- n_cpgs
-    realCovDt})
+    realCovDt
+  })
   realCovDt <- rbindlist(realCovDts)
-  realCovDts <- lapply(unique(simParams$mode), function(mode){
+  realCovDts <- lapply(unique(simParams$mode), function(mode) {
     realCovDt$mode <- mode
-    realCovDt})
+    realCovDt
+  })
   realCovDt <- rbindlist(realCovDts)
   realCovDt$type <- "real_data"
-  ovCovDt <- rbind(realCovDt, ovCovDt, fill=TRUE, use.names=TRUE)
+  ovCovDt <- rbind(realCovDt, ovCovDt, fill = TRUE, use.names = TRUE)
 }
 
-ovCovDt$coverage_mode <- factor(ovCovDt$coverage_mode, 
-                           levels=c("low", "lowReal", "real", "medium",
-                                    "high", "complete"))
+ovCovDt$coverage_mode <- factor(ovCovDt$coverage_mode,
+  levels = c(
+    "low", "lowReal", "real", "medium",
+    "high", "complete"
+  )
+)
 
-ggplot(ovCovDt, aes(x=coverage_mode, y=coverage, color=coverage_mode, 
-                    fill=type))+
-  facet_grid(rows=vars(n_cpgs), cols=vars(mode), scales="free_x")+
-  ylab("Fraction of CpGs with non-missing values")+
-  geom_boxplot()+
-  scale_color_manual(values=cbbPalette)+
-  scale_fill_manual(values=c("darkgrey", "white"))
+ggplot(ovCovDt, aes(
+  x = coverage_mode, y = coverage, color = coverage_mode,
+  fill = type
+)) +
+  facet_grid(rows = vars(n_cpgs), cols = vars(mode), scales = "free_x") +
+  ylab("Fraction of CpGs with non-missing values") +
+  geom_boxplot() +
+  scale_color_manual(values = cbbPalette) +
+  scale_fill_manual(values = c("darkgrey", "white"))
 ```
 
 ## Length of stretches
 
 ```{r, warning=FALSE}
-strLenDts <- lapply(1:nrow(simParams), function(i){
-  simDt <- fread(file.path(dataDir, simParams[i,]$file_name), header=FALSE, 
-                 col.names=c("chr", "pos", "met_reads", "total_reads", "rate"))
-  if(nrow(simDt)>0){
-    colnames(simDt) <- c("chr", "pos", "met_reads", "total_reads", "rate")}
-  else{
-    simDt <- data.table(chr=character(), 
-                        pos=integer(), 
-                        met_reads=integer(),
-                        total_reads=integer(), 
-                        rate=numeric())
+strLenDts <- lapply(1:nrow(simParams), function(i) {
+  simDt <- fread(file.path(dataDir, simParams[i, ]$file_name),
+    header = FALSE,
+    col.names = c("chr", "pos", "met_reads", "total_reads", "rate")
+  )
+  if (nrow(simDt) > 0) {
+    colnames(simDt) <- c("chr", "pos", "met_reads", "total_reads", "rate")
+  } else {
+    simDt <- data.table(
+      chr = character(),
+      pos = integer(),
+      met_reads = integer(),
+      total_reads = integer(),
+      rate = numeric()
+    )
   }
 
-  nCpGs <- simParams[i,]$n_cpgs
-  missDt <-  data.table(pos=setdiff(1:nCpGs, simDt$pos))
+  nCpGs <- simParams[i, ]$n_cpgs
+  missDt <- data.table(pos = setdiff(1:nCpGs, simDt$pos))
   missDt$chr <- "chrSim"
-  simDtFull <- rbind(simDt, missDt, fill=TRUE)
+  simDtFull <- rbind(simDt, missDt, fill = TRUE)
   simDtFull$cell <- i
-  simTable <- dcast(simDtFull,chr+pos~cell, value.var="rate")
-  covLen <- unlist(.getStretchLength(simTable, nCpGs=1e6, naLength=FALSE))
-  missLen <- unlist(.getStretchLength(simTable, nCpGs=1e6, naLength=TRUE))
+  simTable <- dcast(simDtFull, chr + pos ~ cell, value.var = "rate")
+  covLen <- unlist(.getStretchLength(simTable, nCpGs = 1e6, naLength = FALSE))
+  missLen <- unlist(.getStretchLength(simTable, nCpGs = 1e6, naLength = TRUE))
 
-  strLenDt <- data.table(length=c(covLen, missLen),
-                         what=c(rep("covered", length(covLen)),
-                                rep("missing", length(missLen))))
-  strLenDt <- cbind(strLenDt, simParams[i,])
+  strLenDt <- data.table(
+    length = c(covLen, missLen),
+    what = c(
+      rep("covered", length(covLen)),
+      rep("missing", length(missLen))
+    )
+  )
+  strLenDt <- cbind(strLenDt, simParams[i, ])
 })
 strLenDt <- rbindlist(strLenDts)
 strLenDt$type <- "simulated"
 
-if("lowReal" %in% simParams$coverage_mode){
-  covLen <- unlist(.getStretchLength(metDt, nCpGs=1e6, naLength=FALSE))
-  missLen <- unlist(.getStretchLength(metDt, nCpGs=1e6, naLength=TRUE))
-  
-  strLenRealDt <- data.table(length=c(covLen, missLen),
-                              what=c(rep("covered", length(covLen)),
-                                     rep("missing", length(missLen))))
-  
-  strLenRealDt <- lapply(unique(simParams$n_cpgs), function(n_cpgs){
+if ("lowReal" %in% simParams$coverage_mode) {
+  covLen <- unlist(.getStretchLength(metDt, nCpGs = 1e6, naLength = FALSE))
+  missLen <- unlist(.getStretchLength(metDt, nCpGs = 1e6, naLength = TRUE))
+
+  strLenRealDt <- data.table(
+    length = c(covLen, missLen),
+    what = c(
+      rep("covered", length(covLen)),
+      rep("missing", length(missLen))
+    )
+  )
+
+  strLenRealDt <- lapply(unique(simParams$n_cpgs), function(n_cpgs) {
     strLenRealDt$n_cpgs <- n_cpgs
-    strLenRealDt})
+    strLenRealDt
+  })
   strLenRealDt <- rbindlist(strLenRealDt)
-  strLenRealDt <- lapply(unique(simParams$mode), function(mode){
+  strLenRealDt <- lapply(unique(simParams$mode), function(mode) {
     strLenRealDt$mode <- mode
-    strLenRealDt})
+    strLenRealDt
+  })
   strLenRealDt <- rbindlist(strLenRealDt)
   strLenRealDt$type <- "real_data"
   strLenRealDt$coverage_mode <- "real"
-  
-  strLenDt <- rbind(strLenRealDt, strLenDt, fill=TRUE, use.names=TRUE)
+
+  strLenDt <- rbind(strLenRealDt, strLenDt, fill = TRUE, use.names = TRUE)
 }
 
-strLenDt$coverage_mode <- factor(strLenDt$coverage_mode, 
-                           levels=c("low", "lowReal", "real", "medium",
-                                    "high", "complete"))
+strLenDt$coverage_mode <- factor(strLenDt$coverage_mode,
+  levels = c(
+    "low", "lowReal", "real", "medium",
+    "high", "complete"
+  )
+)
 maxCpGs <- max(simParams$n_cpgs)
-ggplot(subset(strLenDt, n_cpgs==maxCpGs & what=="covered"), 
-       aes(x=length, color=coverage_mode, fill=type))+
-ggtitle(paste("Length of covered stretches (N-CpGs:", maxCpGs, ")"))+
-facet_grid(rows=vars(coverage_mode), cols=vars(mode), scales="free")+
-xlim(c(0,25))+
-geom_histogram()+
-scale_color_manual(values=cbbPalette)+
-scale_fill_manual(values=c("darkgrey", "white"))
+ggplot(
+  subset(strLenDt, n_cpgs == maxCpGs & what == "covered"),
+  aes(x = length, color = coverage_mode, fill = type)
+) +
+  ggtitle(paste("Length of covered stretches (N-CpGs:", maxCpGs, ")")) +
+  facet_grid(rows = vars(coverage_mode), cols = vars(mode), scales = "free") +
+  xlim(c(0, 25)) +
+  geom_histogram() +
+  scale_color_manual(values = cbbPalette) +
+  scale_fill_manual(values = c("darkgrey", "white"))
 ```
 
 ```{r}
-probs <- seq(0,1,0.1)
-quantLen <- strLenDt[,.(quant=quantile(length, probs=probs),
-                        quant_name=factor(probs, ordered=TRUE)),
-                     by=.(what, mode, type, 
-                          coverage_mode, n_cells, n_cpgs)]
-quantLen$coverage_mode <- factor(quantLen$coverage_mode, 
-                           levels=c("low", "lowReal", "real", "medium",
-                                    "high", "complete"))
+probs <- seq(0, 1, 0.1)
+quantLen <- strLenDt[, .(
+  quant = quantile(length, probs = probs),
+  quant_name = factor(probs, ordered = TRUE)
+),
+by = .(
+  what, mode, type,
+  coverage_mode, n_cells, n_cpgs
+)
+]
+quantLen$coverage_mode <- factor(quantLen$coverage_mode,
+  levels = c(
+    "low", "lowReal", "real", "medium",
+    "high", "complete"
+  )
+)
 
-ggplot(subset(quantLen, n_cpgs==maxCpGs),
-       aes(x=quant_name, y=quant, color=coverage_mode,
-           group=coverage_mode, shape=type))+
-  geom_line()+
-  scale_y_log10()+
-  ylab("Quantile")+
-  xlab("Probability")+
-  ggtitle("Quantiles of length of covered stretches")+
-  facet_grid(cols=vars(mode), rows=vars(what))+
-  scale_color_manual(values=cbbPalette)+
-  geom_point(size=2)
+ggplot(
+  subset(quantLen, n_cpgs == maxCpGs),
+  aes(
+    x = quant_name, y = quant, color = coverage_mode,
+    group = coverage_mode, shape = type
+  )
+) +
+  geom_line() +
+  scale_y_log10() +
+  ylab("Quantile") +
+  xlab("Probability") +
+  ggtitle("Quantiles of length of covered stretches") +
+  facet_grid(cols = vars(mode), rows = vars(what)) +
+  scale_color_manual(values = cbbPalette) +
+  geom_point(size = 2)
 ```
 
 ```{r, sessionInfo}
