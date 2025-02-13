@@ -4,11 +4,25 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v1.1.0-rc.2](https://github.com/imallona/yamet/releases/tag/v1.1.0-rc.2)
+
+This is the second official release candidate of **yamet**
+
+### Added
+
+- build tools for generating brew bottles
+- precompiled binary for linux-aarch
+- separated yamet into a library and an executable that builds on it
+- compilation for a shared and static library that one can link to
+- cmake config so that the library can be discovered and linked using function like `find_package` and `target_link_libraries`
+- `--chunk-size` param to control the size of the buffers into which the files are read
+- improved algorithm for handling partial lines in buffers
+
 ## [v1.1.0-rc.1](https://github.com/imallona/yamet/releases/tag/v1.1.0-rc.1)
 
 ### Overview
 
-This is the first official release of **yamet** 🎉
+This is the first official release candidate of **yamet** 🎉
 
 **yamet** (Yet Another Methylation Entropy Tool) is a powerful and efficient tool written in C++ for computing methylation entropy from genomic data. It aims to provide researchers with fast, accurate, and scalable entropy calculations while being easy to integrate into bioinformatics workflows.
 
@@ -39,12 +53,12 @@ All files must be tab separated. The cell files are the cytosine reports for all
   1. chromosome
   2. start position
   3. end position
-     
+
 ## [v0.1.0-rc.1](https://github.com/imallona/yamet/releases/tag/v0.1.0-rc.1)
 
 ### Capabilities
 
-This is the first release candidate of `yamet` v0.1.0 after refactoring and rewriting in C++. 
+This is the first release candidate of `yamet` v0.1.0 after refactoring and rewriting in C++.
 
 - Offers a sample entropy within cells, Shannon's entropy across cells, average methylation by/across cells in C++
 - Includes simplistic tests on simulated data and valgrind and cppcheck profiling
@@ -62,44 +76,44 @@ bash build.sh
 
 ### Usage
 
-- CLI takes a reference file listing cytosine coordinates, as many (covered) cytosine reports as cells, and a bedfile to filter in regions to calculate the metrics from. Metrics are calculated per bedfile interval. 
+- CLI takes a reference file listing cytosine coordinates, as many (covered) cytosine reports as cells, and a bedfile to filter in regions to calculate the metrics from. Metrics are calculated per bedfile interval.
 - CLI help:
 
 ```
 input:
   -t [ --tsv ] arg                      tab separated files for different cells
                                         in the following format
-                                        
+
                                          1    5    0    2    0
                                          1    9    1    1    1
                                          2    2    3    4    1
-                                        
-                                        where the columns are the chromosome, 
-                                        position, number of methylated reads, 
-                                        total number of reads and the rate 
+
+                                        where the columns are the chromosome,
+                                        position, number of methylated reads,
+                                        total number of reads and the rate
                                         respectively
-  -r [ --ref ] arg                      tab separated file for reference sites 
+  -r [ --ref ] arg                      tab separated file for reference sites
                                         in the following format
-                                        
+
                                          1    5     7
                                          1    7     9
                                          1    9     11
                                          1    11    13
                                          2    2     4
                                          2    4     6
-                                        
-                                        where the columns are the chromosome, 
-                                        start position and the end position 
+
+                                        where the columns are the chromosome,
+                                        start position and the end position
                                         respectively
-  -b [ --bed ] arg                      path to bed file for regions of 
+  -b [ --bed ] arg                      path to bed file for regions of
                                         interest in the following format
-                                        
+
                                          1    5     7
                                          1    10    30
                                          2    1     6
-                                        
-                                        where the columns are the chromosome, 
-                                        start position and the end position 
+
+                                        where the columns are the chromosome,
+                                        start position and the end position
                                         respectively
 
 output:
@@ -109,8 +123,8 @@ output:
 resource utilisation:
   --n-cores arg (=0)                    number of cores used for simultaneously
                                         parsing methylation files
-  --n-threads-per-core arg (=1)         number of threads per core used for 
-                                        simultaneously parsing methylation 
+  --n-threads-per-core arg (=1)         number of threads per core used for
+                                        simultaneously parsing methylation
                                         files
 
 verbose:

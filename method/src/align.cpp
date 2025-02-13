@@ -7,6 +7,7 @@
 #include <sstream>
 #include <thread>
 #include <unordered_map>
+#include <vector>
 #include <zlib.h>
 
 #if defined(__linux__) || defined(__APPLE__)
@@ -32,23 +33,24 @@
  *
  * @param filename[in] path to tab separated file to be parsed.
  * @param ref[in] Reference object with all positions of interest in the genome.
+ * @param m[in] size of window.
+ * @param chunk_size[in] size of file chunk.
  * @param fileMap[out] FileMap object of key value pairs where the parsed methylation data is stored
  * in a FileMeths object against the filename as key.
  */
 void alignSingleWithRef(const std::string &filename, const Reference &ref, const unsigned int m,
-                        FileMap &fileMap) {
+                        const unsigned int chunk_size, FileMap &fileMap) {
   gzFile file = gzopen(filename.c_str(), "rb");
   if (!file) {
     throw std::system_error(errno, std::generic_category(), "Opening " + filename);
   }
 
   /**
-   * buffer size of 64K - this is the total amount of information from a file stored at any time as
-   * a chunk
+   * buffer size of 64K by default - this is the total amount of information from a file stored at
+   * any time as a chunk
    */
-  constexpr int bufferSize = 64 * 1024;
-  char          buffer[bufferSize];
-  std::string   partialLine;
+  std::vector<char> buffer(chunk_size);
+  std::string       fullBuffer;
   // bool          headerSkipped = false;
 
   unsigned int chrIndex = 0, binIndex = 0, posIndex = 0;
@@ -64,25 +66,28 @@ void alignSingleWithRef(const std::string &filename, const Reference &ref, const
   int lastBinPos = -1;
 
   while (true) {
-    int bytesRead = gzread(file, buffer, bufferSize - 1);
+    int bytesRead = gzread(file, buffer.data(), chunk_size);
 
     if (bytesRead < 0) {
       gzclose(file);
       throw std::system_error(errno, std::generic_category(), filename);
     }
 
-    buffer[bytesRead] = '\0';
-
-    std::string fullBuffer = partialLine + buffer;
-    partialLine.clear();
+    fullBuffer.append(buffer.begin(), buffer.begin() + bytesRead);
 
     std::istringstream ss(fullBuffer);
     std::string        line;
 
+    /// iterate over lines in a chunk
     while (std::getline(ss, line)) {
-      if (ss.eof() && line.back() != '\n') {
-        partialLine = line;
-        break;
+      /// save partial line to be processed later
+      if (ss.peek() == EOF) {
+        if (fullBuffer.back() == '\n') {
+          fullBuffer.clear();
+        } else {
+          fullBuffer = line;
+          break;
+        }
       }
       // if (!headerSkipped) {
       //   headerSkipped = true;
@@ -167,7 +172,7 @@ void alignSingleWithRef(const std::string &filename, const Reference &ref, const
         }
       }
     }
-    if (bytesRead < bufferSize - 1) {
+    if (bytesRead < chunk_size) {
       break;
     }
   }
@@ -205,11 +210,13 @@ void set_thread_affinity(int core_id) {
  * @param filenames list of tab separated files to be parsed.
  * @param ref Reference object with all positions of interest in the genome.
  * @param m size of window.
+ * @param chunk_size size of file chunk.
  * @return FileMap object of key value pairs where the parsed methylation data of every file is
  * stored in a FileMeths object against the filename as key
  */
 FileMap alignWithRef(const std::vector<std::string> &filenames, const Reference &ref,
-                     const unsigned int m, unsigned int n_cores, unsigned int n_threads_per_core) {
+                     const unsigned int m, unsigned int n_cores, unsigned int n_threads_per_core,
+                     const unsigned int chunk_size) {
   FileMap fileMap;
   fileMap.reserve(filenames.size());
 
@@ -251,9 +258,8 @@ FileMap alignWithRef(const std::vector<std::string> &filenames, const Reference 
             filename = taskQueue.front();
             taskQueue.pop();
           }
-
           // Process task
-          alignSingleWithRef(filename, ref, m, fileMap);
+          alignSingleWithRef(filename, ref, m, chunk_size, fileMap);
 
           // Notify waiting threads
           cv.notify_all();

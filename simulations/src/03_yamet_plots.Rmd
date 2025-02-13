@@ -1,0 +1,65 @@
+---
+title: "Yamet Plots"
+author: "Atreya Choudhury"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+params: 
+  yamet_dir:
+output:
+  bookdown::html_document2:
+    code_folding: hide
+    number_sections: no
+    fig_crop: yes
+---
+
+```{r, setup}
+condaEnvPath <- file.path(Sys.getenv("CONDA_PREFIX"), "lib", "R", "library")
+.libPaths(condaEnvPath)
+
+suppressPackageStartupMessages({
+  library(ggplot2)
+  library(data.table)
+})
+```
+
+Firstly, we import the different yamet output files.
+
+```{r, import}
+data.dir <- file.path("..", params$yamet_dir)
+data.paths <- list.files(data.dir, pattern = "\\.tsv$", full.names = TRUE)
+data.list <- lapply(data.paths, fread)
+data <- rbindlist(data.list)
+```
+
+Then, we parse the different elements from the filenames and turn the appropriate columns into factors.
+
+```{r, parse}
+data[, c("no", "ignore", "ncpgs", "type", "coverage", "tr") :=
+  tstrsplit(file, split = "_", keep = 4:9, type.convert = TRUE)]
+data[, "tr" := sub("\\.tsv$", "", tr)]
+data[, c("file", "ignore") := NULL]
+
+factor_cols <- c("ncpgs", "type", "coverage", "tr")
+data[, (factor_cols) := lapply(.SD, as.factor), .SDcols = factor_cols]
+data <- data[sampen != -1 & avg_meth != -1]
+head(data)
+```
+
+Plot the data
+
+```{r, plots}
+unique.types <- unique(data$type)
+plots.list <- list()
+
+for (unique.type in unique.types) {
+  p <- ggplot(data[type == unique.type], aes(x = avg_meth, y = sampen, color = tr)) +
+    geom_point(alpha = 0.7) +
+    facet_grid(ncpgs ~ coverage) +
+    theme_minimal() +
+    labs(
+      title = paste("Sample Entropy in different TR settings for type", unique.type),
+      x = "Average Methylation", y = "Sample Entropy", color = "TR"
+    )
+  plots.list[[unique.type]] <- p
+}
+print(plots.list)
+```

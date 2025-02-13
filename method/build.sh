@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Get the absolute path to the directory where the script is located
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
 # Set the install prefix (you can modify this to another path if needed)
 INSTALL_PREFIX="$HOME/.local/yamet"
 
@@ -12,9 +15,9 @@ if [ ! -d "$BUILD_DIR" ]; then
 fi
 
 # Run CMake from the parent directory, pointing to the build directory
-cmake -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
+cmake -S"$SCRIPT_DIR" -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
       -DCMAKE_BUILD_TYPE=Release \
-      -B"$BUILD_DIR" -S"$PWD"
+      -B"$BUILD_DIR"
 
 # Build the project
 cmake --build build --config Release
