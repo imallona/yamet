@@ -1,5 +1,6 @@
 name: simulations
 channels:
+  - defaults
   - conda-forge
 dependencies:
   - cmake
