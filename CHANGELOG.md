@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Upcoming
+
+### Added
+
+- error handling for incorrect line parsing
+- `--skip-header`, `--skip-header-cell`, `--skip-header-reference` and `--skip-header-intervals` for skipping headers in files at various levels of granularity
+
 ## [v1.1.0-rc.2](https://github.com/imallona/yamet/releases/tag/v1.1.0-rc.2)
 
 This is the second official release candidate of **yamet**

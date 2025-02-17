@@ -46,7 +46,19 @@ po::variables_map parseCommandLine(int argc, char **argv) {
         " chr1    10    30\n"
         " chr2    1     6\n"
         "\n"
-        "where the columns are the chromosome, start position and the end position respectively");
+        "where the columns are the chromosome, start position and the end position respectively")
+    ("skip-header", po::value<unsigned int>()->implicit_value(1),
+        "integer value indicating number of lines to skip in all file inputs"
+        "(this is a default value which can be overriden by other 'skip-header-*' options)")
+    ("skip-header-cell", po::value<unsigned int>()->implicit_value(1),
+        "integer value indicating number of lines to skip in the cell files"
+        "(overrides 'skip-header' if provided)")
+    ("skip-header-reference", po::value<unsigned int>()->implicit_value(1),
+        "integer value indicating number of lines to skip in the reference file"
+        "(overrides 'skip-header' if provided)")
+    ("skip-header-intervals", po::value<unsigned int>()->implicit_value(1),
+        "integer value indicating number of lines to skip in the intervals file"
+        "(overrides 'skip-header' if provided)");
   // clang-format on
 
   po::options_description out("output");
@@ -115,6 +127,13 @@ std::vector<std::string> getCellFiles(const po::variables_map &vm) {
   return vm["cell"].as<std::vector<std::string>>();
 }
 
+std::string getRef(const po::variables_map &vm) {
+  if (!vm.count("reference")) {
+    throw std::system_error(EINVAL, std::generic_category(), "No reference file provided");
+  }
+  return vm["reference"].as<std::string>();
+}
+
 std::string getIntervals(const po::variables_map &vm) {
   if (!vm.count("intervals")) {
     throw std::system_error(EINVAL, std::generic_category(), "No intervals file provided");
@@ -122,11 +141,26 @@ std::string getIntervals(const po::variables_map &vm) {
   return vm["intervals"].as<std::string>();
 }
 
-std::string getRef(const po::variables_map &vm) {
-  if (!vm.count("reference")) {
-    throw std::system_error(EINVAL, std::generic_category(), "No reference file provided");
+unsigned int getSkipHeaderTemplate(const po::variables_map &vm, const std::string &file_type) {
+  if (vm.count(file_type)) {
+    return vm[file_type].as<unsigned int>();
+  } else if (vm.count("skip-header")) {
+    return vm["skip-header"].as<unsigned int>();
+  } else {
+    return 0;
   }
-  return vm["reference"].as<std::string>();
+}
+
+unsigned int getSkipHeaderCell(const po::variables_map &vm) {
+  return getSkipHeaderTemplate(vm, "skip-header-cell");
+}
+
+unsigned int getSkipHeaderReference(const po::variables_map &vm) {
+  return getSkipHeaderTemplate(vm, "skip-header-reference");
+}
+
+unsigned int getSkipHeaderIntervals(const po::variables_map &vm) {
+  return getSkipHeaderTemplate(vm, "skip-header-intervals");
 }
 
 std::string getDetOut(const po::variables_map &vm) {
