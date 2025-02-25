@@ -111,3 +111,12 @@ yamet --cell test.cpg.gz \
 # chr1    900000  999999  0.131609015581668       PMD     neither
 
 # shouldn't be because of the sorting, I guess
+
+# In any case, the protocol is:
+
+# 1. automate the process substitutions for all normals
+# 2. run yamet per feature
+# 3. sort features per avg methylation
+# 4. repeat for primary tumors
+# 5. compare whether ranks are inverted
+# 6. evaluate whether there is a within-cell-type or across-cell-types change in meth variability
