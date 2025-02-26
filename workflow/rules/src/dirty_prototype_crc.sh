@@ -41,52 +41,9 @@ gunzip PMD*gz
 cd method
 bash build.sh
 export PATH=/home/imallona/src/yamet/method/build:$PATH
-# generate custom reference, this time cpgs present in the longest normal file
-
-zcat /home/imallona/src/yamet/crc_data/ftp.ncbi.nlm.nih.gov/geo/samples/GSM2697nnn/GSM2697701/suppl/GSM2697701_scTrioSeq2Met_CRC01_NC_529.singleC.txt.gz | \
-    grep CpG | awk '{OFS=FS="\t"; print $1,$2,$2+1}'| \
-    sort -k1,1 -k2,2n -k3,3n  |  gzip -c > custom.ref.gz
-
-# run yamet, with process substitutions
-
-# (yamet) imallona@mlshainan:~/tmp/yamet_crc$ zcat  /home/imallona/src/yamet/crc_data/ftp.ncbi.nlm.nih.gov/geo/samples/GSM2697nnn/GSM2697695/suppl/GSM2697695_scTrioSeq2Met_CRC01_NC_507.singleC.txt.gz | head
-# #Chr    Pos     Ref     Chain   Total   Met     UnMet   MetRate Ref_context     Type
-# chr7    16411   c       +       1       1       0       1       CCT     CHH
-# chr7    16412   c       +       1       1       0       1       CTA     CHH
-# chr7    16416   c       +       1       1       0       1       CCC     CHH
-# chr7    16417   c       +       1       1       0       1       CCT     CHH
-# chr7    16418   c       +       1       1       0       1       CTA     CHH
-# chr7    16422   c       +       1       1       0       1       CCC     CHH
-# chr7    16423   c       +       1       1       0       1       CCT     CHH
-
-# and files are expected to be     chromosome, position, number of methylated reads, total number of reads and the rate 
 
 
-
-yamet --cell <(zcat /home/imallona/src/yamet/crc_data/ftp.ncbi.nlm.nih.gov/geo/samples/GSM2697nnn/GSM2697695/suppl/GSM2697695_scTrioSeq2Met_CRC01_NC_507.singleC.txt.gz | grep CpG | awk '{print $1,$2,$6,$5,$6/$5}' | sort) \
-      --reference custom.ref.gz \
-      --intervals PMD_coordinates_hg19.bed.gz \
-      --out normals.yamet.out.gz \
-      --cores 10 \
-      --print-sampens F
-
-zcat /home/imallona/src/yamet/crc_data/ftp.ncbi.nlm.nih.gov/geo/samples/GSM2697nnn/GSM2697695/suppl/GSM2697695_scTrioSeq2Met_CRC01_NC_507.singleC.txt.gz | \
-    grep CpG | awk '{OFS=FS="\t"; print $1,$2,$6,$5,$6/$5}' | \
-    sort -k1,1 -k2,2n -k3,3n |  gzip -c > test.cpg.gz
-
-sort -k1,1 -k2,2n -k3,3n PMD_coordinates_hg19.bed > PMD_coordinates_hg19.bed.sorted
-
-yamet --cell test.cpg.gz \
-      --reference custom.ref.gz \
-      --intervals PMD_coordinates_hg19.bed.sorted \
-      --out normals.yamet.out \
-      --cores 10 \
-      --det-out normals.yamet.det.out \
-      --print-sampens F 
-
-
-# instead of using process substitutions, automate yamet-zation
-# these should be temporary files within the snmk
+# yametize cell meth files
 
 mkdir -p nc pt
 
@@ -94,31 +51,134 @@ for normal in $normals
 do
     bn=$(basename $normal .txt.gz)
     zcat $normal |\
-      grep CpG | awk '{OFS=FS="\t"; print $1,$2,$6,$5,$6/$5}' | \
-      sort -k1,1 -k2,2n -k3,3n |  gzip -c > nc/"$bn".yametized.gz
+        grep CpG | \
+        awk '{OFS="\t";} {
+              if($4=="+")
+                print $1, $2,   $2+1, "", "",$4,$6,$5
+              else
+                print $1, $2-1, $2,   "", "",$4,$6,$5
+              }' | \
+        bedtools merge -c 7,8 -o sum  | \
+        awk '{OFS=FS="\t"; print $1,$2,$4,$5,$4/$5}' | \
+        sort -k1,1 -k2,2n -k3,3n | gzip -c > nc/"$bn".yametized.gz
 done
 
+for primary in $primaries
+do
+    bn=$(basename $primary .txt.gz)
+    zcat $primary |\
+        grep CpG | \
+        awk '{OFS="\t";} {
+              if($4=="+")
+                print $1, $2,   $2+1, "", "",$4,$6,$5
+              else
+                print $1, $2-1, $2, "",   "",$4,$6,$5
+              }' | \
+        bedtools merge -c 7,8 -o sum  | \
+        awk '{OFS=FS="\t"; print $1,$2,$4,$5,$4/$5}' | \
+        sort -k1,1 -k2,2n -k3,3n | gzip -c > pt/"$bn".yametized.gz
+done
+
+## get the reference CpG file. Again we fake it getting one of the large normal files and using
+##   it as a reference
+
+zcat nc/GSM2697701_scTrioSeq2Met_CRC01_NC_529.singleC.yametized.gz |\
+    awk '{OFS=FS="\t"; print $1,$2,$2+1}'|  gzip -c > custom.ref.gz
+
+
+## generate genomic bins file - 10k each window, book ended
+
+mysql --user=genome --host=genome-mysql.soe.ucsc.edu -N -s -e \
+      'SELECT chrom,size FROM hg19.chromInfo' > hg19.sizes
+
+bedtools makewindows -g hg19.sizes -w 10000 | sort -k1,1 -k2,2n -k3,3n > hg19_windows.bed
+
+# run yamet on windows
+
+# instead of using process substitutions, automate yamet-zation
+# these should be temporary files within the snmk
 
 yamet --cell nc/*NC*yametized.gz \
       --reference custom.ref.gz \
-      --intervals PMD_coordinates_hg19.bed.sorted \
+      --intervals hg19_windows.bed \
       --out normals.yamet.out \
       --cores 30 \
       --det-out normals.yamet.det.out \
       --print-sampens F 
       
-for primary in $primaries
-do
-    bn=$(basename $primary .txt.gz)
-    zcat $primary |\
-      grep CpG | awk '{OFS=FS="\t"; print $1,$2,$6,$5,$6/$5}' | \
-      sort -k1,1 -k2,2n -k3,3n |  gzip -c > pt/"$bn".yametized.gz
-done
 
-yamet --cell pt/*PT*yametized.gz
+yamet --cell pt/*PT*yametized.gz \
       --reference custom.ref.gz \
-      --intervals PMD_coordinates_hg19.bed.sorted \
+      --intervals hg19_windows.bed \
       --out primaries.yamet.out \
       --cores 30 \
       --det-out primaries.yamet.det.out \
       --print-sampens F 
+
+# run yamet on hmm segmentations
+
+wget https://www.encodeproject.org/files/ENCFF526MRN/@@download/ENCFF526MRN.bed.gz
+gunzip ENCFF526MRN.bed.gz
+
+sort -k1,1 -k2,2n -k3,3n ENCFF526MRN.bed > ENCFF526MRN.bed.sorted
+mv ENCFF526MRN.bed.sorted ENCFF526MRN.bed
+
+## now look for associations with features; what to do with the -1s?
+
+for color in 0_Enhancer 10_Quiescent 11_Promoter 12_Promoter 13_ConstitutiveHet 1_Transcribed \
+             2_Enhancer 3_Quiescent 4_Transcribed 5_RegPermissive 6_LowConfidence \
+             7_RegPermissive 8_Quiescent 9_ConstitutiveHet
+do
+    grep -w $color ENCFF526MRN.bed > "$color".bed
+
+    yamet --cell nc/*NC*yametized.gz \
+      --reference custom.ref.gz \
+      --intervals "$color.bed" \
+      --out normals.yamet.out \
+      --cores 30 \
+      --det-out "$color"_normals.yamet.det.out \
+      --print-sampens F 
+      
+
+    yamet --cell pt/*PT*yametized.gz \
+      --reference custom.ref.gz \
+      --intervals "$color".bed \
+      --out primaries.yamet.out \
+      --cores 30 \
+      --det-out "$color"_primaries.yamet.det.out \
+      --print-sampens F    
+done
+
+
+echo 'quick and dirty, perhaps deeptools this? or intervene it?'
+# conda install -c bioconda -c conda-forge -c default \
+#          bioconda::intervene cmake==3.31.6 bioconda::pybedtools==0.11.0
+## pff, not solvable, let's skip this and do manual processing in R
+
+# assuming the det.out are bed-like...
+# intervene pairwise -i *det.out --filenames --compute frac --htype color
+
+echo 'unimplemented thoughts'
+
+# rather do that by 10kbp-long windows, get all genomic annotations, and evaluate enrichment via multiBigwigSummary
+      # https://deeptools.readthedocs.io/en/latest/content/feature/plotFingerprint_QC_metrics.html
+      # https://www.nature.com/articles/s41467-021-21707-1 for chromhmms for cancer
+
+      # https://github.com/jernst98/ChromHMM/tree/master/COORDS/hg19 for lamina -lads
+      # chromhmm for hg19 https://www.encodeproject.org/annotations/ENCSR814YSQ/
+:<<EOF
+
+easiest would be to chop an hmm segmentation into its components, so the whole genome is there - for H1 and the roadmap healthy colon https://pmc.ncbi.nlm.nih.gov/articles/PMC4530010/
+also add one for sequence conservation!
+
+correlations heatmap
+plotfingerprint
+and plotting via scaling to see 5' or 3' enrich of entropy
+
+don't forget superenhancers! as in https://www.nature.com/articles/s41467-021-21707-1#data-availability ?
+EOF
+
+
+:<<EOF
+what about adding to yamet a param to specify the col with the total, the meth, the unmeth, and btw provide total or not?
+EOF
