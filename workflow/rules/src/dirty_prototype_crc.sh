@@ -3,6 +3,14 @@
 ##
 ## Processes the CRC data quick and dirty
 ##
+
+# 1. automate the process substitutions for all normals
+# 2. run yamet per feature
+# 3. sort features per avg methylation
+# 4. repeat for primary tumors
+# 5. compare whether ranks are inverted
+# 6. evaluate whether there is a within-cell-type or across-cell-types change in meth variability
+
 ## Started 25th Feb 2025
 ##
 ## Izaskun Mallona
@@ -21,6 +29,8 @@ cd $WD
 
 wget https://zhouserver.research.chop.edu/GenomeAnnotation/hg19/PMD_coordinates_hg19.bed.gz
 
+gunzip PMD*gz
+
 # download / installed yamet
 
 # wget https://github.com/imallona/yamet/releases/download/v1.1.0-rc.2/yamet-Linux-x86_64-1.1.0-rc.2.deb
@@ -33,7 +43,9 @@ bash build.sh
 export PATH=/home/imallona/src/yamet/method/build:$PATH
 # generate custom reference, this time cpgs present in the longest normal file
 
-zcat /home/imallona/src/yamet/crc_data/ftp.ncbi.nlm.nih.gov/geo/samples/GSM2697nnn/GSM2697701/suppl/GSM2697701_scTrioSeq2Met_CRC01_NC_529.singleC.txt.gz | grep CpG | awk '{OFS=FS="\t"; print $1,$2,$2+1}'| sort |  gzip -c > custom.ref.gz
+zcat /home/imallona/src/yamet/crc_data/ftp.ncbi.nlm.nih.gov/geo/samples/GSM2697nnn/GSM2697701/suppl/GSM2697701_scTrioSeq2Met_CRC01_NC_529.singleC.txt.gz | \
+    grep CpG | awk '{OFS=FS="\t"; print $1,$2,$2+1}'| \
+    sort -k1,1 -k2,2n -k3,3n  |  gzip -c > custom.ref.gz
 
 # run yamet, with process substitutions
 
@@ -58,65 +70,55 @@ yamet --cell <(zcat /home/imallona/src/yamet/crc_data/ftp.ncbi.nlm.nih.gov/geo/s
       --cores 10 \
       --print-sampens F
 
-# but breaks with
-# Error: in line
+zcat /home/imallona/src/yamet/crc_data/ftp.ncbi.nlm.nih.gov/geo/samples/GSM2697nnn/GSM2697695/suppl/GSM2697695_scTrioSeq2Met_CRC01_NC_507.singleC.txt.gz | \
+    grep CpG | awk '{OFS=FS="\t"; print $1,$2,$6,$5,$6/$5}' | \
+    sort -k1,1 -k2,2n -k3,3n |  gzip -c > test.cpg.gz
 
-zcat /home/imallona/src/yamet/crc_data/ftp.ncbi.nlm.nih.gov/geo/samples/GSM2697nnn/GSM2697695/suppl/GSM2697695_scTrioSeq2Met_CRC01_NC_507.singleC.txt.gz | grep CpG | head -10000 | awk '{OFS=FS="\t"; print $1,$2,$6,$5,$6/$5}' | gzip -c > test.cpg.gz
+sort -k1,1 -k2,2n -k3,3n PMD_coordinates_hg19.bed > PMD_coordinates_hg19.bed.sorted
 
 yamet --cell test.cpg.gz \
       --reference custom.ref.gz \
-      --intervals PMD_coordinates_hg19.bed.gz \
-      --out normals.yamet.out.gz \
+      --intervals PMD_coordinates_hg19.bed.sorted \
+      --out normals.yamet.out \
       --cores 10 \
-      --print-sampens F
-
-# pfff, again
-
-# (yamet) imallona@mlshainan:~/tmp/yamet_crc$ yamet --cell test.cpg.gz       --reference custom.ref.gz       --intervals PMD_coordinates_hg19.bed.gz       --out normals.yamet.out.gz       --cores 10       --print-sampens F
-# Error: in line
+      --det-out normals.yamet.det.out \
+      --print-sampens F 
 
 
-# (yamet) imallona@mlshainan:~/tmp/yamet_crc$ zcat test.cpg.gz | head
-# chr7    16486   1       1       1
-# chr7    24406   1       1       1
-# chr7    24480   1       1       1
-# chr7    30601   2       2       1
-# chr7    30626   2       2       1
-# chr7    30638   2       2       1
-# chr7    30702   2       2       1
-# chr7    30801   1       1       1
-# chr7    30810   1       1       1
-# chr7    30812   1       1       1
-# (yamet) imallona@mlshainan:~/tmp/yamet_crc$ zcat custom.ref.gz | head
-# chr10   100000004       100000005
-# chr10   100000012       100000013
-# chr10   10000002        10000003
-# chr10   10000011        10000012
-# chr10   100000172       100000173
-# chr10   100001868       100001869
-# chr10   10000191        10000192
-# chr10   100001923       100001924
-# chr10   100002038       100002039
-# chr10   10000205        10000206
-# (yamet) imallona@mlshainan:~/tmp/yamet_crc$ zcat PMD_coordinates_hg19.bed.gz | head
-# chr1    0       99999   0.131812279885387       PMD     neither
-# chr1    100000  199999  0.158459023408353       PMD     commonPMD
-# chr1    200000  299999  0.153218066385386       PMD     commonPMD
-# chr1    300000  399999  0.150108771667091       PMD     commonPMD
-# chr1    400000  499999  0.166654936685486       PMD     commonPMD
-# chr1    500000  599999  0.154852098520618       PMD     commonPMD
-# chr1    600000  699999  0.15312085101117        PMD     commonPMD
-# chr1    700000  799999  0.0665392757807886      HMD     commonHMD
-# chr1    800000  899999  0.127529527615858       PMD     neither
-# chr1    900000  999999  0.131609015581668       PMD     neither
+# instead of using process substitutions, automate yamet-zation
+# these should be temporary files within the snmk
 
-# shouldn't be because of the sorting, I guess
+mkdir -p nc pt
 
-# In any case, the protocol is:
+for normal in $normals
+do
+    bn=$(basename $normal .txt.gz)
+    zcat $normal |\
+      grep CpG | awk '{OFS=FS="\t"; print $1,$2,$6,$5,$6/$5}' | \
+      sort -k1,1 -k2,2n -k3,3n |  gzip -c > nc/"$bn".yametized.gz
+done
 
-# 1. automate the process substitutions for all normals
-# 2. run yamet per feature
-# 3. sort features per avg methylation
-# 4. repeat for primary tumors
-# 5. compare whether ranks are inverted
-# 6. evaluate whether there is a within-cell-type or across-cell-types change in meth variability
+
+yamet --cell nc/*NC*yametized.gz \
+      --reference custom.ref.gz \
+      --intervals PMD_coordinates_hg19.bed.sorted \
+      --out normals.yamet.out \
+      --cores 30 \
+      --det-out normals.yamet.det.out \
+      --print-sampens F 
+      
+for primary in $primaries
+do
+    bn=$(basename $primary .txt.gz)
+    zcat $primary |\
+      grep CpG | awk '{OFS=FS="\t"; print $1,$2,$6,$5,$6/$5}' | \
+      sort -k1,1 -k2,2n -k3,3n |  gzip -c > pt/"$bn".yametized.gz
+done
+
+yamet --cell pt/*PT*yametized.gz
+      --reference custom.ref.gz \
+      --intervals PMD_coordinates_hg19.bed.sorted \
+      --out primaries.yamet.out \
+      --cores 30 \
+      --det-out primaries.yamet.det.out \
+      --print-sampens F 
