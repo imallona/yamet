@@ -125,26 +125,29 @@ mv ENCFF526MRN.bed.sorted ENCFF526MRN.bed
 
 ## now look for associations with features; what to do with the -1s?
 
+## managed to make this segfault once with 30 cores (?) but works with 50
 for color in 0_Enhancer 10_Quiescent 11_Promoter 12_Promoter 13_ConstitutiveHet 1_Transcribed \
              2_Enhancer 3_Quiescent 4_Transcribed 5_RegPermissive 6_LowConfidence \
              7_RegPermissive 8_Quiescent 9_ConstitutiveHet
 do
+    echo $color
     grep -w $color ENCFF526MRN.bed > "$color".bed
 
+    echo nc
     yamet --cell nc/*NC*yametized.gz \
       --reference custom.ref.gz \
       --intervals "$color.bed" \
-      --out normals.yamet.out \
-      --cores 30 \
+      --out "$color"_normals.yamet.out \
+      --cores 50 \
       --det-out "$color"_normals.yamet.det.out \
       --print-sampens F 
       
-
+    echo pt
     yamet --cell pt/*PT*yametized.gz \
       --reference custom.ref.gz \
       --intervals "$color".bed \
-      --out primaries.yamet.out \
-      --cores 30 \
+      --out "$color"_primaries.yamet.out \
+      --cores 50 \
       --det-out "$color"_primaries.yamet.det.out \
       --print-sampens F    
 done
@@ -157,6 +160,8 @@ echo 'quick and dirty, perhaps deeptools this? or intervene it?'
 
 # assuming the det.out are bed-like...
 # intervene pairwise -i *det.out --filenames --compute frac --htype color
+
+echo 'knit the dirty_prototype_crc.Rmd'
 
 echo 'unimplemented thoughts'
 

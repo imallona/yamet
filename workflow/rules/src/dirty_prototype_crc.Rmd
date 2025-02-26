@@ -1,0 +1,105 @@
+---
+title: "yamet on CRC rought draft"
+author: "Izaskun Mallona"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: hide
+    code_download: true
+    number_sections: true
+    df_print: kable
+    theme: lumen
+params:
+  seed: 666
+---
+
+Caution this is a draft, not pretty!
+
+
+```{r}
+library(ggplot2)
+
+options(bitmapType="cairo")
+library(showtext) ; showtext_auto()
+```
+
+
+```{r, fig.width = 10, fig.height = 5}
+setwd('/home/imallona/tmp/yamet_crc')
+fns <- list.files('.', pattern = 'yamet.out')
+
+global <- list()
+for (fn in fns) {
+    global[[fn]] <- read.table(fn, header = TRUE)
+    global[[fn]]$status <- ifelse(grepl('normal', fn), 'nc', 'pt')
+    global[[fn]]$type <- gsub('.yamet.out', '', basename(fn))
+}
+
+global <- do.call(rbind.data.frame, global)
+
+ggplot(global,
+       aes(y = sampen, x = type, color = status)) +
+    geom_violin() + geom_point() +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+ggplot(global,
+       aes(y = avg_meth, x = type, color = status)) +
+    geom_point() + geom_point() +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+```
+
+```{r, fig.width = 10, fig.height = 8}
+
+ggplot(global,
+       aes(y = sampen, x = avg_meth, color = status)) +
+    geom_point() + geom_point() +
+    facet_wrap(~type) +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+```
+
+
+ok, looks promising, let's go for detailed outputs to check rank inversions! Caution not reading the whole files
+
+```{r}
+
+fns <- list.files('.', pattern = '*normals.yamet.det.out')
+
+local <- list(nc = list(),
+              pt = list())
+for (fn in fns) {
+    local$nc[[fn]] <- read.table(fn, header = TRUE, nrows = 50000, na.strings = "-1")
+    local$nc[[fn]]$status <- ifelse(grepl('normal', fn), 'nc', 'pt')
+    local$nc[[fn]]$type <- gsub('.yamet.out', '', basename(fn))
+}
+
+fns <- list.files('.', pattern = '*primaries.yamet.det.out')
+
+for (fn in fns) {
+    local$pt[[fn]] <- read.table(fn, header = TRUE, nrows = 50000, na.strings = "-1")
+    local$pt[[fn]]$status <- ifelse(grepl('normal', fn), 'pt', 'pt')
+    local$pt[[fn]]$type <- gsub('.yamet.out', '', basename(fn))
+}
+
+```
+
+superdirty, correlation plots of some pt vs some pt cells for some segmentation, e.g. quiescent
+
+```{r}
+
+tumors <- local$pt$`8_Quiescent_primaries.yamet.det.out`
+normals <- local$nc$`8_Quiescent_normals.yamet.det.out`
+
+tumors <- tumors[,grep('yametized', colnames(tumors))[1:5]]
+normals <- normals[,grep('yametized', colnames(normals))[1:5]]
+
+fd <- cbind(tumors,normals)
+dim(fd)
+plot(fd, pch = 19)
+``
+
+```{r}
+sessionInfo()
+```
