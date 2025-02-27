@@ -11,6 +11,7 @@ output:
     number_sections: true
     df_print: kable
     theme: lumen
+    keep_md: true
 params:
   seed: 666
 ---
@@ -20,15 +21,27 @@ Caution this is a draft, not pretty!
 
 ```{r}
 library(ggplot2)
-library(ComplexHeatmap)
+## library(ComplexHeatmap)
 
 options(bitmapType="cairo")
 library(showtext) ; showtext_auto()
+library(knitr)
+```
+
+```{r}
+opts_chunk$set(fig.width = 5,
+               fig.height = 5,
+               cache = TRUE,
+               include = TRUE,
+               dev = c("png", "svg"),
+               cache.lazy = FALSE,
+               warning = TRUE,
+               message = TRUE)
 ```
 
 
 ```{r, fig.width = 10, fig.height = 5}
-setwd('/home/imallona/tmp/yamet_crc')
+# setwd('/home/imallona/tmp/yamet_crc')
 fns <- list.files('.', pattern = 'yamet.out')
 
 global <- list()
@@ -86,26 +99,26 @@ for (fn in fns) {
 
 ```
 
-superdirty, correlation plots of some pt vs some pt cells for some segmentation, e.g. quiescent
+<!-- superdirty, correlation plots of some pt vs some pt cells for some segmentation, e.g. quiescent -->
 
-```{r}
+<!-- ```{r} -->
 
-tumors <- local$pt$`10_Quiescent_primaries.yamet.det.out`
-normals <- local$nc$`10_Quiescent_normals.yamet.det.out`
+<!-- tumors <- local$pt$`10_Quiescent_primaries.yamet.det.out` -->
+<!-- normals <- local$nc$`10_Quiescent_normals.yamet.det.out` -->
 
-set.seed(36)
-ts <- sample(ncol(tumors), 5)
-set.seed(35466)
-ns <- sample(ncol(normals), 5)
+<!-- set.seed(36) -->
+<!-- ts <- sample(ncol(tumors[,grep('yametized', colnames(tumors))]), 5) -->
+<!-- set.seed(35466) -->
+<!-- ns <- sample(ncol(normals[,grep('yametized', colnames(normals))]), 5) -->
 
 
-tumors <- tumors[,grep('yametized', colnames(tumors))[ts]]
-normals <- normals[,grep('yametized', colnames(normals))[ns]]
+<!-- tumors <- tumors[,grep('yametized', colnames(tumors), value = TRUE)[ts]] -->
+<!-- normals <- normals[,grep('yametized', colnames(normals), value = TRUE)[ns]] -->
 
-fd <- cbind(normals, tumors)
-dim(fd)
-plot(fd, pch = 19)
-```
+<!-- fd <- cbind(normals, tumors) -->
+<!-- dim(fd) -->
+<!-- plot(fd, pch = 19) -->
+<!-- ``` -->
 
 <!-- Same with per feature heatmaps -->
 
@@ -124,7 +137,7 @@ plot(fd, pch = 19)
 
 <!-- ``` -->
 
-Wait, let's order by normal avg_meth status and then browse the shannon's and the per cell sampens.
+Wait, let's browse the shannon's and avg meths to double check this is ok.
 
 
 
@@ -170,7 +183,6 @@ does this hold for enhancers? caution reusing variable names
 
 
 ```{r, fig.width = 12, fig.height = 12}
-
 for (segmentation in c('0_Enhancer', '10_Quiescent')) {
     nname <- grep(segmentation, names(local$nc), value = TRUE)
     tname <- grep(segmentation, names(local$pt), value = TRUE)
