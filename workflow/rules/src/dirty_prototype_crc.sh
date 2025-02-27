@@ -18,6 +18,7 @@
 
 DATAPATH=$HOME/src/yamet/crc_data
 WD=$HOME/tmp/yamet_crc
+REFERENCE=/home/atchox/ref/hg19.ref.gz
 
 normals=$(find $DATAPATH -name "*CRC01_NC*gz" | sort | paste -sd " ")
 primaries=$(find $DATAPATH -name "*CRC01_PT*gz" |  sort| paste -sd " ")
@@ -54,9 +55,9 @@ do
         grep CpG | \
         awk '{OFS="\t";} {
               if($4=="+")
-                print $1, $2,   $2+1, "", "",$4,$6,$5
+                print $1, $2-1, $2,    "", "",$4,$6,$5
               else
-                print $1, $2-1, $2,   "", "",$4,$6,$5
+                print $1, $2-2, $2-1,  "", "",$4,$6,$5
               }' | \
         bedtools merge -c 7,8 -o sum  | \
         awk '{OFS=FS="\t"; print $1,$2,$4,$5,$4/$5}' | \
@@ -70,20 +71,20 @@ do
         grep CpG | \
         awk '{OFS="\t";} {
               if($4=="+")
-                print $1, $2,   $2+1, "", "",$4,$6,$5
+                print $1, $2-1, $2,   "", "",$4,$6,$5
               else
-                print $1, $2-1, $2, "",   "",$4,$6,$5
+                print $1, $2-2, $2-1, "", "",$4,$6,$5
               }' | \
         bedtools merge -c 7,8 -o sum  | \
         awk '{OFS=FS="\t"; print $1,$2,$4,$5,$4/$5}' | \
         sort -k1,1 -k2,2n -k3,3n | gzip -c > pt/"$bn".yametized.gz
 done
 
-## get the reference CpG file. Again we fake it getting one of the large normal files and using
-##   it as a reference
+# ## get the reference CpG file. Again we fake it getting one of the large normal files and using
+# ##   it as a reference
 
-zcat nc/GSM2697701_scTrioSeq2Met_CRC01_NC_529.singleC.yametized.gz |\
-    awk '{OFS=FS="\t"; print $1,$2,$2+1}'|  gzip -c > custom.ref.gz
+# zcat nc/GSM2697701_scTrioSeq2Met_CRC01_NC_529.singleC.yametized.gz |\
+#     awk '{OFS=FS="\t"; print $1,$2,$2+1}'|  gzip -c > custom.ref.gz
 
 
 ## generate genomic bins file - 10k each window, book ended
@@ -99,20 +100,20 @@ bedtools makewindows -g hg19.sizes -w 10000 | sort -k1,1 -k2,2n -k3,3n > hg19_wi
 # these should be temporary files within the snmk
 
 yamet --cell nc/*NC*yametized.gz \
-      --reference custom.ref.gz \
+      --reference $REFERENCE \
       --intervals hg19_windows.bed \
-      --out normals.yamet.out \
-      --cores 30 \
-      --det-out normals.yamet.det.out \
+      --out windows_normals.yamet.out \
+      --cores 50 \
+      --det-out windows_normals.yamet.det.out \
       --print-sampens F 
       
 
 yamet --cell pt/*PT*yametized.gz \
-      --reference custom.ref.gz \
+      --reference $REFERENCE \
       --intervals hg19_windows.bed \
-      --out primaries.yamet.out \
-      --cores 30 \
-      --det-out primaries.yamet.det.out \
+      --out windows_primaries.yamet.out \
+      --cores 50 \
+      --det-out windows_primaries.yamet.det.out \
       --print-sampens F 
 
 # run yamet on hmm segmentations
@@ -135,7 +136,7 @@ do
 
     echo nc
     yamet --cell nc/*NC*yametized.gz \
-      --reference custom.ref.gz \
+      --reference $REFERENCE \
       --intervals "$color.bed" \
       --out "$color"_normals.yamet.out \
       --cores 50 \
@@ -144,12 +145,12 @@ do
       
     echo pt
     yamet --cell pt/*PT*yametized.gz \
-      --reference custom.ref.gz \
+      --reference $REFERENCE \
       --intervals "$color".bed \
       --out "$color"_primaries.yamet.out \
       --cores 50 \
       --det-out "$color"_primaries.yamet.det.out \
-      --print-sampens F    
+      --print-sampens F
 done
 
 
