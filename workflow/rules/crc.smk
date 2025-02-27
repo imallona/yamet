@@ -13,21 +13,50 @@ This is hg19
 
 """
 
-rule download_crc:
+CRC_RAW = op.join("crc", "raw")
+CRC_DATA = op.join("crc", "data")
+
+
+rule download_crc_accessors:
     conda:
         op.join("..", "envs", "yamet.yml")
     output:
-        crc = op.join('crc_data', 'downloaded_crc.flag')
+        gsm=op.join("crc", "bisulfites_gsm.txt"),
+    message:
+        """
+        CRC Accessors download
+        """
+    script:
+        "src/get_crc_accessors.sh"
+
+
+rule download_crc:
+    conda:
+        op.join("..", "envs", "yamet.yml")
+    input:
+        gsm=op.join("crc", "bisulfites_gsm.txt"),
+    output:
+        touch(op.join("crc", "download.flag")),
     params:
-        crc_path = 'crc_data'
+        raw=CRC_RAW,
     message:
         """
         CRC download
         """
-    shell:
-        """
-        mkdir -p {params.crc_path}
-        bash src/get_crc_meth_files.sh
-        mv crc_done.flag {params.crc_path}
-        mv G*singleC.txt.gz {params.crc_path}
-        """
+    script:
+        "src/get_crc_meth_files.sh"
+
+
+rule parse_crc:
+    conda:
+        op.join("..", "envs", "yamet.yml")
+    input:
+        op.join("crc", "download.flag"),
+    output:
+        touch(op.join("crc", "parse.flag")),
+    params:
+        raw=CRC_RAW,
+        crc=CRC_DATA,
+        patient="CRC15",
+    script:
+        "src/parse_crc_meth_files.sh"
