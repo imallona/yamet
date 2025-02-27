@@ -14,6 +14,7 @@ import pandas as pd
 include: op.join("rules", "ecker.smk")
 include: op.join("rules", "mm10_annotations.smk")
 include: op.join("rules", "crc.smk")
+include: op.join("rules", "hg19.smk")
 
 
 # include: op.join("rules", "feature_simulations.smk")
@@ -28,6 +29,7 @@ rule all:
         # op.join('ecker_data', 'harmonized_ecker_metadata.tsv.gz'), ## this to download Ecker's metadata
         # op.join("annotation", "mm10", "done.flag"),  ## this to download regions for Ecker's
         # op.join("crc_data", "downloaded_crc.flag"),  # this to download CRC cytosine reports
+        op.join("hg19", "ref.gz"),
         op.join("crc", "parse.flag"),  # this is to parse downloaded CRC cytosine reports for yamet
         # op.join('scnmt_gastrulation_data', 'downloaded_data.tsv'), ## this is Argelaguet's gastrulation
         # expand(
