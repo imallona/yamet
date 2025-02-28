@@ -13,13 +13,16 @@ This is hg19
 
 """
 
+from glob import glob
+
 CRC_RAW = op.join("crc", "raw")
 CRC_DATA = op.join("crc", "data")
+CRC_YAMET = op.join("crc", "yamet")
 
 
 rule download_crc_accessors:
     conda:
-        op.join("..", "envs", "yamet.yml")
+        op.join("..", "envs", "processing.yml")
     output:
         gsm=op.join("crc", "bisulfites_gsm.txt"),
     message:
@@ -32,7 +35,7 @@ rule download_crc_accessors:
 
 rule download_crc:
     conda:
-        op.join("..", "envs", "yamet.yml")
+        op.join("..", "envs", "processing.yml")
     input:
         gsm=op.join("crc", "bisulfites_gsm.txt"),
     output:
@@ -47,16 +50,40 @@ rule download_crc:
         "src/get_crc_meth_files.sh"
 
 
-rule parse_crc:
+rule parse_single_crc:
     conda:
-        op.join("..", "envs", "yamet.yml")
+        op.join("..", "envs", "processing.yml")
     input:
         op.join("crc", "download.flag"),
     output:
-        touch(op.join("crc", "parse.flag")),
+        op.join(CRC_DATA, "{file}"),
     params:
         raw=CRC_RAW,
-        crc=CRC_DATA,
-        patient="CRC15",
     script:
-        "src/parse_crc_meth_files.sh"
+        "src/parse_crc_meth_file.sh"
+
+
+def get_raw_files(patient, cat):
+    filepaths = glob(op.join(CRC_RAW, f"G*_{patient}_{cat}*.txt.gz"))
+    return [op.basename(file) for file in filepaths]
+
+
+rule yamet_crc_pmds:
+    conda:
+        op.join("..", "envs", "yamet.yml")
+    input:
+        yamet=op.join("build", "yamet"),
+        cells=lambda wildcards: expand(
+            op.join(CRC_DATA, "{file}"),
+            file=get_raw_files(wildcards.patient, wildcards.cat),
+        ),
+        ref=op.join(HG19_BASE, "ref.gz"),
+        intervals=op.join(HG19_BASE, "{md}.bed"),
+    output:
+        out=op.join(CRC_YAMET, "{md}.{patient}.{cat}.out"),
+        det_out=op.join(CRC_YAMET, "{md}.{patient}.{cat}.det.out"),
+    threads: 16
+    params:
+        base=CRC_YAMET,
+    script:
+        "src/yamet.sh"

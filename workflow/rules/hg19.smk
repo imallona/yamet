@@ -8,7 +8,7 @@ HG19_BASE = "hg19"
 
 rule hg19_chr_ref:
     conda:
-        op.join("..", "envs", "yamet.yml")
+        op.join("..", "envs", "processing.yml")
     output:
         temp(op.join(HG19_BASE, "{chr}.ref")),
     params:
@@ -19,8 +19,6 @@ rule hg19_chr_ref:
 
 
 rule hg19_ref:
-    conda:
-        op.join("..", "envs", "yamet.yml")
     input:
         expand(op.join(HG19_BASE, "{chr}.ref"), chr=CHRS),
     params:
@@ -29,3 +27,28 @@ rule hg19_ref:
         op.join(HG19_BASE, "ref.gz"),
     script:
         "src/make_ref.sh"
+
+
+rule get_hg19_pmds:
+    output:
+        op.join(HG19_BASE, "pmds.bed.gz"),
+    params:
+        loc="https://zhouserver.research.chop.edu/GenomeAnnotation/hg19/PMD_coordinates_hg19.bed.gz",
+    shell:
+        """
+        curl -o {output[0]} {params.loc}
+        """
+
+
+PMD_MAP = {"pmds": "commonPMD", "hmds": "commonHMD"}
+
+
+rule hg19_pmds:
+    input:
+        op.join(HG19_BASE, "pmds.bed.gz"),
+    output:
+        temp(op.join(HG19_BASE, "{md}.bed")),
+    params:
+        filter=lambda wildcards: PMD_MAP[wildcards.md],
+    script:
+        "src/parse_pmds.sh"

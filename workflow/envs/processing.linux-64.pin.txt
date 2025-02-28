@@ -1,0 +1,45 @@
+# This file may be used to create an environment using:
+# $ conda create --name <env> --file <this file>
+# platform: linux-64
+@EXPLICIT
+https://repo.anaconda.com/pkgs/main/linux-64/_libgcc_mutex-0.1-main.conda#c3473ff8bdb3d124ed5ff11ec380d6f9
+https://repo.anaconda.com/pkgs/main/linux-64/ca-certificates-2025.2.25-h06a4308_0.conda#495015d24da8ad929e3ae2d18571016d
+https://conda.anaconda.org/conda-forge/linux-64/libgomp-14.2.0-h767d61c_2.conda#06d02030237f4d5b3d9a7e7d348fe3c6
+https://repo.anaconda.com/pkgs/main/linux-64/_openmp_mutex-5.1-1_gnu.conda#71d281e9c2192cb3fa425655a8defb85
+https://conda.anaconda.org/conda-forge/linux-64/libgcc-14.2.0-h767d61c_2.conda#ef504d1acbd74b7cc6849ef8af47dd03
+https://conda.anaconda.org/conda-forge/linux-64/libgcc-ng-14.2.0-h69a702a_2.conda#a2222a6ada71fb478682efe483ce0f92
+https://conda.anaconda.org/conda-forge/linux-64/libstdcxx-14.2.0-h8f9b012_2.conda#a78c856b6dc6bf4ea8daeb9beaaa3fb0
+https://conda.anaconda.org/conda-forge/linux-64/openssl-3.4.1-h7b32b05_0.conda#41adf927e746dc75ecf0ef841c454e48
+https://repo.anaconda.com/pkgs/main/linux-64/bzip2-1.0.8-h5eee18b_6.conda#f21a3ff51c1b271977f53ce956a69297
+https://repo.anaconda.com/pkgs/main/linux-64/c-ares-1.19.1-h5eee18b_0.conda#6cfbce52273a1cb888821f18ceaa83c4
+https://repo.anaconda.com/pkgs/main/linux-64/libev-4.33-h7f8727e_1.conda#5065620db4393fb549f30114a33897d1
+https://repo.anaconda.com/pkgs/main/linux-64/libiconv-1.16-h5eee18b_3.conda#197b1a0886a31fccab2167340528eebc
+https://conda.anaconda.org/conda-forge/linux-64/libopenssl-static-3.4.1-hb9d3cd8_0.conda#5d5354d974de1e6946b4f69c18975855
+https://conda.anaconda.org/conda-forge/linux-64/libstdcxx-ng-14.2.0-h4852527_2.conda#c75da67f045c2627f59e6fcb5f4e3a9b
+https://repo.anaconda.com/pkgs/main/linux-64/libunistring-0.9.10-h27cfd23_0.conda#5b6ed6cd1b1ca3a383daef1d6464d02a
+https://conda.anaconda.org/conda-forge/linux-64/libuuid-2.38.1-h0b41bf4_0.conda#40b61aab5c7ba9ff276c41cfffe6b80b
+https://conda.anaconda.org/conda-forge/linux-64/libzlib-1.2.13-h4ab18f5_6.conda#27329162c0dc732bcf67a4e0cd488125
+https://repo.anaconda.com/pkgs/main/linux-64/ncurses-6.4-h6a678d5_0.conda#5558eec6e2191741a92f832ea826251c
+https://repo.anaconda.com/pkgs/main/linux-64/xz-5.6.4-h5eee18b_1.conda#3581505fa450962d631bd82b8616350e
+https://conda.anaconda.org/bioconda/linux-64/bedtools-2.31.1-hf5e1c6e_2.tar.bz2#55aacbd977c83d6d4849c91310ef48c5
+https://repo.anaconda.com/pkgs/main/linux-64/icu-73.1-h6a678d5_0.conda#6d09df641fc23f7d277a04dc7ea32dd4
+https://repo.anaconda.com/pkgs/main/linux-64/libabseil-20240116.2-cxx17_h6a678d5_0.conda#7abc574a536f223fe96be4fb7f4207bf
+https://repo.anaconda.com/pkgs/main/linux-64/libedit-3.1.20230828-h5eee18b_0.conda#850eb5a9d2d7d3c66cce12e84406ca08
+https://repo.anaconda.com/pkgs/main/linux-64/libidn2-2.3.4-h5eee18b_0.conda#2bd46aa89ec576ad787afcdd93e5eafb
+https://conda.anaconda.org/conda-forge/linux-64/libpng-1.6.43-h2797004_0.conda#009981dd9cfcaa4dbfa25ffaed86bcae
+https://repo.anaconda.com/pkgs/main/linux-64/lz4-c-1.9.4-h6a678d5_1.conda#2ee58861f2b92b868ce761abb831819d
+https://conda.anaconda.org/conda-forge/linux-64/mysql-connector-c-6.1.11-h659d440_1008.conda#149e0b89cbbe09397f1147cb3736bcbe
+https://conda.anaconda.org/conda-forge/linux-64/zlib-1.2.13-h4ab18f5_6.conda#559d338a4234c2ad6e676f460a093e67
+https://repo.anaconda.com/pkgs/main/linux-64/krb5-1.20.1-h143b758_1.conda#cf1accc86321fa25d6b978cc748039ae
+https://repo.anaconda.com/pkgs/main/linux-64/libnghttp2-1.57.0-h2d74bed_0.conda#674871621300f54e7ffcf93e6e341638
+https://repo.anaconda.com/pkgs/main/linux-64/libprotobuf-4.25.3-he621ea3_0.conda#b5bac9ee75a731feb80bfc8c40d1958f
+https://repo.anaconda.com/pkgs/main/linux-64/libssh2-1.11.1-h251f7ec_0.conda#dd68c24355431c0543339dda1404129d
+https://repo.anaconda.com/pkgs/main/linux-64/libxml2-2.13.5-hfdd30dd_0.conda#491a355fbc51e30d42c76e1cb6716b8a
+https://repo.anaconda.com/pkgs/main/linux-64/pcre2-10.42-hebb0a14_1.conda#727e15c3cfa02b032da4eb0c1123e977
+https://conda.anaconda.org/bioconda/linux-64/ucsc-fasize-469-h9b8f530_0.tar.bz2#6c0c1fba0f1082c696cd8239c8f22c23
+https://repo.anaconda.com/pkgs/main/linux-64/zstd-1.5.6-hc292b87_0.conda#78ae7abd3020b41f827b35085845e1b8
+https://repo.anaconda.com/pkgs/main/linux-64/gettext-0.21.0-hedfda30_2.conda#2428b016a86d039c07438cad7f1f878a
+https://repo.anaconda.com/pkgs/main/linux-64/libcurl-8.12.1-hc9e6f67_0.conda#2904da5e450707a95d420b55b6b88d19
+https://repo.anaconda.com/pkgs/main/linux-64/mysql-8.4.0-h29a9f33_1.conda#d19b71b0369cf4fe933ffc8efbf604aa
+https://repo.anaconda.com/pkgs/main/linux-64/wget-1.25.0-h251f7ec_0.conda#9500e009b532614aed2af040a5319bbd
+https://conda.anaconda.org/bioconda/linux-64/entrez-direct-22.4-he881be0_0.tar.bz2#0994f567f11543b7aea1afce884c2ce6

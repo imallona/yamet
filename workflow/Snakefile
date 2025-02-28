@@ -13,12 +13,15 @@ import pandas as pd
 
 include: op.join("rules", "ecker.smk")
 include: op.join("rules", "mm10_annotations.smk")
-include: op.join("rules", "crc.smk")
 include: op.join("rules", "hg19.smk")
+include: op.join("rules", "crc.smk")
 
 
 # include: op.join("rules", "feature_simulations.smk")
 # include: op.join("rules", "scnmt_gastrulation.smk")
+
+MDS = ["pmds", "hmds"]
+CATS = ["NC", "PT", "LN"]
 
 
 ## the shuffling is to have as many permutations as len(seed) of each of the annotations, to build
@@ -29,8 +32,7 @@ rule all:
         # op.join('ecker_data', 'harmonized_ecker_metadata.tsv.gz'), ## this to download Ecker's metadata
         # op.join("annotation", "mm10", "done.flag"),  ## this to download regions for Ecker's
         # op.join("crc_data", "downloaded_crc.flag"),  # this to download CRC cytosine reports
-        op.join("hg19", "ref.gz"),
-        op.join("crc", "parse.flag"),  # this is to parse downloaded CRC cytosine reports for yamet
+        expand(op.join(CRC_YAMET, "{md}.CRC01.{cat}.out"), cat=CATS, md=MDS),
         # op.join('scnmt_gastrulation_data', 'downloaded_data.tsv'), ## this is Argelaguet's gastrulation
         # expand(
         #     op.join(
@@ -45,18 +47,14 @@ rule all:
         # op.join('scnmt_gastrulation_data', 'output', 'yamet_summarized.out') ## an scNMT example
 
 
-## yamet is compiled by install_yamet and exported for each shell directive
-shell.prefix("export PATH=../method/build:$PATH;")
-
-
 rule install_yamet:
     conda:
-        "envs/yamet.yml"  # for cmake mainly
+        "envs/yamet.yml"
     output:
-        op.join("..", "method", "build", "yamet"),
+        op.join("build", "yamet"),
     shell:
         """
-        bash ../method/build.sh
+            bash ../method/build.sh
         """
 
 
