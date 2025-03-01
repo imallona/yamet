@@ -20,8 +20,11 @@ include: op.join("rules", "crc.smk")
 # include: op.join("rules", "feature_simulations.smk")
 # include: op.join("rules", "scnmt_gastrulation.smk")
 
-MDS = ["pmds", "hmds"]
-CATS = ["NC", "PT", "LN"]
+CAT_MAP = {
+    "pmd": ["pmds", "hmds"],
+    "hmm": ["3_Quiescent", "8_Quiescent", "10_Quiescent", "9_ConstitutiveHet", "13_ConstitutiveHet"]
+}
+STAGES = ["NC", "PT", "LN"]
 
 
 ## the shuffling is to have as many permutations as len(seed) of each of the annotations, to build
@@ -32,7 +35,13 @@ rule all:
         # op.join('ecker_data', 'harmonized_ecker_metadata.tsv.gz'), ## this to download Ecker's metadata
         # op.join("annotation", "mm10", "done.flag"),  ## this to download regions for Ecker's
         # op.join("crc_data", "downloaded_crc.flag"),  # this to download CRC cytosine reports
-        expand(op.join(CRC_YAMET, "{md}.CRC01.{cat}.out"), cat=CATS, md=MDS),
+        expand(
+            op.join(CRC_YAMET, "{jnt}.CRC01.{stage}.out"),
+            jnt = [f"{subcat}.{cat}" for cat in CAT_MAP for subcat in CAT_MAP[cat]],
+            # zip,
+            # zip(*[(cat, subcat) for cat in CAT_MAP for subcat in CAT_MAP[cat]]),
+            stage=STAGES,
+        ),
         # op.join('scnmt_gastrulation_data', 'downloaded_data.tsv'), ## this is Argelaguet's gastrulation
         # expand(
         #     op.join(

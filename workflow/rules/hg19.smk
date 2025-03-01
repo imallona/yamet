@@ -31,7 +31,7 @@ rule hg19_ref:
 
 rule get_hg19_pmds:
     output:
-        op.join(HG19_BASE, "pmds.bed.gz"),
+        op.join(HG19_BASE, "pmd.bed.gz"),
     params:
         loc="https://zhouserver.research.chop.edu/GenomeAnnotation/hg19/PMD_coordinates_hg19.bed.gz",
     shell:
@@ -45,10 +45,35 @@ PMD_MAP = {"pmds": "commonPMD", "hmds": "commonHMD"}
 
 rule hg19_pmds:
     input:
-        op.join(HG19_BASE, "pmds.bed.gz"),
+        op.join(HG19_BASE, "pmd.bed.gz"),
     output:
-        temp(op.join(HG19_BASE, "{md}.bed")),
+        temp(op.join(HG19_BASE, "{md}.pmd.bed")),
     params:
         filter=lambda wildcards: PMD_MAP[wildcards.md],
-    script:
-        "src/parse_pmds.sh"
+    shell:
+        """
+            gunzip -c {input} |
+                grep "{params.filter}$" >{output}
+        """
+
+
+rule hg19_get_hmm:
+    output:
+        op.join(HG19_BASE, "hmm.bed.gz"),
+    params:
+        loc="https://www.encodeproject.org/files/ENCFF526MRN/@@download/ENCFF526MRN.bed.gz",
+    shell:
+        """
+            curl -L {params.loc} | gunzip -c | sort -k1,1 -k2,2n | gzip -c > {output[0]}
+        """
+
+
+rule hg19_hmm:
+    input:
+        op.join(HG19_BASE, "hmm.bed.gz"),
+    output:
+        temp(op.join(HG19_BASE, "{ann}.hmm.bed")),
+    shell:
+        """
+            gunzip -c {input} | grep "{wildcards.ann}" > {output}
+        """

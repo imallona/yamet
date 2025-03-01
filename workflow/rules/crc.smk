@@ -63,8 +63,8 @@ rule parse_single_crc:
         "src/parse_crc_meth_file.sh"
 
 
-def get_raw_files(patient, cat):
-    filepaths = glob(op.join(CRC_RAW, f"G*_{patient}_{cat}*.txt.gz"))
+def get_raw_files(patient, stage):
+    filepaths = glob(op.join(CRC_RAW, f"G*_{patient}_{stage}*.txt.gz"))
     return [op.basename(file) for file in filepaths]
 
 
@@ -75,13 +75,13 @@ rule yamet_crc_pmds:
         yamet=op.join("build", "yamet"),
         cells=lambda wildcards: expand(
             op.join(CRC_DATA, "{file}"),
-            file=get_raw_files(wildcards.patient, wildcards.cat),
+            file=get_raw_files(wildcards.patient, wildcards.stage),
         ),
         ref=op.join(HG19_BASE, "ref.gz"),
-        intervals=op.join(HG19_BASE, "{md}.bed"),
+        intervals=op.join(HG19_BASE, "{subcat}.{cat}.bed"),
     output:
-        out=op.join(CRC_YAMET, "{md}.{patient}.{cat}.out"),
-        det_out=op.join(CRC_YAMET, "{md}.{patient}.{cat}.det.out"),
+        out=op.join(CRC_YAMET, "{subcat}.{cat}.{patient}.{stage}.out"),
+        det_out=op.join(CRC_YAMET, "{subcat}.{cat}.{patient}.{stage}.det.out"),
     threads: 16
     params:
         base=CRC_YAMET,

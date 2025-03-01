@@ -7,7 +7,7 @@
 ##
 ## Started 20thDec 2024
 
-zcat ${snakemake_params[raw]}/${snakemake_wildcards[file]} |
+gunzip -c ${snakemake_params[raw]}/${snakemake_wildcards[file]} |
     grep "CpG$" |
     awk '
             {OFS="\t";} {
