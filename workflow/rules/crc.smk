@@ -87,3 +87,33 @@ rule yamet_crc_pmds:
         base=CRC_YAMET,
     script:
         "src/yamet.sh"
+
+
+CAT_MAP = {
+    "pmd": ["pmds", "hmds"],
+    "hmm": [
+        "3_Quiescent",
+        "8_Quiescent",
+        "10_Quiescent",
+        "9_ConstitutiveHet",
+        "13_ConstitutiveHet",
+    ],
+}
+STAGES = ["NC", "PT", "LN"]
+
+
+rule crc_doc:
+    conda:
+        op.join("..", "envs", "r.yml")
+    input:
+        expand(
+            op.join(CRC_YAMET, "{jnt}.CRC01.{stage}.out"),
+            jnt=[f"{subcat}.{cat}" for cat in CAT_MAP for subcat in CAT_MAP[cat]],
+            stage=STAGES,
+        ),
+    params:
+        yamet=CRC_YAMET,
+    output:
+        op.join("crc", "crc.html"),
+    script:
+        "src/crc.Rmd"

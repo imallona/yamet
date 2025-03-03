@@ -1,0 +1,68 @@
+---
+title: "CRC"
+author: "Atreya Choudhury, Izaskun Mallona"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+params:
+output:
+  bookdown::html_document2:
+    code_folding: show
+    theme: flatly
+    number_sections: no
+    fig_crop: yes
+---
+
+We require `ggplot2` and `readr` for our analysis.
+```{r, setup}
+suppressPackageStartupMessages({
+  library(ggplot2)
+  library(readr)
+})
+```
+
+Firstly, we read in the yamet output files and create a table storing the stage of cancer and annotation type against the yamet output.
+```{r, import}
+filepaths <- list.files(
+  snakemake@params[["yamet"]],
+  pattern = "\\.out$", full.names = T
+)
+filepaths <- filepaths[!grepl("\\.det\\.out$", filepaths)]
+process_file <- function(filepath) {
+  filename <- basename(filepath)
+
+  parts <- strsplit(filename, "\\.")[[1]]
+  annotation <- parts[1]
+  stage <- parts[4]
+
+  dt <- read_delim(filepath, delim = "\t", show_col_types = FALSE)
+  dt <- dt[, c("sampen", "avg_meth")]
+
+  dt$annotation <- annotation
+  dt$stage <- stage
+
+  return(dt)
+}
+
+files <- do.call(rbind, lapply(filepaths, process_file))
+
+files$annotation <- as.factor(files$annotation)
+files$stage <- as.factor(files$stage)
+```
+
+```{r, anova}
+anova.files <- aov(sampen ~ stage * annotation, data = files)
+summary(anova.files)
+
+tukey.files <- TukeyHSD(anova.files, "stage")
+print(tukey.files)
+```
+We see a significant effect on sample entropy by the different stages with the most prominent difference occurring between stages PT and NC.
+
+```{r, plot, out.width="100%"}
+ggplot(files, aes(y = sampen, x = avg_meth, color = stage)) +
+  geom_point() +
+  facet_wrap(~annotation) +
+  labs(
+    x = "average methylation",
+    y = "sample entropy"
+  )
+```
