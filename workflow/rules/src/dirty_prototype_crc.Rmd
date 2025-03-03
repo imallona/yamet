@@ -16,7 +16,7 @@ params:
   seed: 666
 ---
 
-Caution this is a draft, not pretty!
+Caution this is a draft, not pretty! Run `dirty_prototype_crc.sh` first.
 
 
 ```{r}
@@ -31,7 +31,7 @@ library(knitr)
 ```{r}
 opts_chunk$set(fig.width = 5,
                fig.height = 5,
-               cache = TRUE,
+               cache = FALSE,
                include = TRUE,
                dev = c("png", "svg"),
                cache.lazy = FALSE,
@@ -206,6 +206,36 @@ for (segmentation in c('0_Enhancer', '10_Quiescent')) {
                     max_sampen_pt = tumors$max_sampen),
          pch = '.',
          main = segmentation)
+}
+```
+
+and for marks?
+
+
+```{r, fig.width = 12, fig.height = 12}
+for (mark in c('H3K27', 'H3K4me3', 'H3K9me3')) {
+    nname <- grep(mark, names(local$nc), value = TRUE)
+    tname <- grep(mark, names(local$pt), value = TRUE)
+    
+    normals <- local$nc[[nname]]
+    tumors <- local$pt[[tname]]
+
+    normals$avg_sampen <- apply(normals[,grep('nc', colnames(normals))], 1, function(x) mean(x, na.rm = TRUE))
+    tumors$avg_sampen <- apply(tumors[,grep('pt', colnames(tumors))], 1, function(x) mean(x, na.rm = TRUE))
+
+    normals$max_sampen <- apply(normals[,grep('nc', colnames(normals))], 1, function(x) max(x, na.rm = TRUE))
+    tumors$max_sampen <- apply(tumors[,grep('pt', colnames(tumors))], 1, function(x) max(x, na.rm = TRUE))
+
+    plot(data.frame(shannon_nc = normals$shannon,
+                    meth_nc = normals$avg_meth,
+                    avg_sampen_nc = normals$avg_sampen,
+                    max_sampen_nc = normals$max_sampen,
+                    shannon_pt = tumors$shannon,
+                    meth_pt = tumors$avg_meth,
+                    avg_sampen_pt = tumors$avg_sampen,
+                    max_sampen_pt = tumors$max_sampen),
+         pch = '.',
+         main = mark)
 }
 ```
 

@@ -162,6 +162,48 @@ echo 'quick and dirty, perhaps deeptools this? or intervene it?'
 # assuming the det.out are bed-like...
 # intervene pairwise -i *det.out --filenames --compute frac --htype color
 
+
+## let's add some chipseqs
+wget "https://www.encodeproject.org/files/ENCFF255ARD/@@download/ENCFF255ARD.bed.gz"
+gunzip ENCFF255ARD.bed
+ln -s ENCFF255ARD.bed H3K27me3.bed
+
+wget "https://www.encodeproject.org/files/ENCFF354CNQ/@@download/ENCFF354CNQ.bed.gz"
+gunzip ENCFF354CNQ.bed.gz
+ln -s ENCFF354CNQ.bed H3K9me3.bed
+
+wget "https://www.encodeproject.org/files/ENCFF893TVK/@@download/ENCFF893TVK.bed.gz"
+gunzip ENCFF893TVK.bed.gz
+ln -s ENCFF893TVK.bed H3K4me3.bed
+
+for item in ENCFF255ARD.bed ENCFF354CNQ.bed ENCFF893TVK.bed
+do
+    sort -k1,1 -k2,2n -k3,3n $item > "$item".sorted
+    mv "$item".sorted "$item"
+done
+
+for mark in H3K27me3.bed H3K4me3.bed H3K9me3.bed
+do
+    bn=$(basename $mark .bed)
+
+    yamet --cell nc/*NC*yametized.gz \
+      --reference $REFERENCE \
+      --intervals "$mark" \
+      --out "$bn"_normals.yamet.out \
+      --cores 50 \
+      --det-out "$bn"_normals.yamet.det.out \
+      --print-sampens F
+        
+    yamet --cell pt/*PT*yametized.gz \
+      --reference $REFERENCE \
+      --intervals "$mark" \
+      --out "$bn"_primaries.yamet.out \
+      --cores 50 \
+      --det-out "$bn"_primaries.yamet.det.out \
+      --print-sampens F
+done
+
+
 echo 'knit the dirty_prototype_crc.Rmd'
 
 echo 'unimplemented thoughts'
