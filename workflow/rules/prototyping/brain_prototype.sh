@@ -157,3 +157,93 @@ zcat harmonized_ecker_metadata.tsv.gz | cut -f14-16 | head -1000 | sort | uniq -
 
 
 # looks reasonable
+
+# let's run yamet first. On CpN contexts. Disregarding references altogether.
+
+DATA_PATH=/home/imallona/src/yamet/workflow/ecker_data/
+mkdir -p sample
+
+# https://lhqing.github.io/ALLCools/start/input_files.html#columns-in-allc-file
+# so 5 is methylated and 6 is coverage
+# yamet needs where the columns are the 1 chromosome, 
+#                                         2 position, 3 number of methylated reads, 
+#                                         4 total number of reads and the rate 
+#                                         respectively
+# caution ceiling any C with a methylated read! and subsetting chr1!
+
+for cell in allc_180627_CEMBA_mm_P56_P63_5D_CEMBA180612_5D_3_CEMBA180612_5D_4_H6_AD008_indexed.tsv.tar \
+                allc_180627_CEMBA_mm_P56_P63_5D_CEMBA180612_5D_3_CEMBA180612_5D_4_H4_AD010_indexed.tsv.tar \
+                allc_180627_CEMBA_mm_P56_P63_5D_CEMBA180612_5D_3_CEMBA180612_5D_4_H2_AD012_indexed.tsv.tar \
+                allc_180627_CEMBA_mm_P56_P63_5D_CEMBA180612_5D_3_CEMBA180612_5D_4_H5_AD010_indexed.tsv.tar
+do
+    bn=$(basename $cell .tsv.tar)
+    echo $bn
+    tar xvf ${DATA_PATH}/${cell}
+    
+    zcat "$bn"/*tsv.gz | grep -w "^1" |\
+        awk '{ OFS=FS="\t";
+              if($3=="+")
+                print "chr"$1, $2-1, $2,    "", "",$5,$6
+              else
+                print "chr"$1, $2-2, $2-1,  "", "",$5,$6
+              }' | \
+        bedtools merge -c 6,7 -o sum  | \
+        awk 'BEGIN {OFS=FS="\t"} 
+           function ceil(v) { 
+              return (v==int(v)) ? v : int(v)+1 
+           }
+           {
+              print $1,$2,$4,$5,ceil($4/$5)
+           }' | \
+               sort -k1,1 -k2,2n -k3,3n | gzip -c > sample/"$bn".chr1.yametized.gz
+done
+
+# now faking a reference borrowing loci from a cell
+
+zcat sample/allc_180627_CEMBA_mm_P56_P63_5D_CEMBA180612_5D_3_CEMBA180612_5D_4_H6_AD008_indexed.chr1.yametized.gz | cut -f1,2 > fake.ref
+
+# chr1 dirty segmentation
+
+TAB="$(printf '\t')"
+cat > fake_regions.bed << EOF
+chr1${TAB}1${TAB}100000
+chr1${TAB}100001${TAB}200000
+chr1${TAB}400001${TAB}500000
+chr1${TAB}3005608${TAB}4005608
+chr1${TAB}4005608${TAB}5005608
+EOF
+
+yamet --cell sample/*chr1.yametized.gz \
+      --reference fake.ref \
+      --intervals fake_regions.bed \
+      --out test.yamet.out \
+      --cores 50 \
+      --det-out test.det.yamet.out \
+      --print-sampens F 
+
+# Is able to calculate something, even if with an inadequate reference
+# (yamet) imallona@mlshainan:~/tmp/yamet_brain$ tail test.det.yamet.out 
+# chr     start   end     sample/allc_180627_CEMBA_mm_P56_P63_5D_CEMBA180612_5D_3_CEMBA180612_5D_4_H2_AD012_indexed.chr1.yametized.gz     sample/allc_180627_CEMBA_mm_P56_P63_5D_CEMBA180612_5D_3_CEMBA180612_5D_4_H4_AD010_indexed.chr1.yametized.gz   sample/allc_180627_CEMBA_mm_P56_P63_5D_CEMBA180612_5D_3_CEMBA180612_5D_4_H5_AD010_indexed.chr1.yametized.gz     sample/allc_180627_CEMBA_mm_P56_P63_5D_CEMBA180612_5D_3_CEMBA180612_5D_4_H6_AD008_indexed.chr1.yametized.gz   shannon avg_meth
+# chr1    1       100000  -1      -1      -1      -1      -1      -1
+# chr1    100001  200000  -1      -1      -1      -1      -1      -1
+# chr1    400001  500000  -1      -1      -1      -1      -1      -1
+# chr1    3005608 4005608 0.110306        0.104038        0.0924244       0.0692187       0.317843        0.0303077
+# chr1    4005608 5005608 0.0796909       0.089736        0.101747        0.0909062       0.388139        0.0382658
+# (yamet) imallona@mlshainan:~/tmp/yamet_brain$ tail test.yamet.out 
+# file    sampen  avg_meth
+# sample/allc_180627_CEMBA_mm_P56_P63_5D_CEMBA180612_5D_3_CEMBA180612_5D_4_H2_AD012_indexed.chr1.yametized.gz     0.0890592       0.0483029
+# sample/allc_180627_CEMBA_mm_P56_P63_5D_CEMBA180612_5D_3_CEMBA180612_5D_4_H4_AD010_indexed.chr1.yametized.gz     0.100165        0.0569034
+# sample/allc_180627_CEMBA_mm_P56_P63_5D_CEMBA180612_5D_3_CEMBA180612_5D_4_H5_AD010_indexed.chr1.yametized.gz     0.098031        0.0555058
+# sample/allc_180627_CEMBA_mm_P56_P63_5D_CEMBA180612_5D_3_CEMBA180612_5D_4_H6_AD008_indexed.chr1.yametized.gz     0.0799147       0.0322619
+
+:<<EOF
+so plan:
+evaluate CpH in genebodies and look for between-celltypes differences, and run a gene ontology on those
+  genes with differences, using genes-with-calculable-entropy as background
+
+if not enough genes covered: let's focus on DG granule cells, since (from Ecker's 2021):
+
+mCH accumulates throughout the genome during postnatal brain development6,8. We reasoned that DG granule cells, which are continuously replenished by ongoing neurogenesis throughout the lifespan, may accumulate mCH during their post-mitotic maturation. If so, global mCH should correlate with the age and maturity of granule cells. To investigate this, we divided DG granule cells into four groups on the basis of their global mCH levels and investigated regions of differential methylation between the groups. We identified 219,498 gradient CG-DMRs between the four groups, among which 139,387 showed a positive correlation with global mCH (+DMR), and 80,111 were negatively correlated (−DMR) (Fig. 5e). Notably, genes overlapping +DMRs or −DMRs have different annotated functions: genes enriched in +DMRs (+DMRgenes, n = 328) were associated with developmental processes, whereas those enriched in −DMRs (−DMRgenes, n = 112) were related to synaptic function (Extended Data Fig. 10a, b).
+
+So we could check methylation entropy differences for these cells, in CpH contexts in particular
+EOF
