@@ -19,19 +19,16 @@ mkdir -p $WD ; cd $WD
 
 ## Kent binaries from https://hgdownload.soe.ucsc.edu/admin/exe/
 ## parallel no idea where does it come from (!)
-export PATH=/home/atchox/ref/kent:/home/atchox/ref/parallel:$PATH
+export PATH=/home/atchox/ref/kent:/home/atchox/ref/parallel/src:$PATH
 
 ## Chromosomes to process
 CHROMOSOMES=($(seq 1 19) X Y)
 
-## Create output directory
-mkdir -p out
-cd out
 
 ## Define the function to process each chromosome
 process_chromosome() {
     CHR=$1
-    FA="https://hgdownload.cse.ucsc.edu/goldenpath/mm10/chromosomes/$CHR.fa"
+    FA="chr${CHR}.fa"
 
     curl https://hgdownload.cse.ucsc.edu/goldenpath/mm10/chromosomes/"$FA".gz --output "$FA".gz
 
@@ -52,7 +49,7 @@ export -f process_chromosome
 touch mm10.ref
 
 ## Use parallel to process chromosomes in parallel (one per core)
-$SCRIPT_DIR/parallel/src/parallel process_chromosome ::: "${CHROMOSOMES[@]}"
+parallel process_chromosome ::: "${CHROMOSOMES[@]}"
 
 ## Combine all the individual chromosome files into the final output
 cat *.mm10.cg.bed >>mm10.ref
