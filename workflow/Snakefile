@@ -14,22 +14,22 @@ include: op.join('rules', 'ecker.smk')
 include: op.join('rules', 'mm10_annotations.smk')
 include: op.join('rules', 'crc.smk')
 include: op.join('rules', 'feature_simulations.smk')
-include: op.join('rules', 'scnmt_gastrulation.smk')
+# include: op.join('rules', 'scnmt_gastrulation.smk')
 
 ## the shuffling is to have as many permutations as len(seed) of each of the annotations, to build
 ##   multiple entropy background distributions
 rule all:
     input:
         # op.join('ecker_data', 'downloaded_ecker.flag'), ## this is to download Ecker's cytosine reports
-        # op.join('ecker_data', 'harmonized_ecker_metadata.tsv.gz'), ## this to download Ecker's metadata
+        op.join('ecker_data', 'harmonized_ecker_metadata.tsv.gz'), ## this to download Ecker's metadata
         op.join('annotation', 'mm10', 'done.flag'), ## this to download regions for Ecker's
         # op.join('crc_data', 'downloaded_crc.flag'), # this to download CRC cytosine reports
         # op.join('scnmt_gastrulation_data', 'downloaded_data.tsv'), ## this is Argelaguet's gastrulation
-        expand(op.join('annotation', 'shuffled', '{assembly}', '{seed}', '{annotation}.bed.gz'),
-               seed = [1,2],
-               assembly = 'mm10',
-               annotation = ['genes', 'promoters']), ## to get a random background features
-        op.join('feature_simulations', 'output', 'yamet_detailed.out'), ## feature simulations,
+        # expand(op.join('annotation', 'shuffled', '{assembly}', '{seed}', '{annotation}.bed.gz'),
+        #        seed = [1,2],
+        #        assembly = 'mm10',
+        #        annotation = ['genes', 'promoters']), ## to get a random background features
+        # op.join('feature_simulations', 'output', 'yamet_detailed.out'), ## feature simulations,
         # op.join('scnmt_gastrulation_data', 'output', 'yamet_summarized.out') ## an scNMT example
 
 ## yamet is compiled by install_yamet and exported for each shell directive
