@@ -59,10 +59,12 @@ We see a significant effect on sample entropy by the different stages with the m
 
 ```{r, plot, out.width="100%"}
 ggplot(files, aes(y = sampen, x = avg_meth, color = stage)) +
-  geom_point() +
+  geom_point(size = 0.9, alpha = 0.7) +
+  scale_color_brewer(palette = "Dark2") +
   facet_wrap(~annotation) +
   labs(
     x = "average methylation",
     y = "sample entropy"
-  )
+  ) +
+  guides(color = guide_legend(override.aes = list(size = 2)))
 ```

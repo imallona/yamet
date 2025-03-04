@@ -77,3 +77,32 @@ rule hg19_hmm:
         """
             gunzip -c {input} | grep "{wildcards.ann}" > {output}
         """
+
+
+CHIP_MAP = {
+    "H3K27me3": "ENCFF255ARD",
+    "H3K9me3": "ENCFF354CNQ",
+    "H3K4me3": "ENCFF893TVK",
+}
+
+
+rule hg19_get_chip:
+    output:
+        op.join(HG19_BASE, "{chip}.bed.gz"),
+    params:
+        loc=lambda wildcards: f"https://www.encodeproject.org/files/{CHIP_MAP[wildcards.chip]}/@@download/{CHIP_MAP[wildcards.chip]}.bed.gz",
+    shell:
+        """
+            curl -L {params.loc} | gunzip -c | sort -k1,1 -k2,2n | gzip -c > {output[0]}
+        """
+
+
+rule hg19_chip:
+    input:
+        op.join(HG19_BASE, "{chip}.bed.gz"),
+    output:
+        temp(op.join(HG19_BASE, "{chip}.chip.bed")),
+    shell:
+        """
+            gunzip -c {input} > {output}
+        """
