@@ -16,7 +16,7 @@ params:
   seed: 666
 ---
 
-Caution this is a draft, not pretty! Run `dirty_prototype_crc.sh` first.
+Caution this is a draft, not pretty! Run `crc_prototype.sh` first.
 
 
 ```{r}
@@ -33,7 +33,7 @@ opts_chunk$set(fig.width = 5,
                fig.height = 5,
                cache = FALSE,
                include = TRUE,
-               dev = c("png", "svg"),
+               dev = c("png"),#, "svg"),
                cache.lazy = FALSE,
                warning = TRUE,
                message = TRUE)
