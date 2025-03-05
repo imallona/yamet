@@ -10,5 +10,4 @@ esearch -db sra -query PRJNA382695 |
   efetch -format runinfo |
   cut -f11,13,14,15,30 -d"," |
   grep Bis |
-  cut -f5 -d"," |
-  head -5 >"${snakemake_output[gsm]}"
+  cut -f5 -d"," >"${snakemake_output[gsm]}"
