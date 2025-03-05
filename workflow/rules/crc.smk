@@ -68,7 +68,7 @@ def get_raw_files(patient, stage):
     return [op.basename(file) for file in filepaths]
 
 
-rule yamet_crc_pmds:
+rule yamet_crc_cg:
     conda:
         op.join("..", "envs", "yamet.yml")
     input:
@@ -77,7 +77,7 @@ rule yamet_crc_pmds:
             op.join(CRC_DATA, "{file}"),
             file=get_raw_files(wildcards.patient, wildcards.stage),
         ),
-        ref=op.join(HG19_BASE, "ref.gz"),
+        ref=op.join(HG19_BASE, "ref.CG.gz"),
         intervals=op.join(HG19_BASE, "{subcat}.{cat}.bed"),
     output:
         out=op.join(CRC_YAMET, "{subcat}.{cat}.{patient}.{stage}.out"),

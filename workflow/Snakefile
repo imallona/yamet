@@ -14,6 +14,7 @@ import pandas as pd
 include: op.join("rules", "ecker.smk")
 include: op.join("rules", "mm10_annotations.smk")
 include: op.join("rules", "hg19.smk")
+include: op.join("rules", "mm10.smk")
 include: op.join("rules", "crc.smk")
 
 

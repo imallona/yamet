@@ -10,7 +10,7 @@ rule hg19_chr_ref:
     conda:
         op.join("..", "envs", "processing.yml")
     output:
-        temp(op.join(HG19_BASE, "{chr}.ref")),
+        temp(op.join(HG19_BASE, "{chr}.{meth_pat}.ref")),
     params:
         fa="Homo_sapiens.GRCh37.dna.chromosome.{chr}.fa",
         base="https://ftp.ensembl.org/pub/grch37/current/fasta/homo_sapiens/dna/",
@@ -20,11 +20,11 @@ rule hg19_chr_ref:
 
 rule hg19_ref:
     input:
-        expand(op.join(HG19_BASE, "{chr}.ref"), chr=CHRS),
+        expand(op.join(HG19_BASE, "{chr}.{{meth_pat}}.ref"), chr=CHRS),
     params:
         base=HG19_BASE,
     output:
-        op.join(HG19_BASE, "ref.gz"),
+        op.join(HG19_BASE, "ref.{meth_pat}.gz"),
     script:
         "src/make_ref.sh"
 

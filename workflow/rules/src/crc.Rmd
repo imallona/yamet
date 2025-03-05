@@ -2,7 +2,6 @@
 title: "CRC"
 author: "Atreya Choudhury, Izaskun Mallona"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
-params:
 output:
   bookdown::html_document2:
     code_folding: show
