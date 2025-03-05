@@ -99,6 +99,7 @@ CAT_MAP = {
         "13_ConstitutiveHet",
     ],
     "chip": ["H3K27me3", "H3K9me3", "H3K4me3"],
+    "lad": ["laminb1"],
 }
 STAGES = ["NC", "PT", "LN"]
 

@@ -106,3 +106,25 @@ rule hg19_chip:
         """
             gunzip -c {input} > {output}
         """
+
+
+rule hg19_get_lamin:
+    output:
+        op.join(HG19_BASE, "laminb1.bed.gz"),
+    params:
+        loc="https://github.com/jernst98/ChromHMM/raw/refs/heads/master/COORDS/hg19/laminB1lads.hg19.bed.gz",
+    shell:
+        """
+            curl -L {params.loc} | gunzip -c | sort -k1,1 -k2,2n | gzip -c > {output[0]}
+        """
+
+
+rule hg19_lamin:
+    input:
+        op.join(HG19_BASE, "{lamin}.bed.gz"),
+    output:
+        temp(op.join(HG19_BASE, "{lamin}.lad.bed")),
+    shell:
+        """
+            gunzip -c {input} > {output}
+        """
