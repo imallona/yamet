@@ -247,3 +247,49 @@ mCH accumulates throughout the genome during postnatal brain development6,8. We 
 
 So we could check methylation entropy differences for these cells, in CpH contexts in particular
 EOF
+
+
+# ok, let's prototype this further: let's get some excitatory neurons:
+
+mkdir -p exc
+
+for exc in "CLA" \
+               "CT-L6" \
+               "IT-L23" \
+               "IT-L4"
+do
+    echo $exc
+    cell_id=$(basename $(zcat harmonized_ecker_metadata.tsv.gz | grep "$exc" | head -1  |cut -f50 | tr -d '"') .tsv.gz)
+    cell_tar=$DATA_PATH/"${cell_id}.tsv.tar"
+    tar xvf ${cell_tar}
+    mv ${cell_id}/* exc/
+done
+
+ll -h exc/
+
+# drwxr-xr-x  2 imallona robinsonlab 4.0K Mar  6 14:37 ./
+# drwxr-xr-x 11 imallona robinsonlab 4.0K Mar  6 14:37 ../
+# -rw-r--r--  1 imallona robinsonlab  85M Oct 20  2018 allc_180508_CEMBA_mm_P56_P63_2C_CEMBA180409_2C_1_CEMBA180409_2C_2_A10_AD001_indexed.tsv.gz
+# -rw-r--r--  1 imallona robinsonlab  269 Oct 20  2018 allc_180508_CEMBA_mm_P56_P63_2C_CEMBA180409_2C_1_CEMBA180409_2C_2_A10_AD001_indexed.tsv.gz.idx
+# -rw-r--r--  1 imallona robinsonlab  95M Oct 20  2018 allc_180508_CEMBA_mm_P56_P63_2C_CEMBA180409_2C_1_CEMBA180409_2C_2_A10_AD002_indexed.tsv.gz
+# -rw-r--r--  1 imallona robinsonlab  263 Oct 20  2018 allc_180508_CEMBA_mm_P56_P63_2C_CEMBA180409_2C_1_CEMBA180409_2C_2_A10_AD002_indexed.tsv.gz.idx
+# -rw-r--r--  1 imallona robinsonlab 147M Oct 20  2018 allc_180508_CEMBA_mm_P56_P63_2C_CEMBA180409_2C_3_CEMBA180409_2C_4_G1_AD008_indexed.tsv.gz
+# -rw-r--r--  1 imallona robinsonlab  265 Oct 20  2018 allc_180508_CEMBA_mm_P56_P63_2C_CEMBA180409_2C_3_CEMBA180409_2C_4_G1_AD008_indexed.tsv.gz.idx
+# -rw-r--r--  1 imallona robinsonlab 172M Oct 19  2018 allc_180508_CEMBA_mm_P56_P63_2C_CEMBA180410_2C_1_CEMBA180410_2C_2_B1_AD006_indexed.tsv.gz
+# -rw-r--r--  1 imallona robinsonlab  275 Oct 19  2018 allc_180508_CEMBA_mm_P56_P63_2C_CEMBA180410_2C_1_CEMBA180410_2C_2_B1_AD006_indexed.tsv.gz.idx
+
+# looks feasible. What about regions for ecker's brain?
+
+# just  non-overlapping 10-kb bins on mm10
+
+
+mysql --user=genome --host=genome-mysql.soe.ucsc.edu -N -s -e \
+      'SELECT chrom,size FROM mm10.chromInfo' > mm10.sizes
+
+TAB="$(printf '\t')"
+
+grep -E "chr[0-9XY]{1,2}$TAB" mm10.sizes  > mm10.sizes.can
+mv mm10.sizes.can mm10.sizes
+
+
+bedtools makewindows -g mm10.sizes -w 10000 | sort -k1,1 -k2,2n -k3,3n > mm10_windows.bed
