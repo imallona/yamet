@@ -4,6 +4,7 @@
 ## https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE97693
 ## Single-cell Multi-omics Sequencing and Analyses of Human Colorectal Cancer
 ##
+## Atreya Choudhury
 ## Started 16th Feb 2025
 
 esearch -db sra -query PRJNA382695 |

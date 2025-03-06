@@ -2,6 +2,7 @@
 ##
 ## Combines reference of different chromosomes into one big reference file
 ##
+## Atreya Choudhury
 ## Started 26th Feb 2025
 
 cat /dev/null >ref.tmp

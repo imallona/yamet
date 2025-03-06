@@ -2,6 +2,7 @@
 ##
 ## Retrieves assembly for one chromosome
 ##
+## Atreya Choudhury
 ## Started 26th Feb 2025
 
 curl "${snakemake_params[base]}${snakemake_params[fa]}".gz --output ${snakemake_params[fa]}.gz

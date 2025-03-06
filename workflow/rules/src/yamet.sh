@@ -2,6 +2,7 @@
 ##
 ## Run yamet
 ##
+## Atreya Choudhury
 ## Started 27thFeb 2025
 
 mkdir -p ${snakemake_params[base]}

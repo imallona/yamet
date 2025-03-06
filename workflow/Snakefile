@@ -11,11 +11,12 @@ import os.path as op
 import pandas as pd
 
 
-include: op.join("rules", "ecker.smk")
-include: op.join("rules", "mm10_annotations.smk")
+## assemblies and annotations
 include: op.join("rules", "hg19.smk")
 include: op.join("rules", "mm10.smk")
+## datasets and analysis
 include: op.join("rules", "crc.smk")
+include: op.join("rules", "ecker.smk")
 
 
 # include: op.join("rules", "feature_simulations.smk")
