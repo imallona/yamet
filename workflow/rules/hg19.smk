@@ -29,7 +29,29 @@ rule hg19_ref:
         "src/make_ref.sh"
 
 
-rule get_hg19_pmds:
+rule hg19_get_genes:
+    conda:
+        op.join("..", "envs", "processing.yml")
+    output:
+        op.join(HG19_BASE, "genes.bed.gz"),
+    script:
+        "src/download_hg19_genes.sh"
+
+
+rule hg19_genes:
+    conda:
+        op.join("..", "envs", "processing.yml")
+    input:
+        op.join(HG19_BASE, "genes.bed.gz"),
+    output:
+        op.join(HG19_BASE, "genes.genes.bed"),
+    shell:
+        """
+            gunzip -c {input} > {output}
+        """
+
+
+rule hg19_get_pmds:
     output:
         op.join(HG19_BASE, "pmd.bed.gz"),
     params:
