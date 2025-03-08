@@ -101,7 +101,8 @@ CAT_MAP = {
     "chip": ["H3K27me3", "H3K9me3", "H3K4me3"],
     "lad": ["laminb1"],
 }
-STAGES = ["NC", "PT", "LN"]
+STAGES = ["NC", "PT"]
+PATIENTS = ["CRC01", "CRC02", "CRC04", "CRC10", "CRC11", "CRC13", "CRC15"]
 
 
 rule crc_doc:
@@ -109,9 +110,10 @@ rule crc_doc:
         op.join("..", "envs", "r.yml")
     input:
         expand(
-            op.join(CRC_YAMET, "{jnt}.CRC01.{stage}.out"),
+            op.join(CRC_YAMET, "{jnt}.{patient}.{stage}.out"),
             jnt=[f"{subcat}.{cat}" for cat in CAT_MAP for subcat in CAT_MAP[cat]],
             stage=STAGES,
+            patient=PATIENTS,
         ),
     params:
         yamet=CRC_YAMET,

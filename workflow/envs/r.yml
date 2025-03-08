@@ -4,9 +4,10 @@ channels:
   - conda-forge
   - bioconda
 dependencies:
-  - r-base
+  - r-base=4.3.3
   - r-readxl
   - r-rmarkdown
   - r-bookdown
   - r-ggplot2
+  - r-lmertest
   - r-readr

@@ -10,15 +10,16 @@ output:
     fig_crop: yes
 ---
 
-We require `ggplot2` and `readr` for our analysis.
+We require `readr`, `lmerTest` and `ggplot2` for our analysis.
 ```{r, setup}
 suppressPackageStartupMessages({
-  library(ggplot2)
   library(readr)
+  library(lmerTest)
+  library(ggplot2)
 })
 ```
 
-Firstly, we read in the yamet output files and create a table storing the stage of cancer and annotation type against the yamet output.
+Firstly, we read in the yamet output files and create a table storing the stage of cancer, patient and annotation type against the yamet output.
 ```{r, import}
 filepaths <- list.files(
   snakemake@params[["yamet"]],
@@ -30,12 +31,14 @@ process_file <- function(filepath) {
 
   parts <- strsplit(filename, "\\.")[[1]]
   annotation <- parts[1]
+  patient <- parts[3]
   stage <- parts[4]
 
   dt <- read_delim(filepath, delim = "\t", show_col_types = FALSE)
   dt <- dt[, c("sampen", "avg_meth")]
 
   dt$annotation <- annotation
+  dt$patient <- patient
   dt$stage <- stage
 
   return(dt)
@@ -44,20 +47,27 @@ process_file <- function(filepath) {
 files <- do.call(rbind, lapply(filepaths, process_file))
 
 files$annotation <- as.factor(files$annotation)
+files$patient <- as.factor(files$patient)
 files$stage <- as.factor(files$stage)
+files[files == -1] <- NA
 ```
 
-```{r, anova}
-anova.files <- aov(sampen ~ stage * annotation, data = files)
-summary(anova.files)
-
-tukey.files <- TukeyHSD(anova.files, "stage")
-print(tukey.files)
+We account for fixed effects of stage and average methylation and a random effect from the patient.
+```{r, lmer}
+lmer.files <- lmer(
+  sampen ~ stage * avg_meth + (1 | patient),
+  data = subset(files, annotation == "pmds")
+)
+summary(lmer.files)
+anova(lmer.files, type = 3)
 ```
-We see a significant effect on sample entropy by the different stages with the most prominent difference occurring between stages PT and NC.
+We observe that the effect of the different stages on sample entropy is strongly confounded by the average methylation.
 
 ```{r, plot, out.width="100%"}
-ggplot(files, aes(y = sampen, x = avg_meth, color = stage)) +
+ggplot(
+  subset(files, patient == "CRC01"),
+  aes(y = sampen, x = avg_meth, color = stage)
+) +
   geom_point(size = 0.9, alpha = 0.7) +
   scale_color_brewer(palette = "Dark2") +
   facet_wrap(~annotation) +
