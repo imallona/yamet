@@ -71,8 +71,8 @@ void FileMap::print(const std::vector<std::string> &filenames) {
 }
 
 /**
- * Exports a tab separated file with sample entropies, shannon entropies and average methylation per
- * region for every cell file.
+ * Exports a tab separated file which primarily provides sample entropies per region for every cell
+ * file. It also provides shannon entropies and average methylation per region across cell files.
  *
  * @param out path to tab separated file where detailed sample entropy outputs are to be stored.
  * @param filenames vector of filenames of all cell files.
@@ -127,6 +127,42 @@ void FileMap::exportDetOut(const std::string &out, const std::vector<std::string
         outStream << -1.0;
       } else {
         outStream << (((double)m_agg) / ((double)t_agg));
+      }
+      outStream << std::endl;
+    }
+  }
+  outStream.close();
+}
+
+/**
+ * Exports a tab separated file with average methylation per region for every cell file.
+ *
+ * @param out path to tab separated file where detailed sample entropy outputs are to be stored.
+ * @param filenames vector of filenames of all cell files.
+ * @param intervals Intervals object with search intervals.
+ */
+void FileMap::exportMethOut(const std::string &out, const std::vector<std::string> &filenames,
+                            const Intervals &intervals) {
+  std::ofstream outStream(out);
+
+  if (!outStream.is_open()) {
+    std::cerr << "Error: Could not open file " << out << " for writing." << std::endl;
+    return;
+  }
+  outStream << "chr\tstart\tend";
+  for (const auto &filename : filenames) {
+    outStream << "\t" << filename;
+  }
+  outStream << std::endl;
+
+  for (unsigned int i = 0; i < intervals.size(); i++) {
+    for (unsigned int j = 0; j < intervals[i].intervals.size(); j++) {
+      /// print the region information
+      outStream << intervals[i].chr << "\t" << intervals[i].intervals[j].start << "\t"
+                << intervals[i].intervals[j].end;
+      /// print average methylation for all files at that region
+      for (const auto &filename : filenames) {
+        outStream << "\t" << (*this)[filename].chrCounts[i].bins[j].avg_meth;
       }
       outStream << std::endl;
     }

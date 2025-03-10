@@ -15,6 +15,7 @@ unsigned int getSkipHeaderCell(const po::variables_map &vm);
 unsigned int getSkipHeaderReference(const po::variables_map &vm);
 unsigned int getSkipHeaderIntervals(const po::variables_map &vm);
 std::string  getDetOut(const po::variables_map &vm);
+std::string  getMethOut(const po::variables_map &vm);
 std::string  getOut(const po::variables_map &vm);
 unsigned int getCores(const po::variables_map &vm);
 unsigned int getThreadsPerCore(const po::variables_map &vm);
