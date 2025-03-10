@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - error handling for incorrect line parsing
 - `--skip-header`, `--skip-header-cell`, `--skip-header-reference` and `--skip-header-intervals` for skipping headers in files at various levels of granularity
+- `--meth-out` for average methylation report per region per cell
 
 ## [v1.1.0-rc.2](https://github.com/imallona/yamet/releases/tag/v1.1.0-rc.2)
 
