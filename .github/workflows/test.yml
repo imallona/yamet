@@ -2,10 +2,11 @@
 name: build_and_test
 on:
   workflow_dispatch: null
-  pull_request: null
+  pull_request:
     paths:
-      - 'method/src/**.cpp'
-      - 'method/CMakeLists.txt'
+      - "method/**/*.cpp"
+      - "method/**/*.h"
+      - "method/CMakeLists.txt"
 
 jobs:
   build_ubuntu_latest:
@@ -67,3 +68,21 @@ jobs:
 
           diff test_1/out/stdout \
               current_test_1.stdout
+      - name: Test Avg Meth
+        run: |
+          cd test
+          ../method/build/yamet \
+              test_avg/in/simulations.*.tsv \
+              -r test_avg/in/reference.tsv \
+              -i test_avg/in/regions.bed \
+              --meth-out current_test_avg.out &> current_test_avg.stdout
+
+          echo 'Diff expected vs produced avg meth output'
+
+          diff test_avg/out/meth.out \
+              current_test_avg.out
+
+          echo 'Diff expected vs produced stdout'
+
+          diff test_avg/out/stdout \
+              current_test_avg.stdout
