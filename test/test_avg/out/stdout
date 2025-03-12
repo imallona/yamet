@@ -1,0 +1,26 @@
+--Sample Entropies------------------
+
+Filename: test_avg/in/simulations.1.tsv
+  Aggregate: 0
+  Detailed:
+    Chromosome: chrAP
+      Bin 0 -> -1
+    Chromosome: chrM
+      Bin 0 -> 0
+    Chromosome: chrR
+      Bin 0 -> -1
+    Chromosome: chrU
+      Bin 0 -> 0
+
+Filename: test_avg/in/simulations.2.tsv
+  Aggregate: 0.916291
+  Detailed:
+    Chromosome: chrAP
+      Bin 0 -> 0.693147
+    Chromosome: chrM
+      Bin 0 -> -1
+    Chromosome: chrR
+      Bin 0 -> 1.09861
+    Chromosome: chrU
+      Bin 0 -> -1
+
