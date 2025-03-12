@@ -76,4 +76,34 @@ ggplot(
     y = "sample entropy"
   ) +
   guides(color = guide_legend(override.aes = list(size = 2)))
+
+ggplot(
+  subset(files, patient == "CRC01"),
+  aes(y = sampen, x = annotation, color = stage)
+) +
+  geom_boxplot(
+    outlier.size = 0.6,
+    outlier.alpha = 0.3
+  ) +
+  labs(y = "sample entropy") +
+  geom_jitter(
+    position = position_dodge(width = 0.75),
+    size = 0.6, alpha = 0.3
+  ) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+
+ggplot(
+  subset(files, patient == "CRC01"),
+  aes(y = avg_meth, x = annotation, color = stage)
+) +
+  geom_boxplot(
+    outlier.size = 0.6,
+    outlier.alpha = 0.3
+  ) +
+  labs(y = "average methylation") +
+  geom_jitter(
+    position = position_dodge(width = 0.75),
+    size = 0.6, alpha = 0.3
+  ) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
 ```

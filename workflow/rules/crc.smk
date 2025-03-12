@@ -82,6 +82,8 @@ rule yamet_crc_cg:
     output:
         out=op.join(CRC_YAMET, "{subcat}.{cat}.{patient}.{stage}.out"),
         det_out=op.join(CRC_YAMET, "{subcat}.{cat}.{patient}.{stage}.det.out"),
+    group:
+        "yamet"
     threads: 16
     params:
         base=CRC_YAMET,
@@ -92,6 +94,15 @@ rule yamet_crc_cg:
 CAT_MAP = {
     "pmd": ["pmds", "hmds"],
     "hmm": [
+        "0_Enhancer",
+        "2_Enhancer",
+        "11_Promoter",
+        "12_Promoter",
+        "1_Transcribed",
+        "4_Transcribed",
+        "5_RegPermissive",
+        "7_RegPermissive",
+        "6_LowConfidence",
         "3_Quiescent",
         "8_Quiescent",
         "10_Quiescent",
