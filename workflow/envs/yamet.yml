@@ -1,14 +1,9 @@
-name: yamet-dev
+name: yamet
 channels:
-  - anaconda
+  - defaults
   - conda-forge
-  - nodefaults
 dependencies:
-  - conda-forge::mariadb
-  - conda-forge::wget
-  - bioconda::bedtools
-  - conda-forge::pandas
-  - bioconda::entrez-direct
-  - anaconda::cmake==3.31.2
-  # - bioconda::emboss==6.6.0
-  - bioconda::ucsc-fasize
+  - cmake
+  - boost-cpp
+  - zlib
+  - cxx-compiler

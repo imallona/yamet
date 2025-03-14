@@ -1,7 +1,13 @@
 name: R_4.3.2
 channels:
- - conda-forge
- - bioconda
+  - default
+  - conda-forge
+  - bioconda
 dependencies:
- - conda-forge::r-base=4.3.2
- - conda-forge::r-readxl
+  - r-base=4.3.3
+  - r-readxl
+  - r-rmarkdown
+  - r-bookdown
+  - r-ggplot2
+  - r-lmertest
+  - r-readr

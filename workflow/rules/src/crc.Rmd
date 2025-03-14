@@ -1,0 +1,111 @@
+---
+title: "CRC"
+author: "Atreya Choudhury, Izaskun Mallona"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  bookdown::html_document2:
+    code_folding: show
+    theme: flatly
+    number_sections: no
+    fig_crop: yes
+---
+
+We require `readr`, `lmerTest` and `ggplot2` for our analysis.
+```{r, setup}
+suppressPackageStartupMessages({
+  library(readr)
+  library(lmerTest)
+  library(ggplot2)
+})
+```
+
+Firstly, we read in the yamet output files and create a table storing the stage of cancer, patient and annotation type against the yamet output.
+```{r, import}
+filepaths <- list.files(
+  snakemake@params[["yamet"]],
+  pattern = "\\.out$", full.names = T
+)
+filepaths <- filepaths[!grepl("\\.det\\.out$", filepaths)]
+process_file <- function(filepath) {
+  filename <- basename(filepath)
+
+  parts <- strsplit(filename, "\\.")[[1]]
+  annotation <- parts[1]
+  patient <- parts[3]
+  stage <- parts[4]
+
+  dt <- read_delim(filepath, delim = "\t", show_col_types = FALSE)
+  dt <- dt[, c("sampen", "avg_meth")]
+
+  dt$annotation <- annotation
+  dt$patient <- patient
+  dt$stage <- stage
+
+  return(dt)
+}
+
+files <- do.call(rbind, lapply(filepaths, process_file))
+
+files$annotation <- as.factor(files$annotation)
+files$patient <- as.factor(files$patient)
+files$stage <- as.factor(files$stage)
+files[files == -1] <- NA
+```
+
+We account for fixed effects of stage and average methylation and a random effect from the patient.
+```{r, lmer}
+lmer.files <- lmer(
+  sampen ~ stage * avg_meth + (1 | patient),
+  data = subset(files, annotation == "pmds")
+)
+summary(lmer.files)
+anova(lmer.files, type = 3)
+```
+We observe that the effect of the different stages on sample entropy is strongly confounded by the average methylation.
+
+```{r, plot, out.width="100%"}
+ggplot(
+  subset(files, patient == "CRC01"),
+  aes(y = sampen, x = avg_meth, color = stage)
+) +
+  geom_point(size = 0.9, alpha = 0.7) +
+  scale_color_brewer(palette = "Dark2") +
+  facet_wrap(~annotation) +
+  labs(
+    x = "average methylation",
+    y = "sample entropy"
+  ) +
+  guides(color = guide_legend(override.aes = list(size = 2)))
+
+ggplot(
+  subset(files, patient == "CRC01"),
+  aes(y = sampen, x = annotation, color = stage)
+) +
+  geom_boxplot(
+    outlier.size = 0.6,
+    outlier.alpha = 0.3
+  ) +
+  labs(y = "sample entropy") +
+  geom_jitter(
+    position = position_dodge(width = 0.75),
+    size = 0.6, alpha = 0.3
+  ) +
+  scale_color_brewer(palette = "Dark2") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+
+ggplot(
+  subset(files, patient == "CRC01"),
+  aes(y = avg_meth, x = annotation, color = stage)
+) +
+  geom_boxplot(
+    outlier.size = 0.6,
+    outlier.alpha = 0.3
+  ) +
+  labs(y = "average methylation") +
+  geom_jitter(
+    position = position_dodge(width = 0.75),
+    size = 0.6, alpha = 0.3
+  ) +
+  scale_color_brewer(palette = "Dark2") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+```

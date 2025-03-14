@@ -10,11 +10,18 @@
 import os.path as op
 import pandas as pd
 
-include: op.join('rules', 'ecker.smk')
-include: op.join('rules', 'mm10_annotations.smk')
-include: op.join('rules', 'crc.smk')
-include: op.join('rules', 'feature_simulations.smk')
-include: op.join('rules', 'scnmt_gastrulation.smk')
+
+## assemblies and annotations
+include: op.join("rules", "hg19.smk")
+include: op.join("rules", "mm10.smk")
+## datasets and analysis
+include: op.join("rules", "crc.smk")
+include: op.join("rules", "ecker.smk")
+
+
+# include: op.join("rules", "feature_simulations.smk")
+# include: op.join("rules", "scnmt_gastrulation.smk")
+
 
 ## the shuffling is to have as many permutations as len(seed) of each of the annotations, to build
 ##   multiple entropy background distributions
@@ -22,40 +29,44 @@ rule all:
     input:
         # op.join('ecker_data', 'downloaded_ecker.flag'), ## this is to download Ecker's cytosine reports
         # op.join('ecker_data', 'harmonized_ecker_metadata.tsv.gz'), ## this to download Ecker's metadata
-        op.join('annotation', 'mm10', 'done.flag'), ## this to download regions for Ecker's
-        # op.join('crc_data', 'downloaded_crc.flag'), # this to download CRC cytosine reports
+        # op.join("annotation", "mm10", "done.flag"),  ## this to download regions for Ecker's
+        # op.join("crc_data", "downloaded_crc.flag"),  # this to download CRC cytosine reports
+        op.join("crc", "crc.html"),
         # op.join('scnmt_gastrulation_data', 'downloaded_data.tsv'), ## this is Argelaguet's gastrulation
-        expand(op.join('annotation', 'shuffled', '{assembly}', '{seed}', '{annotation}.bed.gz'),
-               seed = [1,2],
-               assembly = 'mm10',
-               annotation = ['genes', 'promoters']), ## to get a random background features
-        op.join('feature_simulations', 'output', 'yamet_detailed.out'), ## feature simulations,
+        # expand(
+        #     op.join(
+        #         "annotation", "shuffled", "{assembly}", "{seed}", "{annotation}.bed.gz"
+        #     ),
+        #     seed=[1, 2],
+        #     assembly="mm10",
+        #     annotation=["genes", "promoters"],
+        # ),
+        ## to get a random background features
+        # op.join("feature_simulations", "output", "yamet_detailed.out"),  ## feature simulations,
         # op.join('scnmt_gastrulation_data', 'output', 'yamet_summarized.out') ## an scNMT example
 
-## yamet is compiled by install_yamet and exported for each shell directive
-shell.prefix("export PATH=../method/build:$PATH;")
 
 rule install_yamet:
     conda:
-        "envs/yamet.yml" # for cmake mainly
+        "envs/yamet.yml"
     output:
-        op.join("..", "method", "build", "yamet")
+        op.join("build", "yamet"),
     shell:
         """
-        bash ../method/build.sh
+            bash ../method/build.sh
         """
-        
-        
+
+
 rule shuffle_annotations:
     conda:
         op.join("envs", "yamet.yml")
     input:
-        bed = op.join('annotation', '{assembly}', '{annotation}.bed.gz'),
-        genome = op.join('annotation', '{assembly}','genome.sizes')
+        bed=op.join("annotation", "{assembly}", "{annotation}.bed.gz"),
+        genome=op.join("annotation", "{assembly}", "genome.sizes"),
     output:
-        op.join('annotation', 'shuffled','{assembly}', '{seed}', '{annotation}.bed.gz')
+        op.join("annotation", "shuffled", "{assembly}", "{seed}", "{annotation}.bed.gz"),
     params:
-        path = op.join('annotation', 'shuffled','{assembly}', '{seed}')
+        path=op.join("annotation", "shuffled", "{assembly}", "{seed}"),
     shell:
         """
         mkdir -p {params.path}
@@ -63,6 +74,7 @@ rule shuffle_annotations:
             bedtools shuffle -i - -g {input.genome} -seed {wildcards.seed} | \
             gzip -c > {output}
         """
+
 
 # ## inputs from ecker.smk
 # ## how do we run yamet? in batches of cells? how to automate this so the shuffled backgrounds
@@ -88,22 +100,22 @@ rule shuffle_annotations:
 
 # ## data download - pending stuff
 
+
 ## inputs from feature_simulations.smk
 rule run_yamet_simulated_features:
     conda:
         op.join("envs", "yamet.yml")
     input:
-        yamet = op.join("..", "method", "build", "yamet"),
-        cell = op.join('feature_simulations', 'output', 'simulations.tsv'),
-        reference = op.join('feature_simulations', 'output', 'reference.tsv'),
-        regions = op.join('feature_simulations', 'output', 'regions.bed')
+        yamet=op.join("..", "method", "build", "yamet"),
+        cell=op.join("feature_simulations", "output", "simulations.tsv"),
+        reference=op.join("feature_simulations", "output", "reference.tsv"),
+        regions=op.join("feature_simulations", "output", "regions.bed"),
     output:
-        out = op.join('feature_simulations', 'output', 'yamet_summarized.out'),
-        detailed_output = op.join('feature_simulations', 'output', 'yamet_detailed.out')
-    threads:
-        4
+        out=op.join("feature_simulations", "output", "yamet_summarized.out"),
+        detailed_output=op.join("feature_simulations", "output", "yamet_detailed.out"),
+    threads: 4
     log:
-        op.join('feature_simulations', 'run.log')
+        op.join("feature_simulations", "run.log"),
     shell:
         """
         yamet --cell {input.cell} \
@@ -115,6 +127,7 @@ rule run_yamet_simulated_features:
               --print-intervals &> {log}        
         """
 
+
 # def download_scnmt_gastrulation():
 #     return NULL
 
@@ -122,13 +135,14 @@ rule run_yamet_simulated_features:
 # def download_mm10_repeats(assembly = 'mm10'):
 #     return NULL
 
+
 rule get_mm10_genome:
     conda:
         op.join("envs", "yamet.yml")
     output:
-        genome = op.join('annotation', 'mm10', 'mm10.fa.gz')
+        genome=op.join("annotation", "mm10", "mm10.fa.gz"),
     params:
-        path = op.join('annotation', 'mm10')
+        path=op.join("annotation", "mm10"),
     message:
         "chr19 only! warning"
     shell:
@@ -140,16 +154,17 @@ rule get_mm10_genome:
         wget https://hgdownload.cse.ucsc.edu/goldenpath/mm10/chromosomes/chr19.fa.gz -O mm10.fa.gz
         """
 
+
 ## to be optimized https://github.com/emsonder/MethQuant-analysis/commit/be6c8e6e50a0a07b82973b99a91d56fdf088b3c7
 rule get_mm10_reference_cpgs:
     conda:
         op.join("envs", "yamet.yml")
     input:
-        genome = op.join('annotation', 'mm10', 'mm10.fa.gz')
+        genome=op.join("annotation", "mm10", "mm10.fa.gz"),
     output:
-        genome_uncomp = temp(op.join('annotation', 'mm10', 'mm10.fa')),
-        reference = op.join('annotation', 'mm10', 'mm10_unstranded_cg_ref.tsv.gz'),
-        sizes = temp('fa.sizes')
+        genome_uncomp=temp(op.join("annotation", "mm10", "mm10.fa")),
+        reference=op.join("annotation", "mm10", "mm10_unstranded_cg_ref.tsv.gz"),
+        sizes=temp("fa.sizes"),
     shell:
         """
         gunzip --keep {input.genome}
@@ -162,7 +177,8 @@ rule get_mm10_reference_cpgs:
           grep "1$" | cut -f1-3 | gzip -c > {output.reference}
 
         """
-    
+
+
 # Multi-omics profiling of mouse gastrulation at single cell resolution
 #
 # Ricard Argelaguet 2,#, Stephen J Clark 1,*,#, Hisham Mohammed 1,#, L Carine Stapel 1,#, Christel Krueger 1, Chantriolnt-Andreas Kapourani 5,14, Ivan Imaz-Rosshandler 11, Tim Lohoff 1,11, Yunlong Xiang 9,10, Courtney W Hanna 1,8, Sebastien Smallwood 1, Ximena Ibarra-Soria 4, Florian Buettner 12, Guido Sanguinetti 5, Wei Xie 9,10, Felix Krueger 7, Berthold Göttgens 11, Peter J Rugg-Gunn 1,8,11, Gavin Kelsey 1,8, Wendy Dean 13, Jennifer Nichols 11, Oliver Stegle 2,3,15,*, John C Marioni 2,4,6,*, Wolf Reik 1,6,8,*
@@ -173,21 +189,33 @@ rule get_mm10_reference_cpgs:
 # this is GRCm38 == mm10
 rule run_yamet_scnmt_gastrulation_example:
     conda:
-        op.join( "envs", "yamet.yml")
-    input: 
-        downloaded_data = op.join("scnmt_gastrulation_data", "downloaded_data.tsv"),
-        cell = op.join('scnmt_gastrulation_data', 'low_real', 'met', 'cpg_level', 'E6.5_Plate2_G6.tsv.gz'),
-        regions = op.join('scnmt_gastrulation_data', 'low_real', 'features',
-                          'genomic_contexts', 'H3K4me3_E7.5_Mes.bed'),
-        reference = op.join('annotation', 'mm10', 'mm10_unstranded_cg_ref.tsv.gz')
+        op.join("envs", "yamet.yml")
+    input:
+        downloaded_data=op.join("scnmt_gastrulation_data", "downloaded_data.tsv"),
+        cell=op.join(
+            "scnmt_gastrulation_data",
+            "low_real",
+            "met",
+            "cpg_level",
+            "E6.5_Plate2_G6.tsv.gz",
+        ),
+        regions=op.join(
+            "scnmt_gastrulation_data",
+            "low_real",
+            "features",
+            "genomic_contexts",
+            "H3K4me3_E7.5_Mes.bed",
+        ),
+        reference=op.join("annotation", "mm10", "mm10_unstranded_cg_ref.tsv.gz"),
     output:
-        yamet_friendly = temp('current_friendly.tsv.gz'),
-        out = op.join('scnmt_gastrulation_data', 'output', 'yamet_summarized.out'),
-        detailed_output = op.join('scnmt_gastrulation_data', 'output', 'yamet_detailed.out')
-    threads:
-        4
+        yamet_friendly=temp("current_friendly.tsv.gz"),
+        out=op.join("scnmt_gastrulation_data", "output", "yamet_summarized.out"),
+        detailed_output=op.join(
+            "scnmt_gastrulation_data", "output", "yamet_detailed.out"
+        ),
+    threads: 4
     log:
-        op.join('feature_simulations', 'run.log')
+        op.join("feature_simulations", "run.log"),
     message:
         "fails I guess due to the reference file overlap"
     shell:
@@ -201,5 +229,3 @@ rule run_yamet_scnmt_gastrulation_example:
               --cores {threads} \
               --print-intervals &> {log}        
         """
-    
-        
