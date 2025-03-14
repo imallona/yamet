@@ -25,7 +25,7 @@ filepaths <- list.files(
   snakemake@params[["yamet"]],
   pattern = "\\.out$", full.names = T
 )
-filepaths <- filepaths[!grepl("\\.det\\.out$", filepaths)]
+filepaths <- filepaths[!grepl("\\.(det|meth)\\.out$|bookended\\.custom\\.", filepaths)]
 process_file <- function(filepath) {
   filename <- basename(filepath)
 
