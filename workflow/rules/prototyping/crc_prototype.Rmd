@@ -35,18 +35,19 @@ opts_chunk$set(fig.width = 5,
                include = TRUE,
                dev = c("png"),#, "svg"),
                cache.lazy = FALSE,
-               warning = TRUE,
+               warning = FALSE,
                message = TRUE)
 ```
 
 
 ```{r, fig.width = 10, fig.height = 5}
 # setwd('/home/imallona/tmp/yamet_crc')
-fns <- list.files('.', pattern = 'yamet.out')
+datapath <- '/home/imallona/tmp/yamet_crc' 
+fns <- list.files(datapath, pattern = 'yamet.out')
 
 global <- list()
 for (fn in fns) {
-    global[[fn]] <- read.table(fn, header = TRUE)
+    global[[fn]] <- read.table(file.path(datapath, fn), header = TRUE)
     global[[fn]]$status <- ifelse(grepl('normal', fn), 'nc', 'pt')
     global[[fn]]$type <- gsub('.yamet.out', '', basename(fn))
 }
@@ -79,12 +80,12 @@ ok, looks promising, let's go for detailed outputs to check rank inversions! Cau
 
 ```{r}
 
-fns <- list.files('.', pattern = '*normals.yamet.det.out')
+fns <- list.files(datapath, pattern = '*normals.yamet.det.out')
 
 local <- list(nc = list(),
               pt = list())
 for (fn in fns) {
-    local$nc[[fn]] <- read.table(fn, header = TRUE, nrows = 50000, na.strings = "-1")
+    local$nc[[fn]] <- read.table(file.path(datapath, fn), header = TRUE, nrows = 50000, na.strings = "-1")
     local$nc[[fn]]$status <- ifelse(grepl('normal', fn), 'nc', 'pt')
     local$nc[[fn]]$type <- gsub('.yamet.out', '', basename(fn))
 }
@@ -92,7 +93,7 @@ for (fn in fns) {
 fns <- list.files('.', pattern = '*primaries.yamet.det.out')
 
 for (fn in fns) {
-    local$pt[[fn]] <- read.table(fn, header = TRUE, nrows = 50000, na.strings = "-1")
+    local$pt[[fn]] <- read.table(file.path(datapath, fn), header = TRUE, nrows = 50000, na.strings = "-1")
     local$pt[[fn]]$status <- ifelse(grepl('normal', fn), 'pt', 'pt')
     local$pt[[fn]]$type <- gsub('.yamet.out', '', basename(fn))
 }
@@ -145,14 +146,14 @@ Wait, let's browse the shannon's and avg meths to double check this is ok.
 
 
 normals <- local$nc$`windows_normals.yamet.det.out`
-normals <- normals[order(normals$avg_meth),]
+## normals <- normals[order(normals$avg_meth),]
 
 tumors <- local$pt$`windows_primaries.yamet.det.out`[rownames(normals),]
 
 plot(data.frame(shannon_nc = normals$shannon,
                 meth_nc = normals$avg_meth,
                 shannon_pt = tumors$shannon,
-                meth_pt = tumors$avg_meth), pch = 19)
+                meth_pt = tumors$avg_meth), pch = ".")
 ```
 
 As wild as it is, let's get an average and max sampen (bound by meth level) per window, so we have extra controls and a better overview
@@ -238,6 +239,61 @@ for (mark in c('H3K27', 'H3K4me3', 'H3K9me3')) {
          main = mark)
 }
 ```
+
+
+# annotate windows by overlap with know features
+
+Run `crc_prototype.sh` first (chunk `annotate windows by features`)
+
+```{r}
+annot <- read.table(gzfile(file.path(datapath, 'hg19_windows_annotation.tsv.gz')), header = TRUE)
+```
+
+First, cluster the annots to make sure they make sense to start with, without any sampens
+
+```{r, fig.width = 12, fig.height = 6}
+
+NROWS <- 5e4
+mannot <- head(annot, NROWS)
+
+plot(hclust(dist(t(mannot))))
+```
+
+Looks reasonable.
+
+Let's do the same with the sampens.
+
+```{r, fig.width = 12, fig.height = 10}
+
+mnormals <- as.matrix(normals[1:NROWS, c(grep('nc.GSM', colnames(normals), value = TRUE), 'shannon', 'avg_meth', 'avg_sampen', 'max_sampen')])
+mtumors <- as.matrix(tumors[1:NROWS, c(grep('pt.GSM', colnames(tumors), value = TRUE), 'shannon', 'avg_meth', 'avg_sampen', 'max_sampen')])
+
+mnormals[!is.finite(mnormals)] <- NA
+mtumors[!is.finite(mtumors)] <- NA
+
+plot(hclust(dist(rbind(t(mnormals), t(mtumors)))))
+```
+
+Now, how can we evaluate the window assoc with the sampen?
+
+```{r, fig.width = 10, fig.height = 10}
+fd <- cbind(mannot[c('hg19_windows_8_Quiescent', 'hg19_windows_3_Quiescent', 'hg19_windows_9_ConstitutiveHet', 'hg19_windows_13_ConstitutiveHet',
+                     'hg19_windows_H3K27me3',
+                     'hg19_windows_H3K9me3', 'hg19_windows_H3K4me3')],
+            mnormals[,c('shannon', 'avg_meth', 'avg_sampen', 'max_sampen')])
+
+colnames(fd) <- gsub('hg19_windows_', '', colnames(fd))
+plot(fd, pch = '.')
+
+```
+
+```{r, eval = FALSE}
+summary(lm(avg_sampen ~ avg_meth + `8_Quiescent` * `3_Quiescent` * `9_ConstitutiveHet` * H3K27me3 + shannon, data = fd))
+```
+
+Issue is, we want to check actual sampens for pt, nc, metastasis etc.
+
+
 
 ```{r}
 sessionInfo()

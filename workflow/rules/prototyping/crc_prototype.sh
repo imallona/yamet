@@ -204,7 +204,37 @@ do
 done
 
 
-echo 'knit the dirty_prototype_crc.Rmd'
+echo 'knit the crc_prototype.Rmd'
+
+
+echo 'annotate windows by features'
+
+## we annotate how many bases from each window overlap each annotation (e.g. enhancers, promoters etc)
+## these fractions can be used to build distances/weight/etc
+# The number of features in B that overlapped (by at least one base pair) the A interval.
+# The number of bases in A that had non-zero coverage from features in B.
+# The length of the entry in A.
+# The fraction of bases in A that had non-zero coverage from features in B.
+
+for annot in H3K27me3 H3K4me3 H3K9me3 \
+          0_Enhancer 10_Quiescent 11_Promoter 12_Promoter 13_ConstitutiveHet 1_Transcribed \
+          2_Enhancer 3_Quiescent 4_Transcribed 5_RegPermissive 6_LowConfidence \
+          7_RegPermissive 8_Quiescent 9_ConstitutiveHet
+do
+
+    bedtools coverage -a hg19_windows.bed \
+             -b "$annot".bed | cut -f7 > "$annot"_temp.bed
+    echo "hg19_windows_$annot" > header
+    cat header "$annot"_temp.bed > hg19_windows_"$annot"_fraction.bed
+    rm header "$annot"_temp.bed
+done
+
+paste *fraction.bed | gzip -c> hg19_windows_annotation.tsv.gz
+rm hg19_windows*fraction.bed
+
+echo 'knit the crc_prototype.Rmd'
+
+
 
 echo 'unimplemented thoughts'
 
