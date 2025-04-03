@@ -14,4 +14,5 @@ ${snakemake_input[yamet]} \
     --cores ${snakemake[threads]} \
     --print-sampens F \
     --out ${snakemake_output[out]} \
-    --det-out ${snakemake_output[det_out]}
+    --det-out ${snakemake_output[det_out]} \
+    --meth-out ${snakemake_output[meth_out]}
