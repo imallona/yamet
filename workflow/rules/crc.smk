@@ -13,21 +13,122 @@ This is hg19
 
 """
 
+from glob import glob
+
+CRC_RAW = op.join("crc", "raw")
+CRC_DATA = op.join("crc", "data")
+CRC_YAMET = op.join("crc", "yamet")
+
+
+rule download_crc_accessors:
+    conda:
+        op.join("..", "envs", "processing.yml")
+    output:
+        gsm=op.join("crc", "bisulfites_gsm.txt"),
+    message:
+        """
+        CRC Accessors download
+        """
+    script:
+        "src/get_crc_accessors.sh"
+
+
 rule download_crc:
     conda:
-        op.join("..", "envs", "yamet.yml")
+        op.join("..", "envs", "processing.yml")
+    input:
+        gsm=op.join("crc", "bisulfites_gsm.txt"),
     output:
-        crc = op.join('crc_data', 'downloaded_crc.flag')
+        touch(op.join("crc", "download.flag")),
     params:
-        crc_path = 'crc_data'
+        raw=CRC_RAW,
     message:
         """
         CRC download
         """
-    shell:
-        """
-        mkdir -p {params.crc_path}
-        bash src/get_crc_meth_files.sh
-        mv crc_done.flag {params.crc_path}
-        mv G*singleC.txt.gz {params.crc_path}
-        """
+    script:
+        "src/get_crc_meth_files.sh"
+
+
+rule parse_single_crc:
+    conda:
+        op.join("..", "envs", "processing.yml")
+    input:
+        op.join("crc", "download.flag"),
+    output:
+        op.join(CRC_DATA, "{file}"),
+    params:
+        raw=CRC_RAW,
+    script:
+        "src/parse_crc_meth_file.sh"
+
+
+def get_raw_files(patient, stage):
+    filepaths = glob(op.join(CRC_RAW, f"G*_{patient}_{stage}*.txt.gz"))
+    return [op.basename(file) for file in filepaths]
+
+
+rule yamet_crc_cg:
+    conda:
+        op.join("..", "envs", "yamet.yml")
+    input:
+        yamet=op.join("build", "yamet"),
+        cells=lambda wildcards: expand(
+            op.join(CRC_DATA, "{file}"),
+            file=get_raw_files(wildcards.patient, wildcards.stage),
+        ),
+        ref=op.join(HG19_BASE, "ref.CG.gz"),
+        intervals=op.join(HG19_BASE, "{subcat}.{cat}.bed"),
+    output:
+        out=op.join(CRC_YAMET, "{subcat}.{cat}.{patient}.{stage}.out"),
+        det_out=op.join(CRC_YAMET, "{subcat}.{cat}.{patient}.{stage}.det.out"),
+    group:
+        "yamet"
+    threads: 16
+    params:
+        base=CRC_YAMET,
+    script:
+        "src/yamet.sh"
+
+
+CAT_MAP = {
+    "pmd": ["pmds", "hmds"],
+    "hmm": [
+        "0_Enhancer",
+        "2_Enhancer",
+        "11_Promoter",
+        "12_Promoter",
+        "1_Transcribed",
+        "4_Transcribed",
+        "5_RegPermissive",
+        "7_RegPermissive",
+        "6_LowConfidence",
+        "3_Quiescent",
+        "8_Quiescent",
+        "10_Quiescent",
+        "9_ConstitutiveHet",
+        "13_ConstitutiveHet",
+    ],
+    "chip": ["H3K27me3", "H3K9me3", "H3K4me3"],
+    "lad": ["laminb1"],
+}
+STAGES = ["NC", "PT"]
+PATIENTS = ["CRC01", "CRC02", "CRC04", "CRC10", "CRC11", "CRC13", "CRC15"]
+
+
+rule crc_doc:
+    conda:
+        op.join("..", "envs", "r.yml")
+    input:
+        expand(
+            op.join(CRC_YAMET, "{jnt}.{patient}.{stage}.out"),
+            jnt=[f"{subcat}.{cat}" for cat in CAT_MAP for subcat in CAT_MAP[cat]],
+            stage=STAGES,
+            patient=PATIENTS,
+        ),
+    params:
+        yamet=CRC_YAMET,
+    output:
+        op.join("crc", "crc.html"),
+    script:
+        "src/crc.Rmd"

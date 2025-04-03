@@ -16,7 +16,7 @@
  * @param filename path to bed file to be extracted.
  * @return vector of structs which contain the chr information and intervals corresponding to it.
  */
-Intervals parseSearch(const std::string &filename) {
+Intervals parseSearch(const std::string &filename, const unsigned int skip_header) {
   std::ifstream bedFile(filename);
   if (!bedFile.is_open()) {
     throw std::system_error(errno, std::generic_category(), "Opening " + filename);
@@ -27,14 +27,23 @@ Intervals parseSearch(const std::string &filename) {
   std::string           line;
   std::string           currentChr = "";
   int                   lastStart = -1, lastEnd = -1;
+  unsigned int          skipped_headers = 0;
   std::vector<Interval> currentIntervals;
 
   while (std::getline(bedFile, line)) {
+    if (skipped_headers < skip_header) {
+      skipped_headers++;
+      continue;
+    }
     /// parsing a line from regions file
     std::istringstream iss(line);
     std::string        chr;
     unsigned int       start, end;
-    iss >> chr >> start >> end;
+    if (!(iss >> chr >> start >> end)) {
+      throw std::system_error(EIO, std::generic_category(),
+                              "in line\n\n\t\033[33m" + line +
+                                  "\033[0m\n\nparsing intervals file " + filename);
+    }
 
     if (start >= end) {
       throw std::system_error(EIO, std::generic_category(),

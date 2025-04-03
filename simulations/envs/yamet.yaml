@@ -1,4 +1,4 @@
-name: yamet
+name: simulations
 channels:
   - defaults
   - conda-forge

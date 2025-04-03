@@ -1,0 +1,151 @@
+#!/usr/bin/env snakemake -s
+##
+## Runs CpG coverage simulations
+##
+## Started 12th Dec 2024
+
+import os.path as op
+import pandas as pd
+
+# dictionary with keys being the dataset names => place this in the config
+EXTERNAL_ORIGIN = {
+    "lowReal": "ftp://ftp.ebi.ac.uk/pub/databases/scnmt_gastrulation/scnmt_gastrulation.tar.gz",
+}
+
+
+rule all:
+    input:
+        "output/02_coverage_plots.html",
+        "output/03_yamet_plots.html",
+
+
+# every row in the parameter file is a parameterization of one simulation
+rule check_required_data:
+    input:
+        parameters_file="input/parameters.tsv",
+    output:
+        required_data="data/required_data.tsv",
+    run:
+        required_datasets = []
+        df = pd.read_csv(input.parameters_file, sep="\t")
+        for index, row in df.iterrows():
+            print(row["covParams"])
+            if row["covParams"] in EXTERNAL_ORIGIN.keys():
+                required_datasets.append(row["covParams"])
+            elif row["transMat"] in EXTERNAL_ORIGIN.keys():
+                required_datasets.append(row["transMat"])
+            else:
+                continue
+        required_datasets = list(set(required_datasets))
+        with open(output.required_data, "a") as file:
+            for dataset in required_datasets:
+                file.write(dataset + "\n")
+
+
+rule download_data:
+    input:
+        required_data="data/required_data.tsv",
+    output:
+        downloaded_data="data/downloaded_data.tsv",
+    threads: 2
+    params:
+        external_origin=lambda wildcards: " ".join(
+            f"{k}={v}" for k, v in EXTERNAL_ORIGIN.items()
+        ),
+    shell:
+        """
+          # Convert params.external_origin into a key-value file
+          echo "{params.external_origin}" | tr ' ' '\\n' | awk -F= '{{{{print $1"\\t"$2}}}}' > external_origin.tsv
+
+          while read -r key; do
+              value=$(awk -v k="$key" '$1 == k {{{{print $2}}}}' external_origin.tsv)
+              echo "$key -> $value"
+              curl --output "data/$key.tar.gz" "$value"
+              printf "%s\\t%s\\n" "$key" "$value" >> "{output.downloaded_data}"
+              mkdir -p "data/$key" && tar -xzvf "data/$key.tar.gz" -C "data/$key/"
+          done < "{input.required_data}"
+        """
+
+
+rule simulate_data:
+    input:
+        parameters_path="input/parameters.tsv",
+        downloaded_data="data/downloaded_data.tsv",
+    output:
+        directory("output/sim_data"),
+        html_output_path="output/01_sim_data.html",
+    conda:
+        "envs/r_sim.yaml"
+    shell:
+        """
+          Rscript -e 'rmarkdown::render("src/01_sim_data.Rmd", "html_document", 
+                                        output_file="../{output.html_output_path}",
+                                        params=list(parameters_path="{input.parameters_path}"))'
+        """
+
+
+rule visualize_coverage:
+    input:
+        sim_data_file="output/01_sim_data.html",
+        sim_data_dir="output/sim_data",
+    output:
+        html_output_path="output/02_coverage_plots.html",
+    conda:
+        "envs/r_plot.yaml"
+    shell:
+        """
+          Rscript -e 'rmarkdown::render("src/02_coverage_plots.Rmd", "html_document", 
+                                        output_file="../{output.html_output_path}",
+                                        params=list(sim_data_dir="{input.sim_data_dir}"))'
+        """
+
+
+rule install_yamet:
+    conda:
+        "envs/yamet.yaml"
+    output:
+        op.join("build", "yamet"),
+    shell:
+        """
+          bash ../method/build.sh
+        """
+
+
+rule run_yamet:
+    conda:
+        "envs/yamet.yaml"
+    input:
+        yamet=op.join("build", "yamet"),
+        sim_data=op.join("output", "sim_data"),
+    output:
+        out=directory(op.join("output", "yamet", "out")),
+    threads: 6
+    params:
+        ncpgs="50 100 1000 10000",
+    shell:
+        """
+          mkdir -p {output.out}
+          for ncpg in {params.ncpgs}; do
+          {input.yamet} --cell {input.sim_data}/sim_cell_*_*_${{ncpg}}_*.tsv \
+                        --reference {input.sim_data}/cpgPositions_${{ncpg}}.tsv \
+                        --intervals src/yamet_search.tsv \
+                        --out {output.out}/${{ncpg}}.tsv \
+                        --cores {threads} \
+                        --print-sampens F
+          done
+        """
+
+
+rule visualize_yamet_results:
+    conda:
+        "envs/r_plot.yaml"
+    input:
+        yamet_dir="output/yamet/out",
+    output:
+        html="output/03_yamet_plots.html",
+    shell:
+        """
+          Rscript -e 'rmarkdown::render("src/03_yamet_plots.Rmd", "html_document", 
+                                        output_file="../{output.html}",
+                                        params=list(yamet_dir="{input.yamet_dir}"))'
+        """

@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Upcoming
+
+### [v1.1.0-rc.3](https://github.com/imallona/yamet/releases/tag/v1.1.0-rc.3)
+
+
+- [method] Added error capturing (incorrect line parsing)
+- [method] Added `--skip-header`, `--skip-header-cell`, `--skip-header-reference` and `--skip-header-intervals` flags for skipping headers in files at various levels of granularity
+- [method] Added `--meth-out` to produce average methylation files per region and cell
+- [workflow] Added nonfunctional/untested workflow steps
+- [simulations] Added traditional simulations to evaluate robustness against sparsity and average DNA methylation levels dependencies
+
 ## [v1.1.0-rc.2](https://github.com/imallona/yamet/releases/tag/v1.1.0-rc.2)
 
 This is the second official release candidate of **yamet**
