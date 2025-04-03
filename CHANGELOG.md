@@ -6,11 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## Upcoming
 
-### Added
+### [v1.1.0-rc.3](https://github.com/imallona/yamet/releases/tag/v1.1.0-rc.3)
 
-- error handling for incorrect line parsing
-- `--skip-header`, `--skip-header-cell`, `--skip-header-reference` and `--skip-header-intervals` for skipping headers in files at various levels of granularity
-- `--meth-out` for average methylation report per region per cell
+
+- [method] Added error capturing (incorrect line parsing)
+- [method] Added `--skip-header`, `--skip-header-cell`, `--skip-header-reference` and `--skip-header-intervals` flags for skipping headers in files at various levels of granularity
+- [method] Added `--meth-out` to produce average methylation files per region and cell
+- [workflow] Added nonfunctional/untested workflow steps
+- [simulations] Added traditional simulations to evaluate robustness against sparsity and average DNA methylation levels dependencies
 
 ## [v1.1.0-rc.2](https://github.com/imallona/yamet/releases/tag/v1.1.0-rc.2)
 
