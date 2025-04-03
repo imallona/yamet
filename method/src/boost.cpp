@@ -65,6 +65,7 @@ po::variables_map parseCommandLine(int argc, char **argv) {
   // clang-format off
   out.add_options()
     ("det-out,d", po::value<std::string>(), "(optional) path to detailed output file")
+    ("meth-out,m", po::value<std::string>(), "(optional) path to average methylation output file")
     ("out,o", po::value<std::string>(), "(optional) path to simple output file");
   // clang-format on
 
@@ -165,6 +166,10 @@ unsigned int getSkipHeaderIntervals(const po::variables_map &vm) {
 
 std::string getDetOut(const po::variables_map &vm) {
   return vm["det-out"].as<std::string>();
+}
+
+std::string getMethOut(const po::variables_map &vm) {
+  return vm["meth-out"].as<std::string>();
 }
 
 std::string getOut(const po::variables_map &vm) {

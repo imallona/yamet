@@ -27,13 +27,16 @@ int main(int argc, char **argv) {
     FileMap fileMap = alignWithRef(filenames, ref, 2, getSkipHeaderCell(vm), getCores(vm),
                                    getThreadsPerCore(vm), getChunkSize(vm));
 
-    if (printSampens(vm) || vm.count("det-out") || vm.count("out")) {
+    if (printSampens(vm) || vm.count("det-out") || vm.count("meth-out") || vm.count("out")) {
       fileMap.aggregate();
       if (printSampens(vm)) {
         fileMap.print(filenames);
       }
       if (vm.count("det-out")) {
         fileMap.exportDetOut(getDetOut(vm), filenames, intervals);
+      }
+      if (vm.count("meth-out")) {
+        fileMap.exportMethOut(getMethOut(vm), filenames, intervals);
       }
       if (vm.count("out")) {
         fileMap.exportOut(getOut(vm), filenames);

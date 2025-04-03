@@ -64,5 +64,7 @@ public:
   void print(const std::vector<std::string> &filenames);
   void exportDetOut(const std::string &out, const std::vector<std::string> &filenames,
                     const Intervals &intervals);
+  void exportMethOut(const std::string &out, const std::vector<std::string> &filenames,
+                     const Intervals &intervals);
   void exportOut(const std::string &out, const std::vector<std::string> &filenames);
 };

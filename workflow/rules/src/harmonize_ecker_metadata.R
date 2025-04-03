@@ -7,20 +7,16 @@
 
 library(readxl)
 
-# print(snakemake)
-
 ## xlsx thing
 paper_fn <- snakemake@input$paper
-
 excel <- as.data.frame(read_excel(paper_fn, skip = 14))
-colnames(excel)[1] <- 'cell_nemo'
+colnames(excel)[1] <- "cell_nemo"
 
 ## tsv, gz compressed
-nemo_fn <-  snakemake@input$nemo
-
+nemo_fn <- snakemake@input$nemo
 nemo <- read.table(nemo_fn, header = TRUE)
 
-merged <- merge(x = excel, y = nemo, by.x = 'cell_nemo', by.y = 'cell', all.y = TRUE) 
+merged <- merge(x = excel, y = nemo, by.x = "cell_nemo", by.y = "cell", all.y = TRUE)
 
 stopifnot(nrow(merged) == 9941)
 
