@@ -19,6 +19,8 @@ include: op.join("rules", "crc.smk")
 include: op.join("rules", "ecker.smk")
 
 
+shell.prefix("set -o pipefail; export PATH=$HOME/.local/yamet/bin:$PATH;")
+
 # include: op.join("rules", "feature_simulations.smk")
 # include: op.join("rules", "scnmt_gastrulation.smk")
 
@@ -31,7 +33,8 @@ rule all:
         # op.join('ecker_data', 'harmonized_ecker_metadata.tsv.gz'), ## this to download Ecker's metadata
         # op.join("annotation", "mm10", "done.flag"),  ## this to download regions for Ecker's
         # op.join("crc_data", "downloaded_crc.flag"),  # this to download CRC cytosine reports
-        op.join("crc", "crc.html"),
+        # op.join("crc", "crc.html"),
+        op.join(op.expanduser("~"), ".local", "yamet", "bin", "yamet")
         # op.join('scnmt_gastrulation_data', 'downloaded_data.tsv'), ## this is Argelaguet's gastrulation
         # expand(
         #     op.join(
@@ -45,15 +48,21 @@ rule all:
         # op.join("feature_simulations", "output", "yamet_detailed.out"),  ## feature simulations,
         # op.join('scnmt_gastrulation_data', 'output', 'yamet_summarized.out') ## an scNMT example
 
-
 rule install_yamet:
+    """
+    Binary to goes to ~/.local/yamet; export path accordingly
+    """
     conda:
         "envs/yamet.yml"
     output:
-        op.join("build", "yamet"),
+        op.join(op.expanduser("~"), ".local", "yamet", "bin", "yamet")
+    log:
+        op.join("logs", "build.log")
     shell:
         """
-            bash ../method/build.sh
+        mkdir -p logs
+        bash ../method/build.sh &> {log}
+        yamet --help &>> {log}
         """
 
 

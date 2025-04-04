@@ -4,6 +4,7 @@ on:
   workflow_dispatch: null
   pull_request:
     paths:
+      - "method/build.sh"
       - "method/**/*.cpp"
       - "method/**/*.h"
       - "method/CMakeLists.txt"

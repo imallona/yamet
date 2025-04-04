@@ -7,7 +7,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 INSTALL_PREFIX="$HOME/.local/yamet"
 
 # Set the build directory (relative to the current working directory)
-BUILD_DIR="build"
+BUILD_DIR="$INSTAL_PREFIX"/build
 
 # Create the build directory if it doesn't exist
 if [ ! -d "$BUILD_DIR" ]; then
