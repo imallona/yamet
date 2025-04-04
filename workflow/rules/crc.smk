@@ -63,8 +63,8 @@ rule parse_single_crc:
         "src/parse_crc_meth_file.sh"
 
 
-def get_raw_files(patient, stage):
-    filepaths = glob(op.join(CRC_RAW, f"G*_{patient}_{stage}*.txt.gz"))
+def get_raw_files(patient, location):
+    filepaths = glob(op.join(CRC_RAW, f"G*_{patient}_{location}*.txt.gz"))
     return [op.basename(file) for file in filepaths]
 
 
@@ -75,13 +75,13 @@ rule yamet_crc_cg:
         yamet=op.join("build", "yamet"),
         cells=lambda wildcards: expand(
             op.join(CRC_DATA, "{file}"),
-            file=get_raw_files(wildcards.patient, wildcards.stage),
+            file=get_raw_files(wildcards.patient, wildcards.location),
         ),
         ref=op.join(HG19_BASE, "ref.CG.gz"),
         intervals=op.join(HG19_BASE, "{subcat}.{cat}.bed"),
     output:
-        out=op.join(CRC_YAMET, "{subcat}.{cat}.{patient}.{stage}.out"),
-        det_out=op.join(CRC_YAMET, "{subcat}.{cat}.{patient}.{stage}.det.out"),
+        out=op.join(CRC_YAMET, "{subcat}.{cat}.{patient}.{location}.out"),
+        det_out=op.join(CRC_YAMET, "{subcat}.{cat}.{patient}.{location}.det.out"),
     group:
         "yamet"
     threads: 16
@@ -112,7 +112,7 @@ CAT_MAP = {
     "chip": ["H3K27me3", "H3K9me3", "H3K4me3"],
     "lad": ["laminb1"],
 }
-STAGES = ["NC", "PT"]
+LOCATIONS = ["NC", "PT"]
 PATIENTS = ["CRC01", "CRC02", "CRC04", "CRC10", "CRC11", "CRC13", "CRC15"]
 
 
@@ -121,9 +121,9 @@ rule crc_doc:
         op.join("..", "envs", "r.yml")
     input:
         expand(
-            op.join(CRC_YAMET, "{jnt}.{patient}.{stage}.out"),
+            op.join(CRC_YAMET, "{jnt}.{patient}.{location}.out"),
             jnt=[f"{subcat}.{cat}" for cat in CAT_MAP for subcat in CAT_MAP[cat]],
-            stage=STAGES,
+            location=LOCATIONS,
             patient=PATIENTS,
         ),
     params:
