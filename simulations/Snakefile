@@ -149,3 +149,63 @@ rule visualize_yamet_results:
                                         output_file="../{output.html}",
                                         params=list(yamet_dir="{input.yamet_dir}"))'
         """
+
+
+rule feat_diff_template:
+    conda:
+        "envs/r_sim.yaml"
+    output:
+        "output/feat_diff/intervals.{N}.{f}.tsv",
+    script:
+        "src/feat_diff/createTemplate.R"
+
+
+rule feat_diff_samples:
+    conda:
+        "envs/r_sim.yaml"
+    input:
+        "output/feat_diff/intervals.{N}.{f}.tsv",
+    output:
+        touch("output/feat_diff/{N}.{f}.flag"),
+    params:
+        samples=50,
+        data="output/feat_diff",
+    script:
+        "src/feat_diff/getSamples.R"
+
+
+rule feat_diff_yamet:
+    conda:
+        "envs/yamet.yaml"
+    input:
+        "output/feat_diff/{N}.{f}.flag",
+        yamet=op.join("build", "yamet"),
+    output:
+        det_out="output/feat_diff/yamet.{N}.{f}.det.out",
+    params:
+        data="output/feat_diff",
+    threads: 3
+    shell:
+        """
+          {input.yamet} --cell {params.data}/sim.*.tsv \
+                        --reference {params.data}/ref.{wildcards.N}.{wildcards.f}.tsv \
+                        --intervals {params.data}/intervals.{wildcards.N}.{wildcards.f}.tsv \
+                        --det-out {output.det_out} \
+                        --meth-out {params.data}/yamet.{wildcards.N}.{wildcards.f}.meth.out \
+                        --cores {threads} \
+                        --print-sampens F
+        """
+
+
+rule feat_diff_plots:
+    conda:
+        "envs/r_plot.yaml"
+    input:
+        det_out="output/feat_diff/yamet.500.200.det.out",
+    params:
+        N=lambda wildcards, input: input.det_out.split(".")[1],
+        f=lambda wildcards, input: input.det_out.split(".")[2],
+    output:
+        html="output/04_feat_diff.html",
+    script:
+        "src/feat_diff/04_feat_diff.Rmd"
