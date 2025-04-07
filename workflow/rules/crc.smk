@@ -13,12 +13,59 @@ This is hg19
 
 """
 
+import os.path as op
 from glob import glob
 
 CRC = op.join("data", "crc")
 CRC_RAW = op.join(CRC, "raw")          ## from geo
-CRC_HARMONIZED = op.join(CRC, "raw")   ## ingestable by yamet
+CRC_HARMONIZED = op.join(CRC, "harmonized")   ## ingestable by yamet
 CRC_OUTPUT = op.join(CRC, "output")    ## output
+
+## bedfiles
+ANNOTATIONS = {
+    "pmd": ["pmds", "hmds"],
+    "hmm": [
+        "0_Enhancer",
+        "2_Enhancer",
+        "11_Promoter",
+        "12_Promoter",
+        "1_Transcribed",
+        "4_Transcribed",
+        "5_RegPermissive",
+        "7_RegPermissive",
+        "6_LowConfidence",
+        "3_Quiescent",
+        "8_Quiescent",
+        "10_Quiescent",
+        "9_ConstitutiveHet",
+        "13_ConstitutiveHet",
+    ],
+    "chip": ["H3K27me3", "H3K9me3", "H3K4me3"],
+    "lad": ["laminb1"],
+}
+
+## biopsy sites
+LOCATIONS = ["NC", "PT"] #, "LN"]
+PATIENTS = ["CRC01", "CRC02"] #, "CRC04", "CRC10", "CRC11", "CRC13", "CRC15"]
+
+
+rule crc_doc:
+    conda:
+        op.join("..", "envs", "r.yml")
+    input:
+        expand(
+            op.join(CRC_OUTPUT, "{jnt}.{patient}.{location}.out"),
+            jnt=[f"{subcat}.{cat}" for cat in ANNOTATIONS for subcat in ANNOTATIONS[cat]],
+            location=LOCATIONS,
+            patient=PATIENTS,
+        ),
+    params:
+        yamet=CRC_OUTPUT,
+    output:
+        op.join("crc", "crc.html"),
+    script:
+        "src/crc.Rmd"
+
 
 rule download_crc_accessors:
     conda:
@@ -71,50 +118,57 @@ rule download_crc:
         date >> {output.download_flag}
         """
 
+# ruleorder: harmonize_cell_report_for_yamet > run_yamet
 
-rule parse_single_crc:
+rule harmonize_cell_report_for_yamet:
     conda:
         op.join("..", "envs", "processing.yml")
     input:
-        op.join(CRC, "download.flag")
+        op.join(CRC, "download.flag"),
+        op.join(CRC_RAW, "{file}")
+        # op.join(CRC_RAW, "{gsm}_{patient}_{location}_{cellid}.singleC.txt.gz")
     output:
-        op.join(CRC, "{file}")
+        op.join(CRC_HARMONIZED, "{file}")
     params:
-        raw=CRC_RAW
+        raw=CRC_RAW,
+        harmonized=CRC_HARMONIZED
     shell:
         """
         gunzip -c {params.raw}/{wildcards.file} |
           grep "CpG$" |
         awk '
-            {OFS="\t";} {
+            {{OFS="\\t";}} {{
                 if ($4 == "-") $2 = $2 - 2;
                 else if ($4 == "+") $2 = $2 - 1;
                 print $1, $2, $2+1, "", "", $4, $6, $5;
-            }
+            }}
         ' |
         bedtools merge -c 7,8 -o sum |
         awk '
-             {OFS=FS="\t";
+             {{OFS=FS="\\t";
                 bin = ($4/$5 > 0.1) ? 1 : 0;
-                print $1,$2,$4,$5,bin}
+                print $1,$2,$4,$5,bin}}
         ' |
         sort -k1,1 -k2,2n |
         gzip -c > {output}
         """
 
-def get_raw_files(patient, location):
+## location is whether is a NC, PT, LN and so on
+## patient is whether CRC01, CRC01 and so on
+def get_harmonized_files(patient, location):
     filepaths = glob(op.join(CRC_RAW, f"G*_{patient}_{location}*.txt.gz"))
-    return [op.basename(file) for file in filepaths]
+    return [op.join(CRC_HARMONIZED, op.basename(file)) for file in filepaths]
 
 
-rule yamet_crc_cg:
+# print(get_harmonized_files(patient = 'CRC01', location = "NC"))
+
+rule run_yamet:
     conda:
         op.join("..", "envs", "yamet.yml")
     input:
-        download_flag = op.join("crc", "download.flag"),
         cells=lambda wildcards: expand(
-            op.join(CRC, "{file}"),
-            file=get_raw_files(wildcards.patient, wildcards.location),
+            "{file}",
+            file=get_harmonized_files(wildcards.patient, wildcards.location),
         ),
         ref=op.join(HG19_BASE, "ref.CG.gz"),
         bed=op.join(HG19_BASE, "{subcat}.{cat}.bed")
@@ -130,7 +184,7 @@ rule yamet_crc_cg:
     threads: 16
     shell:
         """
-        mkdir -p {params.output_path}
+        mkdir -p {params.path}
         yamet \
          --cell {input.cells} \
          --reference {input.ref} \
@@ -141,45 +195,3 @@ rule yamet_crc_cg:
          --det-out {output.det} &> {log}
         """
 
-
-CAT_MAP = {
-    "pmd": ["pmds", "hmds"],
-    "hmm": [
-        "0_Enhancer",
-        "2_Enhancer",
-        "11_Promoter",
-        "12_Promoter",
-        "1_Transcribed",
-        "4_Transcribed",
-        "5_RegPermissive",
-        "7_RegPermissive",
-        "6_LowConfidence",
-        "3_Quiescent",
-        "8_Quiescent",
-        "10_Quiescent",
-        "9_ConstitutiveHet",
-        "13_ConstitutiveHet",
-    ],
-    "chip": ["H3K27me3", "H3K9me3", "H3K4me3"],
-    "lad": ["laminb1"],
-}
-LOCATIONS = ["NC", "PT", "LN"]
-PATIENTS = ["CRC01", "CRC02", "CRC04", "CRC10", "CRC11", "CRC13", "CRC15"]
-
-
-rule crc_doc:
-    conda:
-        op.join("..", "envs", "r.yml")
-    input:
-        expand(
-            op.join(CRC_OUTPUT, "{jnt}.{patient}.{location}.out"),
-            jnt=[f"{subcat}.{cat}" for cat in CAT_MAP for subcat in CAT_MAP[cat]],
-            location=LOCATIONS,
-            patient=PATIENTS,
-        ),
-    params:
-        yamet=CRC_OUTPUT,
-    output:
-        op.join("crc", "crc.html"),
-    script:
-        "src/crc.Rmd"
