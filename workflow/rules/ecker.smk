@@ -10,7 +10,11 @@ https://www.nature.com/articles/s41586-020-03182-8
 this is mm10
 """
 
-ECKER_BASE = "ecker"
+
+BRAIN = op.join("data", "brain")
+BRAIN_RAW = op.join(BRAIN, "raw")                 ## from geo
+BRAIN_HARMONIZED = op.join(BRAIN, "harmonized")   ## ingestable by yamet
+BRAIN_OUTPUT = op.join(BRAIN, "output")           ## output
 
 
 rule download_nemo_ecker_metadata:
@@ -20,33 +24,33 @@ rule download_nemo_ecker_metadata:
         loc="https://data.nemoarchive.org/biccn/grant/u19_cemba/cemba/epigenome/sncell/mCseq/mouse/processed/analysis/EckerRen_Mouse_MOp_methylation_ATAC/metadata/mc/MOp_Metadata.tsv.gz",
     shell:
         """
-            curl {params.loc} -o {output.meta}
+        curl {params.loc} -o {output.meta}
         """
 
 
 rule download_ecker_paper_metadata:
     conda:
-        "../envs/yamet.yml"
+        op.join("..", "envs", "yamet.yml")
     output:
         meta=temp(op.join(ECKER_BASE, "paper_meta.xlsx")),
     params:
         loc="https://static-content.springer.com/esm/art%3A10.1038%2Fs41586-020-03182-8/MediaObjects/41586_2020_3182_MOESM9_ESM.xlsx",
     shell:
         """
-            curl {params.loc} -o {output.meta}
+        curl {params.loc} -o {output.meta}
         """
 
 
 rule harmonize_ecker_metadata:
     conda:
-        "../envs/r.yml"
+        op.join("..", "envs", "r.yml")
     input:
         nemo=op.join(ECKER_BASE, "nemo_meta.tsv.gz"),
         paper=op.join(ECKER_BASE, "paper_meta.xlsx"),
     output:
         metadata=op.join(ECKER_BASE, "meta.tsv.gz"),
     script:
-        "src/harmonize_ecker_metadata.R"
+        op.join("src", "harmonize_ecker_metadata.R")
 
 
 # ## reports the AllcPath (basename) of cells matching the harmonized metadata
@@ -72,23 +76,26 @@ rule harmonize_ecker_metadata:
 
 rule download_ecker:
     conda:
-        "../envs/yamet.yml"
+        op.join("..", "envs", "yamet.yml")
     input:
-        meta=op.join("ecker_data", "MOp_Metadata.tsv.gz"),
+        meta=op.join(BRAIN_BASE, "MOp_Metadata.tsv.gz"),
     output:
-        raw_urls=temp(op.join("ecker_data", "raw_urls")),
-        urls=op.join("ecker_data", "urls"),
-        flag=op.join("ecker_data", "downloaded_ecker.flag"),
+        raw_urls=temp(op.join(BRAIN_RAW, "raw_urls")),
+        urls=op.join(BRAIN_RAW, "urls"),
+        flag=op.join(BRAIN_RAW, "downloaded_ecker.flag"),
     params:
         base_url="https://data.nemoarchive.org/biccn/grant/u19_cemba/cemba/epigenome/sncell/mCseq/mouse/processed/counts/",
-        path="ecker_data/",
+        raw= BRAIN_RAW
     threads: 2
     shell:
         """
+        mkdir -p {params.raw}
         zcat {input.meta} | cut -f2 | grep -v AllcPath > {output.raw_urls}
         sed 's\\/gale/raidix/rdx-4/CEMBA_RS1/\\{params.base_url}\\g' {output.raw_urls} | \
            sed 's\\/allc/\\/\\g' | sed 's\\.gz\\.tar\\g' > {output.urls}
         
-        wget -i {output.urls} --directory-prefix={params.path}
+        # wget -i {output.urls} --directory-prefix={params.path}
+         wget -i{input.urls} --no-directories --directory-prefix={params.raw} \
+            --no-clobber --execute robots=off -r -k -A tar
         touch {output.flag}
         """

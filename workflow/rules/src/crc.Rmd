@@ -1,5 +1,5 @@
 ---
-title: "CRC"
+title: "CRC exploratory"
 author: "Atreya Choudhury, Izaskun Mallona"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output:
@@ -10,31 +10,46 @@ output:
     fig_crop: yes
 ---
 
-We require `readr`, `lmerTest` and `ggplot2` for our analysis.
+
 ```{r, setup}
 suppressPackageStartupMessages({
   library(readr)
   library(lmerTest)
   library(ggplot2)
+  library(knitr)
 })
 ```
 
-Firstly, we read in the yamet output files and create a table storing the location of cancer, patient and annotation type against the yamet output.
+```{r}
+opts_chunk$set(fig.width = 5,
+               fig.height = 5,
+               cache = TRUE,
+               include = TRUE,
+               dev = "png",
+               cache.lazy = FALSE,
+               warning = TRUE,
+               message = TRUE)
+```
+
+Firstly, we read in the yamet output files and create a table storing the biopsy location, patient id and genomic segmentation.
+
 ```{r, import}
 filepaths <- list.files(
   snakemake@params[["yamet"]],
   pattern = "\\.out$", full.names = T
 )
+
 filepaths <- filepaths[!grepl("\\.det\\.out$", filepaths)]
+
 process_file <- function(filepath) {
   filename <- basename(filepath)
 
-  parts <- strsplit(filename, "\\.")[[1]]
+  parts <- strsplit(filename, "_")[[1]] ## here! filepaths have changed
   annotation <- parts[1]
   patient <- parts[3]
   location <- parts[4]
 
-  dt <- read_delim(filepath, delim = "\t", show_col_types = FALSE)
+  dt <- read_delim(filepath, delim = "\t", show_col_types = FALSE, na.strings = "-1")
   dt <- dt[, c("sampen", "avg_meth")]
 
   dt$annotation <- annotation
@@ -49,10 +64,11 @@ files <- do.call(rbind, lapply(filepaths, process_file))
 files$annotation <- as.factor(files$annotation)
 files$patient <- as.factor(files$patient)
 files$location <- as.factor(files$location)
-files[files == -1] <- NA
+## files[files == -1] <- NA
 ```
 
 We account for fixed effects of location and average methylation and a random effect from the patient.
+
 ```{r, lmer}
 lmer.files <- lmer(
   sampen ~ location * avg_meth + (1 | patient),
@@ -61,7 +77,8 @@ lmer.files <- lmer(
 summary(lmer.files)
 anova(lmer.files, type = 3)
 ```
-We observe that the effect of the different locations on sample entropy is strongly confounded by the average methylation.
+
+We observe that the effect of the different biopsy locations for patient `CRC01` on sample entropy is strongly confounded by the average methylation.
 
 ```{r, plot, out.width="100%"}
 ggplot(
@@ -108,4 +125,8 @@ ggplot(
   ) +
   scale_color_brewer(palette = "Dark2") +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+```
+
+```{r, cache = FALSE}
+sessionInfo()
 ```
