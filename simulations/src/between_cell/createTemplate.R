@@ -17,18 +17,18 @@ write.table(
   sep = "\t", row.names = FALSE, col.names = FALSE, quote = FALSE
 )
 
-rhos <- seq(0.1, 0.9, length.out = 10)
+noises <- seq(0.01, 0.09, length.out = 10)
 
 chr <- rep("chrSim", features.N)
 lbound <- seq(0, by = features.length, length.out = features.N)
 ubound <- lbound + features.length
-rho <- sample(rhos, size = features.N, replace = TRUE)
+noise <- sample(noises, size = features.N, replace = TRUE)
 prob.0 <- runif(features.N, 0, 1)
 
 write.table(
   data.frame(
     chr = chr, lbound = lbound, ubound = ubound,
-    rho = rho, prob.0 = prob.0
+    noise = noise, prob.0 = prob.0
   ),
   out,
   sep = "\t", row.names = FALSE, col.names = FALSE, quote = FALSE

@@ -211,7 +211,7 @@ rule feat_diff_plots:
         "src/feat_diff/04_feat_diff.Rmd"
 
 
-rule within_template:
+rule within_cell_template:
     conda:
         "envs/r_sim.yaml"
     output:
@@ -269,3 +269,63 @@ rule within_cell_plots:
         html="output/05_within_cell.html",
     script:
         "src/within_cell/05_within_cell.Rmd"
+
+
+rule between_cell_template:
+    conda:
+        "envs/r_sim.yaml"
+    output:
+        "output/between_cell/intervals.{N}.{f}.tsv",
+    script:
+        "src/between_cell/createTemplate.R"
+
+
+rule between_cell_samples:
+    conda:
+        "envs/r_sim.yaml"
+    input:
+        "output/between_cell/intervals.{N}.{f}.tsv",
+    output:
+        touch("output/between_cell/{N}.{f}.flag"),
+    params:
+        samples=50,
+        data="output/between_cell",
+    script:
+        "src/between_cell/getSamples.R"
+
+
+rule between_cell_yamet:
+    conda:
+        "envs/yamet.yaml"
+    input:
+        "output/between_cell/{N}.{f}.flag",
+        yamet=op.join("build", "yamet"),
+    output:
+        det_out="output/between_cell/yamet.{N}.{f}.det.out",
+    params:
+        data="output/between_cell",
+    threads: 3
+    shell:
+        """
+          {input.yamet} --cell {params.data}/sim.*.tsv \
+                        --reference {params.data}/ref.{wildcards.N}.{wildcards.f}.tsv \
+                        --intervals {params.data}/intervals.{wildcards.N}.{wildcards.f}.tsv \
+                        --det-out {output.det_out} \
+                        --meth-out {params.data}/yamet.{wildcards.N}.{wildcards.f}.meth.out \
+                        --cores {threads} \
+                        --print-sampens F
+        """
+
+
+rule between_cell_plots:
+    conda:
+        "envs/r_plot.yaml"
+    input:
+        det_out="output/between_cell/yamet.200.100.det.out",
+    params:
+        N=lambda wildcards, input: input.det_out.split(".")[1],
+        f=lambda wildcards, input: input.det_out.split(".")[2],
+    output:
+        html="output/06_between_cell.html",
+    script:
+        "src/between_cell/06_between_cell.Rmd"
