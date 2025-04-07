@@ -17,9 +17,9 @@ import os.path as op
 from glob import glob
 
 CRC = op.join("data", "crc")
-CRC_RAW = op.join(CRC, "raw")          ## from geo
+CRC_RAW = op.join(CRC, "raw")                 ## from geo
 CRC_HARMONIZED = op.join(CRC, "harmonized")   ## ingestable by yamet
-CRC_OUTPUT = op.join(CRC, "output")    ## output
+CRC_OUTPUT = op.join(CRC, "output")           ## output
 
 ## bedfiles
 ANNOTATIONS = {
@@ -44,21 +44,29 @@ ANNOTATIONS = {
     "lad": ["laminb1"],
 }
 
-## biopsy sites
-LOCATIONS = ["NC", "PT"] #, "LN"]
-PATIENTS = ["CRC01", "CRC02"] #, "CRC04", "CRC10", "CRC11", "CRC13", "CRC15"]
+## patient -> biopsy sites mapping
+SAMPLES = {"CRC01" : ['NC', 'PT', 'LN', 'ML', 'MP'],
+           "CRC02" : ['NC', 'PT', 'ML', 'PT'],
+           "CRC04" : ['NC', 'PT'],
+           "CRC10" : ['NC', 'PT', 'LN'],
+           "CRC11" : ['NC', 'PT', 'LN'],
+           "CRC13" : ['NC', 'PT', 'LN'],
+           "CRC15" : ['NC', 'PT', 'LN', 'ML', 'MO']} # What is MO, a typo?
 
+def list_relevant_yamet_outputs():
+    res = []
+    for annot in ANNOTATIONS:
+        for subannot in ANNOTATIONS[annot]:
+            for patient in SAMPLES.keys():
+                for sampling in SAMPLES[patient]:
+                    res.append(f"{subannot}_{annot}_{patient}_{sampling}.det.out")
+    return [op.join(CRC_OUTPUT, item) for item in res]
 
-rule crc_doc:
+rule render_crc_report:
     conda:
         op.join("..", "envs", "r.yml")
     input:
-        expand(
-            op.join(CRC_OUTPUT, "{jnt}.{patient}.{location}.out"),
-            jnt=[f"{subcat}.{cat}" for cat in ANNOTATIONS for subcat in ANNOTATIONS[cat]],
-            location=LOCATIONS,
-            patient=PATIENTS,
-        ),
+        list_relevant_yamet_outputs()
     params:
         yamet=CRC_OUTPUT,
     output:
@@ -128,7 +136,7 @@ rule harmonize_cell_report_for_yamet:
         op.join(CRC_RAW, "{file}")
         # op.join(CRC_RAW, "{gsm}_{patient}_{location}_{cellid}.singleC.txt.gz")
     output:
-        op.join(CRC_HARMONIZED, "{file}")
+        temp(op.join(CRC_HARMONIZED, "{file}"))
     params:
         raw=CRC_RAW,
         harmonized=CRC_HARMONIZED
@@ -157,6 +165,8 @@ rule harmonize_cell_report_for_yamet:
 ## patient is whether CRC01, CRC01 and so on
 def get_harmonized_files(patient, location):
     filepaths = glob(op.join(CRC_RAW, f"G*_{patient}_{location}*.txt.gz"))
+    if len(filepaths) == 0:
+        raise Exception('No cytosine reports matching the specs.')
     return [op.join(CRC_HARMONIZED, op.basename(file)) for file in filepaths]
 
 
@@ -173,8 +183,9 @@ rule run_yamet:
         ref=op.join(HG19_BASE, "ref.CG.gz"),
         bed=op.join(HG19_BASE, "{subcat}.{cat}.bed")
     output:
-        simple=op.join(CRC_OUTPUT, "{subcat}.{cat}.{patient}.{location}.out"),
-        det=op.join(CRC_OUTPUT, "{subcat}.{cat}.{patient}.{location}.det.out")
+        simple=op.join(CRC_OUTPUT, "{subcat}_{cat}_{patient}.{location}.out"),
+        det=op.join(CRC_OUTPUT, "{subcat}_{cat}_{patient}_{location}.det.out"),
+        meth=op.join(CRC_OUTPUT, "{subcat}_{cat}_{patient}_{location}.meth.out")
     log:
         op.join('logs', 'yamet_{subcat}_{cat}_{patient}_{location}.log')
     group:
@@ -192,6 +203,7 @@ rule run_yamet:
          --cores {threads} \
          --print-sampens F \
          --out {output.simple} \
-         --det-out {output.det} &> {log}
+         --det-out {output.det} \
+         --meth-out {output.meth} &> {log}
         """
 

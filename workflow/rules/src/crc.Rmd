@@ -19,7 +19,7 @@ suppressPackageStartupMessages({
 })
 ```
 
-Firstly, we read in the yamet output files and create a table storing the stage of cancer, patient and annotation type against the yamet output.
+Firstly, we read in the yamet output files and create a table storing the location of cancer, patient and annotation type against the yamet output.
 ```{r, import}
 filepaths <- list.files(
   snakemake@params[["yamet"]],
@@ -32,14 +32,14 @@ process_file <- function(filepath) {
   parts <- strsplit(filename, "\\.")[[1]]
   annotation <- parts[1]
   patient <- parts[3]
-  stage <- parts[4]
+  location <- parts[4]
 
   dt <- read_delim(filepath, delim = "\t", show_col_types = FALSE)
   dt <- dt[, c("sampen", "avg_meth")]
 
   dt$annotation <- annotation
   dt$patient <- patient
-  dt$stage <- stage
+  dt$location <- location
 
   return(dt)
 }
@@ -48,25 +48,25 @@ files <- do.call(rbind, lapply(filepaths, process_file))
 
 files$annotation <- as.factor(files$annotation)
 files$patient <- as.factor(files$patient)
-files$stage <- as.factor(files$stage)
+files$location <- as.factor(files$location)
 files[files == -1] <- NA
 ```
 
-We account for fixed effects of stage and average methylation and a random effect from the patient.
+We account for fixed effects of location and average methylation and a random effect from the patient.
 ```{r, lmer}
 lmer.files <- lmer(
-  sampen ~ stage * avg_meth + (1 | patient),
+  sampen ~ location * avg_meth + (1 | patient),
   data = subset(files, annotation == "pmds")
 )
 summary(lmer.files)
 anova(lmer.files, type = 3)
 ```
-We observe that the effect of the different stages on sample entropy is strongly confounded by the average methylation.
+We observe that the effect of the different locations on sample entropy is strongly confounded by the average methylation.
 
 ```{r, plot, out.width="100%"}
 ggplot(
   subset(files, patient == "CRC01"),
-  aes(y = sampen, x = avg_meth, color = stage)
+  aes(y = sampen, x = avg_meth, color = location)
 ) +
   geom_point(size = 0.9, alpha = 0.7) +
   scale_color_brewer(palette = "Dark2") +
@@ -79,7 +79,7 @@ ggplot(
 
 ggplot(
   subset(files, patient == "CRC01"),
-  aes(y = sampen, x = annotation, color = stage)
+  aes(y = sampen, x = annotation, color = location)
 ) +
   geom_boxplot(
     outlier.size = 0.6,
@@ -95,7 +95,7 @@ ggplot(
 
 ggplot(
   subset(files, patient == "CRC01"),
-  aes(y = avg_meth, x = annotation, color = stage)
+  aes(y = avg_meth, x = annotation, color = location)
 ) +
   geom_boxplot(
     outlier.size = 0.6,
