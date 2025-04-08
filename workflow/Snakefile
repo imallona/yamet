@@ -30,7 +30,7 @@ shell.prefix("set -o pipefail; export PATH=$HOME/.local/yamet/bin:$PATH;")
 rule all:
     input:
         # op.join('ecker_data', 'downloaded_ecker.flag'), ## this is to download Ecker's cytosine reports
-        op.join('ecker_data', 'harmonized_ecker_metadata.tsv.gz'), ## this to download Ecker's metadata
+        # op.join('data', 'brain', 'harmonized_ecker_metadata.tsv.gz'), ## this to download Ecker's metadata
         # op.join("annotation", "mm10", "done.flag"),  ## this to download regions for Ecker's
         # op.join("crc_data", "downloaded_crc.flag"),  # this to download CRC cytosine reports
         op.join("crc", "crc.html"),

@@ -19,7 +19,7 @@ BRAIN_OUTPUT = op.join(BRAIN, "output")           ## output
 
 rule download_nemo_ecker_metadata:
     output:
-        meta=temp(op.join(ECKER_BASE, "nemo_meta.tsv.gz")),
+        meta=temp(op.join(BRAIN, "nemo_meta.tsv.gz")),
     params:
         loc="https://data.nemoarchive.org/biccn/grant/u19_cemba/cemba/epigenome/sncell/mCseq/mouse/processed/analysis/EckerRen_Mouse_MOp_methylation_ATAC/metadata/mc/MOp_Metadata.tsv.gz",
     shell:
@@ -32,7 +32,7 @@ rule download_ecker_paper_metadata:
     conda:
         op.join("..", "envs", "yamet.yml")
     output:
-        meta=temp(op.join(ECKER_BASE, "paper_meta.xlsx")),
+        meta=temp(op.join(BRAIN, "paper_meta.xlsx")),
     params:
         loc="https://static-content.springer.com/esm/art%3A10.1038%2Fs41586-020-03182-8/MediaObjects/41586_2020_3182_MOESM9_ESM.xlsx",
     shell:
@@ -45,10 +45,10 @@ rule harmonize_ecker_metadata:
     conda:
         op.join("..", "envs", "r.yml")
     input:
-        nemo=op.join(ECKER_BASE, "nemo_meta.tsv.gz"),
-        paper=op.join(ECKER_BASE, "paper_meta.xlsx"),
+        nemo=op.join(BRAIN, "nemo_meta.tsv.gz"),
+        paper=op.join(BRAIN, "paper_meta.xlsx"),
     output:
-        metadata=op.join(ECKER_BASE, "meta.tsv.gz"),
+        metadata=op.join(BRAIN, "harmonized_ecker_metadata.tsv.gz"),
     script:
         op.join("src", "harmonize_ecker_metadata.R")
 
@@ -78,7 +78,7 @@ rule download_ecker:
     conda:
         op.join("..", "envs", "yamet.yml")
     input:
-        meta=op.join(BRAIN_BASE, "MOp_Metadata.tsv.gz"),
+        meta=op.join(BRAIN, "MOp_Metadata.tsv.gz"),
     output:
         raw_urls=temp(op.join(BRAIN_RAW, "raw_urls")),
         urls=op.join(BRAIN_RAW, "urls"),

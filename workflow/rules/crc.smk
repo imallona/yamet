@@ -68,9 +68,11 @@ rule render_crc_report:
     input:
         list_relevant_yamet_outputs()
     params:
-        yamet=CRC_OUTPUT,
+        output_path=CRC_OUTPUT
     output:
-        op.join("crc", "crc.html"),
+        op.join("crc", "crc.html")
+    log:
+        log = op.join("logs", "render_crc.log")
     script:
         "src/crc.Rmd"
 

@@ -1,29 +1,37 @@
 ---
 title: "CRC exploratory"
-author: "Atreya Choudhury, Izaskun Mallona"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output:
-  bookdown::html_document2:
-    code_folding: show
-    theme: flatly
-    number_sections: no
-    fig_crop: yes
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: hide
+    code_download: true
+    number_sections: true
+    df_print: kable
+    theme: lumen
+
 ---
 
 
 ```{r, setup}
 suppressPackageStartupMessages({
-  library(readr)
+  ## library(readr)
   library(lmerTest)
   library(ggplot2)
   library(knitr)
+  ## library(showtext)
 })
+
+
+## options(bitmapType="cairo")
+## showtext_auto()
 ```
 
 ```{r}
-opts_chunk$set(fig.width = 5,
-               fig.height = 5,
-               cache = TRUE,
+opts_chunk$set(fig.width = 7.5,
+               fig.height = 7.5,
+               cache = FALSE,
                include = TRUE,
                dev = "png",
                cache.lazy = FALSE,
@@ -31,25 +39,30 @@ opts_chunk$set(fig.width = 5,
                message = TRUE)
 ```
 
+```{R logging, include = FALSE}
+log <- file(snakemake@log$log, open = "wt")
+sink(log)
+sink(log, type = "message")
+```
+
+# Short (global) reports by annotation
+
 Firstly, we read in the yamet output files and create a table storing the biopsy location, patient id and genomic segmentation.
 
-```{r, import}
-filepaths <- list.files(
-  snakemake@params[["yamet"]],
-  pattern = "\\.out$", full.names = T
-)
+```{r, import_short_reports}
+filepaths <- list.files( snakemake@params[["output_path"]], pattern = "\\.out$", full.names = TRUE)
 
 filepaths <- filepaths[!grepl("\\.det\\.out$", filepaths)]
+filepaths <- filepaths[!grepl("\\.meth\\.out$", filepaths)]
 
 process_file <- function(filepath) {
   filename <- basename(filepath)
 
-  parts <- strsplit(filename, "_")[[1]] ## here! filepaths have changed
-  annotation <- parts[1]
-  patient <- parts[3]
-  location <- parts[4]
-
-  dt <- read_delim(filepath, delim = "\t", show_col_types = FALSE, na.strings = "-1")
+  annotation <- gsub("(.*)_(.*)_(.*)\\.(.*).out", "\\1", filename)
+  patient <- gsub("(.*)_(.*)_(.*)\\.(.*).out", "\\3", filename)
+  location <- gsub("(.*)_(.*)_(.*)\\.(.*).out", "\\4", filename)
+   
+  dt <- read.table(filepath, sep = "\t", na.strings = "-1", header = TRUE)
   dt <- dt[, c("sampen", "avg_meth")]
 
   dt$annotation <- annotation
@@ -63,11 +76,11 @@ files <- do.call(rbind, lapply(filepaths, process_file))
 
 files$annotation <- as.factor(files$annotation)
 files$patient <- as.factor(files$patient)
-files$location <- as.factor(files$location)
-## files[files == -1] <- NA
+files$location <- factor(files$location, levels = c('NC', 'PT', 'LN', 'ML', 'MP'))
+
 ```
 
-We account for fixed effects of location and average methylation and a random effect from the patient.
+Patient as random effect
 
 ```{r, lmer}
 lmer.files <- lmer(
@@ -78,21 +91,22 @@ summary(lmer.files)
 anova(lmer.files, type = 3)
 ```
 
-We observe that the effect of the different biopsy locations for patient `CRC01` on sample entropy is strongly confounded by the average methylation.
 
-```{r, plot, out.width="100%"}
+```{r, plots_general, out.width="100%"}
 ggplot(
   subset(files, patient == "CRC01"),
   aes(y = sampen, x = avg_meth, color = location)
 ) +
-  geom_point(size = 0.9, alpha = 0.7) +
+  geom_point(size = 0.9, alpha = 0.2, shape = 19) +
   scale_color_brewer(palette = "Dark2") +
   facet_wrap(~annotation) +
   labs(
     x = "average methylation",
     y = "sample entropy"
   ) +
-  guides(color = guide_legend(override.aes = list(size = 2)))
+    guides(color = guide_legend(override.aes = list(size = 2))) +
+    theme(aspect.ratio=1) +
+    theme_bw()
 
 ggplot(
   subset(files, patient == "CRC01"),
@@ -126,6 +140,71 @@ ggplot(
   scale_color_brewer(palette = "Dark2") +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
 ```
+
+# Full (local) reports for **downsampled** PMDs and CRC01
+
+Caution downsampled to some rows only.
+
+```{r, import_log_reports}
+
+DOWNSAMPLING <- 5e4
+
+process_det_report <- function(filepath) {
+  filename <- basename(filepath)
+
+  dt <- read.table(filepath, sep = "\t", na.strings = "-1", header = TRUE, nrows = DOWNSAMPLING)
+  colnames(dt) <- basename(colnames(dt))
+  return(dt)
+}
+
+
+annotation <- 'pmds'
+patient <- 'CRC01'
+
+local <- list()
+for (location in c('NC', 'PT', 'LN', 'ML', 'MP')) {
+    filepaths <- list.files( snakemake@params[["output_path"]], pattern = "\\.det\\.out$", full.names = TRUE)
+    filepaths <- grep(location, filepaths, value = TRUE)
+    filepaths <- grep(annotation, filepaths, value = TRUE)
+    filepaths <- grep(patient, filepaths, value = TRUE)
+    
+    d <- lapply(filepaths, function(x) {
+        tmp <- process_det_report(x)
+        ## tmp$avg_sampen <- apply(tmp[,grep(location, colnames(tmp))], 1, function(y) mean(y, na.rm = TRUE))
+        ## tmp$median_sampen <- apply(tmp[,grep(location, colnames(tmp))], 1, function(y) median(y, na.rm = TRUE))
+    })
+
+    d2 <- lapply(d, function(x) {
+        avg_sampen <- apply(x[,grep(location, colnames(x))], 1, function(y) mean(y, na.rm = TRUE))
+        median_sampen <- apply(x[,grep(location, colnames(x))], 1, function(y) median(y, na.rm = TRUE))
+        return(cbind(x, data.frame(avg_sampen = avg_sampen, median_sampen = median_sampen)))
+    })
+    
+    local[[location]] <- d2[[1]]
+    rm(d, d2)
+}
+
+
+
+```
+
+```{r, fig.width = 10, fig.height = 10}
+
+saveRDS(local, file = 'local_debug.rds')
+
+plot(data.frame(shannon_NC = local$NC$shannon,
+                meth_NC = local$NC$avg_meth,
+                avg_sampen_NC = local$NC$avg_sampen,
+                med_sampen_NC = local$NC$median_sampen,
+                shannon_PT = local$PT$shannon,
+                meth_PT = local$PT$avg_meth,
+                avg_sampen_PT = local$PT$avg_sampen,
+                med_sampen_PT = local$PT$median_sampen),
+     pch = ".")
+
+```
+
+# Session
 
 ```{r, cache = FALSE}
 sessionInfo()
