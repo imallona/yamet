@@ -8,7 +8,7 @@ output:
     code_folding: hide
     code_download: true
     number_sections: true
-    df_print: kable
+    df_print: default # kable
     theme: lumen
 
 ---
@@ -188,19 +188,109 @@ for (location in c('NC', 'PT', 'LN', 'ML', 'MP')) {
 
 ```
 
+Colored by meth in NT.
+
 ```{r, fig.width = 10, fig.height = 10}
 
 saveRDS(local, file = 'local_debug.rds')
 
-plot(data.frame(shannon_NC = local$NC$shannon,
+
+
+pmds <- data.frame(shannon_NC = local$NC$shannon,
                 meth_NC = local$NC$avg_meth,
-                avg_sampen_NC = local$NC$avg_sampen,
+                ## avg_sampen_NC = local$NC$avg_sampen,
                 med_sampen_NC = local$NC$median_sampen,
                 shannon_PT = local$PT$shannon,
                 meth_PT = local$PT$avg_meth,
-                avg_sampen_PT = local$PT$avg_sampen,
-                med_sampen_PT = local$PT$median_sampen),
-     pch = ".")
+                ## avg_sampen_PT = local$PT$avg_sampen,
+                med_sampen_PT = local$PT$median_sampen)
+
+pmds <- na.omit(pmds)
+
+pmds$by_meth_nc <- cut(pmds$meth_NC, breaks = 10)
+pmds$by_meth_pt <- cut(pmds$meth_PT, breaks = 10)
+plot(pmds, pch = ".", col = as.numeric(pmds$by_meth_nc))
+```
+
+
+Colored by median sampEn in PT.
+
+```{r, fig.width = 10, fig.height = 10}
+pmds$by_med_sampen_pt <- cut(pmds$med_sampen_PT, breaks = 10)
+plot(pmds, pch = ".", col = as.numeric(pmds$by_med_sampen_pt))
+
+```
+
+Colored by median sampEn in NC.
+
+```{r, fig.width = 10, fig.height = 10}
+pmds$by_med_sampen_nc <- cut(pmds$med_sampen_NC, breaks = 10)
+plot(pmds, pch = ".", col = as.numeric(pmds$by_med_sampen_nc))
+
+```
+
+```{r, fig.width=4, fig.height=4}
+
+m1 <- lmer(
+  med_sampen_PT ~  med_sampen_NC * meth_NC + (1 | by_meth_pt) ,
+  data = pmds)
+
+summary(m1)
+plot(m1)
+anova(m1, type = 3)
+
+```
+
+
+```{r, fig.width=4, fig.height=4}
+
+m2 <- lmer(
+  med_sampen_PT ~  med_sampen_NC + meth_NC:meth_PT +  (1 | by_meth_pt),
+  data = pmds)
+
+summary(m2)
+plot(m2)
+anova(m2, type = 3)
+```
+
+
+```{r}
+
+anova(m1,m2)
+```
+
+```{r, fig.width=4, fig.height=4}
+
+m3 <- lmer(
+  med_sampen_PT ~  shannon_NC * meth_PT +  (1 | meth_NC) + (1 | by_med_sampen_nc),
+  data = pmds)
+
+summary(m3)
+plot(m3)
+anova(m3, type = 3)
+```
+
+```{r}
+anova(m1,m2,m3)
+```
+
+```{r, fig.width=10, fig.height = 5}
+
+fe <- fixef(m1)
+re <- ranef(m1)$by_meth_pt
+
+pal <- rainbow(nrow(re), alpha = 0.2)
+pal_solid <- rainbow(nrow(re), alpha = 1)
+## m1 <- lmer(
+##   med_sampen_PT ~  med_sampen_NC * meth_NC + (1 | meth_PT) ,
+##   data = pmds)
+
+par(mfrow=c(1, 2))
+
+plot(med_sampen_PT ~ med_sampen_NC * meth_NC, data = pmds,
+     col=pal[as.numeric(by_meth_pt)], main='Pred', pch = 19)
+lapply(seq_len(nrow(re)), \(x) abline(fe[1] + re[x, 1], fe[2] + re[x, 1], col=pal_solid[x]))
+
 
 ```
 
