@@ -22,6 +22,7 @@ suppressPackageStartupMessages({
   library(knitr)
   library('effects')
   library(ComplexHeatmap)
+  library(viridis)
   ## library(showtext)
 })
 
@@ -218,6 +219,7 @@ for (location in c('NC', 'PT', 'LN', 'ML', 'MP')) {
 
 saveRDS(local, file = 'local_debug.rds')
 
+pal <- viridis(10, alpha = 0.8)
 
 beta2m <- function (betas, epsilon = 1e-05) 
 {
@@ -250,7 +252,7 @@ pmds$by_meth_nc <- cut(pmds$meth_NC, breaks = 10)
 pmds$by_meth_pt <- cut(pmds$meth_PT, breaks = 10)
 
 plot(pmds[,grep('by', colnames(pmds), invert = TRUE)],
-     pch = ".", col = as.numeric(pmds$by_meth_nc), main = 'by_meth_nc')
+     pch = ".", col = pal[as.numeric(pmds$by_meth_nc)], main = 'by_meth_nc')
 ```
 
 ### By median sampen PT
@@ -260,7 +262,7 @@ plot(pmds[,grep('by', colnames(pmds), invert = TRUE)],
 
 pmds$by_med_sampen_pt <- cut(pmds$med_sampen_PT, breaks = 10)
 plot(pmds[,grep('by', colnames(pmds), invert = TRUE)],
-     pch = ".", col = as.numeric(pmds$by_med_sampen_pt), main = "by_med_sampen_PT")
+     pch = ".", col = pal[as.numeric(pmds$by_med_sampen_pt)], main = "by_med_sampen_PT")
 
 ```
 
@@ -269,7 +271,7 @@ plot(pmds[,grep('by', colnames(pmds), invert = TRUE)],
 ```{r, fig.width = 10, fig.height = 10, results = 'asis'}
 pmds$by_med_sampen_nc <- cut(pmds$med_sampen_NC, breaks = 10)
 plot(pmds[,grep('by', colnames(pmds), invert = TRUE)],
-     pch = ".", col = as.numeric(pmds$by_med_sampen_nc), main = "by_med_sampen_nc")
+     pch = ".", col = pal[as.numeric(pmds$by_med_sampen_nc)], main = "by_med_sampen_nc")
 
 ```
 
@@ -278,7 +280,7 @@ plot(pmds[,grep('by', colnames(pmds), invert = TRUE)],
 ```{r, fig.width = 10, fig.height = 10, results = 'asis'}
 pmds$by_meth_change <- cut(pmds$meth_change, breaks = 10)
 plot(pmds[,grep('by', colnames(pmds), invert = TRUE)],
-     pch = ".", col = as.numeric(pmds$by_meth_change), main = "by_meth_change")
+     pch = ".", col = pal[as.numeric(pmds$by_meth_change)], main = "by_meth_change")
 ```
 
 Add extra discretization.
@@ -367,8 +369,8 @@ plot(ee3)
 fe <- fixef(m1)
 re <- ranef(m1)$by_meth_pt
 
-pal <- rainbow(nrow(re), alpha = 0.2)
-pal_solid <- rainbow(nrow(re), alpha = 1)
+## pal <- terrain.colors(nrow(re), alpha = 0.2)
+## pal_solid <- terrain.colors(nrow(re), alpha = 1)
 ## m1 <- lmer(
 ##   med_sampen_PT ~  med_sampen_NC * meth_NC + (1 | meth_PT) ,
 ##   data = pmds)
@@ -377,7 +379,7 @@ par(mfrow=c(1, 2))
 
 plot(med_sampen_PT ~ med_sampen_NC * meth_NC, data = pmds,
      col=pal[as.numeric(by_meth_pt)], main='Pred', pch = 19)
-lapply(seq_len(nrow(re)), \(x) abline(fe[1] + re[x, 1], fe[2] + re[x, 1], col=pal_solid[x]))
+lapply(seq_len(nrow(re)), \(x) abline(fe[1] + re[x, 1], fe[2] + re[x, 1], col=pal[x]))
 
 ```
 
@@ -393,15 +395,18 @@ lapply(seq_len(nrow(re)), \(x) abline(fe[1] + re[x, 1], fe[2] + re[x, 1], col=pa
 
 pmds <- pmds[order(pmds$meth_change),]
 pmds$meth_change_rank <- rank(pmds$meth_change, ties.method = "average")
+
 pmds$meth_nc_rank <- rank(pmds$meth_NC, ties.method = "average")
-pmds$meth_nc_rank <- rank(pmds$meth_PT, ties.method = "average")
-pmds$shannon_pt_rank <- rank(pmds$shannon_PT, ties.method = "average")
 pmds$shannon_nc_rank <- rank(pmds$shannon_NC, ties.method = "average")
 pmds$sampen_nc_rank <- rank(pmds$med_sampen_NC, ties.method = "average")
 
+pmds$meth_pt_rank <- rank(pmds$meth_PT, ties.method = "average")
+pmds$shannon_pt_rank <- rank(pmds$shannon_PT, ties.method = "average")
+pmds$sampen_pt_rank <- rank(pmds$med_sampen_PT, ties.method = "average")
+
 
 plot(pmds[,c(grep('rank', colnames(pmds), value = TRUE), 'meth_PT')],
-     pch = '.', col = as.numeric(pmds$by_meth_pt), main = 'by meth pt')
+     pch = '.', col = pal[as.numeric(pmds$by_meth_pt)], main = 'by meth pt')
 ```
 
 ### Ranks associations - by sampEn PT
@@ -409,7 +414,7 @@ plot(pmds[,c(grep('rank', colnames(pmds), value = TRUE), 'meth_PT')],
 ```{r, fig.width = 8, fig.height = 8}
 
 plot(pmds[,c(grep('rank', colnames(pmds), value = TRUE), 'med_sampen_PT')],
-     pch = '.', col = as.numeric(pmds$by_sampen_pt), main = 'by sampen pt')
+     pch = '.', col = pal[as.numeric(pmds$by_sampen_pt)], main = 'by sampen pt')
 
 ```
 
@@ -418,7 +423,7 @@ plot(pmds[,c(grep('rank', colnames(pmds), value = TRUE), 'med_sampen_PT')],
 ```{r, fig.width = 8, fig.height = 8}
 
 plot(pmds[,c(grep('rank', colnames(pmds), value = TRUE), 'med_sampen_NC')],
-     pch = '.', col = as.numeric(pmds$by_sampen_nc), main = 'by sampen nc')
+     pch = '.', col = pal[as.numeric(pmds$by_sampen_nc)], main = 'by sampen nc')
 
 ```
 
@@ -427,16 +432,16 @@ plot(pmds[,c(grep('rank', colnames(pmds), value = TRUE), 'med_sampen_NC')],
 ```{r, fig.width = 8, fig.height = 8}
 
 plot(pmds[,c(grep('rank', colnames(pmds), value = TRUE), 'shannon_PT')],
-     pch = '.', col = as.numeric(pmds$by_shannon_pt), main = 'by shannon pt')
+     pch = '.', col = pal[as.numeric(pmds$by_shannon_pt)], main = 'by shannon pt')
 
 ```
 
-### Ranks associations - by shannon PC
+### Ranks associations - by shannon PT
 
 ```{r, fig.width = 8, fig.height = 8}
 
 plot(pmds[,c(grep('rank', colnames(pmds), value = TRUE), 'shannon_NC')],
-     pch = '.', col = as.numeric(pmds$by_shannon_nc), main = 'by shannon nc')
+     pch = '.', col = pal[as.numeric(pmds$by_shannon_nc)], main = 'by shannon nc')
 
 ```
 

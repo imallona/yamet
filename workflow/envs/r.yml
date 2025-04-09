@@ -15,3 +15,4 @@ dependencies:
   - r-knitr
   - conda-forge::r-effects
   - bioconda::bioconductor-complexheatmap
+  - conda-forge::r-viridis
