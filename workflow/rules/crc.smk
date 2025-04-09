@@ -70,7 +70,7 @@ rule render_crc_report:
     params:
         output_path=CRC_OUTPUT
     output:
-        op.join("crc", "crc.html")
+        op.join(CRC, "results", "crc.html")
     log:
         log = op.join("logs", "render_crc.log")
     script:

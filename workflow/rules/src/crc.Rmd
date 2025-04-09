@@ -20,6 +20,8 @@ suppressPackageStartupMessages({
   library(lmerTest)
   library(ggplot2)
   library(knitr)
+  library('effects')
+
   ## library(showtext)
 })
 
@@ -241,6 +243,13 @@ anova(m1, type = 3)
 
 ```
 
+```{r}
+
+ee1 <- Effect(c("med_sampen_NC","meth_NC"), m1)
+plot(ee1)
+
+```
+
 
 ```{r, fig.width=4, fig.height=4}
 
@@ -253,6 +262,10 @@ plot(m2)
 anova(m2, type = 3)
 ```
 
+```{r}
+ee2 <- Effect(c("meth_PT", "meth_NC"), m2)
+plot(ee2)
+```
 
 ```{r}
 
@@ -274,6 +287,12 @@ anova(m3, type = 3)
 anova(m1,m2,m3)
 ```
 
+```{r}
+
+ee3 <- Effect(c("meth_PT", "shannon_NC"), m3)
+plot(ee3)
+```
+
 ```{r, fig.width=10, fig.height = 5}
 
 fe <- fixef(m1)
@@ -291,8 +310,20 @@ plot(med_sampen_PT ~ med_sampen_NC * meth_NC, data = pmds,
      col=pal[as.numeric(by_meth_pt)], main='Pred', pch = 19)
 lapply(seq_len(nrow(re)), \(x) abline(fe[1] + re[x, 1], fe[2] + re[x, 1], col=pal_solid[x]))
 
-
 ```
+
+# Hypothesis-driven (for PMDs but also for other compartments)
+
+## Hypomethylation NC -> PT is inversely correlated with starting NC meth level
+
+## Hypomethylation NC -> PT has to do with sampEn increase
+
+## Hypomethylation NC -> PT has to do with with NC Shannon (diversity)
+
+
+
+
+
 
 # Session
 
