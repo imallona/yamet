@@ -14,3 +14,4 @@ dependencies:
   - conda-forge::r-codetools
   - r-knitr
   - conda-forge::r-effects
+  - bioconda::bioconductor-complexheatmap

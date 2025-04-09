@@ -21,7 +21,7 @@ suppressPackageStartupMessages({
   library(ggplot2)
   library(knitr)
   library('effects')
-
+  library(ComplexHeatmap)
   ## library(showtext)
 })
 
@@ -47,7 +47,9 @@ sink(log)
 sink(log, type = "message")
 ```
 
-# Short (global) reports by annotation
+# Short (global) reports by annotation  {.tabset .tabset-pills}
+
+## Modelling
 
 Firstly, we read in the yamet output files and create a table storing the biopsy location, patient id and genomic segmentation.
 
@@ -93,8 +95,9 @@ summary(lmer.files)
 anova(lmer.files, type = 3)
 ```
 
-
-```{r, plots_general, out.width="100%"}
+## Scatters by location and annotation
+ 
+```{r}
 ggplot(
   subset(files, patient == "CRC01"),
   aes(y = sampen, x = avg_meth, color = location)
@@ -107,9 +110,13 @@ ggplot(
     y = "sample entropy"
   ) +
     guides(color = guide_legend(override.aes = list(size = 2))) +
-    theme(aspect.ratio=1) +
-    theme_bw()
+    theme_bw() +
+    theme(aspect.ratio=1)
+```
 
+## sampEn boxes by location and annotation
+
+```{r, fig.height = 4}
 ggplot(
   subset(files, patient == "CRC01"),
   aes(y = sampen, x = annotation, color = location)
@@ -124,8 +131,13 @@ ggplot(
     size = 0.6, alpha = 0.3
   ) +
   scale_color_brewer(palette = "Dark2") +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+    theme_bw() +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+```
 
+## meth boxes by location and annotation
+
+```{r, fig.height = 4}
 ggplot(
   subset(files, patient == "CRC01"),
   aes(y = avg_meth, x = annotation, color = location)
@@ -139,8 +151,9 @@ ggplot(
     position = position_dodge(width = 0.75),
     size = 0.6, alpha = 0.3
   ) +
-  scale_color_brewer(palette = "Dark2") +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+    scale_color_brewer(palette = "Dark2") +
+    theme_bw() +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
 ```
 
 # Full (local) reports for **downsampled** PMDs and CRC01
@@ -179,7 +192,13 @@ for (location in c('NC', 'PT', 'LN', 'ML', 'MP')) {
     d2 <- lapply(d, function(x) {
         avg_sampen <- apply(x[,grep(location, colnames(x))], 1, function(y) mean(y, na.rm = TRUE))
         median_sampen <- apply(x[,grep(location, colnames(x))], 1, function(y) median(y, na.rm = TRUE))
-        return(cbind(x, data.frame(avg_sampen = avg_sampen, median_sampen = median_sampen)))
+        q25_sampen <- apply(x[,grep(location, colnames(x))], 1, function(y) quantile(y, 0.25, na.rm = TRUE))
+        q75_sampen <- apply(x[,grep(location, colnames(x))], 1, function(y) quantile(y, 0.75, na.rm = TRUE))
+        return(cbind(x, data.frame(avg_sampen = avg_sampen, median_sampen = median_sampen,
+                                   q25_sampen = q25_sampen, q75_sampen = q75_sampen,
+                                   location = location,
+                                   patient = patient,
+                                   annotation = annotation)))
     })
     
     local[[location]] <- d2[[1]]
@@ -190,46 +209,90 @@ for (location in c('NC', 'PT', 'LN', 'ML', 'MP')) {
 
 ```
 
-Colored by meth in NT.
+## Scatters {.tabset .tabset-pills}
+
+### By meth NC
+
 
 ```{r, fig.width = 10, fig.height = 10}
 
 saveRDS(local, file = 'local_debug.rds')
 
 
+beta2m <- function (betas, epsilon = 1e-05) 
+{
+  if (!is.numeric(betas)) {
+    stop("Non-numeric betas")
+  }
+  if (!(is.numeric(epsilon)  && (!is.na(epsilon)))) {
+    stop("Epison not valid")
+  }
+  if (epsilon < 0 || epsilon >= 0.5) {
+    stop("Not 0 < epsilon < 0.5")
+  }
+  betas[betas < epsilon] <- epsilon
+  betas[betas > (1 - epsilon)] <- 1 - epsilon
+  return(log2(betas/(1 - betas)))
+}
 
 pmds <- data.frame(shannon_NC = local$NC$shannon,
-                meth_NC = local$NC$avg_meth,
-                ## avg_sampen_NC = local$NC$avg_sampen,
-                med_sampen_NC = local$NC$median_sampen,
-                shannon_PT = local$PT$shannon,
-                meth_PT = local$PT$avg_meth,
-                ## avg_sampen_PT = local$PT$avg_sampen,
-                med_sampen_PT = local$PT$median_sampen)
-
+                   ## meth_NC_m = beta2m(local$NC$avg_meth),
+                   meth_NC = local$NC$avg_meth,                   
+                   med_sampen_NC = local$NC$median_sampen,
+                   shannon_PT = local$PT$shannon,
+                   ## meth_PT_m = beta2m(local$PT$avg_meth),
+                   meth_PT = local$PT$avg_meth,
+                   med_sampen_PT = local$PT$median_sampen)
+pmds$meth_change <- pmds$meth_PT - pmds$meth_NC
 pmds <- na.omit(pmds)
 
 pmds$by_meth_nc <- cut(pmds$meth_NC, breaks = 10)
 pmds$by_meth_pt <- cut(pmds$meth_PT, breaks = 10)
-plot(pmds, pch = ".", col = as.numeric(pmds$by_meth_nc))
+
+plot(pmds[,grep('by', colnames(pmds), invert = TRUE)],
+     pch = ".", col = as.numeric(pmds$by_meth_nc), main = 'by_meth_nc')
 ```
 
+### By median sampen PT
 
-Colored by median sampEn in PT.
 
 ```{r, fig.width = 10, fig.height = 10}
+
 pmds$by_med_sampen_pt <- cut(pmds$med_sampen_PT, breaks = 10)
-plot(pmds, pch = ".", col = as.numeric(pmds$by_med_sampen_pt))
+plot(pmds[,grep('by', colnames(pmds), invert = TRUE)],
+     pch = ".", col = as.numeric(pmds$by_med_sampen_pt), main = "by_med_sampen_PT")
 
 ```
 
-Colored by median sampEn in NC.
+### By median sampen NC
 
-```{r, fig.width = 10, fig.height = 10}
+```{r, fig.width = 10, fig.height = 10, results = 'asis'}
 pmds$by_med_sampen_nc <- cut(pmds$med_sampen_NC, breaks = 10)
-plot(pmds, pch = ".", col = as.numeric(pmds$by_med_sampen_nc))
+plot(pmds[,grep('by', colnames(pmds), invert = TRUE)],
+     pch = ".", col = as.numeric(pmds$by_med_sampen_nc), main = "by_med_sampen_nc")
 
 ```
+
+### By methylation change
+
+```{r, fig.width = 10, fig.height = 10, results = 'asis'}
+pmds$by_meth_change <- cut(pmds$meth_change, breaks = 10)
+plot(pmds[,grep('by', colnames(pmds), invert = TRUE)],
+     pch = ".", col = as.numeric(pmds$by_meth_change), main = "by_meth_change")
+```
+
+Add extra discretization.
+
+```{r}
+pmds$by_sampen_pt <- cut(pmds$med_sampen_PT, breaks = 10)
+pmds$by_sampen_nc <- cut(pmds$med_sampen_NC, breaks = 10)
+pmds$by_shannon_pt <- cut(pmds$shannon_PT, breaks = 10)
+pmds$by_shannon_nc <- cut(pmds$shannon_NC, breaks = 10)
+```
+
+## Some modelling {.tabset .tabset-pills}
+
+### sampEn NC and meth NC matters
 
 ```{r, fig.width=4, fig.height=4}
 
@@ -249,6 +312,8 @@ ee1 <- Effect(c("med_sampen_NC","meth_NC"), m1)
 plot(ee1)
 
 ```
+
+### sampen NC and meth increase matters
 
 
 ```{r, fig.width=4, fig.height=4}
@@ -272,6 +337,8 @@ plot(ee2)
 anova(m1,m2)
 ```
 
+### Shannon NC and meth PT matters
+
 ```{r, fig.width=4, fig.height=4}
 
 m3 <- lmer(
@@ -293,6 +360,8 @@ ee3 <- Effect(c("meth_PT", "shannon_NC"), m3)
 plot(ee3)
 ```
 
+### On model 1 again
+
 ```{r, fig.width=10, fig.height = 5}
 
 fe <- fixef(m1)
@@ -312,9 +381,82 @@ lapply(seq_len(nrow(re)), \(x) abline(fe[1] + re[x, 1], fe[2] + re[x, 1], col=pa
 
 ```
 
-# Hypothesis-driven (for PMDs but also for other compartments)
+# Hypothesis-driven (for PMDs but also for other compartments) }
+
+
+## Still exploratory {.tabset .tabset-pills}
+
+### Ranks associations - by meth PT
+
+```{r, fig.width = 8, fig.height = 8}
+
+
+pmds <- pmds[order(pmds$meth_change),]
+pmds$meth_change_rank <- rank(pmds$meth_change, ties.method = "average")
+pmds$meth_nc_rank <- rank(pmds$meth_NC, ties.method = "average")
+pmds$meth_nc_rank <- rank(pmds$meth_PT, ties.method = "average")
+pmds$shannon_pt_rank <- rank(pmds$shannon_PT, ties.method = "average")
+pmds$shannon_nc_rank <- rank(pmds$shannon_NC, ties.method = "average")
+pmds$sampen_nc_rank <- rank(pmds$med_sampen_NC, ties.method = "average")
+
+
+plot(pmds[,c(grep('rank', colnames(pmds), value = TRUE), 'meth_PT')],
+     pch = '.', col = as.numeric(pmds$by_meth_pt), main = 'by meth pt')
+```
+
+### Ranks associations - by sampEn PT
+
+```{r, fig.width = 8, fig.height = 8}
+
+plot(pmds[,c(grep('rank', colnames(pmds), value = TRUE), 'med_sampen_PT')],
+     pch = '.', col = as.numeric(pmds$by_sampen_pt), main = 'by sampen pt')
+
+```
+
+### Ranks associations - by sampEn NC
+
+```{r, fig.width = 8, fig.height = 8}
+
+plot(pmds[,c(grep('rank', colnames(pmds), value = TRUE), 'med_sampen_NC')],
+     pch = '.', col = as.numeric(pmds$by_sampen_nc), main = 'by sampen nc')
+
+```
+
+### Ranks associations - by shannon PT
+
+```{r, fig.width = 8, fig.height = 8}
+
+plot(pmds[,c(grep('rank', colnames(pmds), value = TRUE), 'shannon_PT')],
+     pch = '.', col = as.numeric(pmds$by_shannon_pt), main = 'by shannon pt')
+
+```
+
+### Ranks associations - by shannon PC
+
+```{r, fig.width = 8, fig.height = 8}
+
+plot(pmds[,c(grep('rank', colnames(pmds), value = TRUE), 'shannon_NC')],
+     pch = '.', col = as.numeric(pmds$by_shannon_nc), main = 'by shannon nc')
+
+```
+
+### Heatmap
+
+```{r, fig.width = 6, fig.height = 6}
+
+Heatmap(pmds[,c('meth_NC', 'med_sampen_NC',  'shannon_NC',
+                'meth_PT', 'med_sampen_PT',  'shannon_PT',
+                'meth_change'
+                )
+             ],
+        cluster_rows = FALSE, cluster_columns = FALSE,
+        col = rev(rainbow(10)),
+        show_row_names = FALSE)
+```
 
 ## Hypomethylation NC -> PT is inversely correlated with starting NC meth level
+
+
 
 ## Hypomethylation NC -> PT has to do with sampEn increase
 
