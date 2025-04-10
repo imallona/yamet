@@ -60,12 +60,13 @@ filepaths <- list.files( snakemake@params[["output_path"]], pattern = "\\.out$",
 filepaths <- filepaths[!grepl("\\.det\\.out$", filepaths)]
 filepaths <- filepaths[!grepl("\\.meth\\.out$", filepaths)]
 
+regex <- "(.*)_(.*)_(.*)\\.(.*).out"
 process_file <- function(filepath) {
-  filename <- basename(filepath)
+  filename <- gsub('.hmm.', '_hmm_', basename(filepath), fixed = TRUE) # dirty fix for an upstream problem
 
-  annotation <- gsub("(.*)_(.*)_(.*)\\.(.*).out", "\\1", filename)
-  patient <- gsub("(.*)_(.*)_(.*)\\.(.*).out", "\\3", filename)
-  location <- gsub("(.*)_(.*)_(.*)\\.(.*).out", "\\4", filename)
+  annotation <- gsub(regex, "\\1", filename)
+  patient <- gsub(regex, "\\3", filename)
+  location <- gsub(regex, "\\4", filename)
    
   dt <- read.table(filepath, sep = "\t", na.strings = "-1", header = TRUE)
   dt <- dt[, c("sampen", "avg_meth")]
@@ -81,7 +82,9 @@ files <- do.call(rbind, lapply(filepaths, process_file))
 
 files$annotation <- as.factor(files$annotation)
 files$patient <- as.factor(files$patient)
-files$location <- factor(files$location, levels = c('NC', 'PT', 'LN', 'ML', 'MP'))
+files$location <- factor(files$location, levels = c('NC', 'PT', 'LN', 'ML', 'MP', 'MO'))
+## print(unique(files$patient))
+## print(unique(files$location))
 
 ```
 
@@ -100,11 +103,13 @@ anova(lmer.files, type = 3)
  
 ```{r}
 ggplot(
-  subset(files, patient == "CRC01"),
-  aes(y = sampen, x = avg_meth, color = location)
+    ## subset(files, patient == "CRC01"),
+    files,
+  aes(y = sampen, x = avg_meth, color = location, shape = patient)
 ) +
-  geom_point(size = 0.9, alpha = 0.2, shape = 19) +
-  scale_color_brewer(palette = "Dark2") +
+    geom_point(size = 0.9, alpha = 0.2) +
+    scale_color_brewer(palette = "Set1") +
+    scale_shape_manual(values=1:nlevels(files$patient)) +
   facet_wrap(~annotation) +
   labs(
     x = "average methylation",
@@ -115,7 +120,29 @@ ggplot(
     theme(aspect.ratio=1)
 ```
 
-## sampEn boxes by location and annotation
+## Scatters by location and annotation and patient
+ 
+```{r, fig.height = 15}
+ggplot(
+    ## subset(files, patient == "CRC01"),
+    files,
+    aes(y = sampen, x = avg_meth, color = location)
+) +
+    geom_point(size = 0.9, alpha = 0.2) +
+    scale_color_brewer(palette = "Set1") +
+  facet_grid(annotation~patient) +
+  labs(
+    x = "average methylation",
+    y = "sample entropy"
+  ) +
+    guides(color = guide_legend(override.aes = list(size = 2))) +
+    theme_bw() +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+    theme(aspect.ratio=1)
+```
+
+
+## sampEn boxes by location and annotation - crc01
 
 ```{r, fig.height = 4}
 ggplot(
@@ -136,7 +163,7 @@ ggplot(
     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
 ```
 
-## meth boxes by location and annotation
+## meth boxes by location and annotation - crc01
 
 ```{r, fig.height = 4}
 ggplot(
@@ -383,12 +410,10 @@ lapply(seq_len(nrow(re)), \(x) abline(fe[1] + re[x, 1], fe[2] + re[x, 1], col=pa
 
 ```
 
-# Hypothesis-driven (for PMDs but also for other compartments) }
 
+# Still exploratory - on ranks {.tabset .tabset-pills}
 
-## Still exploratory {.tabset .tabset-pills}
-
-### Ranks associations - by meth PT
+## Ranks associations - by meth PT
 
 ```{r, fig.width = 8, fig.height = 8}
 
@@ -409,7 +434,7 @@ plot(pmds[,c(grep('rank', colnames(pmds), value = TRUE), 'meth_PT')],
      pch = '.', col = pal[as.numeric(pmds$by_meth_pt)], main = 'by meth pt')
 ```
 
-### Ranks associations - by sampEn PT
+## Ranks associations - by sampEn PT
 
 ```{r, fig.width = 8, fig.height = 8}
 
@@ -418,7 +443,7 @@ plot(pmds[,c(grep('rank', colnames(pmds), value = TRUE), 'med_sampen_PT')],
 
 ```
 
-### Ranks associations - by sampEn NC
+## Ranks associations - by sampEn NC
 
 ```{r, fig.width = 8, fig.height = 8}
 
@@ -427,7 +452,7 @@ plot(pmds[,c(grep('rank', colnames(pmds), value = TRUE), 'med_sampen_NC')],
 
 ```
 
-### Ranks associations - by shannon PT
+## Ranks associations - by shannon PT
 
 ```{r, fig.width = 8, fig.height = 8}
 
@@ -436,7 +461,7 @@ plot(pmds[,c(grep('rank', colnames(pmds), value = TRUE), 'shannon_PT')],
 
 ```
 
-### Ranks associations - by shannon PT
+## Ranks associations - by shannon NC
 
 ```{r, fig.width = 8, fig.height = 8}
 
@@ -445,7 +470,7 @@ plot(pmds[,c(grep('rank', colnames(pmds), value = TRUE), 'shannon_NC')],
 
 ```
 
-### Heatmap
+## Heatmap
 
 ```{r, fig.width = 6, fig.height = 6}
 
@@ -458,6 +483,9 @@ Heatmap(pmds[,c('meth_NC', 'med_sampen_NC',  'shannon_NC',
         col = rev(rainbow(10)),
         show_row_names = FALSE)
 ```
+
+# Hypothesis-driven (for PMDs but also for other compartments) }
+
 
 ## Hypomethylation NC -> PT is inversely correlated with starting NC meth level
 
