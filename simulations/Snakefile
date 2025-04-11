@@ -149,3 +149,183 @@ rule visualize_yamet_results:
                                         output_file="../{output.html}",
                                         params=list(yamet_dir="{input.yamet_dir}"))'
         """
+
+
+rule feat_diff_template:
+    conda:
+        "envs/r_sim.yaml"
+    output:
+        "output/feat_diff/intervals.{N}.{f}.tsv",
+    script:
+        "src/feat_diff/createTemplate.R"
+
+
+rule feat_diff_samples:
+    conda:
+        "envs/r_sim.yaml"
+    input:
+        "output/feat_diff/intervals.{N}.{f}.tsv",
+    output:
+        touch("output/feat_diff/{N}.{f}.flag"),
+    params:
+        samples=50,
+        data="output/feat_diff",
+    script:
+        "src/feat_diff/getSamples.R"
+
+
+rule feat_diff_yamet:
+    conda:
+        "envs/yamet.yaml"
+    input:
+        "output/feat_diff/{N}.{f}.flag",
+        yamet=op.join("build", "yamet"),
+    output:
+        det_out="output/feat_diff/yamet.{N}.{f}.det.out",
+    params:
+        data="output/feat_diff",
+    threads: 3
+    shell:
+        """
+          {input.yamet} --cell {params.data}/sim.*.tsv \
+                        --reference {params.data}/ref.{wildcards.N}.{wildcards.f}.tsv \
+                        --intervals {params.data}/intervals.{wildcards.N}.{wildcards.f}.tsv \
+                        --det-out {output.det_out} \
+                        --meth-out {params.data}/yamet.{wildcards.N}.{wildcards.f}.meth.out \
+                        --cores {threads} \
+                        --print-sampens F
+        """
+
+
+rule feat_diff_plots:
+    conda:
+        "envs/r_plot.yaml"
+    input:
+        det_out="output/feat_diff/yamet.500.200.det.out",
+    params:
+        N=lambda wildcards, input: input.det_out.split(".")[1],
+        f=lambda wildcards, input: input.det_out.split(".")[2],
+    output:
+        html="output/04_feat_diff.html",
+    script:
+        "src/feat_diff/04_feat_diff.Rmd"
+
+
+rule within_cell_template:
+    conda:
+        "envs/r_sim.yaml"
+    output:
+        "output/within_cell/intervals.{N}.{f}.tsv",
+    script:
+        "src/within_cell/createTemplate.R"
+
+
+rule within_cell_samples:
+    conda:
+        "envs/r_sim.yaml"
+    input:
+        "output/within_cell/intervals.{N}.{f}.tsv",
+    output:
+        touch("output/within_cell/{N}.{f}.flag"),
+    params:
+        samples=50,
+        data="output/within_cell",
+    script:
+        "src/within_cell/getSamples.R"
+
+
+rule within_cell_yamet:
+    conda:
+        "envs/yamet.yaml"
+    input:
+        "output/within_cell/{N}.{f}.flag",
+        yamet=op.join("build", "yamet"),
+    output:
+        det_out="output/within_cell/yamet.{N}.{f}.det.out",
+    params:
+        data="output/within_cell",
+    threads: 3
+    shell:
+        """
+          {input.yamet} --cell {params.data}/sim.*.tsv \
+                        --reference {params.data}/ref.{wildcards.N}.{wildcards.f}.tsv \
+                        --intervals {params.data}/intervals.{wildcards.N}.{wildcards.f}.tsv \
+                        --det-out {output.det_out} \
+                        --meth-out {params.data}/yamet.{wildcards.N}.{wildcards.f}.meth.out \
+                        --cores {threads} \
+                        --print-sampens F
+        """
+
+
+rule within_cell_plots:
+    conda:
+        "envs/r_plot.yaml"
+    input:
+        det_out="output/within_cell/yamet.200.100.det.out",
+    params:
+        N=lambda wildcards, input: input.det_out.split(".")[1],
+        f=lambda wildcards, input: input.det_out.split(".")[2],
+    output:
+        html="output/05_within_cell.html",
+    script:
+        "src/within_cell/05_within_cell.Rmd"
+
+
+rule between_cell_template:
+    conda:
+        "envs/r_sim.yaml"
+    output:
+        "output/between_cell/intervals.{N}.{f}.tsv",
+    script:
+        "src/between_cell/createTemplate.R"
+
+
+rule between_cell_samples:
+    conda:
+        "envs/r_sim.yaml"
+    input:
+        "output/between_cell/intervals.{N}.{f}.tsv",
+    output:
+        touch("output/between_cell/{N}.{f}.flag"),
+    params:
+        samples=50,
+        data="output/between_cell",
+    script:
+        "src/between_cell/getSamples.R"
+
+
+rule between_cell_yamet:
+    conda:
+        "envs/yamet.yaml"
+    input:
+        "output/between_cell/{N}.{f}.flag",
+        yamet=op.join("build", "yamet"),
+    output:
+        det_out="output/between_cell/yamet.{N}.{f}.det.out",
+    params:
+        data="output/between_cell",
+    threads: 3
+    shell:
+        """
+          {input.yamet} --cell {params.data}/sim.*.tsv \
+                        --reference {params.data}/ref.{wildcards.N}.{wildcards.f}.tsv \
+                        --intervals {params.data}/intervals.{wildcards.N}.{wildcards.f}.tsv \
+                        --det-out {output.det_out} \
+                        --meth-out {params.data}/yamet.{wildcards.N}.{wildcards.f}.meth.out \
+                        --cores {threads} \
+                        --print-sampens F
+        """
+
+
+rule between_cell_plots:
+    conda:
+        "envs/r_plot.yaml"
+    input:
+        det_out="output/between_cell/yamet.200.100.det.out",
+    params:
+        N=lambda wildcards, input: input.det_out.split(".")[1],
+        f=lambda wildcards, input: input.det_out.split(".")[2],
+    output:
+        html="output/06_between_cell.html",
+    script:
+        "src/between_cell/06_between_cell.Rmd"

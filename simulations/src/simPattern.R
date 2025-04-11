@@ -202,6 +202,7 @@
                         states=c('0', '1'),
                         seed=43){
 
+  set.seed(seed)
   if(estimateTransMat & !is.null(data)){
     cellIds <- setdiff(colnames(data), c("chr", "pos", "bin"))
     seqData <- lapply(cellIds, function(cell){data[[cell]]})
@@ -217,12 +218,14 @@
                      states=states)
 
   # generate markov sequence
-  set.seed(seed, kind = "L'Ecuyer-CMRG")
+  nCells <- length(lenCovSamp)
+  cellSeeds <- sample.int(nCells*100, nCells)
 
-  metPattern <- lapply(lenCovSamp, function(str){
+  metPattern <- mapply(function(str, cellSeed){
+    set.seed(cellSeed, kind = "L'Ecuyer-CMRG")
     seq <- lapply(str, markovchainSequence, markovChain)
     seq
-  })
+  },lenCovSamp, cellSeeds)
 
   metPattern <- lapply(metPattern, function(str){
     seq <- lapply(str, as.numeric)
