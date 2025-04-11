@@ -18,7 +18,7 @@
  * corresponding to it.
  */
 Reference parseRef(const std::string &filename, const Intervals &intervals,
-                   const unsigned int chunk_size) {
+                   const unsigned int skip_header, const unsigned int chunk_size) {
   gzFile file = gzopen(filename.c_str(), "rb");
   if (!file) {
     throw std::system_error(errno, std::generic_category(), "Opening " + filename);
@@ -43,8 +43,8 @@ Reference parseRef(const std::string &filename, const Intervals &intervals,
   /// current chromosome being parsed from reference file
   std::string currentChr = "";
   /// indicates whether there is a region requested for a particular chromosome
-  bool firstFound = false;
-  // bool headerSkipped = false;
+  bool         firstFound      = false;
+  unsigned int skipped_headers = 0;
 
   int          chrIndex      = -1;
   unsigned int intervalIndex = 0;
@@ -75,16 +75,20 @@ Reference parseRef(const std::string &filename, const Intervals &intervals,
           break;
         }
       }
-      // if (!headerSkipped) {
-      //   headerSkipped = true;
-      //   continue;
-      // }
+      if (skipped_headers < skip_header) {
+        skipped_headers++;
+        continue;
+      }
 
       /// parsing a line from reference
       std::istringstream lineStream(line);
-      std::string        chr, temp;
+      std::string        chr;
       unsigned int       pos;
-      lineStream >> chr >> pos >> temp;
+      if (!(lineStream >> chr >> pos)) {
+        throw std::system_error(EIO, std::generic_category(),
+                                "in line\n\n\t\033[33m" + line +
+                                    "\033[0m\n\nparsing reference file " + filename);
+      }
 
       /// updates chromosome currently being evaluated and resets firstFound
       if (chr != currentChr) {

@@ -10,60 +10,57 @@ https://www.nature.com/articles/s41586-020-03182-8
 this is mm10
 """
 
+ECKER_BASE = "ecker"
+
+
 rule download_nemo_ecker_metadata:
-    conda:
-        "../envs/yamet.yml"
     output:
-        meta = op.join('ecker_data', 'MOp_Metadata.tsv.gz')
+        meta=temp(op.join(ECKER_BASE, "nemo_meta.tsv.gz")),
     params:
-        path = 'ecker_data'
+        loc="https://data.nemoarchive.org/biccn/grant/u19_cemba/cemba/epigenome/sncell/mCseq/mouse/processed/analysis/EckerRen_Mouse_MOp_methylation_ATAC/metadata/mc/MOp_Metadata.tsv.gz",
     shell:
         """
-        mkdir -p {params.path}
-        curl "https://data.nemoarchive.org/biccn/grant/u19_cemba/cemba/epigenome/sncell/mCseq/mouse/processed/analysis/EckerRen_Mouse_MOp_methylation_ATAC/metadata/mc/MOp_Metadata.tsv.gz" -o {output.meta}
+            curl {params.loc} -o {output.meta}
         """
+
 
 rule download_ecker_paper_metadata:
     conda:
         "../envs/yamet.yml"
     output:
-        meta = op.join('ecker_data', '41586_2020_3182_MOESM9_ESM.xlsx')#,
-        # csv = op.join('ecker_data', '41586_2020_3182_MOESM9_ESM.csv')
+        meta=temp(op.join(ECKER_BASE, "paper_meta.xlsx")),
     params:
-        path = 'ecker_data'
+        loc="https://static-content.springer.com/esm/art%3A10.1038%2Fs41586-020-03182-8/MediaObjects/41586_2020_3182_MOESM9_ESM.xlsx",
     shell:
         """
-        mkdir -p {params.path}
-        curl "https://static-content.springer.com/esm/art%3A10.1038%2Fs41586-020-03182-8/MediaObjects/41586_2020_3182_MOESM9_ESM.xlsx" -o {output.meta}
-        # ssconvert {output.meta} output.meta_csv
+            curl {params.loc} -o {output.meta}
         """
+
 
 rule harmonize_ecker_metadata:
     conda:
         "../envs/r.yml"
     input:
-        paper = op.join('ecker_data', '41586_2020_3182_MOESM9_ESM.xlsx'),
-        nemo = op.join('ecker_data', 'MOp_Metadata.tsv.gz')
+        nemo=op.join(ECKER_BASE, "nemo_meta.tsv.gz"),
+        paper=op.join(ECKER_BASE, "paper_meta.xlsx"),
     output:
-        metadata = op.join('ecker_data', 'harmonized_ecker_metadata.tsv.gz')
-    params:
-        path = 'ecker_data'
-    script:        
-        'src/harmonize_ecker_metadata.R'
+        metadata=op.join(ECKER_BASE, "meta.tsv.gz"),
+    script:
+        "src/harmonize_ecker_metadata.R"
 
-            
+
 # ## reports the AllcPath (basename) of cells matching the harmonized metadata
 # ##   'column' equals 'value'
 # def slice_eckers_metadata(column, value):
 #     meta_fn = op.join('ecker_data','harmonized_ecker_metadata.tsv.gz')
-    
+
 #     if not op.exists(meta_fn):
 #         raise Exception("No metadata found.")
-    
+
 #     meta = pd.read_csv(filepath_or_buffer = meta_fn,
 #                        sep='\t',
 #                        compression='gzip', header=0, quotechar='"')
-    
+
 #     if set([column]).issubset(meta.columns):
 #         return [i for i in meta[meta[column] == value]['basename']]
 #     else:
@@ -72,21 +69,20 @@ rule harmonize_ecker_metadata:
 # ## this is a long one!
 # print(slice_eckers_metadata('SubType', 'IT-L4 Shc3'))
 
+
 rule download_ecker:
     conda:
         "../envs/yamet.yml"
     input:
-        meta = op.join('ecker_data', 'MOp_Metadata.tsv.gz')
+        meta=op.join("ecker_data", "MOp_Metadata.tsv.gz"),
     output:
-        raw_urls = temp(op.join('ecker_data', 'raw_urls')),
-        urls = op.join('ecker_data', 'urls'),
-        flag = op.join('ecker_data', 'downloaded_ecker.flag')
-        
+        raw_urls=temp(op.join("ecker_data", "raw_urls")),
+        urls=op.join("ecker_data", "urls"),
+        flag=op.join("ecker_data", "downloaded_ecker.flag"),
     params:
-        base_url = "https://data.nemoarchive.org/biccn/grant/u19_cemba/cemba/epigenome/sncell/mCseq/mouse/processed/counts/",
-        path = 'ecker_data/'
-    threads:
-        2
+        base_url="https://data.nemoarchive.org/biccn/grant/u19_cemba/cemba/epigenome/sncell/mCseq/mouse/processed/counts/",
+        path="ecker_data/",
+    threads: 2
     shell:
         """
         zcat {input.meta} | cut -f2 | grep -v AllcPath > {output.raw_urls}

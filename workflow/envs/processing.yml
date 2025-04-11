@@ -1,0 +1,11 @@
+name: processing
+channels:
+  - defaults
+  - conda-forge
+  - bioconda
+dependencies:
+  - mysql
+  - wget
+  - bedtools
+  - entrez-direct
+  - ucsc-fasize
