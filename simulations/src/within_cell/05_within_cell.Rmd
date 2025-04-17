@@ -16,11 +16,12 @@ suppressPackageStartupMessages({
 ```
 
 ```{r}
+samples <- snakemake@params[["samples"]]
 N <- snakemake@params[["N"]]
 f <- snakemake@params[["f"]]
 data_dir <- dirname(snakemake@input[["det_out"]])
 intervals <- read.table(
-  paste(data_dir, "/intervals.", N, ".", f, ".tsv", sep = ""),
+  paste0(data_dir, paste("/intervals", N, f, "tsv", sep = ".")), ,
   col.names = c("chr2", "start2", "end2", "rho", "prob.0"),
   header = F
 )
@@ -44,7 +45,7 @@ jnt.long <- do.call(rbind, lapply(output_cols, function(col) {
 
 
 meth <- read.table(
-  paste(data_dir, "/yamet.", N, ".", f, ".meth.out", sep = ""),
+  paste0(data_dir, paste("/yamet", samples, N, f, "meth.out", sep = ".")),
   header = TRUE
 )
 meth.long <- do.call(rbind, lapply(output_cols, function(col) {

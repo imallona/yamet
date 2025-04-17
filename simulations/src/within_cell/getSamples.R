@@ -4,7 +4,7 @@ suppressPackageStartupMessages({
 
 options(scipen = 999)
 
-samples <- as.integer(snakemake@params[["samples"]])
+samples <- as.integer(snakemake@wildcards[["samples"]])
 data_dir <- snakemake@params[["data"]]
 
 template <- read.table(snakemake@input[[1]],
@@ -45,7 +45,7 @@ genSamp <- function(sample, template) {
   }))
   write.table(
     result[, c("chr", "pos", "meth", "total", "beta")],
-    paste(data_dir, "/sim.", N, ".", f, ".", sample, ".tsv", sep = ""),
+    paste0(data_dir, paste("/sim", sample, samples, N, f, "tsv", sep = ".")),
     sep = "\t", row.names = FALSE, col.names = FALSE, quote = FALSE
   )
 }

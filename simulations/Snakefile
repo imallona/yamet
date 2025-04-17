@@ -226,9 +226,8 @@ rule within_cell_samples:
     input:
         "output/within_cell/intervals.{N}.{f}.tsv",
     output:
-        touch("output/within_cell/{N}.{f}.flag"),
+        touch("output/within_cell/{samples}.{N}.{f}.flag"),
     params:
-        samples=50,
         data="output/within_cell",
     script:
         "src/within_cell/getSamples.R"
@@ -238,33 +237,36 @@ rule within_cell_yamet:
     conda:
         "envs/yamet.yaml"
     input:
-        "output/within_cell/{N}.{f}.flag",
+        "output/within_cell/{samples}.{N}.{f}.flag",
         yamet=op.join("build", "yamet"),
     output:
-        det_out="output/within_cell/yamet.{N}.{f}.det.out",
+        det_out="output/within_cell/yamet.{samples}.{N}.{f}.det.out",
     params:
         data="output/within_cell",
     threads: 3
     shell:
         """
-          {input.yamet} --cell {params.data}/sim.*.tsv \
+          {input.yamet} --cell {params.data}/sim.*.{wildcards.samples}.{wildcards.N}.{wildcards.f}.tsv \
                         --reference {params.data}/ref.{wildcards.N}.{wildcards.f}.tsv \
                         --intervals {params.data}/intervals.{wildcards.N}.{wildcards.f}.tsv \
                         --det-out {output.det_out} \
-                        --meth-out {params.data}/yamet.{wildcards.N}.{wildcards.f}.meth.out \
+                        --meth-out {params.data}/yamet.{wildcards.samples}.{wildcards.N}.{wildcards.f}.meth.out \
                         --cores {threads} \
                         --print-sampens F
         """
 
 
+# specify the input yamet file with the specifications needed in the form
+# yamet.{number of samples}.{number of features}.{length of each feature}.det.out
 rule within_cell_plots:
     conda:
         "envs/r_plot.yaml"
     input:
-        det_out="output/within_cell/yamet.200.100.det.out",
+        det_out="output/within_cell/yamet.50.200.100.det.out",
     params:
-        N=lambda wildcards, input: input.det_out.split(".")[1],
-        f=lambda wildcards, input: input.det_out.split(".")[2],
+        samples=lambda wildcards, input: input.det_out.split(".")[1],
+        N=lambda wildcards, input: input.det_out.split(".")[2],
+        f=lambda wildcards, input: input.det_out.split(".")[3],
     output:
         html="output/05_within_cell.html",
     script:
