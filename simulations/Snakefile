@@ -271,6 +271,66 @@ rule within_cell_plots:
         "src/within_cell/05_within_cell.Rmd"
 
 
+rule between_cell_old_template:
+    conda:
+        "envs/r_sim.yaml"
+    output:
+        "output/between_cell_old/intervals.{N}.{f}.tsv",
+    script:
+        "src/between_cell_old/createTemplate.R"
+
+
+rule between_cell_old_samples:
+    conda:
+        "envs/r_sim.yaml"
+    input:
+        "output/between_cell_old/intervals.{N}.{f}.tsv",
+    output:
+        touch("output/between_cell_old/{N}.{f}.flag"),
+    params:
+        samples=50,
+        data="output/between_cell_old",
+    script:
+        "src/between_cell_old/getSamples.R"
+
+
+rule between_cell_old_yamet:
+    conda:
+        "envs/yamet.yaml"
+    input:
+        "output/between_cell_old/{N}.{f}.flag",
+        yamet=op.join("build", "yamet"),
+    output:
+        det_out="output/between_cell_old/yamet.{N}.{f}.det.out",
+    params:
+        data="output/between_cell_old",
+    threads: 3
+    shell:
+        """
+          {input.yamet} --cell {params.data}/sim.*.tsv \
+                        --reference {params.data}/ref.{wildcards.N}.{wildcards.f}.tsv \
+                        --intervals {params.data}/intervals.{wildcards.N}.{wildcards.f}.tsv \
+                        --det-out {output.det_out} \
+                        --meth-out {params.data}/yamet.{wildcards.N}.{wildcards.f}.meth.out \
+                        --cores {threads} \
+                        --print-sampens F
+        """
+
+
+rule between_cell_old_plots:
+    conda:
+        "envs/r_plot.yaml"
+    input:
+        det_out="output/between_cell_old/yamet.200.100.det.out",
+    params:
+        N=lambda wildcards, input: input.det_out.split(".")[1],
+        f=lambda wildcards, input: input.det_out.split(".")[2],
+    output:
+        html="output/between_cell_old.html",
+    script:
+        "src/between_cell_old/between_cell_old.Rmd"
+
+
 rule between_cell_template:
     conda:
         "envs/r_sim.yaml"
@@ -286,9 +346,8 @@ rule between_cell_samples:
     input:
         "output/between_cell/intervals.{N}.{f}.tsv",
     output:
-        touch("output/between_cell/{N}.{f}.flag"),
+        touch("output/between_cell/{samples}.{N}.{f}.flag"),
     params:
-        samples=50,
         data="output/between_cell",
     script:
         "src/between_cell/getSamples.R"
@@ -298,33 +357,36 @@ rule between_cell_yamet:
     conda:
         "envs/yamet.yaml"
     input:
-        "output/between_cell/{N}.{f}.flag",
+        "output/between_cell/{samples}.{N}.{f}.flag",
         yamet=op.join("build", "yamet"),
     output:
-        det_out="output/between_cell/yamet.{N}.{f}.det.out",
+        det_out="output/between_cell/yamet.{samples}.{N}.{f}.det.out",
     params:
         data="output/between_cell",
     threads: 3
     shell:
         """
-          {input.yamet} --cell {params.data}/sim.*.tsv \
+          {input.yamet} --cell {params.data}/sim.*.{wildcards.samples}.{wildcards.N}.{wildcards.f}.tsv \
                         --reference {params.data}/ref.{wildcards.N}.{wildcards.f}.tsv \
                         --intervals {params.data}/intervals.{wildcards.N}.{wildcards.f}.tsv \
                         --det-out {output.det_out} \
-                        --meth-out {params.data}/yamet.{wildcards.N}.{wildcards.f}.meth.out \
+                        --meth-out {params.data}/yamet.{wildcards.samples}.{wildcards.N}.{wildcards.f}.meth.out \
                         --cores {threads} \
                         --print-sampens F
         """
 
 
+# specify the input yamet file with the specifications needed in the form
+# yamet.{number of samples}.{number of features}.{length of each feature}.det.out
 rule between_cell_plots:
     conda:
         "envs/r_plot.yaml"
     input:
-        det_out="output/between_cell/yamet.200.100.det.out",
+        det_out="output/between_cell/yamet.300.200.100.det.out",
     params:
-        N=lambda wildcards, input: input.det_out.split(".")[1],
-        f=lambda wildcards, input: input.det_out.split(".")[2],
+        samples=lambda wildcards, input: input.det_out.split(".")[1],
+        N=lambda wildcards, input: input.det_out.split(".")[2],
+        f=lambda wildcards, input: input.det_out.split(".")[3],
     output:
         html="output/06_between_cell.html",
     script:
