@@ -1,30 +1,34 @@
+suppressPackageStartupMessages({
+  library(markovchain)
+})
+
 options(scipen = 999)
 
 samples <- as.integer(snakemake@wildcards[["samples"]])
-N <- as.integer(snakemake@wildcards[["N"]])
-f <- as.integer(snakemake@wildcards[["f"]])
-
-stopifnot(f %% 8 == 1)
-
 data_dir <- snakemake@params[["data"]]
 
 template <- read.table(snakemake@input[[1]],
   sep = "\t",
-  col.names = c("chr", "start", "end", "het", "snip_pos"),
-  stringsAsFactors = F
+  col.names = c("chr", "start", "end", "rho", "prob.0"),
 )
-template$snip_pos <- lapply(strsplit(template$snip_pos, ";"), as.numeric)
+N <- nrow(template)
+f <- template$end[1] - template$start[1]
 
 set.seed(42)
 
-chain_gen <- function(n, snip_pos) {
-  snips.length <- (n - 1) / 8
-  chain <- c(rep("0011", snips.length), rep("0110", snips.length))
-  chain[snip_pos] <- sample(chain[snip_pos])
-  chain <- as.integer(unlist(strsplit(chain, split = "")))
-  chain <- c(chain, 0)
+mcgen <- function(n, rho, prob.0) {
+  tm <- matrix(c(
+    rho, 1 - rho,
+    1 - rho, rho
+  ), nrow = 2, byrow = T)
 
-  return(chain)
+  mc <- new("markovchain",
+    states = c("0", "1"),
+    transitionMatrix = tm
+  )
+  return(as.integer(
+    rmarkovchain(n, mc, t0 = sample(c("0", "1"), 1, replace = T, prob = c(prob.0, 1 - prob.0)))
+  ))
 }
 
 genSamp <- function(sample, template) {
@@ -35,7 +39,7 @@ genSamp <- function(sample, template) {
       pos = seq(row$start, by = 1, length.out = row$end - row$start),
       total = rep(1, row$end - row$start)
     )
-    chain$beta <- chain_gen(row$end - row$start, row$snip_pos[[1]])
+    chain$beta <- mcgen(row$end - row$start, row$rho, row$prob.0)
     chain$meth <- chain$beta
     return(chain)
   }))

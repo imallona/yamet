@@ -1,3 +1,6 @@
 # Within Cell Differentiation
 
-This section focuses on the ability of sample entropy to distinguish between features generated from markov chains with the imrCons structure with different values of rho. We have 10 equally spaced values of rho and we sample `N` features, each of length `f` to create a template. We then sample from this template multiple times to simulate cell samples. Each feature has a starting distribution for the markov chain that is shared across samples.
+This section focuses on a simulation setup that isolates within-cell sequence entropy from across-cell entropy.
+We begin with two sequence templates and generate an equal number of copies of each, arranged sequentially by group.
+Each feature is assigned a heterogeneity score, which governs the degree of shuffling - highly heterogeneous features undergo greater shuffling of copies within the feature, while less heterogeneous features experience minimal rearrangement.
+This controlled shuffling preserves the shannon entropy but modulates the sequence regularity.

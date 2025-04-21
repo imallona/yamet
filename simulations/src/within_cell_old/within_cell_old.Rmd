@@ -1,5 +1,5 @@
 ---
-title: "Within Cell Variability as a function of het"
+title: "Within Cell Variability as a function of rho"
 author: "Atreya Choudhury"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output:
@@ -22,7 +22,7 @@ f <- snakemake@params[["f"]]
 data_dir <- dirname(snakemake@input[["det_out"]])
 intervals <- read.table(
   paste0(data_dir, paste("/intervals", N, f, "tsv", sep = ".")), ,
-  col.names = c("chr2", "start2", "end2", "het", "snip_pos"),
+  col.names = c("chr2", "start2", "end2", "rho", "prob.0"),
   header = F
 )
 sampens <- read.table(
@@ -39,7 +39,7 @@ jnt.long <- do.call(rbind, lapply(output_cols, function(col) {
     sampen = jnt[[col]],
     shannon = jnt$shannon,
     avg_meth = jnt$avg_meth,
-    het = jnt$het
+    rho = jnt$rho
   )
 }))
 
@@ -56,45 +56,45 @@ meth.long <- do.call(rbind, lapply(output_cols, function(col) {
 
 all.long <- cbind(jnt.long, meth.long)
 
-ggplot(all.long, aes(x = meth, y = sampen, color = het)) +
+ggplot(all.long, aes(x = meth, y = sampen, color = rho)) +
   geom_point(alpha = 0.7) +
   theme_minimal() +
   labs(
-    title = "Sample Entropy in different het values",
-    x = "Average Methylation", y = "Sample Entropy", color = "het"
+    title = "Sample Entropy in different rho values",
+    x = "Average Methylation", y = "Sample Entropy", color = "rho"
   )
 
-ggplot(all.long, aes(x = as.factor(het), y = sampen)) +
+ggplot(all.long, aes(x = as.factor(sprintf("%.2f", rho)), y = sampen, color = meth)) +
   geom_point(alpha = 0.7, position = position_jitter(width = 0.2)) +
-  geom_violin(alpha = 0.3, position = position_dodge(0.8)) +
+  geom_violin(alpha = 0.3, aes(fill = meth), position = position_dodge(0.8)) +
   theme_minimal() +
   labs(
-    title = "Sample Entropy in different het values",
-    x = "het", y = "Sample Entropy"
+    title = "Sample Entropy in different rho values",
+    x = "rho", y = "Sample Entropy", color = "meth"
   ) +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
 
-ggplot(jnt, aes(x = avg_meth, y = shannon, color = het)) +
+ggplot(jnt, aes(x = avg_meth, y = shannon, color = rho)) +
   geom_point(alpha = 0.7) +
   theme_minimal() +
   labs(
-    title = "Shannon Entropy in different het values (per cell)",
-    x = "Average Methylation", y = "Shannon Entropy", color = "het"
+    title = "Shannon Entropy in different rho values (per cell)",
+    x = "Average Methylation", y = "Shannon Entropy", color = "rho"
   )
 
-ggplot(jnt, aes(x = het, y = shannon, color = avg_meth)) +
+ggplot(jnt, aes(x = rho, y = shannon, color = avg_meth)) +
   geom_point(alpha = 0.7) +
   theme_minimal() +
   labs(
-    title = "Shannon Entropy in different het values (per cell)",
-    x = "het", y = "Shannon Entropy", color = "meth"
+    title = "Shannon Entropy in different rho values (per cell)",
+    x = "rho", y = "Shannon Entropy", color = "meth"
   )
 
-ggplot(all.long, aes(x = shannon, y = sampen, color = het)) +
+ggplot(all.long, aes(x = shannon, y = sampen, color = rho)) +
   geom_point(alpha = 0.7) +
   theme_minimal() +
   labs(
-    title = "Sample Entropy in different het values",
-    x = "Shannon Entropy", y = "Sample Entropy", color = "het"
+    title = "Sample Entropy in different rho values",
+    x = "Shannon Entropy", y = "Sample Entropy", color = "rho"
   )
 ```
