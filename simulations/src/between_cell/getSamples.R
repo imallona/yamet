@@ -3,6 +3,7 @@ suppressPackageStartupMessages({
 })
 
 options(scipen = 999)
+set.seed(42)
 
 samples <- as.integer(snakemake@wildcards[["samples"]])
 data_dir <- snakemake@params[["data"]]
@@ -14,7 +15,6 @@ template <- read.table(snakemake@input[[1]],
 N <- nrow(template)
 f <- template$end[1] - template$start[1]
 
-set.seed(42)
 cells.setup <- t(
   sapply(template$het, function(x) sample(seq(0.1, 0.9, length.out = 10)[1:x], samples, replace = TRUE))
 )

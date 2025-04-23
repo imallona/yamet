@@ -12,7 +12,10 @@ output:
 ```{r, setup}
 suppressPackageStartupMessages({
   library(ggplot2)
+  library(data.table)
+  library(scMET)
 })
+source("src/mi_table.R")
 ```
 
 ```{r}
@@ -96,4 +99,36 @@ ggplot(all.long, aes(x = shannon, y = sampen, color = het)) +
     title = "Sample Entropy in different het values",
     x = "Shannon Entropy", y = "Sample Entropy", color = "het"
   )
+```
+
+```{r}
+all.long <- as.data.table(all.long)
+scmet_Y <- all.long[, .(
+  Feature = paste0(start, ":", end),
+  Cell = sample,
+  total_reads = end - start,
+  met_reads = round(meth * (end - start))
+)]
+scmet_fit <- suppressWarnings(
+  scmet(Y = scmet_Y, L = 4, iter = 10000, n_cores = snakemake@threads, seed = 42)
+)
+scmet_fit$posterior$epsilon_avg <- colMeans(scmet_fit$posterior$epsilon)
+scmet_fit$posterior$gamma_avg <- colMeans(scmet_fit$posterior$gamma)
+scmet_fit$posterior$mu_avg <- colMeans(scmet_fit$posterior$mu)
+```
+
+```{r}
+scmet_plot_mean_var(
+  obj = scmet_fit, y = "gamma",
+  task = NULL, show_fit = TRUE
+)
+scmet_plot_mean_var(
+  obj = scmet_fit, y = "epsilon",
+  task = NULL, show_fit = TRUE
+)
+```
+
+```{r}
+jnt$sampen_avg <- rowMeans(jnt[, output_cols])
+mi_table_gen(jnt, scmet_fit, jnt$het)
 ```

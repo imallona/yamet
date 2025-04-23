@@ -13,10 +13,9 @@ output:
 suppressPackageStartupMessages({
   library(ggplot2)
   library(data.table)
-  library(infotheo)
   library(scMET)
-  library(knitr)
 })
+source("src/mi_table.R")
 ```
 
 ```{r}
@@ -117,6 +116,7 @@ scmet_fit <- suppressWarnings(
 )
 scmet_fit$posterior$epsilon_avg <- colMeans(scmet_fit$posterior$epsilon)
 scmet_fit$posterior$gamma_avg <- colMeans(scmet_fit$posterior$gamma)
+scmet_fit$posterior$mu_avg <- colMeans(scmet_fit$posterior$mu)
 ```
 
 ```{r}
@@ -132,24 +132,5 @@ scmet_plot_mean_var(
 
 ```{r}
 jnt$sampen_avg <- rowMeans(jnt[, output_cols])
-mi_sampen <- mutinformation(discretize(jnt$sampen_avg), as.factor(jnt$rho)) /
-  sqrt(entropy(discretize(jnt$sampen_avg)) * entropy(as.factor(jnt$rho)))
-mi_shannon <- mutinformation(discretize(jnt$shannon), as.factor(jnt$rho)) /
-  sqrt(entropy(discretize(jnt$shannon)) * entropy(as.factor(jnt$rho)))
-mi_gamma <- mutinformation(discretize(scmet_fit$posterior$gamma_avg), as.factor(jnt$rho)) /
-  sqrt(entropy(discretize(scmet_fit$posterior$gamma_avg)) * entropy(as.factor(jnt$rho)))
-mi_epsilon <- mutinformation(discretize(scmet_fit$posterior$epsilon_avg), as.factor(jnt$rho)) /
-  sqrt(entropy(discretize(scmet_fit$posterior$epsilon_avg)) * entropy(as.factor(jnt$rho)))
-
-mi_results <- data.frame(
-  Metric = c("Sample Entropy", "Shannon Entropy", "scMET (gamma)", "scMET (epsilon)"),
-  `Normalised Mutual Information` = c(mi_sampen, mi_shannon, mi_gamma, mi_epsilon),
-  check.names = FALSE
-)
-
-kable(mi_results,
-  caption = "Normalized Mutual Information with True Heterogeneity Index",
-  digits = 4,
-  align = c("l", "r")
-)
+mi_table_gen(jnt, scmet_fit, as.factor(jnt$rho))
 ```
