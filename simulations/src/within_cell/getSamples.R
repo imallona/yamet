@@ -1,8 +1,9 @@
 options(scipen = 999)
 
-samples <- as.integer(snakemake@wildcards[["samples"]])
-N <- as.integer(snakemake@wildcards[["N"]])
+samp <- as.integer(snakemake@wildcards[["sample"]])
 f <- as.integer(snakemake@wildcards[["f"]])
+
+set.seed(42 + samp)
 
 stopifnot(f %% 8 == 1)
 
@@ -15,37 +16,33 @@ template <- read.table(snakemake@input[[1]],
 )
 template$snip_pos <- lapply(strsplit(template$snip_pos, ";"), as.numeric)
 
-set.seed(42)
-
-chain_gen <- function(n, snip_pos) {
+chain_gen <- function(n, snip_pos, het) {
   snips.length <- (n - 1) / 8
   chain <- c(rep("0011", snips.length), rep("0110", snips.length))
   chain[snip_pos] <- sample(chain[snip_pos])
   chain <- as.integer(unlist(strsplit(chain, split = "")))
   chain <- c(chain, 0)
 
+  flip_num <- ceiling(30 * length(chain) / 100)
+  flip_indices <- sample(seq_len(length(chain)), flip_num)
+  chain[flip_indices] <- 0
+
   return(chain)
 }
 
-genSamp <- function(sample, template) {
-  result <- do.call(rbind, lapply(seq_len(nrow(template)), function(i) {
-    row <- as.list(template[i, ])
-    chain <- data.frame(
-      chr = rep(row$chr, row$end - row$start),
-      pos = seq(row$start, by = 1, length.out = row$end - row$start),
-      total = rep(1, row$end - row$start)
-    )
-    chain$beta <- chain_gen(row$end - row$start, row$snip_pos[[1]])
-    chain$meth <- chain$beta
-    return(chain)
-  }))
-  write.table(
-    result[, c("chr", "pos", "meth", "total", "beta")],
-    paste0(data_dir, paste("/sim", sample, samples, N, f, "tsv", sep = ".")),
-    sep = "\t", row.names = FALSE, col.names = FALSE, quote = FALSE
+result <- do.call(rbind, lapply(seq_len(nrow(template)), function(i) {
+  row <- as.list(template[i, ])
+  chain <- data.frame(
+    chr = rep(row$chr, row$end - row$start),
+    pos = seq(row$start, by = 1, length.out = row$end - row$start),
+    total = rep(1, row$end - row$start)
   )
-}
-
-for (sample in seq_len(samples)) {
-  genSamp(sample, template)
-}
+  chain$beta <- chain_gen(row$end - row$start, row$snip_pos[[1]], row$het)
+  chain$meth <- chain$beta
+  return(chain)
+}))
+write.table(
+  result[, c("chr", "pos", "meth", "total", "beta")],
+  snakemake@output[[1]],
+  sep = "\t", row.names = FALSE, col.names = FALSE, quote = FALSE
+)

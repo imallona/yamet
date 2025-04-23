@@ -1,4 +1,5 @@
 options(scipen = 999)
+set.seed(42)
 
 features.N <- as.integer(snakemake@wildcards[["N"]])
 features.length <- as.integer(snakemake@wildcards[["f"]])

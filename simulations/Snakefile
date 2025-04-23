@@ -226,7 +226,7 @@ rule within_cell_samples:
     input:
         "output/within_cell/intervals.{N}.{f}.tsv",
     output:
-        touch("output/within_cell/{samples}.{N}.{f}.flag"),
+        "output/within_cell/sim.{sample}.{samples}.{N}.{f}.tsv",
     params:
         data="output/within_cell",
     script:
@@ -237,16 +237,19 @@ rule within_cell_yamet:
     conda:
         "envs/yamet.yaml"
     input:
-        "output/within_cell/{samples}.{N}.{f}.flag",
+        cells=lambda wildcards: expand(
+            "output/within_cell/sim.{sample}.{{samples}}.{{N}}.{{f}}.tsv",
+            sample=range(1, int(wildcards.samples) + 1),
+        ),
         yamet=op.join("build", "yamet"),
     output:
         det_out="output/within_cell/yamet.{samples}.{N}.{f}.det.out",
     params:
         data="output/within_cell",
-    threads: 3
+    threads: 4
     shell:
         """
-          {input.yamet} --cell {params.data}/sim.*.{wildcards.samples}.{wildcards.N}.{wildcards.f}.tsv \
+          {input.yamet} --cell {input.cells} \
                         --reference {params.data}/ref.{wildcards.N}.{wildcards.f}.tsv \
                         --intervals {params.data}/intervals.{wildcards.N}.{wildcards.f}.tsv \
                         --det-out {output.det_out} \
@@ -262,11 +265,12 @@ rule within_cell_plots:
     conda:
         "envs/r_plot.yaml"
     input:
-        det_out="output/within_cell/yamet.20.100.5121.det.out",
+        det_out="output/within_cell/yamet.100.300.5121.det.out",
     params:
         samples=lambda wildcards, input: input.det_out.split(".")[1],
         N=lambda wildcards, input: input.det_out.split(".")[2],
         f=lambda wildcards, input: input.det_out.split(".")[3],
+    threads: 4
     output:
         html="output/05_within_cell.html",
     script:
@@ -305,7 +309,7 @@ rule within_cell_old_yamet:
         det_out="output/within_cell_old/yamet.{samples}.{N}.{f}.det.out",
     params:
         data="output/within_cell_old",
-    threads: 3
+    threads: 4
     shell:
         """
           {input.yamet} --cell {params.data}/sim.*.{wildcards.samples}.{wildcards.N}.{wildcards.f}.tsv \
@@ -329,6 +333,7 @@ rule within_cell_old_plots:
         samples=lambda wildcards, input: input.det_out.split(".")[1],
         N=lambda wildcards, input: input.det_out.split(".")[2],
         f=lambda wildcards, input: input.det_out.split(".")[3],
+    threads: 4
     output:
         html="output/within_cell_old.html",
     script:
