@@ -6,8 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## Upcoming
 
-### [v1.1.0-rc.3](https://github.com/imallona/yamet/releases/tag/v1.1.0-rc.3)
+### Added
 
+- [method] Default values for some of the less important arguments in user-exposed functions in the yamet library
+
+### Fixed
+
+- [method] k-mer shannon entropy log base changed from $e$ to $2k$ to squeeze output to $[0,\;1]$
+
+## [v1.1.0-rc.3](https://github.com/imallona/yamet/releases/tag/v1.1.0-rc.3)
+
+### Added
 
 - [method] Added error capturing (incorrect line parsing)
 - [method] Added `--skip-header`, `--skip-header-cell`, `--skip-header-reference` and `--skip-header-intervals` flags for skipping headers in files at various levels of granularity
