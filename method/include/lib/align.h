@@ -10,5 +10,6 @@ void    alignSingleWithRef(const std::string &filename, const Reference &ref, co
                            const unsigned int skip_header, const unsigned int chunk_size,
                            FileMap &fileMap);
 FileMap alignWithRef(const std::vector<std::string> &filenames, const Reference &ref,
-                     const unsigned int m, const unsigned int skip_header, unsigned int n_cores,
-                     unsigned int n_threads_per_core, const unsigned int chunk_size);
+                     const unsigned int m = 2, const unsigned int skip_header = 0,
+                     unsigned int n_cores = 1, unsigned int n_threads_per_core = 1,
+                     const unsigned int chunk_size = 64 * 1024);
