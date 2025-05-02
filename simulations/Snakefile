@@ -17,6 +17,9 @@ rule all:
     input:
         "output/02_coverage_plots.html",
         "output/03_yamet_plots.html",
+        "output/04_feat_diff.html",
+        "output/05_within_cell.html",
+        "output/06_between_cell.html",
 
 
 # every row in the parameter file is a parameterization of one simulation
@@ -261,6 +264,7 @@ rule within_cell_yamet:
 
 # specify the input yamet file with the specifications needed in the form
 # yamet.{number of samples}.{number of features}.{length of each feature}.det.out
+# the length of each feature here must be of the form 8n+1
 rule within_cell_plots:
     conda:
         "envs/r_plot.yaml"

@@ -1,5 +1,5 @@
 ---
-title: "Within Cell Variability as a function of het"
+title: "Within Cell Variability as a function of Variability Index"
 author: "Atreya Choudhury"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output:
@@ -8,6 +8,44 @@ output:
     number_sections: no
     fig_crop: yes
 ---
+
+## Strategy
+
+The goal is to generate features with various heterogeneity levels for the purpose of within cell differentiation.
+That means features should be differentiable, not by the heterogeneity between different samples, but by heterogeneity between individual lines.
+This means we want features to be differentiable in terms of their sample entropy but not their 2-mer shannon entropy.
+
+Consider the sequence $0011\; 0$.
+Notice that every 2-mer is seen exactly once.
+This can be generalised to longer sequences, say $0011\; 0011\; 0011\; 0$.
+Here, all the 2-mers have the same frequency.
+Similary, the sequence $0110\; 0$ has the same property.
+We will refer to these short sequences as snips.
+Putting these two together, observe the two sequences below.
+
+$$0011\; 0011\; 0110\; 0110\; 0$$
+$$0011\; 0110\; 0011\; 0110\; 0$$
+
+They both have the same distribution of 2-mers but differ in their sample entropy (the second one having higher sample entropy).
+This provides the basis of our simulation framework.
+For each feature, we start with a sequence where the first half is made up of $0011$s and the second is made up of $0110$s.
+For each feature, we pick a certain fraction of snips (equally from the two halves) in proportion to a true variability index.
+These snip positions differ between different features (even ones with the same variability index) but are the same for different samples within the same feature.
+The snips at the selected positions are then shuffled in the different samples.
+The idea is that features where a higher fraction of snips were shuffled exhibit higher sample entropy compared to those where a lower fraction of snips were shuffled.
+
+We start by creating a template for a cell.
+We have a fixed number of features, the length of each feature is taken to be the same and the number of simulated CpG sites is the same as well.
+Every feature is given a **Variability Index (VI)** between 1 and 10 and stored in the `vi` column.
+As described above we pick a fraction of snips in proportion to the feature's `vi`.
+This is stored in the `snip_pos` column.
+This template file can now be used for generating new samples and also for running `yamet` on the simulated data.
+
+With the template, we now generate samples as described above.
+For samples within the same feature, we shuffle the snips at the positions described in `snip_pos`.
+At this stage, observe that the all the features in all the samples are approximately $50\%$ methylated and that this value is the same for all the samples.
+To ensure that scMET is able to process this data, we introduce some more randomness.
+We pick $30\%$ of positions at random from each feature and each cell and set them to $0$.
 
 ```{r, setup}
 suppressPackageStartupMessages({
@@ -25,7 +63,7 @@ f <- snakemake@params[["f"]]
 data_dir <- dirname(snakemake@input[["det_out"]])
 intervals <- read.table(
   paste0(data_dir, paste("/intervals", N, f, "tsv", sep = ".")), ,
-  col.names = c("chr2", "start2", "end2", "het", "snip_pos"),
+  col.names = c("chr2", "start2", "end2", "vi", "snip_pos"),
   header = F
 )
 sampens <- read.table(
@@ -42,7 +80,7 @@ jnt.long <- do.call(rbind, lapply(output_cols, function(col) {
     sampen = jnt[[col]],
     shannon = jnt$shannon,
     avg_meth = jnt$avg_meth,
-    het = jnt$het
+    vi = jnt$vi
   )
 }))
 
@@ -59,46 +97,46 @@ meth.long <- do.call(rbind, lapply(output_cols, function(col) {
 
 all.long <- cbind(jnt.long, meth.long)
 
-ggplot(all.long, aes(x = meth, y = sampen, color = het)) +
+ggplot(all.long, aes(x = meth, y = sampen, color = vi)) +
   geom_point(alpha = 0.7) +
   theme_minimal() +
   labs(
-    title = "Sample Entropy in different het values",
-    x = "Average Methylation", y = "Sample Entropy", color = "het"
+    title = "Sample Entropy in different VI values",
+    x = "Average Methylation", y = "Sample Entropy", color = "VI"
   )
 
-ggplot(all.long, aes(x = as.factor(het), y = sampen)) +
+ggplot(all.long, aes(x = as.factor(vi), y = sampen)) +
   geom_point(alpha = 0.7, position = position_jitter(width = 0.2)) +
   geom_violin(alpha = 0.3, position = position_dodge(0.8)) +
   theme_minimal() +
   labs(
-    title = "Sample Entropy in different het values",
-    x = "het", y = "Sample Entropy"
+    title = "Sample Entropy in different VI values",
+    x = "VI", y = "Sample Entropy"
   ) +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
 
-ggplot(jnt, aes(x = avg_meth, y = shannon, color = het)) +
+ggplot(jnt, aes(x = avg_meth, y = shannon, color = vi)) +
   geom_point(alpha = 0.7) +
   theme_minimal() +
   labs(
-    title = "Shannon Entropy in different het values (per cell)",
-    x = "Average Methylation", y = "Shannon Entropy", color = "het"
+    title = "Shannon Entropy in different VI values (per feature)",
+    x = "Average Methylation", y = "Shannon Entropy", color = "VI"
   )
 
-ggplot(jnt, aes(x = het, y = shannon, color = avg_meth)) +
+ggplot(jnt, aes(x = vi, y = shannon, color = avg_meth)) +
   geom_point(alpha = 0.7) +
   theme_minimal() +
   labs(
-    title = "Shannon Entropy in different het values (per cell)",
-    x = "het", y = "Shannon Entropy", color = "meth"
+    title = "Shannon Entropy in different VI values (per feature)",
+    x = "VI", y = "Shannon Entropy", color = "meth"
   )
 
-ggplot(all.long, aes(x = shannon, y = sampen, color = het)) +
+ggplot(all.long, aes(x = shannon, y = sampen, color = vi)) +
   geom_point(alpha = 0.7) +
   theme_minimal() +
   labs(
-    title = "Sample Entropy in different het values",
-    x = "Shannon Entropy", y = "Sample Entropy", color = "het"
+    title = "Sample Entropy in different VI values",
+    x = "Shannon Entropy", y = "Sample Entropy", color = "VI"
   )
 ```
 
@@ -111,7 +149,7 @@ scmet_Y <- all.long[, .(
   met_reads = round(meth * (end - start))
 )]
 scmet_fit <- suppressWarnings(
-  scmet(Y = scmet_Y, L = 4, iter = 2000, n_cores = snakemake@threads, seed = 42)
+  scmet(Y = scmet_Y, L = 4, iter = 200, n_cores = snakemake@threads, seed = 42)
 )
 scmet_fit$posterior$epsilon_avg <- colMeans(scmet_fit$posterior$epsilon)
 scmet_fit$posterior$gamma_avg <- colMeans(scmet_fit$posterior$gamma)
@@ -131,5 +169,5 @@ scmet_plot_mean_var(
 
 ```{r}
 jnt$sampen_avg <- rowMeans(jnt[, output_cols])
-mi_table_gen(jnt, scmet_fit, jnt$het)
+mi_table_gen(jnt, scmet_fit, jnt$vi)
 ```
