@@ -72,5 +72,7 @@ rule get_mm10_genome_sizes:
         op.join("..", "envs", "processing.yml")
     output:
         op.join(MM10_BASE, "genome.sizes"),
+    params:
+        asm="mm10",
     script:
-        "src/download_mm10_genome_sizes.sh"
+        "src/download_genome_sizes.sh"

@@ -82,6 +82,7 @@ rule yamet_crc_cg:
     output:
         out=op.join(CRC_YAMET, "{subcat}.{cat}.{patient}.{stage}.out"),
         det_out=op.join(CRC_YAMET, "{subcat}.{cat}.{patient}.{stage}.det.out"),
+        meth_out=op.join(CRC_YAMET, "{subcat}.{cat}.{patient}.{stage}.meth.out"),
     group:
         "yamet"
     threads: 16
@@ -111,6 +112,7 @@ CAT_MAP = {
     ],
     "chip": ["H3K27me3", "H3K9me3", "H3K4me3"],
     "lad": ["laminb1"],
+    "custom": ["bookended"],
 }
 STAGES = ["NC", "PT"]
 PATIENTS = ["CRC01", "CRC02", "CRC04", "CRC10", "CRC11", "CRC13", "CRC15"]
