@@ -120,6 +120,7 @@ void FileMap::exportDetOut(const std::string &out, const std::vector<std::string
                 (((double)shan[k]) / ((double)total)) * log(((double)shan[k]) / ((double)total));
           }
         }
+        shannon /= log(shan.size());
       }
       outStream << shannon << "\t";
       /// print average methylation at that region
