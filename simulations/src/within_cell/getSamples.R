@@ -1,3 +1,16 @@
+#' Generates one sample using a template generated in createTemplate.R
+#'
+#' Inputs (via Snakemake wildcards):
+#'   - N: Number of feature regions
+#'   - f: Length of each feature region (must satisfy f %% 8 == 1)
+#'
+#' It generates a tab-delimited output file:
+#'   - A cell sample file with chromosome, genomic position,
+#'     methylated reads, total reads and methylation rate
+#'
+#' @author Atreya Choudhury
+#' @date 2025-04-21
+
 options(scipen = 999)
 
 samp <- as.integer(snakemake@wildcards[["sample"]])
@@ -16,13 +29,16 @@ template <- read.table(snakemake@input[[1]],
 )
 template$snip_pos <- lapply(strsplit(template$snip_pos, ";"), as.numeric)
 
-chain_gen <- function(n, snip_pos, het) {
+chain_gen <- function(n, snip_pos) {
   snips.length <- (n - 1) / 8
   chain <- c(rep("0011", snips.length), rep("0110", snips.length))
+  # shuffle snips according to snip_pos
   chain[snip_pos] <- sample(chain[snip_pos])
+  # flatten out snips sequence
   chain <- as.integer(unlist(strsplit(chain, split = "")))
   chain <- c(chain, 0)
 
+  # set 30% of positions in a region to 0
   flip_num <- ceiling(30 * length(chain) / 100)
   flip_indices <- sample(seq_len(length(chain)), flip_num)
   chain[flip_indices] <- 0
@@ -37,7 +53,7 @@ result <- do.call(rbind, lapply(seq_len(nrow(template)), function(i) {
     pos = seq(row$start, by = 1, length.out = row$end - row$start),
     total = rep(1, row$end - row$start)
   )
-  chain$beta <- chain_gen(row$end - row$start, row$snip_pos[[1]], row$het)
+  chain$beta <- chain_gen(row$end - row$start, row$snip_pos[[1]])
   chain$meth <- chain$beta
   return(chain)
 }))

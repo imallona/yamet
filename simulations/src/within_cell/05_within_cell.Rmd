@@ -149,7 +149,7 @@ scmet_Y <- all.long[, .(
   met_reads = round(meth * (end - start))
 )]
 scmet_fit <- suppressWarnings(
-  scmet(Y = scmet_Y, L = 4, iter = 200, n_cores = snakemake@threads, seed = 42)
+  scmet(Y = scmet_Y, L = 4, iter = 2000, n_cores = snakemake@threads, seed = 42)
 )
 scmet_fit$posterior$epsilon_avg <- colMeans(scmet_fit$posterior$epsilon)
 scmet_fit$posterior$gamma_avg <- colMeans(scmet_fit$posterior$gamma)
