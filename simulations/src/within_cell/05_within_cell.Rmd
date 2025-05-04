@@ -50,7 +50,6 @@ We pick $30\%$ of positions at random from each feature and each cell and set th
 ```{r, setup}
 suppressPackageStartupMessages({
   library(ggplot2)
-  library(data.table)
   library(scMET)
 })
 source("src/mi_table.R")
@@ -60,14 +59,15 @@ source("src/mi_table.R")
 samples <- snakemake@params[["samples"]]
 N <- snakemake@params[["N"]]
 f <- snakemake@params[["f"]]
-data_dir <- dirname(snakemake@input[["det_out"]])
+data_dir <- dirname(snakemake@input[[1]])
+
 intervals <- read.table(
-  paste0(data_dir, paste("/intervals", N, f, "tsv", sep = ".")), ,
+  paste0(data_dir, paste("/intervals", N, f, "tsv", sep = ".")),
   col.names = c("chr2", "start2", "end2", "vi", "snip_pos"),
   header = F
 )
 sampens <- read.table(
-  snakemake@input[["det_out"]],
+  paste0(data_dir, paste("/yamet", samples, N, f, "det.out", sep = ".")),
   header = T
 )
 jnt <- cbind(sampens, intervals)
@@ -141,16 +141,7 @@ ggplot(all.long, aes(x = shannon, y = sampen, color = vi)) +
 ```
 
 ```{r}
-all.long <- as.data.table(all.long)
-scmet_Y <- all.long[, .(
-  Feature = paste0(start, ":", end),
-  Cell = sample,
-  total_reads = end - start,
-  met_reads = round(meth * (end - start))
-)]
-scmet_fit <- suppressWarnings(
-  scmet(Y = scmet_Y, L = 4, iter = 2000, n_cores = snakemake@threads, seed = 42)
-)
+scmet_fit <- readRDS(snakemake@input[[1]])
 scmet_fit$posterior$epsilon_avg <- colMeans(scmet_fit$posterior$epsilon)
 scmet_fit$posterior$gamma_avg <- colMeans(scmet_fit$posterior$gamma)
 scmet_fit$posterior$mu_avg <- colMeans(scmet_fit$posterior$mu)

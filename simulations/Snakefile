@@ -250,6 +250,8 @@ rule within_cell_yamet:
     params:
         data="output/within_cell",
     threads: 4
+    benchmark:
+        repeat("output/within_cell/yamet.{samples}.{N}.{f}.benchmark", 5)
     shell:
         """
           {input.yamet} --cell {input.cells} \
@@ -262,6 +264,20 @@ rule within_cell_yamet:
         """
 
 
+rule within_cell_scmet:
+    conda:
+        "envs/r_plot.yaml"
+    input:
+        "output/within_cell/yamet.{samples}.{N}.{f}.det.out",
+    output:
+        "output/within_cell/scmet.{samples}.{N}.{f}.rds",
+    threads: 4
+    benchmark:
+        repeat("output/within_cell/scmet.{samples}.{N}.{f}.benchmark", 5)
+    script:
+        "src/within_cell/scmet.R"
+
+
 # specify the input yamet file with the specifications needed in the form
 # yamet.{number of samples}.{number of features}.{length of each feature}.det.out
 # the length of each feature here must be of the form 8n+1
@@ -269,11 +285,11 @@ rule within_cell_plots:
     conda:
         "envs/r_plot.yaml"
     input:
-        det_out="output/within_cell/yamet.100.300.5121.det.out",
+        "output/within_cell/scmet.100.300.5121.rds",
     params:
-        samples=lambda wildcards, input: input.det_out.split(".")[1],
-        N=lambda wildcards, input: input.det_out.split(".")[2],
-        f=lambda wildcards, input: input.det_out.split(".")[3],
+        samples=lambda wildcards, input: input[0].split(".")[1],
+        N=lambda wildcards, input: input[0].split(".")[2],
+        f=lambda wildcards, input: input[0].split(".")[3],
     threads: 4
     output:
         html="output/05_within_cell.html",
