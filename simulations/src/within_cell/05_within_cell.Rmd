@@ -33,19 +33,29 @@ For each feature, we pick a certain fraction of snips (equally from the two halv
 These snip positions differ between different features (even ones with the same variability index) but are the same for different samples within the same feature.
 The snips at the selected positions are then shuffled in the different samples.
 The idea is that features where a higher fraction of snips were shuffled exhibit higher sample entropy compared to those where a lower fraction of snips were shuffled.
+We also add some stochastic methylation sampling from a beta-binomial distribution to control the level to which a feature in a particular sample is over/under-methylated.
 
 We start by creating a template for a cell.
 We have a fixed number of features, the length of each feature is taken to be the same and the number of simulated CpG sites is the same as well.
 Every feature is given a **Variability Index (VI)** between 1 and 10 and stored in the `vi` column.
 As described above we pick a fraction of snips in proportion to the feature's `vi`.
 This is stored in the `snip_pos` column.
+For every feature, we sample from a bernoulli distribution according to the number of samples indicating whether the sample will be over/under-methylated compared to the baseline.
+This is stored in the `higher` column.
+The extent to which each sample in each feature is over/under-methylated is sampled from a beta binomial model which is biased towards lower deviations.
+This difference is stored in the `delta` column.
 This template file can now be used for generating new samples and also for running `yamet` on the simulated data.
 
 With the template, we now generate samples as described above.
 For samples within the same feature, we shuffle the snips at the positions described in `snip_pos`.
 At this stage, observe that the all the features in all the samples are approximately $50\%$ methylated and that this value is the same for all the samples.
-To ensure that scMET is able to process this data, we introduce some more randomness.
-We pick $30\%$ of positions at random from each feature and each cell and set them to $0$.
+We would like to introduce some randomness to the average methylation level which is done using the data generated in the `higher` and `delta` column.
+For every sample in every feature, we sample $35\%$ of the snips.
+The value in the `higher` column at that sample-feature intersection tells us whether this sample should be over-methylated or under-methylated.
+From this sampled set of snips, we further subsample for two sets of snips such that the difference in their size is in proportion to the value in the `delta` column at that sample-feature intersection.
+Then, one set of these snips is changed to $1110$ while the other is changed to $0001$.
+This not only introduces the difference in methylation but also adds more regularity at higher/lower methylation, simulating the quadratic relationship between sample entropy and average methylation.
+
 
 ```{r, setup}
 suppressPackageStartupMessages({
@@ -53,6 +63,10 @@ suppressPackageStartupMessages({
   library(scMET)
 })
 source("src/mi_table.R")
+data_dir <- dirname(snakemake@input[["disp_scmet"]])
+S_GRID <- snakemake@params[["S_GRID"]]
+N_GRID <- snakemake@params[["N_GRID"]]
+DISP <- snakemake@params[["DISP"]]
 ```
 
 ## Variation
@@ -89,107 +103,103 @@ get_mi <- function(S, N, f) {
   mi_table <- mi_table_gen(jnt, scmet_fit, jnt$vi)
   return(mi_table)
 }
+
+make_grid_plots <- function(GRID, grid_var) {
+  bm_data <- do.call(
+    rbind,
+    lapply(get_combs(GRID), function(row) {
+      S <- row$S
+      N <- row$N
+      f <- row$f
+      do.call(rbind, lapply(c("yamet", "scmet"), function(mtd) {
+        transform(read.table(paste0(
+          data_dir, "/", paste(mtd, S, N, f, "benchmark", sep = ".")
+        ), header = T), mtd = mtd, S = S, N = N, f = f)
+      }))
+    })
+  )
+
+  mi_data <- do.call(
+    rbind,
+    lapply(get_combs(GRID), function(row) {
+      S <- row$S
+      N <- row$N
+      f <- row$f
+      transform(get_mi(S, N, f), S = S, N = N, f = f)
+    })
+  )
+
+  p <- ggplot(mi_data, aes(x = .data[[grid_var]], y = NMI, color = Metric, group = Metric)) +
+    scale_y_log10() +
+    geom_line(linewidth = 1.2) +
+    geom_point(size = 3) +
+    # scale_color_manual(values = c("yamet" = "#E69F00", "scmet" = "#56B4E9")) +
+    labs(
+      title = "NMI Comparison",
+      x = paste(grid_var, "(Parameter Value"), y = "NMI",
+      color = "Metric"
+    ) +
+    theme_minimal() +
+    theme(
+      legend.position = "right",
+      plot.title = element_text(hjust = 0.5),
+      panel.grid.minor = element_blank()
+    )
+  print(p)
+
+  p <- ggplot(bm_data, aes(x = .data[[grid_var]], y = s, color = mtd, group = mtd)) +
+    scale_y_log10() +
+    geom_point(size = 3, alpha = 0.7) +
+    stat_summary(fun = mean, geom = "line", linewidth = 1.2, aes(group = mtd)) +
+    scale_color_manual(values = c("yamet" = "#E69F00", "scmet" = "#56B4E9")) +
+    labs(
+      title = "Runtime Comparison: scmet vs yamet",
+      x = paste(grid_var, "(Parameter Value"), y = "seconds (log scale)",
+      color = "Method"
+    ) +
+    theme_minimal() +
+    theme(
+      legend.position = "top",
+      plot.title = element_text(hjust = 0.5),
+      panel.grid.minor = element_blank()
+    )
+  print(p)
+
+  p <- ggplot(bm_data, aes(x = .data[[grid_var]], y = max_rss, color = mtd, group = mtd)) +
+    scale_y_log10() +
+    geom_point(size = 3) +
+    stat_summary(fun = mean, geom = "line", linewidth = 1.2, aes(group = mtd)) +
+    scale_color_manual(values = c("yamet" = "#E69F00", "scmet" = "#56B4E9")) +
+    labs(
+      title = "Memory Comparison: scmet vs yamet",
+      x = paste(grid_var, "(Parameter Value"), y = "MB (log scale)",
+      color = "Method"
+    ) +
+    theme_minimal() +
+    theme(
+      legend.position = "top",
+      plot.title = element_text(hjust = 0.5),
+      panel.grid.minor = element_blank()
+    )
+  print(p)
+}
 ```
 
 ### with S
-
+For benchmarking against the number of samples, we used a grid with `r length(S_GRID$S)` sample sizes (S = `r paste(S_GRID$S, collapse = ", ")`), `r S_GRID$N` features where each feature has `r S_GRID$f` CpGs (all covered).
 ```{r}
-data_dir <- dirname(snakemake@input[["disp_scmet"]])
-S_GRID <- snakemake@params[["S_GRID"]]
+make_grid_plots(S_GRID, "S")
+```
 
-bm_data <- do.call(
-  rbind,
-  lapply(get_combs(S_GRID), function(row) {
-    S <- row$S
-    N <- row$N
-    f <- row$f
-    do.call(rbind, lapply(c("yamet", "scmet"), function(mtd) {
-      bm <- read.table(paste0(
-        data_dir, "/", paste(mtd, S, N, f, "benchmark", sep = ".")
-      ), header = T)
-      bm$mtd <- mtd
-      bm$S <- S
-      bm$N <- N
-      bm$f <- f
-      bm
-    }))
-  })
-)
-
-mi_data <- do.call(
-  rbind,
-  lapply(get_combs(S_GRID), function(row) {
-    S <- row$S
-    N <- row$N
-    f <- row$f
-    mi_table <- get_mi(S, N, f)
-    mi_table$S <- S
-    mi_table$N <- N
-    mi_table$f <- f
-    mi_table
-  })
-)
-
-ggplot(mi_data, aes(x = S, y = NMI, color = Metric, group = Metric)) +
-  scale_y_log10() +
-  geom_line(linewidth = 1.2) +
-  geom_point(size = 3) +
-  # scale_color_manual(values = c("yamet" = "#E69F00", "scmet" = "#56B4E9")) +
-  labs(
-    title = "NMI Comparison",
-    x = "S (Parameter Value)",
-    y = "NMI",
-    color = "Metric"
-  ) +
-  theme_minimal() +
-  theme(
-    legend.position = "right",
-    plot.title = element_text(hjust = 0.5),
-    panel.grid.minor = element_blank()
-  )
-
-
-ggplot(bm_data, aes(x = S, y = s, color = mtd, group = mtd)) +
-  scale_y_log10() +
-  geom_point(size = 3, alpha = 0.7) +
-  stat_summary(fun = mean, geom = "line", linewidth = 1.2, aes(group = mtd)) +
-  scale_color_manual(values = c("yamet" = "#E69F00", "scmet" = "#56B4E9")) +
-  labs(
-    title = "Runtime Comparison: scmet vs yamet",
-    x = "S (Parameter Value)",
-    y = "seconds (log scale)",
-    color = "Method"
-  ) +
-  theme_minimal() +
-  theme(
-    legend.position = "top",
-    plot.title = element_text(hjust = 0.5),
-    panel.grid.minor = element_blank()
-  )
-
-ggplot(bm_data, aes(x = S, y = max_rss, color = mtd, group = mtd)) +
-  scale_y_log10() +
-  geom_point(size = 3) +
-  stat_summary(fun = mean, geom = "line", linewidth = 1.2, aes(group = mtd)) +
-  scale_color_manual(values = c("yamet" = "#E69F00", "scmet" = "#56B4E9")) +
-  labs(
-    title = "Memory Comparison: scmet vs yamet",
-    x = "S (Parameter Value)",
-    y = "MB (log scale)",
-    color = "Method"
-  ) +
-  theme_minimal() +
-  theme(
-    legend.position = "top",
-    plot.title = element_text(hjust = 0.5),
-    panel.grid.minor = element_blank()
-  )
+### with N
+For benchmarking against the number of features, we used a grid with `r N_GRID$S` samples, `r length(N_GRID$N)` feature sizes (N = `r paste(N_GRID$N, collapse = ", ")`) where each feature has `r N_GRID$f` CpGs (all covered).
+```{r}
+make_grid_plots(N_GRID, "N")
 ```
 
 ## One Example
-
+We show one example with `r DISP$S` samples, `r DISP$N` features where each feature has `r DISP$f` CpGs (all covered).
 ```{r}
-DISP <- snakemake@params[["DISP"]]
 S <- DISP$S
 N <- DISP$N
 f <- DISP$f

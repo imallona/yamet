@@ -280,6 +280,7 @@ rule within_cell_scmet:
 
 
 S_GRID = {"S": [20, 40, 60, 80, 100], "N": 300, "f": 641}
+N_GRID = {"S": 30, "N": [100, 200, 300, 400, 500], "f": 641}
 DISP = {"S": 30, "N": 300, "f": 1281}
 
 
@@ -297,9 +298,16 @@ rule within_cell_plots:
             N=S_GRID["N"],
             f=S_GRID["f"],
         ),
+        n_scmets=expand(
+            "output/within_cell/scmet.{S}.{N}.{f}.rds",
+            S=N_GRID["S"],
+            N=N_GRID["N"],
+            f=N_GRID["f"],
+        ),
         disp_scmet=f"output/within_cell/scmet.{DISP["S"]}.{DISP["N"]}.{DISP["f"]}.rds",
     params:
         S_GRID=S_GRID,
+        N_GRID=N_GRID,
         DISP=DISP,
     threads: 4
     output:
