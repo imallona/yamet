@@ -218,7 +218,7 @@ rule within_cell_template:
     conda:
         "envs/r_sim.yaml"
     output:
-        "output/within_cell/intervals.{N}.{f}.tsv",
+        "output/within_cell/intervals.{S}.{N}.{f}.tsv",
     script:
         "src/within_cell/createTemplate.R"
 
@@ -227,9 +227,9 @@ rule within_cell_samples:
     conda:
         "envs/r_sim.yaml"
     input:
-        "output/within_cell/intervals.{N}.{f}.tsv",
+        "output/within_cell/intervals.{S}.{N}.{f}.tsv",
     output:
-        "output/within_cell/sim.{sample}.{samples}.{N}.{f}.tsv",
+        "output/within_cell/sim.{s}.{S}.{N}.{f}.tsv",
     params:
         data="output/within_cell",
     script:
@@ -241,24 +241,25 @@ rule within_cell_yamet:
         "envs/yamet.yaml"
     input:
         cells=lambda wildcards: expand(
-            "output/within_cell/sim.{sample}.{{samples}}.{{N}}.{{f}}.tsv",
-            sample=range(1, int(wildcards.samples) + 1),
+            "output/within_cell/sim.{s}.{{S}}.{{N}}.{{f}}.tsv",
+            s=range(1, int(wildcards.S) + 1),
         ),
         yamet=op.join("build", "yamet"),
     output:
-        det_out="output/within_cell/yamet.{samples}.{N}.{f}.det.out",
+        det_out="output/within_cell/yamet.{S}.{N}.{f}.det.out",
     params:
         data="output/within_cell",
     threads: 4
     benchmark:
-        repeat("output/within_cell/yamet.{samples}.{N}.{f}.benchmark", 5)
+        repeat("output/within_cell/yamet.{S}.{N}.{f}.benchmark", 5)
     shell:
         """
           {input.yamet} --cell {input.cells} \
                         --reference {params.data}/ref.{wildcards.N}.{wildcards.f}.tsv \
-                        --intervals {params.data}/intervals.{wildcards.N}.{wildcards.f}.tsv \
+                        --intervals {params.data}/intervals.{wildcards.S}.{wildcards.N}.{wildcards.f}.tsv \
+                        --skip-header-intervals \
                         --det-out {output.det_out} \
-                        --meth-out {params.data}/yamet.{wildcards.samples}.{wildcards.N}.{wildcards.f}.meth.out \
+                        --meth-out {params.data}/yamet.{wildcards.S}.{wildcards.N}.{wildcards.f}.meth.out \
                         --cores {threads} \
                         --print-sampens F
         """
@@ -268,14 +269,18 @@ rule within_cell_scmet:
     conda:
         "envs/r_plot.yaml"
     input:
-        "output/within_cell/yamet.{samples}.{N}.{f}.det.out",
+        "output/within_cell/yamet.{S}.{N}.{f}.det.out",
     output:
-        "output/within_cell/scmet.{samples}.{N}.{f}.rds",
+        "output/within_cell/scmet.{S}.{N}.{f}.rds",
     threads: 4
     benchmark:
-        repeat("output/within_cell/scmet.{samples}.{N}.{f}.benchmark", 5)
+        repeat("output/within_cell/scmet.{S}.{N}.{f}.benchmark", 5)
     script:
         "src/within_cell/scmet.R"
+
+
+S_GRID = {"S": [20, 40, 60, 80, 100], "N": 300, "f": 641}
+DISP = {"S": 30, "N": 300, "f": 1281}
 
 
 # specify the input yamet file with the specifications needed in the form
@@ -285,11 +290,17 @@ rule within_cell_plots:
     conda:
         "envs/r_plot.yaml"
     input:
-        "output/within_cell/scmet.100.300.5121.rds",
+        # "output/within_cell/scmet.100.300.641.rds",
+        s_scmets=expand(
+            "output/within_cell/scmet.{S}.{N}.{f}.rds",
+            S=S_GRID["S"],
+            N=S_GRID["N"],
+            f=S_GRID["f"],
+        ),
+        disp_scmet=f"output/within_cell/scmet.{DISP["S"]}.{DISP["N"]}.{DISP["f"]}.rds",
     params:
-        samples=lambda wildcards, input: input[0].split(".")[1],
-        N=lambda wildcards, input: input[0].split(".")[2],
-        f=lambda wildcards, input: input[0].split(".")[3],
+        S_GRID=S_GRID,
+        DISP=DISP,
     threads: 4
     output:
         html="output/05_within_cell.html",

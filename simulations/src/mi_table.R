@@ -7,7 +7,7 @@
 library(infotheo)
 library(knitr)
 
-mi_table_gen <- function(jnt, scmet_fit, truth) {
+mi_table_gen <- function(jnt, scmet_fit, truth, table = F) {
   te <- entropy(truth)
   mi_sampen <- mutinformation(discretize(jnt$sampen_avg), truth) /
     sqrt(entropy(discretize(jnt$sampen_avg)) * te)
@@ -25,15 +25,20 @@ mi_table_gen <- function(jnt, scmet_fit, truth) {
       "Sample Entropy", "Shannon Entropy",
       "scMET (mu)", "scMET (gamma)", "scMET (epsilon)"
     ),
-    "Normalised Mutual Information" = c(
+    "NMI" = c(
       mi_sampen, mi_shannon, mi_mu, mi_gamma, mi_epsilon
     ),
     check.names = FALSE
   )
 
-  kable(mi_results,
-    caption = "Normalized Mutual Information with True Heterogeneity Index",
-    digits = 4,
-    align = c("l", "r")
-  )
+  if (table) {
+    kable(mi_results,
+      caption = "Normalized Mutual Information with True Heterogeneity Index",
+      col.names = c("Metric", "Normalised Mutual Information (NMI)"),
+      digits = 4,
+      align = c("l", "r")
+    )
+  } else {
+    return(mi_results)
+  }
 }

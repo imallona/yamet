@@ -1,6 +1,7 @@
 #' Simulates a template for genomic feature regions
 #'
 #' Inputs (via Snakemake wildcards):
+#'   - S: Number of samples
 #'   - N: Number of feature regions
 #'   - f: Length of each feature region (must satisfy f %% 8 == 1)
 #'
@@ -16,10 +17,11 @@
 options(scipen = 999)
 set.seed(42)
 
-features.N <- as.integer(snakemake@wildcards[["N"]])
-features.length <- as.integer(snakemake@wildcards[["f"]])
+S <- as.integer(snakemake@wildcards[["S"]])
+N <- as.integer(snakemake@wildcards[["N"]])
+f <- as.integer(snakemake@wildcards[["f"]])
 
-stopifnot(features.length %% 8 == 1)
+stopifnot(f %% 8 == 1)
 
 out <- snakemake@output[[1]]
 out_dir <- dirname(snakemake@output[[1]])
@@ -27,27 +29,27 @@ dir.create(out_dir, recursive = TRUE)
 
 # reference generation
 
-total.positions <- features.N * features.length
+total.positions <- N * f
 
 chr <- rep("chrSim", total.positions)
 pos <- seq(0, total.positions - 1)
 
 write.table(
   data.frame(chr = chr, pos = pos),
-  paste(out_dir, "/ref.", features.N, ".", features.length, ".tsv", sep = ""),
+  paste(out_dir, "/ref.", N, ".", f, ".tsv", sep = ""),
   sep = "\t", row.names = FALSE, col.names = FALSE, quote = FALSE
 )
 
 # template generation
 
-chr <- rep("chrSim", features.N)
-lbound <- seq(0, by = features.length, length.out = features.N)
-ubound <- lbound + features.length
+chr <- rep("chrSim", N)
+start <- seq(0, by = f, length.out = N)
+end <- start + f
 # Assign each region a vi score
-vi <- sample(1:10, size = features.N, replace = TRUE)
+vi <- sample(1:10, size = N, replace = TRUE)
 
 # The number of 0011 or 0110 snips in every feature
-snips.length <- (features.length - 1) / 8
+snips.length <- (f - 1) / 8
 
 # positions of snips we will shuffle
 snip_pos <- sapply(vi, function(x) {
@@ -61,11 +63,28 @@ snip_pos <- sapply(vi, function(x) {
   )), collapse = ";")
 })
 
+# variable deciding whether in a sample, more 0s are flipped or 1s
+higher <- sapply(vi, function(x) {
+  paste(
+    rbinom(n = S, size = 1, prob = 0.5),
+    collapse = ";"
+  )
+})
+
+# variable quantifying by how much more 0s/1s are flipped in a sample
+delta <- sapply(vi, function(x) {
+  paste(
+    extraDistr::rbbinom(S, 10, alpha = 3, beta = 8),
+    collapse = ";"
+  )
+})
+
 write.table(
   data.frame(
-    chr = chr, lbound = lbound, ubound = ubound,
-    vi = vi, snip_pos = snip_pos
+    chr = chr, start = start, end = end,
+    vi = vi, snip_pos = snip_pos,
+    higher = higher, delta = delta
   ),
   out,
-  sep = "\t", row.names = FALSE, col.names = FALSE, quote = FALSE
+  sep = "\t", row.names = FALSE, quote = FALSE
 )

@@ -13,35 +13,42 @@
 
 options(scipen = 999)
 
-samp <- as.integer(snakemake@wildcards[["sample"]])
+s <- as.integer(snakemake@wildcards[["s"]])
 f <- as.integer(snakemake@wildcards[["f"]])
 
-set.seed(42 + samp)
+set.seed(42 + s)
 
 stopifnot(f %% 8 == 1)
 
 data_dir <- snakemake@params[["data"]]
 
 template <- read.table(snakemake@input[[1]],
-  sep = "\t",
-  col.names = c("chr", "start", "end", "het", "snip_pos"),
-  stringsAsFactors = F
+  header = T, stringsAsFactors = F
 )
-template$snip_pos <- lapply(strsplit(template$snip_pos, ";"), as.numeric)
+template$snip_pos <- lapply(strsplit(template$snip_pos, ";"), as.integer)
+template$higher <- lapply(strsplit(template$higher, ";"), as.integer)
+template$delta <- lapply(strsplit(template$delta, ";"), as.integer)
 
-chain_gen <- function(n, snip_pos) {
+chain_gen <- function(n, snip_pos, higher, delta) {
   snips.length <- (n - 1) / 8
   chain <- c(rep("0011", snips.length), rep("0110", snips.length))
   # shuffle snips according to snip_pos
   chain[snip_pos] <- sample(chain[snip_pos])
+  # sample 35% of snips
+  snips_subset_count <- ceiling(0.35 * length(chain))
+  snips_subset_idx <- sample(seq_len(length(chain)), snips_subset_count)
+  # select snips to methylate/demethylate with 'delta' differential
+  lower_flip_count <- ceiling(snips_subset_count * (1 - delta * 0.08) / 2)
+  flip_indices <- sample(snips_subset_idx, lower_flip_count)
+  # methylate/demethylate according to 'higher'
+  chain[flip_indices] <- paste0(c(rep(1 - higher, 3), higher), collapse = "")
+  chain[setdiff(snips_subset_idx, flip_indices)] <- paste0(
+    c(rep(higher, 3), 1 - higher),
+    collapse = ""
+  )
   # flatten out snips sequence
   chain <- as.integer(unlist(strsplit(chain, split = "")))
   chain <- c(chain, 0)
-
-  # set 30% of positions in a region to 0
-  flip_num <- ceiling(30 * length(chain) / 100)
-  flip_indices <- sample(seq_len(length(chain)), flip_num)
-  chain[flip_indices] <- 0
 
   return(chain)
 }
@@ -53,7 +60,10 @@ result <- do.call(rbind, lapply(seq_len(nrow(template)), function(i) {
     pos = seq(row$start, by = 1, length.out = row$end - row$start),
     total = rep(1, row$end - row$start)
   )
-  chain$beta <- chain_gen(row$end - row$start, row$snip_pos[[1]])
+  chain$beta <- chain_gen(
+    row$end - row$start, row$snip_pos[[1]],
+    row$higher[[1]][s], row$delta[[1]][s]
+  )
   chain$meth <- chain$beta
   return(chain)
 }))
