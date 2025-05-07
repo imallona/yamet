@@ -64,17 +64,12 @@ snip_pos <- sapply(vi, function(x) {
 })
 
 # variable deciding whether in a sample, more 0s are flipped or 1s
-higher <- sapply(vi, function(x) {
-  paste(
-    rbinom(n = S, size = 1, prob = 0.5),
-    collapse = ";"
-  )
-})
+higher <- sample(0:1, size = N, replace = TRUE)
 
 # variable quantifying by how much more 0s/1s are flipped in a sample
 delta <- sapply(vi, function(x) {
   paste(
-    extraDistr::rbbinom(S, 10, alpha = 3, beta = 8),
+    extraDistr::rbbinom(S, 10, alpha = 11 - x, beta = 8),
     collapse = ";"
   )
 })

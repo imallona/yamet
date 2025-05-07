@@ -40,7 +40,7 @@ We have a fixed number of features, the length of each feature is taken to be th
 Every feature is given a **Variability Index (VI)** between 1 and 10 and stored in the `vi` column.
 As described above we pick a fraction of snips in proportion to the feature's `vi`.
 This is stored in the `snip_pos` column.
-For every feature, we sample from a bernoulli distribution according to the number of samples indicating whether the sample will be over/under-methylated compared to the baseline.
+For every feature, we sample from a bernoulli distribution indicating whether the feature will be over/under-methylated compared to the baseline.
 This is stored in the `higher` column.
 The extent to which each sample in each feature is over/under-methylated is sampled from a beta binomial model which is biased towards lower deviations.
 This difference is stored in the `delta` column.
@@ -51,7 +51,7 @@ For samples within the same feature, we shuffle the snips at the positions descr
 At this stage, observe that the all the features in all the samples are approximately $50\%$ methylated and that this value is the same for all the samples.
 We would like to introduce some randomness to the average methylation level which is done using the data generated in the `higher` and `delta` column.
 For every sample in every feature, we sample $35\%$ of the snips.
-The value in the `higher` column at that sample-feature intersection tells us whether this sample should be over-methylated or under-methylated.
+The value in the `higher` column for that feature tells us whether this sample should be over-methylated or under-methylated.
 From this sampled set of snips, we further subsample for two sets of snips such that the difference in their size is in proportion to the value in the `delta` column at that sample-feature intersection.
 Then, one set of these snips is changed to $1110$ while the other is changed to $0001$.
 This not only introduces the difference in methylation but also adds more regularity at higher/lower methylation, simulating the quadratic relationship between sample entropy and average methylation.
@@ -137,7 +137,7 @@ make_grid_plots <- function(GRID, grid_var) {
   plots <- list()
 
   plots$nmi <- ggplot(mi_data, aes(x = .data[[grid_var]], y = NMI, color = Metric, group = Metric)) +
-    scale_y_log10() +
+    # scale_y_log10() +
     geom_line(linewidth = 1.2) +
     geom_point(size = 3) +
     # scale_color_manual(values = c("yamet" = "#E69F00", "scmet" = "#56B4E9")) +
@@ -296,15 +296,6 @@ jnt$scmet_epsilon <- tmp[match(rownames(jnt), names(tmp))]
 ```
 
 ```{r}
-scmet_plot_mean_var(
-  obj = scmet_fit, y = "gamma",
-  task = NULL, show_fit = TRUE
-)
-scmet_plot_mean_var(
-  obj = scmet_fit, y = "epsilon",
-  task = NULL, show_fit = TRUE
-)
-
 ggplot(jnt, aes(x = as.factor(vi), y = scmet_mu, color = avg_meth)) +
   geom_point(alpha = 0.7) +
   theme_minimal() +
@@ -343,6 +334,14 @@ ggplot(jnt, aes(x = as.factor(vi), y = sampen_avg, color = avg_meth)) +
   labs(
     title = "Sample Entropy in different VI values (per feature)",
     x = "VI", y = "sampen (average)", color = "meth"
+  )
+
+ggplot(jnt, aes(x = avg_meth, y = sampen_avg, color = vi)) +
+  geom_point(alpha = 0.7) +
+  theme_minimal() +
+  labs(
+    title = "Sample Entropy in different meth values (per feature)",
+    x = "meth", y = "sampen (average)", color = "VI"
   )
 ```
 

@@ -26,7 +26,6 @@ template <- read.table(snakemake@input[[1]],
   header = T, stringsAsFactors = F
 )
 template$snip_pos <- lapply(strsplit(template$snip_pos, ";"), as.integer)
-template$higher <- lapply(strsplit(template$higher, ";"), as.integer)
 template$delta <- lapply(strsplit(template$delta, ";"), as.integer)
 
 chain_gen <- function(n, snip_pos, higher, delta) {
@@ -38,7 +37,7 @@ chain_gen <- function(n, snip_pos, higher, delta) {
   snips_subset_count <- ceiling(0.35 * length(chain))
   snips_subset_idx <- sample(seq_len(length(chain)), snips_subset_count)
   # select snips to methylate/demethylate with 'delta' differential
-  lower_flip_count <- ceiling(snips_subset_count * (1 - delta * 0.08) / 2)
+  lower_flip_count <- floor(snips_subset_count * (1 - delta * 0.09) / 2)
   flip_indices <- sample(snips_subset_idx, lower_flip_count)
   # methylate/demethylate according to 'higher'
   chain[flip_indices] <- paste0(c(rep(1 - higher, 3), higher), collapse = "")
@@ -62,7 +61,7 @@ result <- do.call(rbind, lapply(seq_len(nrow(template)), function(i) {
   )
   chain$beta <- chain_gen(
     row$end - row$start, row$snip_pos[[1]],
-    row$higher[[1]][s], row$delta[[1]][s]
+    row$higher, row$delta[[1]][s]
   )
   chain$meth <- chain$beta
   return(chain)
