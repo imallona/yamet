@@ -5,39 +5,51 @@
 #' @date 2025-04-23
 
 library(infotheo)
-library(knitr)
+library(ggpubr)
 
-mi_table_gen <- function(jnt, scmet_fit, truth, table = F) {
-  te <- entropy(truth)
-  mi_sampen <- mutinformation(discretize(jnt$sampen_avg), truth) /
-    sqrt(entropy(discretize(jnt$sampen_avg)) * te)
-  mi_shannon <- mutinformation(discretize(jnt$shannon), truth) /
-    sqrt(entropy(discretize(jnt$shannon)) * te)
-  mi_mu <- mutinformation(discretize(scmet_fit$posterior$mu_avg), truth) /
-    sqrt(entropy(discretize(scmet_fit$posterior$mu_avg)) * te)
-  mi_gamma <- mutinformation(discretize(scmet_fit$posterior$gamma_avg), truth) /
-    sqrt(entropy(discretize(scmet_fit$posterior$gamma_avg)) * te)
-  mi_epsilon <- mutinformation(discretize(scmet_fit$posterior$epsilon_avg), truth) /
-    sqrt(entropy(discretize(scmet_fit$posterior$epsilon_avg)) * te)
+mi_table_gen <- function(jnt, index_name, table = F) {
+  index <- jnt[[index_name]]
+  te <- entropy(index)
+
+  calc_nmi <- function(x, index, te) {
+    disc_x <- discretize(x)
+    mi <- mutinformation(disc_x, index)
+    hx <- entropy(disc_x)
+    mi / sqrt(hx * te)
+  }
+
+  nmi_values <- c(
+    "Sample Entropy" = calc_nmi(jnt$sampen_avg, index, te),
+    "Shannon Entropy" = calc_nmi(jnt$shannon, index, te),
+    "scMET (mu)" = calc_nmi(jnt$scmet_mu, index, te),
+    "scMET (gamma)" = calc_nmi(jnt$scmet_gamma, index, te),
+    "scMET (epsilon)" = calc_nmi(jnt$scmet_epsilon, index, te)
+  )
 
   mi_results <- data.frame(
-    "Metric" = c(
-      "Sample Entropy", "Shannon Entropy",
-      "scMET (mu)", "scMET (gamma)", "scMET (epsilon)"
-    ),
-    "NMI" = c(
-      mi_sampen, mi_shannon, mi_mu, mi_gamma, mi_epsilon
-    ),
-    check.names = FALSE
+    Metric = names(nmi_values),
+    NMI = unname(nmi_values),
+    stringsAsFactors = FALSE
   )
 
   if (table) {
-    kable(mi_results,
-      caption = "Normalized Mutual Information with True Heterogeneity Index",
-      col.names = c("Metric", "Normalised Mutual Information (NMI)"),
-      digits = 4,
-      align = c("l", "r")
+    tbl <- ggtexttable(
+      mi_results,
+      rows = NULL,
+      cols = c("Metric", "Normalized Mutual Information (NMI)"),
+      theme = ttheme(
+        colnames.style = colnames_style(
+          fill = "white"
+        ),
+        tbody.style = tbody_style(
+          fill = "white",
+          hjust = as.vector(matrix(c(0, 1), ncol = 2, nrow = nrow(mi_results), byrow = TRUE)),
+          x = as.vector(matrix(c(.1, .9), ncol = 2, nrow = nrow(mi_results), byrow = TRUE))
+        )
+      )
     )
+    tbl <- tab_add_hline(tbl, at.row = 1:2, row.side = "top", linewidth = 2)
+    return(tbl)
   } else {
     return(mi_results)
   }

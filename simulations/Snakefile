@@ -291,7 +291,6 @@ rule within_cell_plots:
     conda:
         "envs/r_plot.yaml"
     input:
-        # "output/within_cell/scmet.100.300.641.rds",
         s_scmets=expand(
             "output/within_cell/scmet.{S}.{N}.{f}.rds",
             S=S_GRID["S"],

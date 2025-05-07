@@ -60,6 +60,7 @@ This not only introduces the difference in methylation but also adds more regula
 ```{r, setup}
 suppressPackageStartupMessages({
   library(ggplot2)
+  library(ggpubr)
   library(scMET)
 })
 source("src/mi_table.R")
@@ -91,16 +92,20 @@ get_mi <- function(S, N, f) {
     header = T
   )
   jnt <- cbind(sampens, intervals)
+  rownames(jnt) <- paste(jnt$start, jnt$end, sep = ":")
   output_cols <- grep("^output", colnames(jnt), value = TRUE)
 
   scmet_fit <- readRDS(paste0(data_dir, paste("/scmet", S, N, f, "rds", sep = ".")))
-  scmet_fit$posterior$epsilon_avg <- colMeans(scmet_fit$posterior$epsilon)
-  scmet_fit$posterior$gamma_avg <- colMeans(scmet_fit$posterior$gamma)
-  scmet_fit$posterior$mu_avg <- colMeans(scmet_fit$posterior$mu)
+  tmp <- colMeans(scmet_fit$posterior$mu)
+  jnt$scmet_mu <- tmp[match(rownames(jnt), names(tmp))]
+  tmp <- colMeans(scmet_fit$posterior$gamma)
+  jnt$scmet_gamma <- tmp[match(rownames(jnt), names(tmp))]
+  tmp <- colMeans(scmet_fit$posterior$epsilon)
+  jnt$scmet_epsilon <- tmp[match(rownames(jnt), names(tmp))]
 
   jnt$sampen_avg <- rowMeans(jnt[, output_cols])
 
-  mi_table <- mi_table_gen(jnt, scmet_fit, jnt$vi)
+  mi_table <- mi_table_gen(jnt, "vi")
   return(mi_table)
 }
 
@@ -129,7 +134,9 @@ make_grid_plots <- function(GRID, grid_var) {
     })
   )
 
-  p <- ggplot(mi_data, aes(x = .data[[grid_var]], y = NMI, color = Metric, group = Metric)) +
+  plots <- list()
+
+  plots$nmi <- ggplot(mi_data, aes(x = .data[[grid_var]], y = NMI, color = Metric, group = Metric)) +
     scale_y_log10() +
     geom_line(linewidth = 1.2) +
     geom_point(size = 3) +
@@ -145,15 +152,13 @@ make_grid_plots <- function(GRID, grid_var) {
       plot.title = element_text(hjust = 0.5),
       panel.grid.minor = element_blank()
     )
-  print(p)
 
-  p <- ggplot(bm_data, aes(x = .data[[grid_var]], y = s, color = mtd, group = mtd)) +
+  plots$seconds <- ggplot(bm_data, aes(x = .data[[grid_var]], y = s, color = mtd, group = mtd)) +
     scale_y_log10() +
     geom_point(size = 3, alpha = 0.7) +
     stat_summary(fun = mean, geom = "line", linewidth = 1.2, aes(group = mtd)) +
     scale_color_manual(values = c("yamet" = "#E69F00", "scmet" = "#56B4E9")) +
     labs(
-      title = "Runtime Comparison: scmet vs yamet",
       x = paste(grid_var, "(Parameter Value"), y = "seconds (log scale)",
       color = "Method"
     ) +
@@ -163,15 +168,13 @@ make_grid_plots <- function(GRID, grid_var) {
       plot.title = element_text(hjust = 0.5),
       panel.grid.minor = element_blank()
     )
-  print(p)
 
-  p <- ggplot(bm_data, aes(x = .data[[grid_var]], y = max_rss, color = mtd, group = mtd)) +
+  plots$mem <- ggplot(bm_data, aes(x = .data[[grid_var]], y = max_rss, color = mtd, group = mtd)) +
     scale_y_log10() +
     geom_point(size = 3) +
     stat_summary(fun = mean, geom = "line", linewidth = 1.2, aes(group = mtd)) +
     scale_color_manual(values = c("yamet" = "#E69F00", "scmet" = "#56B4E9")) +
     labs(
-      title = "Memory Comparison: scmet vs yamet",
       x = paste(grid_var, "(Parameter Value"), y = "MB (log scale)",
       color = "Method"
     ) +
@@ -181,20 +184,19 @@ make_grid_plots <- function(GRID, grid_var) {
       plot.title = element_text(hjust = 0.5),
       panel.grid.minor = element_blank()
     )
-  print(p)
+
+  return(plots)
 }
 ```
 
-### with S
 For benchmarking against the number of samples, we used a grid with `r length(S_GRID$S)` sample sizes (S = `r paste(S_GRID$S, collapse = ", ")`), `r S_GRID$N` features where each feature has `r S_GRID$f` CpGs (all covered).
 ```{r}
-make_grid_plots(S_GRID, "S")
+s_plots <- make_grid_plots(S_GRID, "S")
 ```
 
-### with N
 For benchmarking against the number of features, we used a grid with `r N_GRID$S` samples, `r length(N_GRID$N)` feature sizes (N = `r paste(N_GRID$N, collapse = ", ")`) where each feature has `r N_GRID$f` CpGs (all covered).
 ```{r}
-make_grid_plots(N_GRID, "N")
+n_plots <- make_grid_plots(N_GRID, "N")
 ```
 
 ## One Example
@@ -214,7 +216,9 @@ sampens <- read.table(
   header = T
 )
 jnt <- cbind(sampens, intervals)
+rownames(jnt) <- paste(jnt$start, jnt$end, sep = ":")
 output_cols <- grep("^output", colnames(jnt), value = TRUE)
+jnt$sampen_avg <- rowMeans(jnt[, output_cols])
 jnt.long <- do.call(rbind, lapply(output_cols, function(col) {
   data.frame(
     start = jnt$start,
@@ -239,7 +243,7 @@ meth.long <- do.call(rbind, lapply(output_cols, function(col) {
 
 all.long <- cbind(jnt.long, meth.long)
 
-ggplot(all.long, aes(x = meth, y = sampen, color = vi)) +
+samp_meth <- ggplot(all.long, aes(x = meth, y = sampen, color = vi)) +
   geom_point(alpha = 0.7) +
   theme_minimal() +
   labs(
@@ -247,7 +251,7 @@ ggplot(all.long, aes(x = meth, y = sampen, color = vi)) +
     x = "Average Methylation", y = "Sample Entropy", color = "VI"
   )
 
-ggplot(all.long, aes(x = as.factor(vi), y = sampen)) +
+samp_vi <- ggplot(all.long, aes(x = as.factor(vi), y = sampen)) +
   geom_point(alpha = 0.7, position = position_jitter(width = 0.2)) +
   geom_violin(alpha = 0.3, position = position_dodge(0.8)) +
   theme_minimal() +
@@ -256,7 +260,7 @@ ggplot(all.long, aes(x = as.factor(vi), y = sampen)) +
     x = "VI", y = "Sample Entropy"
   )
 
-ggplot(jnt, aes(x = avg_meth, y = shannon, color = vi)) +
+shannon_meth <- ggplot(jnt, aes(x = avg_meth, y = shannon, color = vi)) +
   geom_point(alpha = 0.7) +
   theme_minimal() +
   labs(
@@ -264,7 +268,7 @@ ggplot(jnt, aes(x = avg_meth, y = shannon, color = vi)) +
     x = "Average Methylation", y = "Shannon Entropy", color = "VI"
   )
 
-ggplot(jnt, aes(x = as.factor(vi), y = shannon, color = avg_meth)) +
+shannon_vi <- ggplot(jnt, aes(x = as.factor(vi), y = shannon, color = avg_meth)) +
   geom_point(alpha = 0.7) +
   theme_minimal() +
   labs(
@@ -272,7 +276,7 @@ ggplot(jnt, aes(x = as.factor(vi), y = shannon, color = avg_meth)) +
     x = "VI", y = "Shannon Entropy", color = "meth"
   )
 
-ggplot(all.long, aes(x = shannon, y = sampen, color = vi)) +
+samp_shan <- ggplot(all.long, aes(x = shannon, y = sampen, color = vi)) +
   geom_point(alpha = 0.7) +
   theme_minimal() +
   labs(
@@ -283,9 +287,12 @@ ggplot(all.long, aes(x = shannon, y = sampen, color = vi)) +
 
 ```{r}
 scmet_fit <- readRDS(paste0(data_dir, paste("/scmet", S, N, f, "rds", sep = ".")))
-scmet_fit$posterior$epsilon_avg <- colMeans(scmet_fit$posterior$epsilon)
-scmet_fit$posterior$gamma_avg <- colMeans(scmet_fit$posterior$gamma)
-scmet_fit$posterior$mu_avg <- colMeans(scmet_fit$posterior$mu)
+tmp <- colMeans(scmet_fit$posterior$mu)
+jnt$scmet_mu <- tmp[match(rownames(jnt), names(tmp))]
+tmp <- colMeans(scmet_fit$posterior$gamma)
+jnt$scmet_gamma <- tmp[match(rownames(jnt), names(tmp))]
+tmp <- colMeans(scmet_fit$posterior$epsilon)
+jnt$scmet_epsilon <- tmp[match(rownames(jnt), names(tmp))]
 ```
 
 ```{r}
@@ -297,9 +304,87 @@ scmet_plot_mean_var(
   obj = scmet_fit, y = "epsilon",
   task = NULL, show_fit = TRUE
 )
+
+ggplot(jnt, aes(x = as.factor(vi), y = scmet_mu, color = avg_meth)) +
+  geom_point(alpha = 0.7) +
+  theme_minimal() +
+  labs(
+    title = "scMET (mu) in different VI values (per feature)",
+    x = "VI", y = "mu", color = "meth"
+  )
+
+scmet_mu_meth <- ggplot(jnt, aes(x = avg_meth, y = scmet_mu, color = vi)) +
+  geom_point(alpha = 0.7) +
+  theme_minimal() +
+  labs(
+    title = "scMET (mu) in different meth values (per feature)",
+    x = "meth", y = "mu", color = "vi"
+  )
+
+scmet_gamma_meth <- ggplot(jnt, aes(x = avg_meth, y = scmet_gamma, color = vi)) +
+  geom_point(alpha = 0.7) +
+  theme_minimal() +
+  labs(
+    title = "scMET (gamma) in different meth values (per feature)",
+    x = "meth", y = "gamma", color = "vi"
+  )
+
+scmet_epsilon_meth <- ggplot(jnt, aes(x = avg_meth, y = scmet_epsilon, color = vi)) +
+  geom_point(alpha = 0.7) +
+  theme_minimal() +
+  labs(
+    title = "scMET (epsilon) in different meth values (per feature)",
+    x = "meth", y = "mu", color = "vi"
+  )
+
+ggplot(jnt, aes(x = as.factor(vi), y = sampen_avg, color = avg_meth)) +
+  geom_point(alpha = 0.7) +
+  theme_minimal() +
+  labs(
+    title = "Sample Entropy in different VI values (per feature)",
+    x = "VI", y = "sampen (average)", color = "meth"
+  )
 ```
 
 ```{r}
-jnt$sampen_avg <- rowMeans(jnt[, output_cols])
-mi_table_gen(jnt, scmet_fit, jnt$vi, table = T)
+mi_table <- mi_table_gen(jnt, "vi", table = T)
+```
+
+```{r fig.width=20, fig.height=15, out.width="100%"}
+ggarrange(
+  ggarrange(
+    samp_meth,
+    ggarrange(
+      ggarrange(
+        s_plots$nmi, n_plots$nmi,
+        legend = "right", common.legend = T,
+        ncol = 2, widths = c(1, 1)
+      ),
+      ggarrange(
+        s_plots$seconds, n_plots$seconds,
+        s_plots$mem, n_plots$mem,
+        legend = "top", common.legend = T,
+        ncol = 2, nrow = 2, widths = c(1, 1)
+      ),
+      ncol = 1, nrow = 2, heights = c(1, 2)
+    ),
+    nrow = 2, heights = c(2, 3)
+  ),
+  ggarrange(
+    samp_shan,
+    samp_vi,
+    shannon_meth,
+    shannon_vi,
+    nrow = 4
+  ),
+  ggarrange(
+    scmet_mu_meth,
+    scmet_gamma_meth,
+    scmet_epsilon_meth,
+    mi_table,
+    common.legend = T,
+    nrow = 4
+  ),
+  ncol = 3
+)
 ```
