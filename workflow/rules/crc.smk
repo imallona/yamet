@@ -13,85 +13,16 @@ This is hg19
 
 """
 
+import os.path as op
 from glob import glob
 
-CRC_RAW = op.join("crc", "raw")
-CRC_DATA = op.join("crc", "data")
-CRC_YAMET = op.join("crc", "yamet")
+CRC = op.join("data", "crc")
+CRC_RAW = op.join(CRC, "raw")                 ## from geo
+CRC_HARMONIZED = op.join(CRC, "harmonized")   ## ingestable by yamet
+CRC_OUTPUT = op.join(CRC, "output")           ## output
 
-
-rule download_crc_accessors:
-    conda:
-        op.join("..", "envs", "processing.yml")
-    output:
-        gsm=op.join("crc", "bisulfites_gsm.txt"),
-    message:
-        """
-        CRC Accessors download
-        """
-    script:
-        "src/get_crc_accessors.sh"
-
-
-rule download_crc:
-    conda:
-        op.join("..", "envs", "processing.yml")
-    input:
-        gsm=op.join("crc", "bisulfites_gsm.txt"),
-    output:
-        touch(op.join("crc", "download.flag")),
-    params:
-        raw=CRC_RAW,
-    message:
-        """
-        CRC download
-        """
-    script:
-        "src/get_crc_meth_files.sh"
-
-
-rule parse_single_crc:
-    conda:
-        op.join("..", "envs", "processing.yml")
-    input:
-        op.join("crc", "download.flag"),
-    output:
-        op.join(CRC_DATA, "{file}"),
-    params:
-        raw=CRC_RAW,
-    script:
-        "src/parse_crc_meth_file.sh"
-
-
-def get_raw_files(patient, stage):
-    filepaths = glob(op.join(CRC_RAW, f"G*_{patient}_{stage}*.txt.gz"))
-    return [op.basename(file) for file in filepaths]
-
-
-rule yamet_crc_cg:
-    conda:
-        op.join("..", "envs", "yamet.yml")
-    input:
-        yamet=op.join("build", "yamet"),
-        cells=lambda wildcards: expand(
-            op.join(CRC_DATA, "{file}"),
-            file=get_raw_files(wildcards.patient, wildcards.stage),
-        ),
-        ref=op.join(HG19_BASE, "ref.CG.gz"),
-        intervals=op.join(HG19_BASE, "{subcat}.{cat}.bed"),
-    output:
-        out=op.join(CRC_YAMET, "{subcat}.{cat}.{patient}.{stage}.out"),
-        det_out=op.join(CRC_YAMET, "{subcat}.{cat}.{patient}.{stage}.det.out"),
-    group:
-        "yamet"
-    threads: 16
-    params:
-        base=CRC_YAMET,
-    script:
-        "src/yamet.sh"
-
-
-CAT_MAP = {
+## bedfiles
+ANNOTATIONS = {
     "pmd": ["pmds", "hmds"],
     "hmm": [
         "0_Enhancer",
@@ -112,23 +43,169 @@ CAT_MAP = {
     "chip": ["H3K27me3", "H3K9me3", "H3K4me3"],
     "lad": ["laminb1"],
 }
-STAGES = ["NC", "PT"]
-PATIENTS = ["CRC01", "CRC02", "CRC04", "CRC10", "CRC11", "CRC13", "CRC15"]
 
+## patient -> biopsy sites mapping
+SAMPLES = {"CRC01" : ['NC', 'PT', 'LN', 'ML', 'MP'],
+           "CRC02" : ['NC', 'PT', 'ML', 'PT'],
+           "CRC04" : ['NC', 'PT'],
+           "CRC10" : ['NC', 'PT', 'LN'],
+           "CRC11" : ['NC', 'PT', 'LN'],
+           "CRC13" : ['NC', 'PT', 'LN'],
+           "CRC15" : ['NC', 'PT', 'LN', 'ML', 'MO']} # What is MO, a typo?
 
-rule crc_doc:
+def list_relevant_yamet_outputs():
+    res = []
+    for annot in ANNOTATIONS:
+        for subannot in ANNOTATIONS[annot]:
+            for patient in SAMPLES.keys():
+                for sampling in SAMPLES[patient]:
+                    res.append(f"{subannot}_{annot}_{patient}_{sampling}.det.out")
+    return [op.join(CRC_OUTPUT, item) for item in res]
+
+rule render_crc_report:
     conda:
         op.join("..", "envs", "r.yml")
     input:
-        expand(
-            op.join(CRC_YAMET, "{jnt}.{patient}.{stage}.out"),
-            jnt=[f"{subcat}.{cat}" for cat in CAT_MAP for subcat in CAT_MAP[cat]],
-            stage=STAGES,
-            patient=PATIENTS,
-        ),
+        list_relevant_yamet_outputs()
     params:
-        yamet=CRC_YAMET,
+        output_path=CRC_OUTPUT
     output:
-        op.join("crc", "crc.html"),
+        op.join(CRC, "results", "crc.html")
+    log:
+        log = op.join("logs", "render_crc.log")
     script:
         "src/crc.Rmd"
+
+
+rule download_crc_accessors:
+    conda:
+        op.join("..", "envs", "processing.yml")
+    output:
+        gsm=op.join(CRC, "bisulfites_gsm.txt"),
+    message:
+        """
+        CRC Accessors download
+        """
+    params:
+        raw=CRC_RAW
+    shell:
+        """
+        mkdir -p {params.raw}
+        
+        esearch -db sra -query PRJNA382695 |
+          efetch -format runinfo |
+          cut -f11,13,14,15,30 -d"," |
+          grep Bis |
+          cut -f5 -d"," > {output.gsm}
+        """
+
+
+rule download_crc:
+    conda:
+        op.join("..", "envs", "processing.yml")
+    input:
+        gsm=op.join(CRC, "bisulfites_gsm.txt")
+    output:
+        download_flag = op.join(CRC, "download.flag")
+    log:
+        op.join("logs", "crc_download.log")
+    params:
+        raw=CRC_RAW
+    message:
+        """
+        CRC download
+        """
+    shell:
+        """
+        while read -r gsm
+        do
+          short="$(echo $gsm | cut -c1-7)"
+          url=ftp://ftp.ncbi.nlm.nih.gov/geo/samples/"$short"nnn/"$gsm"/suppl/
+          wget --no-directories --directory-prefix={params.raw} \
+            --no-clobber --execute robots=off -r -k -A gz $url
+        done < {input.gsm} > {log}
+        
+        date >> {output.download_flag}
+        """
+
+# ruleorder: harmonize_cell_report_for_yamet > run_yamet
+
+rule harmonize_cell_report_for_yamet:
+    conda:
+        op.join("..", "envs", "processing.yml")
+    input:
+        op.join(CRC, "download.flag"),
+        op.join(CRC_RAW, "{file}")
+        # op.join(CRC_RAW, "{gsm}_{patient}_{location}_{cellid}.singleC.txt.gz")
+    output:
+        temp(op.join(CRC_HARMONIZED, "{file}"))
+    params:
+        raw=CRC_RAW,
+        harmonized=CRC_HARMONIZED
+    shell:
+        """
+        gunzip -c {params.raw}/{wildcards.file} |
+          grep "CpG$" |
+        awk '
+            {{OFS="\\t";}} {{
+                if ($4 == "-") $2 = $2 - 2;
+                else if ($4 == "+") $2 = $2 - 1;
+                print $1, $2, $2+1, "", "", $4, $6, $5;
+            }}
+        ' |
+        bedtools merge -c 7,8 -o sum |
+        awk '
+             {{OFS=FS="\\t";
+                bin = ($4/$5 > 0.1) ? 1 : 0;
+                print $1,$2,$4,$5,bin}}
+        ' |
+        sort -k1,1 -k2,2n |
+        gzip -c > {output}
+        """
+
+## location is whether is a NC, PT, LN and so on
+## patient is whether CRC01, CRC01 and so on
+def get_harmonized_files(patient, location):
+    filepaths = glob(op.join(CRC_RAW, f"G*_{patient}_{location}*.txt.gz"))
+    if len(filepaths) == 0:
+        raise Exception('No cytosine reports matching the specs.')
+    return [op.join(CRC_HARMONIZED, op.basename(file)) for file in filepaths]
+
+
+# print(get_harmonized_files(patient = 'CRC01', location = "NC"))
+
+rule run_yamet:
+    conda:
+        op.join("..", "envs", "yamet.yml")
+    input:
+        cells=lambda wildcards: expand(
+            "{file}",
+            file=get_harmonized_files(wildcards.patient, wildcards.location),
+        ),
+        ref=op.join(HG19_BASE, "ref.CG.gz"),
+        bed=op.join(HG19_BASE, "{subcat}.{cat}.bed")
+    output:
+        simple=op.join(CRC_OUTPUT, "{subcat}_{cat}_{patient}.{location}.out"),
+        det=op.join(CRC_OUTPUT, "{subcat}_{cat}_{patient}_{location}.det.out"),
+        meth=op.join(CRC_OUTPUT, "{subcat}_{cat}_{patient}_{location}.meth.out")
+    log:
+        op.join('logs', 'yamet_{subcat}_{cat}_{patient}_{location}.log')
+    group:
+        "yamet"
+    params:
+        path = CRC_OUTPUT
+    threads: 16
+    shell:
+        """
+        mkdir -p {params.path}
+        yamet \
+         --cell {input.cells} \
+         --reference {input.ref} \
+         --intervals {input.bed} \
+         --cores {threads} \
+         --print-sampens F \
+         --out {output.simple} \
+         --det-out {output.det} \
+         --meth-out {output.meth} &> {log}
+        """
+

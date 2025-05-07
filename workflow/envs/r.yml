@@ -1,4 +1,4 @@
-name: R_4.3.2
+name: R_4.3.2_irreproducible
 channels:
   - default
   - conda-forge
@@ -7,7 +7,12 @@ dependencies:
   - r-base=4.3.3
   - r-readxl
   - r-rmarkdown
-  - r-bookdown
+  # - r-bookdown
   - r-ggplot2
   - r-lmertest
-  - r-readr
+#  - r-readr
+  - conda-forge::r-codetools
+  - r-knitr
+  - conda-forge::r-effects
+  - bioconda::bioconductor-complexheatmap
+  - conda-forge::r-viridis
