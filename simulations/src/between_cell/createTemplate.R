@@ -1,35 +1,63 @@
+#' Simulates a template for genomic feature regions
+#'
+#' Inputs (via Snakemake wildcards):
+#'   - S: Number of samples
+#'   - N: Number of feature regions
+#'   - f: Length of each feature region (must satisfy f %% 8 == 1)
+#'
+#' It generates two tab-delimited output files:
+#'   - A reference file listing all positions across all features.
+#'   - An annotation file with chromosome, region bounds,
+#'     a sampled variability index, and indices used for shuffling
+#'     snips within features (described in the strategy)
+#'
+#' @author Atreya Choudhury
+#' @date 2025-04-17
+
 options(scipen = 999)
 set.seed(42)
 
-features.N <- as.integer(snakemake@wildcards[["N"]])
-features.length <- as.integer(snakemake@wildcards[["f"]])
+S <- as.integer(snakemake@wildcards[["S"]])
+N <- as.integer(snakemake@wildcards[["N"]])
+f <- as.integer(snakemake@wildcards[["f"]])
+
 out <- snakemake@output[[1]]
 out_dir <- dirname(snakemake@output[[1]])
 dir.create(out_dir, recursive = TRUE)
 
-total.positions <- features.N * features.length
+# reference generation
+
+total.positions <- N * f
 
 chr <- rep("chrSim", total.positions)
 pos <- seq(0, total.positions - 1)
 
 write.table(
   data.frame(chr = chr, pos = pos),
-  paste(out_dir, "/ref.", features.N, ".", features.length, ".tsv", sep = ""),
+  paste(out_dir, "/ref.", N, ".", f, ".tsv", sep = ""),
   sep = "\t", row.names = FALSE, col.names = FALSE, quote = FALSE
 )
 
-hets <- seq(1, 10, length.out = 10)
+# template generation
 
-chr <- rep("chrSim", features.N)
-lbound <- seq(0, by = features.length, length.out = features.N)
-ubound <- lbound + features.length
-het <- sample(hets, size = features.N, replace = TRUE)
+chr <- rep("chrSim", N)
+start <- seq(0, by = f, length.out = N)
+end <- start + f
+# Assign each region a vi score
+vi <- sample(1:10, size = N, replace = TRUE)
+
+rho <- sapply(vi, function(x) {
+  paste(
+    sample(seq(0.1, 0.9, length.out = 10)[1:x], S, replace = TRUE),
+    collapse = ";"
+  )
+})
 
 write.table(
   data.frame(
-    chr = chr, lbound = lbound, ubound = ubound,
-    het = het
+    chr = chr, start = start, end = end,
+    vi = vi, rho = rho
   ),
   out,
-  sep = "\t", row.names = FALSE, col.names = FALSE, quote = FALSE
+  sep = "\t", row.names = FALSE, quote = FALSE
 )

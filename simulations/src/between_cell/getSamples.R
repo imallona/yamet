@@ -1,23 +1,30 @@
+#' Generates one sample using a template generated in createTemplate.R
+#'
+#' Inputs (via Snakemake wildcards):
+#'   - N: Number of feature regions
+#'   - f: Length of each feature region (must satisfy f %% 8 == 1)
+#'
+#' It generates a tab-delimited output file:
+#'   - A cell sample file with chromosome, genomic position,
+#'     methylated reads, total reads and methylation rate
+#'
+#' @author Atreya Choudhury
+#' @date 2025-04-17
+
 suppressPackageStartupMessages({
   library(markovchain)
 })
 
 options(scipen = 999)
-set.seed(42)
 
-samples <- as.integer(snakemake@wildcards[["samples"]])
+s <- as.integer(snakemake@wildcards[["s"]])
+
 data_dir <- snakemake@params[["data"]]
 
 template <- read.table(snakemake@input[[1]],
-  sep = "\t",
-  col.names = c("chr", "start", "end", "het"),
+  header = T, stringsAsFactors = F
 )
-N <- nrow(template)
-f <- template$end[1] - template$start[1]
-
-cells.setup <- t(
-  sapply(template$het, function(x) sample(seq(0.1, 0.9, length.out = 10)[1:x], samples, replace = TRUE))
-)
+template$rho <- lapply(strsplit(template$rho, ";"), as.numeric)
 
 mcgen <- function(n, rho) {
   set.seed(42)
@@ -36,25 +43,19 @@ mcgen <- function(n, rho) {
   ))
 }
 
-genSamp <- function(sample, template, cell.setup) {
-  result <- do.call(rbind, lapply(seq_len(nrow(template)), function(i) {
-    row <- as.list(template[i, ])
-    chain <- data.frame(
-      chr = rep(row$chr, row$end - row$start),
-      pos = seq(row$start, by = 1, length.out = row$end - row$start),
-      total = rep(1, row$end - row$start)
-    )
-    chain$beta <- mcgen(row$end - row$start, cell.setup[i])
-    chain$meth <- chain$beta
-    return(chain)
-  }))
-  write.table(
-    result[, c("chr", "pos", "meth", "total", "beta")],
-    paste0(data_dir, paste("/sim", sample, samples, N, f, "tsv", sep = ".")),
-    sep = "\t", row.names = FALSE, col.names = FALSE, quote = FALSE
+result <- do.call(rbind, lapply(seq_len(nrow(template)), function(i) {
+  row <- as.list(template[i, ])
+  chain <- data.frame(
+    chr = rep(row$chr, row$end - row$start),
+    pos = seq(row$start, by = 1, length.out = row$end - row$start),
+    total = rep(1, row$end - row$start)
   )
-}
-
-for (sample in seq_len(samples)) {
-  genSamp(sample, template, cells.setup[, sample])
-}
+  chain$beta <- mcgen(row$end - row$start, row$rho[[1]][s])
+  chain$meth <- chain$beta
+  return(chain)
+}))
+write.table(
+  result[, c("chr", "pos", "meth", "total", "beta")],
+  snakemake@output[[1]],
+  sep = "\t", row.names = FALSE, col.names = FALSE, quote = FALSE
+)

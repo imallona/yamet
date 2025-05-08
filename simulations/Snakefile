@@ -276,12 +276,12 @@ rule within_cell_scmet:
     benchmark:
         repeat("output/within_cell/scmet.{S}.{N}.{f}.benchmark", 5)
     script:
-        "src/within_cell/scmet.R"
+        "src/scmet.R"
 
 
-S_GRID = {"S": [20, 40, 60, 80, 100], "N": 300, "f": 641}
-N_GRID = {"S": 30, "N": [100, 200, 300, 400, 500], "f": 641}
-DISP = {"S": 20, "N": 500, "f": 321}
+WC_S_GRID = {"S": [20, 40, 60, 80, 100], "N": 300, "f": 641}
+WC_N_GRID = {"S": 30, "N": [100, 200, 300, 400, 500], "f": 641}
+WC_DISP = {"S": 20, "N": 500, "f": 321}
 
 
 # specify the input yamet file with the specifications needed in the form
@@ -293,21 +293,21 @@ rule within_cell_plots:
     input:
         s_scmets=expand(
             "output/within_cell/scmet.{S}.{N}.{f}.rds",
-            S=S_GRID["S"],
-            N=S_GRID["N"],
-            f=S_GRID["f"],
+            S=WC_S_GRID["S"],
+            N=WC_S_GRID["N"],
+            f=WC_S_GRID["f"],
         ),
         n_scmets=expand(
             "output/within_cell/scmet.{S}.{N}.{f}.rds",
-            S=N_GRID["S"],
-            N=N_GRID["N"],
-            f=N_GRID["f"],
+            S=WC_N_GRID["S"],
+            N=WC_N_GRID["N"],
+            f=WC_N_GRID["f"],
         ),
-        disp_scmet=f"output/within_cell/scmet.{DISP["S"]}.{DISP["N"]}.{DISP["f"]}.rds",
+        disp_scmet=f"output/within_cell/scmet.{WC_DISP["S"]}.{WC_DISP["N"]}.{WC_DISP["f"]}.rds",
     params:
-        S_GRID=S_GRID,
-        N_GRID=N_GRID,
-        DISP=DISP,
+        S_GRID=WC_S_GRID,
+        N_GRID=WC_N_GRID,
+        DISP=WC_DISP,
     threads: 4
     output:
         html="output/05_within_cell.html",
@@ -442,7 +442,7 @@ rule between_cell_template:
     conda:
         "envs/r_sim.yaml"
     output:
-        "output/between_cell/intervals.{N}.{f}.tsv",
+        "output/between_cell/intervals.{S}.{N}.{f}.tsv",
     script:
         "src/between_cell/createTemplate.R"
 
@@ -451,9 +451,9 @@ rule between_cell_samples:
     conda:
         "envs/r_sim.yaml"
     input:
-        "output/between_cell/intervals.{N}.{f}.tsv",
+        "output/between_cell/intervals.{S}.{N}.{f}.tsv",
     output:
-        touch("output/between_cell/{samples}.{N}.{f}.flag"),
+        "output/between_cell/sim.{s}.{S}.{N}.{f}.tsv",
     params:
         data="output/between_cell",
     script:
@@ -464,23 +464,48 @@ rule between_cell_yamet:
     conda:
         "envs/yamet.yaml"
     input:
-        "output/between_cell/{samples}.{N}.{f}.flag",
+        cells=lambda wildcards: expand(
+            "output/between_cell/sim.{s}.{{S}}.{{N}}.{{f}}.tsv",
+            s=range(1, int(wildcards.S) + 1),
+        ),
         yamet=op.join("build", "yamet"),
     output:
-        det_out="output/between_cell/yamet.{samples}.{N}.{f}.det.out",
+        det_out="output/between_cell/yamet.{S}.{N}.{f}.det.out",
     params:
         data="output/between_cell",
-    threads: 3
+    threads: 4
+    benchmark:
+        repeat("output/between_cell/yamet.{S}.{N}.{f}.benchmark", 5)
     shell:
         """
-          {input.yamet} --cell {params.data}/sim.*.{wildcards.samples}.{wildcards.N}.{wildcards.f}.tsv \
+          {input.yamet} --cell {params.data}/sim.*.{wildcards.S}.{wildcards.N}.{wildcards.f}.tsv \
                         --reference {params.data}/ref.{wildcards.N}.{wildcards.f}.tsv \
-                        --intervals {params.data}/intervals.{wildcards.N}.{wildcards.f}.tsv \
+                        --intervals {params.data}/intervals.{wildcards.S}.{wildcards.N}.{wildcards.f}.tsv \
+                        --skip-header-intervals \
                         --det-out {output.det_out} \
-                        --meth-out {params.data}/yamet.{wildcards.samples}.{wildcards.N}.{wildcards.f}.meth.out \
+                        --meth-out {params.data}/yamet.{wildcards.S}.{wildcards.N}.{wildcards.f}.meth.out \
                         --cores {threads} \
                         --print-sampens F
         """
+
+
+rule between_cell_scmet:
+    conda:
+        "envs/r_plot.yaml"
+    input:
+        "output/between_cell/yamet.{S}.{N}.{f}.det.out",
+    output:
+        "output/between_cell/scmet.{S}.{N}.{f}.rds",
+    threads: 4
+    benchmark:
+        repeat("output/between_cell/scmet.{S}.{N}.{f}.benchmark", 5)
+    script:
+        "src/scmet.R"
+
+
+BC_S_GRID = {"S": [20, 40, 60, 80, 100], "N": 200, "f": 100}
+BC_N_GRID = {"S": 30, "N": [100, 200, 300, 400, 500], "f": 100}
+BC_DISP = {"S": 20, "N": 500, "f": 200}
 
 
 # specify the input yamet file with the specifications needed in the form
@@ -489,11 +514,24 @@ rule between_cell_plots:
     conda:
         "envs/r_plot.yaml"
     input:
-        det_out="output/between_cell/yamet.300.200.100.det.out",
+        s_scmets=expand(
+            "output/between_cell/scmet.{S}.{N}.{f}.rds",
+            S=BC_S_GRID["S"],
+            N=BC_S_GRID["N"],
+            f=BC_S_GRID["f"],
+        ),
+        n_scmets=expand(
+            "output/between_cell/scmet.{S}.{N}.{f}.rds",
+            S=BC_N_GRID["S"],
+            N=BC_N_GRID["N"],
+            f=BC_N_GRID["f"],
+        ),
+        disp_scmet=f"output/between_cell/scmet.{BC_DISP["S"]}.{BC_DISP["N"]}.{BC_DISP["f"]}.rds",
     params:
-        samples=lambda wildcards, input: input.det_out.split(".")[1],
-        N=lambda wildcards, input: input.det_out.split(".")[2],
-        f=lambda wildcards, input: input.det_out.split(".")[3],
+        S_GRID=BC_S_GRID,
+        N_GRID=BC_N_GRID,
+        DISP=BC_DISP,
+    threads: 4
     output:
         html="output/06_between_cell.html",
     script:
