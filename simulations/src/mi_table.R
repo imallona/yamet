@@ -21,6 +21,7 @@ mi_table_gen <- function(jnt, index_name, table = F) {
   nmi_values <- c(
     "Sample Entropy" = calc_nmi(jnt$sampen_avg, index, te),
     "Shannon Entropy" = calc_nmi(jnt$shannon, index, te),
+    "Average Methylation" = calc_nmi(jnt$avg_meth, index, te),
     "scMET (mu)" = calc_nmi(jnt$scmet_mu, index, te),
     "scMET (gamma)" = calc_nmi(jnt$scmet_gamma, index, te),
     "scMET (epsilon)" = calc_nmi(jnt$scmet_epsilon, index, te)

@@ -19,6 +19,8 @@ options(scipen = 999)
 
 s <- as.integer(snakemake@wildcards[["s"]])
 
+set.seed(42 + s)
+
 data_dir <- snakemake@params[["data"]]
 
 template <- read.table(snakemake@input[[1]],
@@ -27,8 +29,6 @@ template <- read.table(snakemake@input[[1]],
 template$rho <- lapply(strsplit(template$rho, ";"), as.numeric)
 
 mcgen <- function(n, rho) {
-  set.seed(42)
-
   tm <- matrix(c(
     rho, 1 - rho,
     rho, 1 - rho
