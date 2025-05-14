@@ -11,12 +11,12 @@ get_combs <- function(GRID) {
   return(tuples)
 }
 
-get_mi <- function(data_dir, S, N, f) {
+get_mi <- function(data_dir, S, N, f, x) {
   intervals <- read.table(
     paste0(data_dir, paste("/intervals", S, N, f, "tsv", sep = ".")),
     header = T
   )
-  intervals <- intervals["vi"]
+  intervals <- intervals[x]
   sampens <- read.table(
     paste0(data_dir, paste("/yamet", S, N, f, "det.out", sep = ".")),
     header = T
@@ -35,11 +35,11 @@ get_mi <- function(data_dir, S, N, f) {
 
   jnt$sampen_avg <- rowMeans(jnt[, output_cols])
 
-  mi_table <- mi_table_gen(jnt, "vi")
+  mi_table <- mi_table_gen(jnt, x)
   return(mi_table)
 }
 
-make_grid_plots <- function(GRID, grid_var, data_dir) {
+make_grid_plots <- function(GRID, grid_var, x, data_dir) {
   bm_data <- do.call(
     rbind,
     lapply(get_combs(GRID), function(row) {
@@ -60,7 +60,7 @@ make_grid_plots <- function(GRID, grid_var, data_dir) {
       S <- row$S
       N <- row$N
       f <- row$f
-      transform(get_mi(data_dir, S, N, f), S = S, N = N, f = f)
+      transform(get_mi(data_dir, S, N, f, x), S = S, N = N, f = f)
     })
   )
 

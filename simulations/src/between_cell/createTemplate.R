@@ -56,7 +56,7 @@ rho <- sapply(vi, function(x) {
 write.table(
   data.frame(
     chr = chr, start = start, end = end,
-    vi = vi, rho = rho
+    bc_vi = vi, rho = rho
   ),
   out,
   sep = "\t", row.names = FALSE, quote = FALSE

@@ -1,5 +1,5 @@
 ---
-title: "Within Cell Variability as a function of Variability Index"
+title: "Within Cell Variability"
 author: "Atreya Choudhury"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output:
@@ -29,16 +29,16 @@ $$0011\; 0110\; 0011\; 0110\; 0$$
 They both have the same distribution of 2-mers but differ in their sample entropy (the second one having higher sample entropy).
 This provides the basis of our simulation framework.
 For each feature, we start with a sequence where the first half is made up of $0011$s and the second is made up of $0110$s.
-For each feature, we pick a certain fraction of snips (equally from the two halves) in proportion to a true variability index.
-These snip positions differ between different features (even ones with the same variability index) but are the same for different samples within the same feature.
+For each feature, we pick a certain fraction of snips (equally from the two halves) in proportion to a true within cell variability index (wcVI).
+These snip positions differ between different features (even ones with the same wcVI) but are the same for different samples within the same feature.
 The snips at the selected positions are then shuffled in the different samples.
 The idea is that features where a higher fraction of snips were shuffled exhibit higher sample entropy compared to those where a lower fraction of snips were shuffled.
 We also add some stochastic methylation sampling from a beta-binomial distribution to control the level to which a feature in a particular sample is over/under-methylated.
 
 We start by creating a template for a cell.
 We have a fixed number of features, the length of each feature is taken to be the same and the number of simulated CpG sites is the same as well.
-Every feature is given a **Variability Index (VI)** between 1 and 10 and stored in the `vi` column.
-As described above we pick a fraction of snips in proportion to the feature's `vi`.
+Every feature is given a **within cell Variability Index (wcVI)** between 1 and 10 and stored in the `wc_vi` column.
+As described above we pick a fraction of snips in proportion to the feature's `wc_vi`.
 This is stored in the `snip_pos` column.
 For every feature, we sample from a bernoulli distribution indicating whether the feature will be over/under-methylated compared to the baseline.
 This is stored in the `higher` column.
@@ -73,12 +73,12 @@ DISP <- snakemake@params[["DISP"]]
 ## Variation
 For benchmarking against the number of samples, we used a grid with `r length(S_GRID$S)` sample sizes (S = `r paste(S_GRID$S, collapse = ", ")`), `r S_GRID$N` features where each feature has `r S_GRID$f` CpGs (all covered).
 ```{r}
-s_plots <- make_grid_plots(S_GRID, "S", data_dir)
+s_plots <- make_grid_plots(S_GRID, "S", "wc_vi", data_dir)
 ```
 
 For benchmarking against the number of features, we used a grid with `r N_GRID$S` samples, `r length(N_GRID$N)` feature sizes (N = `r paste(N_GRID$N, collapse = ", ")`) where each feature has `r N_GRID$f` CpGs (all covered).
 ```{r}
-n_plots <- make_grid_plots(N_GRID, "N", data_dir)
+n_plots <- make_grid_plots(N_GRID, "N", "wc_vi", data_dir)
 ```
 
 ## One Example
@@ -92,7 +92,7 @@ intervals <- read.table(
   paste0(data_dir, paste("/intervals", S, N, f, "tsv", sep = ".")),
   header = T
 )
-intervals <- intervals["vi"]
+intervals <- intervals["wc_vi"]
 sampens <- read.table(
   paste0(data_dir, paste("/yamet", S, N, f, "det.out", sep = ".")),
   header = T
@@ -109,7 +109,7 @@ jnt.long <- do.call(rbind, lapply(output_cols, function(col) {
     sampen = jnt[[col]],
     shannon = jnt$shannon,
     avg_meth = jnt$avg_meth,
-    vi = jnt$vi
+    wc_vi = jnt$wc_vi
   )
 }))
 
@@ -125,45 +125,45 @@ meth.long <- do.call(rbind, lapply(output_cols, function(col) {
 
 all.long <- cbind(jnt.long, meth.long)
 
-samp_meth <- ggplot(all.long, aes(x = meth, y = sampen, color = vi)) +
+samp_meth <- ggplot(all.long, aes(x = meth, y = sampen, color = wc_vi)) +
   geom_point(alpha = 0.7) +
   theme_minimal() +
   labs(
-    title = "Sample Entropy in different VI values",
-    x = "Average Methylation", y = "Sample Entropy", color = "VI"
+    title = "Sample Entropy in different wcVI values",
+    x = "Average Methylation", y = "Sample Entropy", color = "wcVI"
   )
 
-samp_vi <- ggplot(all.long, aes(x = as.factor(vi), y = sampen)) +
+samp_vi <- ggplot(all.long, aes(x = as.factor(wc_vi), y = sampen)) +
   geom_point(alpha = 0.7, position = position_jitter(width = 0.2)) +
   geom_violin(alpha = 0.3, position = position_dodge(0.8)) +
   theme_minimal() +
   labs(
-    title = "Sample Entropy in different VI values",
-    x = "VI", y = "Sample Entropy"
+    title = "Sample Entropy in different wcVI values",
+    x = "wcVI", y = "Sample Entropy"
   )
 
-shannon_meth <- ggplot(jnt, aes(x = avg_meth, y = shannon, color = vi)) +
+shannon_meth <- ggplot(jnt, aes(x = avg_meth, y = shannon, color = wc_vi)) +
   geom_point(alpha = 0.7) +
   theme_minimal() +
   labs(
-    title = "Shannon Entropy in different VI values (per feature)",
-    x = "Average Methylation", y = "Shannon Entropy", color = "VI"
+    title = "Shannon Entropy in different wcVI values (per feature)",
+    x = "Average Methylation", y = "Shannon Entropy", color = "wcVI"
   )
 
-shannon_vi <- ggplot(jnt, aes(x = as.factor(vi), y = shannon, color = avg_meth)) +
+shannon_vi <- ggplot(jnt, aes(x = as.factor(wc_vi), y = shannon, color = avg_meth)) +
   geom_point(alpha = 0.7) +
   theme_minimal() +
   labs(
-    title = "Shannon Entropy in different VI values (per feature)",
-    x = "VI", y = "Shannon Entropy", color = "meth"
+    title = "Shannon Entropy in different wcVI values (per feature)",
+    x = "wcVI", y = "Shannon Entropy", color = "meth"
   )
 
-samp_shan <- ggplot(all.long, aes(x = shannon, y = sampen, color = vi)) +
+samp_shan <- ggplot(all.long, aes(x = shannon, y = sampen, color = wc_vi)) +
   geom_point(alpha = 0.7) +
   theme_minimal() +
   labs(
-    title = "Sample Entropy in different VI values",
-    x = "Shannon Entropy", y = "Sample Entropy", color = "VI"
+    title = "Sample Entropy in different wcVI values",
+    x = "Shannon Entropy", y = "Sample Entropy", color = "wcVI"
   )
 ```
 
@@ -178,57 +178,57 @@ jnt$scmet_epsilon <- tmp[match(rownames(jnt), names(tmp))]
 ```
 
 ```{r}
-ggplot(jnt, aes(x = as.factor(vi), y = scmet_mu, color = avg_meth)) +
+ggplot(jnt, aes(x = as.factor(wc_vi), y = scmet_mu, color = avg_meth)) +
   geom_point(alpha = 0.7) +
   theme_minimal() +
   labs(
-    title = "scMET (mu) in different VI values (per feature)",
-    x = "VI", y = "mu", color = "meth"
+    title = "scMET (mu) in different wcVI values (per feature)",
+    x = "wcVI", y = "mu", color = "meth"
   )
 
-scmet_mu_meth <- ggplot(jnt, aes(x = avg_meth, y = scmet_mu, color = vi)) +
+scmet_mu_meth <- ggplot(jnt, aes(x = avg_meth, y = scmet_mu, color = wc_vi)) +
   geom_point(alpha = 0.7) +
   theme_minimal() +
   labs(
     title = "scMET (mu) in different meth values (per feature)",
-    x = "meth", y = "mu", color = "vi"
+    x = "meth", y = "mu", color = "wcVI"
   )
 
-scmet_gamma_meth <- ggplot(jnt, aes(x = avg_meth, y = scmet_gamma, color = vi)) +
+scmet_gamma_meth <- ggplot(jnt, aes(x = avg_meth, y = scmet_gamma, color = wc_vi)) +
   geom_point(alpha = 0.7) +
   theme_minimal() +
   labs(
     title = "scMET (gamma) in different meth values (per feature)",
-    x = "meth", y = "gamma", color = "vi"
+    x = "meth", y = "gamma", color = "wcVI"
   )
 
-scmet_epsilon_meth <- ggplot(jnt, aes(x = avg_meth, y = scmet_epsilon, color = vi)) +
+scmet_epsilon_meth <- ggplot(jnt, aes(x = avg_meth, y = scmet_epsilon, color = wc_vi)) +
   geom_point(alpha = 0.7) +
   theme_minimal() +
   labs(
     title = "scMET (epsilon) in different meth values (per feature)",
-    x = "meth", y = "mu", color = "vi"
+    x = "meth", y = "mu", color = "wcVI"
   )
 
-ggplot(jnt, aes(x = as.factor(vi), y = sampen_avg, color = avg_meth)) +
+ggplot(jnt, aes(x = as.factor(wc_vi), y = sampen_avg, color = avg_meth)) +
   geom_point(alpha = 0.7) +
   theme_minimal() +
   labs(
-    title = "Sample Entropy in different VI values (per feature)",
-    x = "VI", y = "sampen (average)", color = "meth"
+    title = "Sample Entropy in different wcVI values (per feature)",
+    x = "wcVI", y = "sampen (average)", color = "meth"
   )
 
-ggplot(jnt, aes(x = avg_meth, y = sampen_avg, color = vi)) +
+ggplot(jnt, aes(x = avg_meth, y = sampen_avg, color = wc_vi)) +
   geom_point(alpha = 0.7) +
   theme_minimal() +
   labs(
     title = "Sample Entropy in different meth values (per feature)",
-    x = "meth", y = "sampen (average)", color = "VI"
+    x = "meth", y = "sampen (average)", color = "wcVI"
   )
 ```
 
 ```{r}
-mi_table <- mi_table_gen(jnt, "vi", table = T)
+mi_table <- mi_table_gen(jnt, "wc_vi", table = T)
 ```
 
 ```{r fig.width=20, fig.height=15, out.width="100%"}

@@ -77,7 +77,7 @@ delta <- sapply(vi, function(x) {
 write.table(
   data.frame(
     chr = chr, start = start, end = end,
-    vi = vi, snip_pos = snip_pos,
+    wc_vi = vi, snip_pos = snip_pos,
     higher = higher, delta = delta
   ),
   out,

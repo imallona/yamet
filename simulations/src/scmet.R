@@ -9,8 +9,9 @@ data_dir <- dirname(snakemake@output[[1]])
 
 intervals <- fread(
   paste0(data_dir, paste("/intervals", S, N, f, "tsv", sep = ".")),
-  header = T, select = "vi"
+  header = T
 )
+intervals <- intervals[, .SD, .SDcols = patterns("_vi$")]
 meth <- fread(
   paste0(data_dir, paste("/yamet", S, N, f, "meth.out", sep = ".")),
   header = T
