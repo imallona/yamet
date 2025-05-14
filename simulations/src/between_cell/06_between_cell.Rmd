@@ -9,6 +9,33 @@ output:
     fig_crop: yes
 ---
 
+## Strategy
+
+The goal is to generate features with various heterogeneity levels for the purpose of between cell differentiation.
+The goal here is to focus more on  the stochastic nature of methylation.
+
+Our strategy here is to mix markov chains generated using a transition matrix of the form
+$$
+  \begin{bmatrix}
+  \rho & 1 - \rho \\
+  \rho & 1 - \rho
+  \end{bmatrix}
+$$
+with different values of $\rho$ to create more or less heterogeneity across samples in a region.
+
+We start by creating a template for a cell.
+We have a fixed number of features, the length of each feature is taken to be the same and the number of simulated CpG sites is the same as well.
+Every feature is given a **Variability Index (VI)** between 1 and 10 and stored in the `vi` column.
+We have a list of 10 equally spaced values of $\rho$ from $0.1$ to $0.9$.
+Now, for a feature with given variability index, say $x$, we take the first $x$ elements from our list of $\rho$ values and sample from it to generate $\rho$ values for the samples belonging to that feature.
+These sampled values of $\rho$ are then stored in the `rho` column.
+
+With the template, we now generate samples as described above.
+At every intersection of sample and feature, we have a value of $rho$ which can be used to sample a markov chain.
+We observe that features with a lower VI see more homogenous samplings in `rho` which lead to lesser shannon entropy and vice-versa.
+Also observe that chains generated with higher values of $\rho$ are also more methylated.
+This leads to a relationship between average methylation and `vi`, which is visible from scMET's performance.
+
 ```{r, setup}
 suppressPackageStartupMessages({
   library(ggplot2)
