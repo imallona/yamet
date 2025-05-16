@@ -24,8 +24,8 @@ int main(int argc, char **argv) {
       ref.print();
     }
 
-    FileMap fileMap = alignWithRef(filenames, ref, 2, getSkipHeaderCell(vm), getCores(vm),
-                                   getThreadsPerCore(vm), getChunkSize(vm));
+    FileMap fileMap =
+        alignWithRef(filenames, ref, 2, getSkipHeaderCell(vm), getCores(vm), getChunkSize(vm));
 
     if (printSampens(vm) || vm.count("det-out") || vm.count("meth-out") || vm.count("out")) {
       fileMap.aggregate();

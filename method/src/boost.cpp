@@ -83,9 +83,6 @@ po::variables_map parseCommandLine(int argc, char **argv) {
   res.add_options()
     ("cores", po::value<int>()->default_value(0)->notifier(validate_cores),
         "number of cores used for simultaneously parsing methylation files")
-    ("threads-per-core",
-        po::value<unsigned int>()->default_value(1)->notifier(validate_threads_per_core),
-        "number of threads per core used for simultaneously parsing methylation files")
     ("chunk-size", po::value<std::string>()->default_value("64K")->notifier(validate_chunk_size),
         "size of the buffer (per file) used for reading data. Can be specified as a "
         "positive integer (bytes) or with a suffix: B (bytes), K (kilobytes), "
@@ -188,10 +185,6 @@ unsigned int getCores(const po::variables_map &vm) {
   }
 }
 
-unsigned int getThreadsPerCore(const po::variables_map &vm) {
-  return vm["threads-per-core"].as<unsigned int>();
-}
-
 unsigned int getChunkSize(const po::variables_map &vm) {
   static const std::regex pattern(R"(^(\d+(\.\d+)?)(B|K|M|G)?$)", std::regex::icase);
   std::smatch             match;
@@ -254,13 +247,5 @@ void validate_cores(const int cores) {
                             "Invalid value " + std::to_string(cores) +
                                 " for 'cores', exceeds the maximum number of available cores, " +
                                 std::to_string(max_cores));
-  }
-}
-
-void validate_threads_per_core(const int threads_per_core) {
-  if (threads_per_core < 1) {
-    throw std::system_error(EINVAL, std::generic_category(),
-                            "Invalid value " + std::to_string(threads_per_core) +
-                                " for 'threads-per-core'. It must be atleast 1");
   }
 }
