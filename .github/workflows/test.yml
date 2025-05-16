@@ -2,6 +2,7 @@
 name: build_and_test
 on:
   workflow_dispatch: null
+  push:
   pull_request:
     paths:
       - "method/**/*.cpp"
