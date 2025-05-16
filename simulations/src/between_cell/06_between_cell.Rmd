@@ -1,0 +1,250 @@
+---
+title: "Between Cell Variability"
+author: "Atreya Choudhury"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  bookdown::html_document2:
+    code_folding: hide
+    number_sections: no
+    fig_crop: yes
+---
+
+## Strategy
+
+The goal is to generate features with various heterogeneity levels for the purpose of between cell differentiation.
+The goal here is to focus more on  the stochastic nature of methylation.
+
+Our strategy here is to mix markov chains generated using a transition matrix of the form
+$$
+  \begin{bmatrix}
+  \rho & 1 - \rho \\
+  \rho & 1 - \rho
+  \end{bmatrix}
+$$
+with different values of $\rho$ to create more or less heterogeneity across samples in a region.
+
+We start by creating a template for a cell.
+We have a fixed number of features, the length of each feature is taken to be the same and the number of simulated CpG sites is the same as well.
+Every feature is given a **between cell Variability Index (bcVI)** between 1 and 10 and stored in the `bc_vi` column.
+We have a list of 10 equally spaced values of $\rho$ from $0.1$ to $0.9$.
+Now, for a feature with given variability index, say $x$, we take the first $x$ elements from our list of $\rho$ values and sample from it to generate $\rho$ values for the samples belonging to that feature.
+These sampled values of $\rho$ are then stored in the `rho` column.
+
+With the template, we now generate samples as described above.
+At every intersection of sample and feature, we have a value of $\rho$ which can be used to sample a markov chain.
+We observe that features with a lower bcVI see more homogenous samplings in `rho` which lead to lesser shannon entropy and vice-versa.
+Also observe that chains generated with higher values of $\rho$ are also more methylated.
+This leads to a relationship between average methylation and `bc_vi`, which is visible from scMET's performance.
+
+```{r, setup}
+suppressPackageStartupMessages({
+  library(ggplot2)
+  library(ggpubr)
+})
+source("src/mi_table.R")
+source("src/make_grid_plots.R")
+data_dir <- dirname(snakemake@input[["disp_scmet"]])
+S_GRID <- snakemake@params[["S_GRID"]]
+N_GRID <- snakemake@params[["N_GRID"]]
+DISP <- snakemake@params[["DISP"]]
+```
+
+## Variation
+For benchmarking against the number of samples, we used a grid with `r length(S_GRID$S)` sample sizes (S = `r paste(S_GRID$S, collapse = ", ")`), `r S_GRID$N` features where each feature has `r S_GRID$f` CpGs (all covered).
+```{r}
+s_plots <- make_grid_plots(S_GRID, "S", "bc_vi", data_dir)
+```
+
+For benchmarking against the number of features, we used a grid with `r N_GRID$S` samples, `r length(N_GRID$N)` feature sizes (N = `r paste(N_GRID$N, collapse = ", ")`) where each feature has `r N_GRID$f` CpGs (all covered).
+```{r}
+n_plots <- make_grid_plots(N_GRID, "N", "bc_vi", data_dir)
+```
+
+## One Example
+We show one example with `r DISP$S` samples, `r DISP$N` features where each feature has `r DISP$f` CpGs (all covered).
+```{r}
+S <- DISP$S
+N <- DISP$N
+f <- DISP$f
+
+intervals <- read.table(
+  paste0(data_dir, paste("/intervals", S, N, f, "tsv", sep = ".")),
+  header = T
+)
+intervals <- intervals["bc_vi"]
+sampens <- read.table(
+  paste0(data_dir, paste("/yamet", S, N, f, "det.out", sep = ".")),
+  header = T
+)
+jnt <- cbind(sampens, intervals)
+rownames(jnt) <- paste(jnt$start, jnt$end, sep = ":")
+output_cols <- grep("^output", colnames(jnt), value = TRUE)
+jnt$sampen_avg <- rowMeans(jnt[, output_cols])
+jnt.long <- do.call(rbind, lapply(output_cols, function(col) {
+  data.frame(
+    start = jnt$start,
+    end = jnt$end,
+    sample = col,
+    sampen = jnt[[col]],
+    shannon = jnt$shannon,
+    avg_meth = jnt$avg_meth,
+    bc_vi = jnt$bc_vi
+  )
+}))
+
+meth <- read.table(
+  paste0(data_dir, paste("/yamet", S, N, f, "meth.out", sep = ".")),
+  header = TRUE
+)
+meth.long <- do.call(rbind, lapply(output_cols, function(col) {
+  data.frame(
+    meth = meth[[col]]
+  )
+}))
+
+all.long <- cbind(jnt.long, meth.long)
+
+samp_meth <- ggplot(all.long, aes(x = meth, y = sampen, color = bc_vi)) +
+  geom_point(alpha = 0.7) +
+  theme_minimal() +
+  labs(
+    title = "Sample Entropy in different bcVI values",
+    x = "Average Methylation", y = "Sample Entropy", color = "bcVI"
+  )
+
+samp_vi <- ggplot(all.long, aes(x = as.factor(bc_vi), y = sampen)) +
+  geom_point(alpha = 0.7, position = position_jitter(width = 0.2)) +
+  geom_violin(alpha = 0.3, position = position_dodge(0.8)) +
+  theme_minimal() +
+  labs(
+    title = "Sample Entropy in different bcVI values",
+    x = "bcVI", y = "Sample Entropy"
+  )
+
+shannon_meth <- ggplot(jnt, aes(x = avg_meth, y = shannon, color = bc_vi)) +
+  geom_point(alpha = 0.7) +
+  theme_minimal() +
+  labs(
+    title = "Shannon Entropy in different bcVI values (per feature)",
+    x = "Average Methylation", y = "Shannon Entropy", color = "bcVI"
+  )
+
+shannon_vi <- ggplot(jnt, aes(x = as.factor(bc_vi), y = shannon, color = avg_meth)) +
+  geom_point(alpha = 0.7) +
+  theme_minimal() +
+  labs(
+    title = "Shannon Entropy in different bcVI values (per feature)",
+    x = "bcVI", y = "Shannon Entropy", color = "meth"
+  )
+
+samp_shan <- ggplot(all.long, aes(x = shannon, y = sampen, color = bc_vi)) +
+  geom_point(alpha = 0.7) +
+  theme_minimal() +
+  labs(
+    title = "Sample Entropy in different bcVI values",
+    x = "Shannon Entropy", y = "Sample Entropy", color = "bcVI"
+  )
+```
+
+```{r}
+scmet_fit <- readRDS(paste0(data_dir, paste("/scmet", S, N, f, "rds", sep = ".")))
+tmp <- colMeans(scmet_fit$posterior$mu)
+jnt$scmet_mu <- tmp[match(rownames(jnt), names(tmp))]
+tmp <- colMeans(scmet_fit$posterior$gamma)
+jnt$scmet_gamma <- tmp[match(rownames(jnt), names(tmp))]
+tmp <- colMeans(scmet_fit$posterior$epsilon)
+jnt$scmet_epsilon <- tmp[match(rownames(jnt), names(tmp))]
+```
+
+```{r}
+ggplot(jnt, aes(x = as.factor(bc_vi), y = scmet_mu, color = avg_meth)) +
+  geom_point(alpha = 0.7) +
+  theme_minimal() +
+  labs(
+    title = "scMET (mu) in different bcVI values (per feature)",
+    x = "bcVI", y = "mu", color = "meth"
+  )
+
+scmet_mu_meth <- ggplot(jnt, aes(x = avg_meth, y = scmet_mu, color = bc_vi)) +
+  geom_point(alpha = 0.7) +
+  theme_minimal() +
+  labs(
+    title = "scMET (mu) in different meth values (per feature)",
+    x = "meth", y = "mu", color = "bcVI"
+  )
+
+scmet_gamma_meth <- ggplot(jnt, aes(x = avg_meth, y = scmet_gamma, color = bc_vi)) +
+  geom_point(alpha = 0.7) +
+  theme_minimal() +
+  labs(
+    title = "scMET (gamma) in different meth values (per feature)",
+    x = "meth", y = "gamma", color = "bcVI"
+  )
+
+scmet_epsilon_meth <- ggplot(jnt, aes(x = avg_meth, y = scmet_epsilon, color = bc_vi)) +
+  geom_point(alpha = 0.7) +
+  theme_minimal() +
+  labs(
+    title = "scMET (epsilon) in different meth values (per feature)",
+    x = "meth", y = "mu", color = "bcVI"
+  )
+
+ggplot(jnt, aes(x = as.factor(bc_vi), y = sampen_avg, color = avg_meth)) +
+  geom_point(alpha = 0.7) +
+  theme_minimal() +
+  labs(
+    title = "Sample Entropy in different bcVI values (per feature)",
+    x = "bcVI", y = "sampen (average)", color = "meth"
+  )
+
+ggplot(jnt, aes(x = avg_meth, y = sampen_avg, color = bc_vi)) +
+  geom_point(alpha = 0.7) +
+  theme_minimal() +
+  labs(
+    title = "Sample Entropy in different meth values (per feature)",
+    x = "meth", y = "sampen (average)", color = "bcVI"
+  )
+```
+
+```{r}
+mi_table <- mi_table_gen(jnt, "bc_vi", table = T)
+```
+
+```{r fig.width=20, fig.height=15, out.width="100%"}
+ggarrange(
+  ggarrange(
+    samp_meth,
+    ggarrange(
+      ggarrange(
+        s_plots$nmi, n_plots$nmi,
+        legend = "right", common.legend = T,
+        ncol = 2, widths = c(1, 1)
+      ),
+      ggarrange(
+        s_plots$seconds, n_plots$seconds,
+        s_plots$mem, n_plots$mem,
+        legend = "top", common.legend = T,
+        ncol = 2, nrow = 2, widths = c(1, 1)
+      ),
+      ncol = 1, nrow = 2, heights = c(1, 2)
+    ),
+    nrow = 2, heights = c(2, 3)
+  ),
+  ggarrange(
+    samp_shan,
+    samp_vi,
+    shannon_meth,
+    shannon_vi,
+    nrow = 4
+  ),
+  ggarrange(
+    scmet_mu_meth,
+    scmet_gamma_meth,
+    scmet_epsilon_meth,
+    mi_table,
+    common.legend = T,
+    nrow = 4
+  ),
+  ncol = 3
+)
+```

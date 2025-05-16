@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 
 - [method] Default values for some of the less important arguments in user-exposed functions in the yamet library
+- [simulations] Simulations to quantify heterogeneity within and between cells, benchmark yamet and scMET on these simulations, tracking Normalised Mutual Information, runtime and maximum resident set size consumed
 
 ### Fixed
 

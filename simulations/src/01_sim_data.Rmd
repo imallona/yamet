@@ -114,6 +114,7 @@ lapply(nCpGs, function(nCpG) {
     ),
     sep = "\t",
     row.names = FALSE,
+    col.names = FALSE,
     quote = FALSE
   )
 })
