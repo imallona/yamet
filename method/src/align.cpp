@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <cerrno>
 #include <iostream>
+#include <mutex>
 #include <sstream>
 #include <unordered_map>
 #include <vector>
@@ -22,12 +23,13 @@
  * @param ref[in] Reference object with all positions of interest in the genome.
  * @param m[in] size of window.
  * @param chunk_size[in] size of file chunk.
+ * @param fileMapMutex[in] mutex to protect fileMap while writing.
  * @param fileMap[out] FileMap object of key value pairs where the parsed methylation data is stored
  * in a FileMeths object against the filename as key.
  */
 void alignSingleWithRef(const std::string &filename, const Reference &ref, const unsigned int m,
                         const unsigned int skip_header, const unsigned int chunk_size,
-                        FileMap &fileMap) {
+                        std::mutex &fileMapMutex, FileMap &fileMap) {
   gzFile file = gzopen(filename.c_str(), "rb");
   if (!file) {
     throw std::system_error(errno, std::generic_category(), "Opening " + filename);
@@ -169,7 +171,10 @@ void alignSingleWithRef(const std::string &filename, const Reference &ref, const
     }
   }
   gzclose(file);
-  fileMap.addFile(filename, fileCounts.getContainer());
+  {
+    std::lock_guard<std::mutex> lock(fileMapMutex);
+    fileMap.addFile(filename, fileCounts.getContainer());
+  }
 }
 
 /**
@@ -191,13 +196,14 @@ FileMap alignWithRef(const std::vector<std::string> &filenames, const Reference 
 
   ThreadPool                     pool(n_cores);
   std::vector<std::future<void>> results(filenames.size());
+  std::mutex                     fileMapMutex;
 
-  std::transform(filenames.begin(), filenames.end(), results.begin(),
-                 [&](const std::string &filename) {
-                   return pool.enqueue([&, filename]() {
-                     alignSingleWithRef(filename, ref, m, skip_header, chunk_size, fileMap);
-                   });
-                 });
+  std::transform(
+      filenames.begin(), filenames.end(), results.begin(), [&](const std::string &filename) {
+        return pool.enqueue([&, filename]() {
+          alignSingleWithRef(filename, ref, m, skip_header, chunk_size, fileMapMutex, fileMap);
+        });
+      });
 
   for (auto &result : results) {
     result.get();
