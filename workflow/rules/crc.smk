@@ -121,8 +121,14 @@ rule download_crc:
         do
           short="$(echo $gsm | cut -c1-7)"
           url=ftp://ftp.ncbi.nlm.nih.gov/geo/samples/"$short"nnn/"$gsm"/suppl/
-          wget --no-directories --directory-prefix={params.raw} \
-            --no-clobber --execute robots=off -r -k -A gz $url
+          if [ ! -e "{params.raw}"/"$(basename $url)" ]
+          then
+            # removed a -r because it was making -nc not work
+            # but might be -r is necessary, not deleting files to debug
+            # so if not working add `-r`
+            wget --no-directories --directory-prefix={params.raw} \
+              --no-clobber --execute robots=off -k -A gz $url
+            fi
         done < {input.gsm} > {log}
         
         date >> {output.download_flag}
@@ -171,7 +177,7 @@ def get_harmonized_files(patient, location):
         raise Exception('No cytosine reports matching the specs.')
     return [op.join(CRC_HARMONIZED, op.basename(file)) for file in filepaths]
 
-
+        
 # print(get_harmonized_files(patient = 'CRC01', location = "NC"))
 
 rule run_yamet:
