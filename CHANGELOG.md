@@ -6,11 +6,35 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## Upcoming
 
+## [v1.1.0-rc.4](https://github.com/imallona/yamet/releases/tag/v1.1.0-rc.4)
+
 ### Added
 
-- error handling for incorrect line parsing
-- `--skip-header`, `--skip-header-cell`, `--skip-header-reference` and `--skip-header-intervals` for skipping headers in files at various levels of granularity
-- `--meth-out` for average methylation report per region per cell
+- [method] Default values for some of the less important arguments in user-exposed functions in the yamet library
+- [simulations] Simulations to quantify heterogeneity within and between cells, benchmark yamet and scMET on these simulations, tracking Normalised Mutual Information, runtime and maximum resident set size consumed
+
+### Fixed
+
+- [method] Core pinning issue where threads were consistently pinned to the first `--cores` logical processors as specified by the user. This could lead to performance contention and higher wait times for those specific cores to become available, particularly when multiple instances of `yamet` are running.
+- [method] `fileMap` insertion protected by mutex
+
+### Removed
+
+- [method] In line with the new thread management system, the `--threads-per-core` argument has been removed.
+
+### Fixed
+
+- [method] k-mer shannon entropy log base changed from $e$ to $2k$ to squeeze output to $[0,\;1]$
+
+## [v1.1.0-rc.3](https://github.com/imallona/yamet/releases/tag/v1.1.0-rc.3)
+
+### Added
+
+- [method] Added error capturing (incorrect line parsing)
+- [method] Added `--skip-header`, `--skip-header-cell`, `--skip-header-reference` and `--skip-header-intervals` flags for skipping headers in files at various levels of granularity
+- [method] Added `--meth-out` to produce average methylation files per region and cell
+- [workflow] Added nonfunctional/untested workflow steps
+- [simulations] Added traditional simulations to evaluate robustness against sparsity and average DNA methylation levels dependencies
 
 ## [v1.1.0-rc.2](https://github.com/imallona/yamet/releases/tag/v1.1.0-rc.2)
 
