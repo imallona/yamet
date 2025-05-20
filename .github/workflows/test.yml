@@ -3,10 +3,7 @@ name: build_and_test
 on:
   workflow_dispatch: null
   pull_request:
-    paths:
-      - "method/**/*.cpp"
-      - "method/**/*.h"
-      - "method/CMakeLists.txt"
+
 
 jobs:
   build_ubuntu_latest:
@@ -36,39 +33,29 @@ jobs:
 
           diff test_parse/out/stdout \
               current_test_parse.stdout
-      - name: Test_0
+      - name: Test Avg Meth singlecore
+        if: always()
         run: |
           cd test
           ../method/build/yamet \
-              test_0/in/cell1.bed.gz \
-              -r test_0/in/ref.bed.gz \
-              -i test_0/in/regions.bed \
-              --print-sampens F \
-              --det-out current_test_0.out
+              test_avg/in/simulations.*.tsv \
+              -r test_avg/in/reference.tsv \
+              -i test_avg/in/regions.bed \
+              --meth-out current_test_avg.out \
+              --cores 1 &> current_test_avg.stdout
 
-          echo 'Diff expected vs produced'
+          echo 'Diff expected vs produced avg meth output'
 
-          diff test_0/out/detailed.out \
-              current_test_0.out
-      - name: Test_1
-        run: |
-          cd test
-          ../method/build/yamet \
-              test_1/in/simulations.tsv \
-              -r test_1/in/reference.tsv \
-              -i test_1/in/regions.bed \
-              --det-out current_test_1.out &> current_test_1.stdout
-
-          echo 'Diff expected vs produced detailed output'
-
-          diff test_1/out/detailed.out \
-              current_test_1.out
+          diff test_avg/out/meth.out \
+              current_test_avg.out
 
           echo 'Diff expected vs produced stdout'
 
-          diff test_1/out/stdout \
-              current_test_1.stdout
-      - name: Test Avg Meth
+          diff test_avg/out/stdout \
+              current_test_avg.stdout
+
+      - name: Test Avg Meth multiple reports default
+        if: always()
         run: |
           cd test
           ../method/build/yamet \
@@ -86,3 +73,49 @@ jobs:
 
           diff test_avg/out/stdout \
               current_test_avg.stdout
+      - name: Test_0 one report
+        if: always()
+        run: |
+          cd test
+          ../method/build/yamet \
+              test_0/in/cell1.bed.gz \
+              -r test_0/in/ref.bed.gz \
+              -i test_0/in/regions.bed \
+              --print-sampens F \
+              --det-out current_test_0.out
+
+          echo 'Diff expected vs produced'
+
+          diff test_0/out/detailed.out \
+              current_test_0.out
+      - name: Test_0 two reports
+        if: always()
+        run: |
+          cd test
+          ../method/build/yamet \
+              test_0/in/cell1.bed.gz test_0/in/cell1.bed.gz \
+              -r test_0/in/ref.bed.gz \
+              -i test_0/in/regions.bed \
+              --print-sampens F \
+              --det-out current_test_0.out
+           ## no diff because we don't have the true outputs stored;
+           ##  exit code is enough
+      - name: Test_1
+        if: always()
+        run: |
+          cd test
+          ../method/build/yamet \
+              test_1/in/simulations.tsv \
+              -r test_1/in/reference.tsv \
+              -i test_1/in/regions.bed \
+              --det-out current_test_1.out &> current_test_1.stdout
+
+          echo 'Diff expected vs produced detailed output'
+
+          diff test_1/out/detailed.out \
+              current_test_1.out
+
+          echo 'Diff expected vs produced stdout'
+
+          diff test_1/out/stdout \
+              current_test_1.stdout
