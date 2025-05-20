@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## Upcoming
 
+## [v1.1.0-rc.4](https://github.com/imallona/yamet/releases/tag/v1.1.0-rc.4)
+
 ### Added
 
 - [method] Default values for some of the less important arguments in user-exposed functions in the yamet library
@@ -13,7 +15,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
-- [method] Core pinning issue where threads were consistently pinned to the first `--cores` logical processors as specified by the user. This could lead to performance contention and higher wait times for those specific cores to become available, particularly when multiple instances of `yamet` are running concurrently.
+- [method] Core pinning issue where threads were consistently pinned to the first `--cores` logical processors as specified by the user. This could lead to performance contention and higher wait times for those specific cores to become available, particularly when multiple instances of `yamet` are running.
+- [method] `fileMap` insertion protected by mutex
 
 ### Removed
 
