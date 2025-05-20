@@ -17,7 +17,7 @@ from glob import glob
 
 CRC_RAW = op.join("crc", "raw")
 CRC_DATA = op.join("crc", "data")
-CRC_YAMET = op.join("crc", "yamet")
+CRC_YAMET = op.join("output", "crc_yamet")
 
 
 rule download_crc_accessors:
@@ -85,14 +85,14 @@ rule yamet_crc_cg:
         meth_out=op.join(CRC_YAMET, "{subcat}.{cat}.{patient}.{stage}.meth.out"),
     group:
         "yamet"
-    threads: 16
+    threads: 8
     params:
         base=CRC_YAMET,
     script:
         "src/yamet.sh"
 
 
-CAT_MAP = {
+ANN_MAP = {
     "pmd": ["pmds", "hmds"],
     "hmm": [
         "0_Enhancer",
@@ -114,23 +114,36 @@ CAT_MAP = {
     "lad": ["laminb1"],
     "custom": ["bookended"],
 }
-STAGES = ["NC", "PT"]
-PATIENTS = ["CRC01", "CRC02", "CRC04", "CRC10", "CRC11", "CRC13", "CRC15"]
+
+SAMPLES = {
+    "CRC01": ["NC", "PT", "LN", "ML", "MP"],
+    "CRC02": ["NC", "PT", "ML", "PT"],
+    "CRC04": ["NC", "PT"],
+    "CRC10": ["NC", "PT", "LN"],
+    "CRC11": ["NC", "PT", "LN"],
+    "CRC13": ["NC", "PT", "LN"],
+    "CRC15": ["NC", "PT", "LN", "ML", "MO"],
+}
+
+
+def crc_yamet_outputs():
+    res = []
+    for ann in ANN_MAP:
+        for subann in ANN_MAP[ann]:
+            for patient in SAMPLES:
+                for sample in SAMPLES[patient]:
+                    res.append(f"{subann}.{ann}.{patient}.{sample}.det.out")
+    return [op.join(CRC_YAMET, item) for item in res]
 
 
 rule crc_doc:
     conda:
         op.join("..", "envs", "r.yml")
     input:
-        expand(
-            op.join(CRC_YAMET, "{jnt}.{patient}.{stage}.out"),
-            jnt=[f"{subcat}.{cat}" for cat in CAT_MAP for subcat in CAT_MAP[cat]],
-            stage=STAGES,
-            patient=PATIENTS,
-        ),
+        crc_yamet_outputs(),
     params:
         yamet=CRC_YAMET,
     output:
-        op.join("crc", "crc.html"),
+        op.join("output", "crc.html"),
     script:
         "src/crc.Rmd"
