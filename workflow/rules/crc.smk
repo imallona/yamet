@@ -56,29 +56,6 @@ SAMPLES = {"CRC01" : ['NC', 'PT', 'LN', 'ML', 'MP'],
            "CRC13" : ['NC', 'PT', 'LN'],
            "CRC15" : ['NC', 'PT', 'LN', 'ML', 'MO']} # What is MO, a typo?
 
-def list_relevant_yamet_outputs():
-    res = []
-    for annot in ANNOTATIONS:
-        for subannot in ANNOTATIONS[annot]:
-            for patient in SAMPLES.keys():
-                for sampling in SAMPLES[patient]:
-                    res.append(f"{subannot}_{annot}_{patient}_{sampling}.det.out")
-    return [op.join(CRC_OUTPUT, item) for item in res]
-
-rule render_crc_report:
-    conda:
-        op.join("..", "envs", "r.yml")
-    input:
-        list_relevant_yamet_outputs()
-    params:
-        output_path=CRC_OUTPUT
-    output:
-        op.join(CRC, "results", "crc.html")
-    log:
-        log = op.join("logs", "render_crc.log")
-    script:
-        "src/crc.Rmd"
-
 
 rule download_crc_accessors:
     conda:
@@ -218,7 +195,30 @@ rule run_yamet_on_separate_features:
          --meth-out {output.meth} &> {log}
         """
 
+def list_relevant_yamet_outputs():
+    res = []
+    for annot in ANNOTATIONS:
+        for subannot in ANNOTATIONS[annot]:
+            for patient in SAMPLES.keys():
+                for sampling in SAMPLES[patient]:
+                    res.append(f"{subannot}_{annot}_{patient}_{sampling}.det.out")
+    return [op.join(CRC_OUTPUT, item) for item in res]
 
+rule render_crc_report:
+    conda:
+        op.join("..", "envs", "r.yml")
+    input:
+        list_relevant_yamet_outputs()
+    params:
+        output_path=CRC_OUTPUT
+    output:
+        op.join(CRC, "results", "crc.html")
+    log:
+        log = op.join("logs", "render_crc.log")
+    script:
+        "src/crc.Rmd"
+
+        
 #####################################################################################################
         
 ## windows-based stuff ##############################################################################
@@ -296,6 +296,69 @@ rule combine_annotated_windows:
         """
         paste {input.annotated_windows} | gzip -c> {output}
         """
-        
-# rule run_yamet_on_windows:
 
+"""
+issue is, we need to permute backgrounds... and/or correct analytically
+favouring the analytical aproach now, skip permuting
+"""
+
+rule run_yamet_on_windows:
+    conda:
+        op.join("..", "envs", "yamet.yml")
+    input:
+        cells=lambda wildcards: expand(
+            "{file}",
+            file=get_harmonized_files(wildcards.patient, wildcards.location),
+        ),
+        ref=op.join(HG19_BASE, "ref.CG.gz"),
+        windows=op.join('hg19', "windows_{win_size}_nt.bed")
+    output:
+        simple=op.join(CRC_WINDOWS_OUTPUT, "{win_size}_{patient}_{location}.out"),
+        det=op.join(CRC_WINDOWS_OUTPUT, "{win_size}_{patient}_{location}.det.out"),
+        meth=op.join(CRC_WINDOWS_OUTPUT, "{win_size}_{patient}_{location}.meth.out")
+    log:
+        op.join('logs', 'yamet_{win_size}_{patient}_{location}.log')
+    group:
+        "yamet"
+    params:
+        path = CRC_WINDOWS_OUTPUT
+    threads: 16
+    shell:
+        """
+        mkdir -p {params.path}
+        yamet \
+         --cell {input.cells} \
+         --reference {input.ref} \
+         --intervals {input.windows} \
+         --cores {threads} \
+         --print-sampens F \
+         --out {output.simple} \
+         --det-out {output.det} \
+         --meth-out {output.meth} &> {log}
+        """
+
+def list_relevant_yamet_windows_outputs():
+    res = []
+    for patient in SAMPLES.keys():
+        for location in SAMPLES[patient]:
+            res.append(f"{{win_size}}_{patient}_{location}.det.out")
+    return [op.join(CRC_WINDOWS_OUTPUT, item) for item in res]
+
+rule render_crc_windows_report:
+    conda:
+        op.join("..", "envs", "r.yml")
+    input:
+        yamet_dets = list_relevant_yamet_windows_outputs(),
+        annotations = op.join('hg19', "windows_{win_size,\d+}_nt_annotation.gz")
+    params:
+        output_path=CRC_WINDOWS_OUTPUT
+    output:
+        op.join(CRC, "results", "crc_windows_{win_size}_nt.html")
+    log:
+        log = op.join("logs", "render_crc_windows_{win_size}.log")
+    # script:
+    #     "src/crc_windows.Rmd"
+    shell:
+        """
+        echo 'nothing done' > {output}
+        """

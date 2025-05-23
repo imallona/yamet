@@ -1,0 +1,75 @@
+---
+title: "CRC by genomic tiles, first exploration"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: hide
+    code_download: true
+    number_sections: true
+    df_print: default # kable
+    theme: lumen
+
+---
+
+
+```{r, setup}
+suppressPackageStartupMessages({
+  ## library(readr)
+  library(lmerTest)
+  library(ggplot2)
+  library(knitr)
+  library('effects')
+  library(ComplexHeatmap)
+  library(viridis)
+  ## library(showtext)
+})
+
+
+## options(bitmapType="cairo")
+## showtext_auto()
+```
+
+```{r}
+opts_chunk$set(fig.width = 7.5,
+               fig.height = 7.5,
+               cache = FALSE,
+               include = TRUE,
+               dev = "png",
+               cache.lazy = FALSE,
+               warning = TRUE,
+               message = TRUE)
+```
+
+```{R logging, include = FALSE}
+log <- file(snakemake@log$log, open = "wt")
+sink(log)
+sink(log, type = "message")
+```
+
+# Annotations  {.tabset .tabset-pills}
+
+
+```{r}
+annot <- read.table(gzfile(snakemake@inputs[['annotations']]), header = TRUE)
+```
+
+
+First, cluster the annots to make sure they make sense to start with, without any sampens
+
+```{r, fig.width = 12, fig.height = 6}
+
+NROWS <- 5e4
+mannot <- head(annot, NROWS)
+
+plot(hclust(dist(t(mannot))))
+```
+
+# Global reports
+
+```{r}
+filepaths <- list.files( snakemake@params[["output_path"]], pattern = "\\.out$", full.names = TRUE)
+```
+
+
