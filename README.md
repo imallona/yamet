@@ -1,22 +1,19 @@
-# Description
+# yamet: Yet Another Methylation Entropy Tool
 
-`yamet` is `y`et `a`nother `m`ethylation `e`ntropy `t`ool.
+`yamet` is a command line tool written in C++ for computing entropies from methylation data.
 
-`yamet` is under development! :confetti_ball:
+`yamet` takes cell methylation data, reference site definitions and intervals of interest as input, then computes sample entropy and 2-mer shannon entropy. The sample entropy metric is computed for every cell at every interval of interest and also aggregated per cell. It is a measure of the entropy within individual cells. The 2-mer shannon entropy metric is computed for every interval of interest and is a measure of the entropy across cells. Both metrics take into account missing/uncovered positions in the methylation files using a reference file of positions.
 
 Please also check (probably side branches of):
 
 - https://github.com/emsonder/MethQuant
 - https://github.com/emsonder/MethQuant-analysis
 
-# Repository
+<!-- prettier-ignore -->
+> [!NOTE]
+> `yamet` is currently under development! :confetti_ball:
 
-- `method`: yamet code. See [our releases](https://github.com/imallona/yamet/releases) (including binaries)
-- `workflow`: yamet applications, including simulations
-- `.github/workflows` and `test`: testing
-- `old`: archived codebase from old version to be removed
-
-# Installation
+## Installation
 
 ### Brew
 
@@ -45,98 +42,57 @@ bash build.sh
 ./build/yamet --help
 ```
 
-# Usage (CLI arguments)
+## Usage
 
 `yamet` processes (covered CpG) DNA methylation report(s) (`-cell` argument), a reference file listing all CpG positions in a genome (`--reference`), and a bedfile specifying the genomic regions to calculate scores for (`--intervals`; e.g. promoters, genes, etc). Full CLI args:
 
-```bash
-$ yamet --help
- 
-yamet
+```text
+Usage:
+  yamet (-c <cell>... | <cell>...) \
+        -r <reference> \
+        -i <intervals> \
+        [OPTIONS]
 
-input:
-  -c [ --cell ] arg                     tab separated files, sorted by 
-                                        chromosome and position, for different 
-                                        cells in the following format
-                                        
-                                         chr1    5    0    2    0
-                                         chr1    9    1    1    1
-                                         chr2    2    3    4    1
-                                        
-                                        where the columns are the chromosome, 
-                                        position, number of methylated reads, 
-                                        total number of reads and the rate 
-                                        respectively
-  -r [ --reference ] arg                tab separated file, sorted by 
-                                        chromosome and position, for reference 
-                                        sites in the following format
-                                        
-                                         chr1    5     7
-                                         chr1    7     9
-                                         chr1    9     11
-                                         chr1    11    13
-                                         chr2    2     4
-                                         chr2    4     6
-                                        
-                                        where the columns are the chromosome, 
-                                        start position and the end position 
-                                        respectively
-  -i [ --intervals ] arg                bed file, sorted by chromosome and 
-                                        start position, for intervals of 
-                                        interest in the following format
-                                        
-                                         chr1    5     7
-                                         chr1    10    30
-                                         chr2    1     6
-                                        
-                                        where the columns are the chromosome, 
-                                        start position and the end position 
-                                        respectively
-  --skip-header [=arg(=1)]              integer value indicating number of 
-                                        lines to skip in all file inputs(this 
-                                        is a default value which can be 
-                                        overriden by other 'skip-header-*' 
-                                        options)
-  --skip-header-cell [=arg(=1)]         integer value indicating number of 
-                                        lines to skip in the cell 
-                                        files(overrides 'skip-header' if 
-                                        provided)
-  --skip-header-reference [=arg(=1)]    integer value indicating number of 
-                                        lines to skip in the reference 
-                                        file(overrides 'skip-header' if 
-                                        provided)
-  --skip-header-intervals [=arg(=1)]    integer value indicating number of 
-                                        lines to skip in the intervals 
-                                        file(overrides 'skip-header' if 
-                                        provided)
+Required inputs:
+  -c --cell <cell>...                 One or more tab-separated methylation files,
+                                      OR provide them directly as positional arguments.
+  <cell>...                           (Positional alternative) Cell files (same format as above).
+  -r --reference <reference>          Reference file, tab-separated and sorted by chromosome/position.
+  -i --intervals <intervals>          BED file of intervals of interest.
 
-output:
-  -d [ --det-out ] arg                  (optional) path to detailed output file
-  -o [ --out ] arg                      (optional) path to simple output file
+Optional output:
+  -d --det-out <file>                 Path to detailed output file.
+  -m --meth-out <file>                Path to average methylation output file.
+  -o --out <file>                     Path to simple output file.
 
-resource utilisation:
-  --cores arg (=0)                      number of cores used for simultaneously
-                                        parsing methylation files
-  --threads-per-core arg (=1)           number of threads per core used for 
-                                        simultaneously parsing methylation 
-                                        files
-  --chunk-size arg (=64K)               size of the buffer (per file) used for 
-                                        reading data. Can be specified as a 
-                                        positive integer (bytes) or with a 
-                                        suffix: B (bytes), K (kilobytes), M 
-                                        (megabytes), G (gigabytes). Example: 
-                                        4096, 64K, 128M, 2G
+Resource options:
+  --cores <n>                         Number of cores for parallel parsing
+                                      [default: 0, implying program decides].
+  --chunk-size <size>                 Buffer size per file (e.g., 64K, 128M, 2G) [default: 64K].
 
-verbose:
-  --print-intervals                     print parsed intervals file
-  --print-reference                     print parsed reference file
-  --print-sampens [=arg(=true)] (=true) print computed sample entropies
+Optional input control:
+  --skip-header[=<n>]                 Skip <n> lines in all input files [default: 1].
+  --skip-header-cell[=<n>]            Skip <n> lines in cell files (overrides --skip-header).
+  --skip-header-reference[=<n>]       Skip <n> lines in reference file (overrides --skip-header).
+  --skip-header-intervals[=<n>]       Skip <n> lines in intervals file (overrides --skip-header).
 
-misc:
-  -h [ --help ]                         produce help message
-  --version                             current version information
+Verbose/debugging:
+  --print-intervals                   Print parsed intervals file.
+  --print-reference                   Print parsed reference file.
+  --print-sampens[=<true|false>]      Print computed sample entropies [default: true].
+
+Miscellaneous:
+  -h --help                           Show help message.
+  --version                           Show version information.
 ```
 
-# License
+## Repository
+
+- `method`: yamet code. See [our releases](https://github.com/imallona/yamet/releases) (including binaries)
+- `workflow`: yamet applications, including simulations
+- `.github/workflows` and `test`: testing
+- `old`: archived codebase from old version to be removed
+
+## License
 
 GPLv3
