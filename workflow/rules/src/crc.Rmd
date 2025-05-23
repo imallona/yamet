@@ -141,6 +141,25 @@ ggplot(
     theme(aspect.ratio=1)
 ```
 
+## Scatters by location and annotation and patient (shorter)
+ 
+```{r, fig.height = 3.2}
+ggplot(
+    subset(files, annotation %in% c('laminb1', 'H3K27me3', 'H3K9me3')),
+    aes(y = sampen, x = avg_meth, color = location)
+) +
+    geom_point(size = 0.9, alpha = 0.2) +
+    scale_color_brewer(palette = "Set1") +
+  facet_grid(annotation~patient) +
+  labs(
+    x = "average methylation",
+    y = "sample entropy"
+  ) +
+    guides(color = guide_legend(override.aes = list(size = 2))) +
+    theme_bw() +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+    theme(aspect.ratio=1)
+```
 
 ## sampEn boxes by location and annotation - crc01
 
