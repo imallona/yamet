@@ -47,7 +47,7 @@ rule all:
         ## to get a random background features
         # op.join("feature_simulations", "output", "yamet_detailed.out"),  ## feature simulations,
         # op.join('scnmt_gastrulation_data', 'output', 'yamet_summarized.out') ## an scNMT example
-        op.join('hg19', "windows_10000.bed")
+        op.join('hg19', "windows_10000_nt_annotation.gz")
 
 rule install_yamet:
     """

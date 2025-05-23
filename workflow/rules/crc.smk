@@ -219,8 +219,12 @@ rule run_yamet_on_separate_features:
         """
 
 
-## windows-based stuff ###################################################
+#####################################################################################################
+        
+## windows-based stuff ##############################################################################
 
+#####################################################################################################
+ 
 """ the idea is to get a common set of features, genomic tiles, to run
     some data mining techniques afterwards
     largey las in prototyping/crc_prototype.sh
@@ -239,6 +243,7 @@ rule get_sizes_hg19:
         mysql --user=genome --host=genome-mysql.soe.ucsc.edu -N -s -e \
           'SELECT chrom,size FROM hg19.chromInfo' > {output.sizes}       
         """
+
 rule make_windows_hg19:
     conda:
         op.join("..", "envs", "yamet.yml")
@@ -246,14 +251,51 @@ rule make_windows_hg19:
         genome=op.join("annotation", "mm10", "mm10.fa.gz"),
         sizes = op.join('hg19', "hg19.sizes"),
     output:
-        windows =  op.join('hg19', "windows_{win_size}.bed")
+        windows =  op.join('hg19', "windows_{win_size,\d+}_nt.bed")
     shell:
         """
         bedtools makewindows -g {input.sizes} \
            -w {wildcards.win_size} | sort -k1,1 -k2,2n -k3,3n > {output.windows}
         """
 
-# rule get_windows_coverage_by_overlap_to_annotions:
+rule get_single_annotion_coverage_per_window:
+    conda:
+        op.join("..", "envs", "yamet.yml")
+    input:
+        windows =  op.join('hg19', "windows_{win_size}_nt.bed"),
+        annotation =  op.join(HG19_BASE, "{subcat}.{cat}.bed")
+    output:
+        header = temp(op.join(HG19_BASE, "{win_size}_nt_{subcat}.{cat}.header")),
+        body = temp(op.join(HG19_BASE, "{win_size}_nt_{subcat}.{cat}.body")),
+        annotated_windows =  op.join('hg19', "windows_{win_size}_nt_{subcat}_{cat}_annotation.frac")
+    shell:
+        """
+        bedtools coverage -a {input.windows} \
+            -b {input.annotation} | cut -f7 > {output.body}
+        echo "{wildcards.subcat}_{wildcards.cat}" > {output.header}
+        cat {output.header} {output.body} > {output.annotated_windows}
+        """
 
+def list_annotated_windows():
+    res = []
+    for cat in ANNOTATIONS:
+        for subcat in ANNOTATIONS[cat]:
+            res.append(f"windows_{{win_size}}_nt_{subcat}_{cat}_annotation.frac")
+    return [op.join("hg19", item) for item in res]
+
+print(list_annotated_windows())
+
+rule combine_annotated_windows:
+    conda:
+        op.join("..", "envs", "yamet.yml")
+    input:
+        annotated_windows =  list_annotated_windows()
+    output:
+        op.join('hg19', "windows_{win_size,\d+}_nt_annotation.gz")
+    shell:
+        """
+        paste {input.annotated_windows} | gzip -c> {output}
+        """
+        
 # rule run_yamet_on_windows:
 
