@@ -7,3 +7,4 @@ dependencies:
   - boost-cpp
   - zlib
   - cxx-compiler
+  - mysql

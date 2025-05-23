@@ -42,8 +42,8 @@ opts_chunk$set(fig.width = 5,
 
 ```{r, fig.width = 10, fig.height = 5}
 # setwd('/home/imallona/tmp/yamet_crc')
-datapath <- '/home/imallona/tmp/yamet_crc' 
-fns <- list.files(datapath, pattern = 'yamet.out')
+datapath <- '~/src/yamet/data/crc/prototype/' 
+fns <- list.files(datapath, pattern = '*.out')
 
 global <- list()
 for (fn in fns) {

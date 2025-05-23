@@ -1,6 +1,6 @@
 #!/bin/bash
 ##
-## Combines reference of different chromosomes into one big reference file
+## Combines different reference files, from different chromosomes, into a genome reference file
 ##
 ## Atreya Choudhury
 ## Started 26th Feb 2025

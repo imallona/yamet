@@ -1,6 +1,6 @@
 #!/bin/bash
 ##
-## Retrieves assembly for one chromosome
+## Builds a reference file for a single chromosome
 ##
 ## Atreya Choudhury
 ## Started 26th Feb 2025
@@ -9,7 +9,7 @@ curl "${snakemake_params[base]}${snakemake_params[fa]}".gz --output ${snakemake_
 
 gunzip ${snakemake_params[fa]}.gz
 
-faSize ${snakemake_params[fa]} -detailed >${snakemake_params[fa]}.sizes
+faSize ${snakemake_params[fa]} -detailed > ${snakemake_params[fa]}.sizes
 
 if [[ ${snakemake_wildcards[meth_pat]} == "CG" ]]; then
     regex='^CG'

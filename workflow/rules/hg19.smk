@@ -5,20 +5,19 @@ To generate a reference file from hg19 assembly and download corresponding annot
 CHRS = [str(i) for i in range(1, 23)] + ["X", "Y"]
 HG19_BASE = "hg19"
 
-
-rule hg19_chr_ref:
+        
+rule build_hg19_chr_per_chr:
     conda:
         op.join("..", "envs", "processing.yml")
     output:
-        temp(op.join(HG19_BASE, "{chr}.{meth_pat}.ref")),
+        temp(op.join(HG19_BASE, "{chr}.{meth_pat}.ref"))
     params:
         fa="Homo_sapiens.GRCh37.dna.chromosome.{chr}.fa",
         base="https://ftp.ensembl.org/pub/grch37/current/fasta/homo_sapiens/dna/",
     script:
         "src/get_chr_ref.sh"
 
-
-rule hg19_ref:
+rule build_genome_hg19_ref:
     input:
         expand(op.join(HG19_BASE, "{chr}.{{meth_pat}}.ref"), chr=CHRS),
     params:
@@ -29,7 +28,7 @@ rule hg19_ref:
         "src/make_ref.sh"
 
 
-rule hg19_get_genes:
+rule get_genes_hg19:
     conda:
         op.join("..", "envs", "processing.yml")
     output:
@@ -38,20 +37,20 @@ rule hg19_get_genes:
         "src/download_hg19_genes.sh"
 
 
-rule hg19_genes:
+rule uncompress_hg19:
     conda:
         op.join("..", "envs", "processing.yml")
     input:
         op.join(HG19_BASE, "genes.bed.gz"),
     output:
-        op.join(HG19_BASE, "genes.genes.bed"),
+        temp(op.join(HG19_BASE, "genes.genes.bed")),
     shell:
         """
             gunzip -c {input} > {output}
         """
 
 
-rule hg19_get_pmds:
+rule get_pmds_hg19:
     output:
         op.join(HG19_BASE, "pmd.bed.gz"),
     params:
@@ -64,8 +63,7 @@ rule hg19_get_pmds:
 
 PMD_MAP = {"pmds": "commonPMD", "hmds": "commonHMD"}
 
-
-rule hg19_pmds:
+rule uncompress_pmds_hg19:
     input:
         op.join(HG19_BASE, "pmd.bed.gz"),
     output:
@@ -79,7 +77,7 @@ rule hg19_pmds:
         """
 
 
-rule hg19_get_hmm:
+rule get_hmm_setmentation_hg19:
     output:
         op.join(HG19_BASE, "hmm.bed.gz"),
     params:
@@ -90,7 +88,7 @@ rule hg19_get_hmm:
         """
 
 
-rule hg19_hmm:
+rule uncompress_and_filter_hmm_hg19:
     input:
         op.join(HG19_BASE, "hmm.bed.gz"),
     output:
@@ -108,7 +106,7 @@ CHIP_MAP = {
 }
 
 
-rule hg19_get_chip:
+rule get_encode_chip_data_hg19:
     output:
         op.join(HG19_BASE, "{chip}.bed.gz"),
     params:
@@ -119,7 +117,7 @@ rule hg19_get_chip:
         """
 
 
-rule hg19_chip:
+rule uncompress_hgencode_chip_data_hg19:
     input:
         op.join(HG19_BASE, "{chip}.bed.gz"),
     output:
@@ -130,7 +128,7 @@ rule hg19_chip:
         """
 
 
-rule hg19_get_lamin:
+rule get_lads_hg19:
     output:
         op.join(HG19_BASE, "laminb1.bed.gz"),
     params:
@@ -141,7 +139,7 @@ rule hg19_get_lamin:
         """
 
 
-rule hg19_lamin:
+rule uncompress_lads_hg19:
     input:
         op.join(HG19_BASE, "{lamin}.bed.gz"),
     output:

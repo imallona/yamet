@@ -11,15 +11,18 @@ https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE97693
 
 This is hg19
 
+Izaskun Mallona
+GPLv3
 """
 
 import os.path as op
 from glob import glob
 
 CRC = op.join("data", "crc")
-CRC_RAW = op.join(CRC, "raw")                 ## from geo
-CRC_HARMONIZED = op.join(CRC, "harmonized")   ## ingestable by yamet
-CRC_OUTPUT = op.join(CRC, "output")           ## output
+CRC_RAW = op.join(CRC, "raw")                       ## raw, as in GEO and from GEO
+CRC_HARMONIZED = op.join(CRC, "harmonized")         ## ingestable by yamet
+CRC_OUTPUT = op.join(CRC, "output")                 ## output for features (genes, promoters etc)
+CRC_WINDOWS_OUTPUT = op.join(CRC, 'windows_output') ## output for tiles/genomic windows
 
 ## bedfiles
 ANNOTATIONS = {
@@ -180,7 +183,7 @@ def get_harmonized_files(patient, location):
         
 # print(get_harmonized_files(patient = 'CRC01', location = "NC"))
 
-rule run_yamet:
+rule run_yamet_on_separate_features:
     conda:
         op.join("..", "envs", "yamet.yml")
     input:
@@ -214,4 +217,43 @@ rule run_yamet:
          --det-out {output.det} \
          --meth-out {output.meth} &> {log}
         """
+
+
+## windows-based stuff ###################################################
+
+""" the idea is to get a common set of features, genomic tiles, to run
+    some data mining techniques afterwards
+    largey las in prototyping/crc_prototype.sh
+"""
+
+rule get_sizes_hg19:
+    conda:
+        op.join("..", "envs", "yamet.yml")
+    input:
+        genome=op.join("annotation", "mm10", "mm10.fa.gz"),
+    output:
+        sizes = op.join('hg19', "hg19.sizes"),
+    shell:
+        """
+        ## the `hg19.smk` code is so convoluted we need to download it again, cannot reuse
+        mysql --user=genome --host=genome-mysql.soe.ucsc.edu -N -s -e \
+          'SELECT chrom,size FROM hg19.chromInfo' > {output.sizes}       
+        """
+rule make_windows_hg19:
+    conda:
+        op.join("..", "envs", "yamet.yml")
+    input:
+        genome=op.join("annotation", "mm10", "mm10.fa.gz"),
+        sizes = op.join('hg19', "hg19.sizes"),
+    output:
+        windows =  op.join('hg19', "windows_{win_size}.bed")
+    shell:
+        """
+        bedtools makewindows -g {input.sizes} \
+           -w {wildcards.win_size} | sort -k1,1 -k2,2n -k3,3n > {output.windows}
+        """
+
+# rule get_windows_coverage_by_overlap_to_annotions:
+
+# rule run_yamet_on_windows:
 
