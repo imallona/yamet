@@ -1,0 +1,13 @@
+Package: yamet
+Type: Package
+Title: Yet Another Methylation Entropy Tool
+Version: 1.0.0
+Date: 2025-05-24
+Authors@R: person("Atreya", "Choudhury", role = c("aut", "cre"), email =
+        "atreyachoudhury@hotmail.com")
+Description: Computes entropies from methylation files.
+License: GPL (>= 3)
+Imports:
+        Rcpp (>= 1.0.14),
+        SummarizedExperiment
+LinkingTo: Rcpp

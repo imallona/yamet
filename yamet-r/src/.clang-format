@@ -1,0 +1,18 @@
+BasedOnStyle: LLVM
+IndentWidth: 2
+TabWidth: 4
+UseTab: Never
+AllowShortFunctionsOnASingleLine: Empty
+ColumnLimit: 100
+PointerAlignment: Right
+SpaceBeforeParens: ControlStatements
+
+CommentPragmas: "^ IWYU pragma:"
+
+SortIncludes: true
+
+ReflowComments: true
+
+AlignConsecutiveAssignments: true
+AlignConsecutiveDeclarations: true
+AlignEscapedNewlines: Left # Options: Don't, Left, Right.
