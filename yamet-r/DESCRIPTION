@@ -11,3 +11,4 @@ Imports:
         Rcpp (>= 1.0.14),
         SummarizedExperiment
 LinkingTo: Rcpp
+Roxygen: list(markdown = TRUE)

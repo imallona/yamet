@@ -5,6 +5,37 @@
 #include "yamet/chrData.h"
 #include "yamet/file_classes.h"
 
+//' @title aggregation function for methylation summary
+//' @description
+//' \strong{Internal function.} This function performs the core computation behind the
+//' [yamet] wrapper. It loads a reference file and multiple cell-level methylation
+//' files, aligns them based on genomic intervals of interest, and computes entropy and
+//' average methylation at both cell and region levels.
+//'
+//' This function is not intended to be called directly by users. Use [yamet]
+//' instead, which provides a safer and more user-friendly interface.
+//'
+//' @param filenames A character vector of file paths to the methylation count files per cell.
+//' @param reference_path Path to the reference file (e.g., CpG positions).
+//' @param intervals_path Path to the BED file specifying genomic intervals to summarize over.
+//' @param cores Number of threads to use.
+//' @param chunk_size Number of bytes to read at once from each file.
+//' @param skip_header_cell Number of lines to skip at the top of each cell file.
+//' @param skip_header_reference Number of lines to skip at the top of the reference file.
+//' @param skip_header_intervals Number of lines to skip at the top of the intervals file.
+//'
+//' @return A list with the following elements:
+//' \describe{
+//'   \item{chr}{Character vector of chromosome names for each interval.}
+//'   \item{start}{Integer vector of interval start positions.}
+//'   \item{end}{Integer vector of interval end positions.}
+//'   \item{cell_sampen}{Numeric vector of sample entropy per cell.}
+//'   \item{cell_meth}{Numeric vector of average methylation per cell.}
+//'   \item{shannon}{Numeric vector of Shannon entropy per interval (aggregated across cells).}
+//'   \item{avg_meth}{Numeric vector of average methylation per interval (aggregated across cells).}
+//'   \item{sampens}{Numeric matrix of sample entropy per interval (rows) and cell (columns).}
+//'   \item{meths}{Numeric matrix of average methylation per interval (rows) and cell (columns).}
+//' }
 // [[Rcpp::export]]
 Rcpp::List yamet_cpp(const Rcpp::CharacterVector filenames, const std::string &reference_path,
                      const std::string &intervals_path, const unsigned int cores,
