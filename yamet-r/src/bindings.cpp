@@ -8,11 +8,13 @@
 // [[Rcpp::export]]
 Rcpp::List yamet_cpp(const Rcpp::CharacterVector filenames, const std::string &reference_path,
                      const std::string &intervals_path, const unsigned int cores,
-                     const unsigned int chunk_size) {
+                     const unsigned int chunk_size, const unsigned int skip_header_cell,
+                     const unsigned int skip_header_reference,
+                     const unsigned int skip_header_intervals) {
   std::vector<std::string> cpp_filenames = Rcpp::as<std::vector<std::string>>(filenames);
-  Intervals                intervals     = parseSearch(intervals_path, 0);
-  Reference                ref           = parseRef(reference_path, intervals, 0, chunk_size);
-  FileMap                  fileMap = alignWithRef(cpp_filenames, ref, 2, 0, cores, chunk_size);
+  Intervals                intervals     = parseSearch(intervals_path, skip_header_intervals);
+  Reference ref     = parseRef(reference_path, intervals, skip_header_reference, chunk_size);
+  FileMap   fileMap = alignWithRef(cpp_filenames, ref, 2, skip_header_cell, cores, chunk_size);
 
   fileMap.aggregate();
 

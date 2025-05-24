@@ -17,7 +17,9 @@
 
 
 yamet <- function(
-    filenames, reference_path, intervals_path, cores = 1, chunk_size = 1000) {
+    filenames, reference_path, intervals_path, cores = 1,
+    chunk_size = 1000, skip_header_cell = 0,
+    skip_header_reference = 0, skip_header_intervals = 0) {
   if (!all(file.exists(filenames))) {
     stop("Some input files don't exist")
   }
@@ -27,7 +29,10 @@ yamet <- function(
     reference_path,
     intervals_path,
     as.integer(cores),
-    as.integer(chunk_size)
+    as.integer(chunk_size),
+    skip_header_cell,
+    skip_header_reference,
+    skip_header_intervals
   )
 
   se <- SummarizedExperiment::SummarizedExperiment(
