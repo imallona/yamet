@@ -3,11 +3,23 @@
 #' Reads methylation data from multiple input files, computes sample entropies,
 #' and returns a SummarizedExperiment object containing the results.
 #'
-#' @param filenames Character vector of input files.
-#' @param reference_path Path to reference data file.
+#' @param filenames Character vector of input file paths.
+#'   Each file must be tab-separated, sorted by chromosome and position, and
+#'   contain five columns: chromosome, position, methylated reads, total reads and rate.
+#'   Optionally, files can be gzipped.
+#' @param reference_path Path to the reference file.
+#'   The file should be tab-separated, sorted by chromosome and position, and
+#'   contain two columns: chromosome and position.
+#'   Optionally, the file can be gzipped.
 #' @param intervals_path Path to BED file or similar defining genomic intervals.
+#'   It should be tab-separated, sorted by chromosome and start position, and
+#'   contain three columns: chromosome, start and end.
 #' @param cores Number of cores to use (default: 1).
-#' @param chunk_size Processing chunk size (default: 1000).
+#' @param chunk_size per file chunk size bytes as an integer (default: 64K).
+#'   Number of bytes to process at once in each file.
+#' @param skip_header_cell number of lines skipped in cell files (default: 0).
+#' @param skip_header_reference number of lines skipped in the reference file (default: 0).
+#' @param skip_header_intervals number of lines skipped in the intervals file (default: 0).
 #'
 #' @return A \link[SummarizedExperiment]{SummarizedExperiment} object
 #'   containing assays (`sampens`, `meths`), row metadata (genomic intervals),
@@ -18,7 +30,7 @@
 
 yamet <- function(
     filenames, reference_path, intervals_path, cores = 1,
-    chunk_size = 1000, skip_header_cell = 0,
+    chunk_size = 64 * 1024, skip_header_cell = 0,
     skip_header_reference = 0, skip_header_intervals = 0) {
   if (!all(file.exists(filenames))) {
     stop("Some input files don't exist")
