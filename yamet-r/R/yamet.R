@@ -38,12 +38,14 @@ yamet <- function(
     rowData = data.frame(
       chr = yamet_raw$chr,
       start = yamet_raw$start,
-      end = yamet_raw$end
+      end = yamet_raw$end,
+      shannon = yamet_raw$shannon,
+      meth = yamet_raw$avg_meth
     ),
     colData = data.frame(
       sample = filenames,
-      sampen = yamet_raw$avg_sampen,
-      meth = yamet_raw$avg_meth
+      sampen = yamet_raw$cell_sampen,
+      meth = yamet_raw$cell_meth
     ),
     metadata = list(
       reference = reference_path,
