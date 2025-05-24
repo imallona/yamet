@@ -41,7 +41,9 @@ yamet <- function(
       end = yamet_raw$end
     ),
     colData = data.frame(
-      sample = filenames
+      sample = filenames,
+      sampen = yamet_raw$avg_sampen,
+      meth = yamet_raw$avg_meth
     ),
     metadata = list(
       reference = reference_path,

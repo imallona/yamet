@@ -1,8 +1,9 @@
 PKG_CPPFLAGS = -I../inst/include
 PKG_LIBS = -L../inst/libs -lyamet
 
+UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Darwin)
-  PKG_LIBS += -Wl,-rpath,@loader_path/../libs
+  PKG_LIBS += -Wl,-rpath,'@loader_path/../libs'
 else
   PKG_LIBS += -Wl,-rpath,'$$ORIGIN/../libs'
 endif

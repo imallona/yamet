@@ -24,6 +24,8 @@ Rcpp::List yamet_cpp(const Rcpp::CharacterVector filenames, const std::string &r
   Rcpp::CharacterVector chr(nrows);
   Rcpp::IntegerVector   start(nrows);
   Rcpp::IntegerVector   end(nrows);
+  Rcpp::NumericVector   avg_sampen(filenames.size());
+  Rcpp::NumericVector   avg_meth(filenames.size());
   Rcpp::NumericMatrix   sampens(nrows, filenames.size());
   Rcpp::NumericMatrix   meths(nrows, filenames.size());
 
@@ -47,7 +49,13 @@ Rcpp::List yamet_cpp(const Rcpp::CharacterVector filenames, const std::string &r
     }
   }
 
+  for (unsigned int k = 0; k < cpp_filenames.size(); k++) {
+    avg_sampen[k] = fileMap[cpp_filenames[k]].sampen;
+    avg_meth[k]   = fileMap[cpp_filenames[k]].avg_meth;
+  }
+
   return Rcpp::List::create(Rcpp::Named("chr") = chr, Rcpp::Named("start") = start,
-                            Rcpp::Named("end") = end, Rcpp::Named("sampens") = sampens,
+                            Rcpp::Named("end") = end, Rcpp::Named("avg_sampen") = avg_sampen,
+                            Rcpp::Named("avg_meth") = avg_meth, Rcpp::Named("sampens") = sampens,
                             Rcpp::Named("meths") = meths);
 }
