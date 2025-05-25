@@ -36,16 +36,18 @@ yamet <- function(
     stop("Some input files don't exist")
   }
 
-  yamet_raw <- yamet_cpp(
-    filenames,
-    reference_path,
-    intervals_path,
-    as.integer(cores),
-    as.integer(chunk_size),
-    skip_header_cell,
-    skip_header_reference,
-    skip_header_intervals
-  )
+  t <- system.time({
+    yamet_raw <- yamet_cpp(
+      filenames,
+      reference_path,
+      intervals_path,
+      as.integer(cores),
+      as.integer(chunk_size),
+      skip_header_cell,
+      skip_header_reference,
+      skip_header_intervals
+    )
+  })
 
   se <- SummarizedExperiment::SummarizedExperiment(
     assays = list(
@@ -67,7 +69,10 @@ yamet <- function(
     metadata = list(
       reference = reference_path,
       intervals = intervals_path,
-      processing_date = Sys.Date()
+      processing_date = Sys.Date(),
+      t_user = t["user.self"],
+      t_system = t["sys.self"],
+      t_elapsed = t["elapsed"]
     )
   )
   rownames(se) <- paste0(
