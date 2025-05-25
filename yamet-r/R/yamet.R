@@ -26,14 +26,25 @@
 #'   and sample-level colData.
 #'
 #' @export
-
-
 yamet <- function(
-    filenames, reference_path, intervals_path, cores = 1,
+    filenames = c(), reference_path = NULL, intervals_path = NULL, cores = NULL,
     chunk_size = 64 * 1024, skip_header_cell = 0,
     skip_header_reference = 0, skip_header_intervals = 0) {
-  if (!all(file.exists(filenames))) {
-    stop("Some input files don't exist")
+  if (length(filenames) == 0 || !all(file.exists(filenames))) {
+    stop("Please provide at least one cell file in 'filenames'.")
+  }
+  if (length(reference_path) != 1 || !file.exists(reference_path)) {
+    stop("Please provide a reference file in 'reference_path'.")
+  }
+  if (length(intervals_path) != 1 || !file.exists(intervals_path)) {
+    stop("Please provide a intervals file in 'intervals_path'.")
+  }
+
+  max_cores <- parallel::detectCores(logical = FALSE)
+  if (missing(cores) || is.null(cores)) {
+    cores <- max(1, floor(max_cores - log2(max_cores)))
+  } else {
+    cores <- min(as.integer(cores), max_cores)
   }
 
   t <- system.time({
@@ -41,7 +52,7 @@ yamet <- function(
       filenames,
       reference_path,
       intervals_path,
-      as.integer(cores),
+      cores,
       as.integer(chunk_size),
       skip_header_cell,
       skip_header_reference,
