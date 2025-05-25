@@ -1,9 +1,9 @@
 #!/bin/bash
 
-YAMET_DIR="../method"
-
 # Absolute path to the directory where the script is located
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+YAMET_DIR="$SCRIPT_DIR/../method"
 
 # Set the install prefix (you can modify this to another path if needed)
 INSTALL_PREFIX="$SCRIPT_DIR/yamet"
