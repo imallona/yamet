@@ -15,7 +15,7 @@
 #'   It should be tab-separated, sorted by chromosome and start position, and
 #'   contain three columns: chromosome, start and end.
 #' @param cores Number of cores to use (default: 1).
-#' @param chunk_size per file chunk size bytes as an integer (default: 64K).
+#' @param chunk_size per file chunk size bytes as an character (default: 64K).
 #'   Number of bytes to process at once in each file.
 #' @param skip_header_cell number of lines skipped in cell files (default: 0).
 #' @param skip_header_reference number of lines skipped in the reference file (default: 0).
@@ -28,7 +28,7 @@
 #' @export
 yamet <- function(
     filenames = c(), reference_path = NULL, intervals_path = NULL, cores = NULL,
-    chunk_size = 64 * 1024, skip_header_cell = 0,
+    chunk_size = "64K", skip_header_cell = 0,
     skip_header_reference = 0, skip_header_intervals = 0) {
   if (length(filenames) == 0 || !all(file.exists(filenames))) {
     stop("Please provide at least one cell file in 'filenames'.")
@@ -47,13 +47,15 @@ yamet <- function(
     cores <- min(as.integer(cores), max_cores)
   }
 
+  chunk_size <- parse_chunk_size(chunk_size)
+
   t <- system.time({
     yamet_raw <- yamet_cpp(
       filenames,
       reference_path,
       intervals_path,
       cores,
-      as.integer(chunk_size),
+      chunk_size,
       skip_header_cell,
       skip_header_reference,
       skip_header_intervals
@@ -91,4 +93,31 @@ yamet <- function(
   )
   colnames(se) <- filenames
   return(se)
+}
+
+parse_chunk_size <- function(x) {
+  x <- trimws(x)
+  m <- regexec("^([0-9]+)([BKMGT])?$", x, ignore.case = TRUE)
+  parts <- regmatches(x, m)[[1]]
+
+  if (length(parts) == 0) {
+    stop("Invalid input format: ", x)
+  }
+
+  number <- as.numeric(parts[2])
+  suffix <- toupper(parts[3])
+
+  multiplier <- if (is.na(suffix) || suffix == "") {
+    1
+  } else {
+    switch(suffix,
+      B = 1,
+      K = 1024,
+      M = 1024^2,
+      G = 1024^3,
+      T = 1024^4,
+      stop("Unknown suffix: ", suffix)
+    )
+  }
+  return(number * multiplier)
 }
