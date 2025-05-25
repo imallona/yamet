@@ -95,6 +95,25 @@ yamet <- function(
   return(se)
 }
 
+#' Parse Chunk Size Strings to Bytes
+#'
+#' Converts a chunk size string with optional suffix to the number of bytes as a numeric value.
+#' Supported suffixes are B (bytes), K (kilobytes), M (megabytes), G (gigabytes), and T (terabytes).
+#' If no suffix is provided, the value is assumed to be in bytes.
+#'
+#' @param x A character string representing the chunk size.
+#'   It should be a number optionally followed by one of the suffixes B, K, M, G, or T.
+#'   Examples: "1024", "64K", "2G", "7B".
+#'
+#' @return A numeric value representing the equivalent size in bytes.
+#'
+#' @examples
+#' parse_chunk_size("1024") # returns 1024
+#' parse_chunk_size("64K") # returns 65536
+#' parse_chunk_size("2G") # returns 2147483648
+#' parse_chunk_size("7B") # returns 7
+#'
+#' @export
 parse_chunk_size <- function(x) {
   x <- trimws(x)
   m <- regexec("^([0-9]+)([BKMGT])?$", x, ignore.case = TRUE)
