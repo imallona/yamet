@@ -194,7 +194,8 @@ FileMap alignWithRef(const std::vector<std::string> &filenames, const Reference 
   FileMap fileMap;
   fileMap.reserve(filenames.size());
 
-  ThreadPool                     pool(n_cores);
+  unsigned int threads = std::min(n_cores, static_cast<unsigned int>(filenames.size()));
+  ThreadPool   pool(threads);
   std::vector<std::future<void>> results(filenames.size());
   std::mutex                     fileMapMutex;
 
