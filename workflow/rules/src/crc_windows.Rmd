@@ -20,7 +20,7 @@ suppressPackageStartupMessages({
   library(lmerTest)
   library(ggplot2)
   library(knitr)
-  library('effects')
+#  library('effects')
   library(ComplexHeatmap)
   library(viridis)
   ## library(showtext)
@@ -53,6 +53,7 @@ sink(log, type = "message")
 
 ```{r}
 annot <- read.table(gzfile(snakemake@inputs[['annotations']]), header = TRUE)
+## annot <- read.table(gzfile('', header = T))
 ```
 
 

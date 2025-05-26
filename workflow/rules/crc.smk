@@ -86,7 +86,7 @@ rule download_crc:
     input:
         gsm=op.join(CRC, "bisulfites_gsm.txt")
     output:
-        download_flag = op.join(CRC, "download.flag")
+        download_flag = protected(op.join(CRC, "download.flag"))
     log:
         op.join("logs", "crc_download.log")
     params:
@@ -97,21 +97,32 @@ rule download_crc:
         """
     shell:
         """
-        while read -r gsm
-        do
-          short="$(echo $gsm | cut -c1-7)"
-          url=ftp://ftp.ncbi.nlm.nih.gov/geo/samples/"$short"nnn/"$gsm"/suppl/
-          if [ ! -e "{params.raw}"/"$(basename $url)" ]
-          then
-            # removed a -r because it was making -nc not work
-            # but might be -r is necessary, not deleting files to debug
-            # so if not working add `-r`
-            wget --no-directories --directory-prefix={params.raw} \
-              --no-clobber --execute robots=off -k -A gz $url
-            fi
-        done < {input.gsm} > {log}
+        ## this is extremely dirty, better control to avoid re-download needed
+        ##  not robust neither, we should keep a list of the files being included into the
+        ##  analysis and not glob them afterwards
+        echo {output.download_flag}
+        cat {output.download_flag}
+        
+        if [ ! -f {output.download_flag} ]
+        then
+          echo "downloading data "
+        
+          while read -r gsm
+          do
+            short="$(echo $gsm | cut -c1-7)"
+            url=ftp://ftp.ncbi.nlm.nih.gov/geo/samples/"$short"nnn/"$gsm"/suppl/
+            if [ ! -e "{params.raw}"/"$(basename $url)" ]
+            then
+              # removed a -r because it was making -nc not work
+              # but might be -r is necessary, not deleting files to debug
+              # so if not working add `-r`
+              wget --no-directories --directory-prefix={params.raw} \
+                --no-clobber --execute robots=off -k -A gz $url
+              fi
+          done < {input.gsm} > {log}
         
         date >> {output.download_flag}
+        fi
         """
 
 # ruleorder: harmonize_cell_report_for_yamet > run_yamet
@@ -121,10 +132,10 @@ rule harmonize_cell_report_for_yamet:
         op.join("..", "envs", "processing.yml")
     input:
         op.join(CRC, "download.flag"),
-        op.join(CRC_RAW, "{file}")
+        op.join(CRC_RAW, "{file}")        
         # op.join(CRC_RAW, "{gsm}_{patient}_{location}_{cellid}.singleC.txt.gz")
     output:
-        temp(op.join(CRC_HARMONIZED, "{file}"))
+        protected(op.join(CRC_HARMONIZED, "{file}")) ## these should tmp, but now protecting them (development)
     params:
         raw=CRC_RAW,
         harmonized=CRC_HARMONIZED
@@ -233,10 +244,8 @@ rule render_crc_report:
 rule get_sizes_hg19:
     conda:
         op.join("..", "envs", "yamet.yml")
-    input:
-        genome=op.join("annotation", "mm10", "mm10.fa.gz"),
     output:
-        sizes = op.join('hg19', "hg19.sizes"),
+        sizes = op.join(HG19_BASE, "hg19.sizes"),
     shell:
         """
         ## the `hg19.smk` code is so convoluted we need to download it again, cannot reuse
@@ -248,10 +257,9 @@ rule make_windows_hg19:
     conda:
         op.join("..", "envs", "yamet.yml")
     input:
-        genome=op.join("annotation", "mm10", "mm10.fa.gz"),
-        sizes = op.join('hg19', "hg19.sizes"),
+        sizes = op.join(HG19_BASE, "hg19.sizes"),
     output:
-        windows =  op.join('hg19', "windows_{win_size,\d+}_nt.bed")
+        windows =  op.join(HG19_BASE, "windows_{win_size,\d+}_nt.bed")
     shell:
         """
         bedtools makewindows -g {input.sizes} \
@@ -262,12 +270,12 @@ rule get_single_annotion_coverage_per_window:
     conda:
         op.join("..", "envs", "yamet.yml")
     input:
-        windows =  op.join('hg19', "windows_{win_size}_nt.bed"),
+        windows =  op.join(HG19_BASE, "windows_{win_size}_nt.bed"),
         annotation =  op.join(HG19_BASE, "{subcat}.{cat}.bed")
     output:
         header = temp(op.join(HG19_BASE, "{win_size}_nt_{subcat}.{cat}.header")),
         body = temp(op.join(HG19_BASE, "{win_size}_nt_{subcat}.{cat}.body")),
-        annotated_windows =  op.join('hg19', "windows_{win_size}_nt_{subcat}_{cat}_annotation.frac")
+        annotated_windows =  op.join(HG19_BASE, "windows_{win_size}_nt_{subcat}_{cat}_annotation.frac")
     shell:
         """
         bedtools coverage -a {input.windows} \
@@ -291,7 +299,7 @@ rule combine_annotated_windows:
     input:
         annotated_windows =  list_annotated_windows()
     output:
-        op.join('hg19', "windows_{win_size,\d+}_nt_annotation.gz")
+        op.join(HG19_BASE, "windows_{win_size}_nt_annotation.gz")
     shell:
         """
         paste {input.annotated_windows} | gzip -c> {output}
@@ -311,7 +319,7 @@ rule run_yamet_on_windows:
             file=get_harmonized_files(wildcards.patient, wildcards.location),
         ),
         ref=op.join(HG19_BASE, "ref.CG.gz"),
-        windows=op.join('hg19', "windows_{win_size}_nt.bed")
+        windows=op.join(HG19_BASE, "windows_{win_size}_nt.bed")
     output:
         simple=op.join(CRC_WINDOWS_OUTPUT, "{win_size}_{patient}_{location}.out"),
         det=op.join(CRC_WINDOWS_OUTPUT, "{win_size}_{patient}_{location}.det.out"),
@@ -349,7 +357,7 @@ rule render_crc_windows_report:
         op.join("..", "envs", "r.yml")
     input:
         yamet_dets = list_relevant_yamet_windows_outputs(),
-        annotations = op.join('hg19', "windows_{win_size,\d+}_nt_annotation.gz")
+        annotations = op.join(HG19_BASE, "windows_{win_size,\d+}_nt_annotation.gz")
     params:
         output_path=CRC_WINDOWS_OUTPUT
     output:
