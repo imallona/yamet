@@ -33,7 +33,7 @@ rule all:
         # op.join('data', 'brain', 'harmonized_ecker_metadata.tsv.gz'), ## this to download Ecker's metadata
         # op.join("annotation", "mm10", "done.flag"),  ## this to download regions for Ecker's
         # op.join("data", "crc", "download.flag"),  # this to download CRC cytosine reports, caution will redownload them
-        op.join("data", "crc", "results",  "crc.html") , ## this requires the `download.flag` being present (and the cytosine reports; dependencies are not well captured)
+        # op.join("data", "crc", "results",  "crc.html") , ## this requires the `download.flag` being present (and the cytosine reports; dependencies are not well captured)
         # op.join(op.expanduser("~"), ".local", "yamet", "bin", "yamet")
         # op.join('scnmt_gastrulation_data', 'downloaded_data.tsv'), ## this is Argelaguet's gastrulation
         # expand(

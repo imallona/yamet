@@ -364,9 +364,9 @@ rule render_crc_windows_report:
         op.join(CRC, "results", "crc_windows_{win_size}_nt.html")
     log:
         log = op.join("logs", "render_crc_windows_{win_size}.log")
-    # script:
-    #     "src/crc_windows.Rmd"
-    shell:
-        """
-        echo 'nothing done' > {output}
-        """
+    script:
+        "src/crc_windows.Rmd"
+    # shell:
+    #     """
+    #     echo 'nothing done' > {output}
+    #     """

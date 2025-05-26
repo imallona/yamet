@@ -50,10 +50,19 @@ sink(log, type = "message")
 
 # Annotations  {.tabset .tabset-pills}
 
+Caution downsampling
+
+
+```{r downsampling}
+NROWS <- 5e4
+
+```
 
 ```{r}
-annot <- read.table(gzfile(snakemake@inputs[['annotations']]), header = TRUE)
-## annot <- read.table(gzfile('', header = T))
+
+annot <- read.table(gzfile(snakemake@input[['annotations']]), header = TRUE, nrows = NROWS)
+## annot <- read.table(gzfile('/home/imallona/src/yamet/workflow/hg19/windows_10000_nt_annotation.gz'),
+##                     header = T, nrows = NROWS)
 ```
 
 
@@ -61,16 +70,101 @@ First, cluster the annots to make sure they make sense to start with, without an
 
 ```{r, fig.width = 12, fig.height = 6}
 
-NROWS <- 5e4
+
 mannot <- head(annot, NROWS)
 
 plot(hclust(dist(t(mannot))))
 ```
 
-# Global reports
+# Locl reports - Shannon
+
+Caution downsampled
 
 ```{r}
-filepaths <- list.files( snakemake@params[["output_path"]], pattern = "\\.out$", full.names = TRUE)
+filepaths <- list.files( snakemake@params[["output_path"]], pattern = "\\.det\\.out$", full.names = TRUE)
+
+## (filepaths <- list.files('/home/imallona/src/yamet/workflow/data/crc/windows_output',
+##                          pattern = "\\.det\\.out$", full.names = TRUE))
+
+## filepaths <- filepaths[!grepl("\\.det\\.out$", filepaths)]
+filepaths <- filepaths[!grepl("\\.meth\\.out$", filepaths)]
+
+regex <- "(.*)_(.*)_(.*).det.out"
+process_file <- function(filepath) {
+    filename <- basename(filepath)
+    patient <- gsub(regex, "\\2", filename)
+    location <- gsub(regex, "\\3", filename)
+   
+  dt <- read.table(filepath, sep = "\t", na.strings = "-1", header = TRUE, nrows = NROWS)
+  dt <- dt[, c("shannon", "avg_meth")]
+
+  dt$patient <- patient
+  dt$location <- location
+  dt$window <- rownames(dt)
+  return(dt)
+}
+
+## these are mainly shannons! and avgmeths
+locals <- do.call(rbind, lapply(filepaths, process_file))
+
+head(locals)
+locals$patient <- as.factor(locals$patient)
+locals$location <- factor(locals$location, levels = c('NC', 'PT', 'LN', 'ML', 'MP', 'MO'))
+rownames(locals) <- paste(locals$patient, locals$location, rownames(locals), sep = "_")
+
 ```
 
+```{r, fig.width = 10, fig.height = 10}
+par(mfrow = c(3,2))
+for (loc in levels(locals$location)) {
+    tmp <- locals[locals$location == loc,]
+    plot(shannon~avg_meth, col = as.numeric(as.factor(tmp$location)), pch = '.', data = tmp, main = loc)
+}
 
+
+
+par(mfrow = c(3,3))
+for (patient in levels(locals$patient)) {
+    tmp <- locals[locals$patient == patient,]
+    plot(shannon~avg_meth, col = as.numeric(as.factor(tmp$location)), pch = '.', data = tmp, main = patient[1])
+}
+
+```
+
+```{r, fig.width =8, fig.height = 10}
+
+par(mfrow = c(4,4))
+for (patient in levels(locals$patient)) {
+    tmp <- locals[locals$patient == patient,]
+    for (loc in unique(tmp$location)) {
+        tmp <- locals[locals$patient == patient & locals$location == loc,]
+        plot(shannon~avg_meth, col = as.numeric(as.factor(tmp$location)),
+             pch = '.', data = tmp, main = paste(loc, patient[1]))
+    }
+}
+
+
+
+```
+
+Let's stratify features by their annots
+
+and these are shannons within patient+location anyway
+
+```{r, fig.width = 10, fig.height = 10}
+annot$single_label <- apply(annot, 1, function(row) colnames(annot)[which.max(row)])
+annot$window <- rownames(annot)
+
+locals <- merge(locals, annot, by = 'window')
+
+head(locals)
+
+par(mfrow = c(3,3))
+for (func in unique(locals$single_label)) {
+    tmp <- locals[locals$single_label == func,]
+    plot(shannon~avg_meth, col = as.numeric(as.factor(tmp$loc)),
+         pch = '.', data = tmp, main = func)
+}
+
+
+```
