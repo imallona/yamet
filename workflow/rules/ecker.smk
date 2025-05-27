@@ -95,7 +95,7 @@ rule download_ecker:
            sed 's\\/allc/\\/\\g' | sed 's\\.gz\\.tar\\g' > {output.urls}
         
         # wget -i {output.urls} --directory-prefix={params.path}
-         wget -i{input.urls} --no-directories --directory-prefix={params.raw} \
+         wget -i {output.urls} --no-directories --directory-prefix={params.raw} \
             --no-clobber --execute robots=off -r -k -A tar
         touch {output.flag}
         """

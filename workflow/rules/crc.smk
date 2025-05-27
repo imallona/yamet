@@ -111,7 +111,7 @@ rule download_crc:
           do
             short="$(echo $gsm | cut -c1-7)"
             url=ftp://ftp.ncbi.nlm.nih.gov/geo/samples/"$short"nnn/"$gsm"/suppl/
-            if [ ! -e "{params.raw}"/"$(basename $url)" ]
+            if [ ! -e "{params.raw}"/$(basename "$url") ]
             then
               # removed a -r because it was making -nc not work
               # but might be -r is necessary, not deleting files to debug
