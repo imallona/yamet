@@ -17,13 +17,14 @@ output:
 ```{r, setup}
 suppressPackageStartupMessages({
   ## library(readr)
-  library(lmerTest)
+  #library(lmerTest)
   library(ggplot2)
   library(knitr)
 #  library('effects')
   library(ComplexHeatmap)
   library(viridis)
   ## library(showtext)
+  ## library(boot)
 })
 
 
@@ -61,8 +62,8 @@ NROWS <- 5e4
 ```{r}
 
 annot <- read.table(gzfile(snakemake@input[['annotations']]), header = TRUE, nrows = NROWS)
-## annot <- read.table(gzfile('/home/imallona/src/yamet/workflow/hg19/windows_10000_nt_annotation.gz'),
-##                     header = T, nrows = NROWS)
+# annot <- read.table(gzfile('/home/imallona/src/yamet/workflow/hg19/windows_10000_nt_annotation.gz'),
+#                    header = T, nrows = NROWS)
 ```
 
 
@@ -76,7 +77,7 @@ mannot <- head(annot, NROWS)
 plot(hclust(dist(t(mannot))))
 ```
 
-# Locl reports - Shannon
+# Local reports - Shannon {.tabset .tabset-pills}
 
 Caution downsampled
 
@@ -87,7 +88,7 @@ filepaths <- list.files( snakemake@params[["output_path"]], pattern = "\\.det\\.
 ##                          pattern = "\\.det\\.out$", full.names = TRUE))
 
 ## filepaths <- filepaths[!grepl("\\.det\\.out$", filepaths)]
-filepaths <- filepaths[!grepl("\\.meth\\.out$", filepaths)]
+## filepaths <- filepaths[!grepl("\\.meth\\.out$", filepaths)]
 
 regex <- "(.*)_(.*)_(.*).det.out"
 process_file <- function(filepath) {
@@ -107,23 +108,28 @@ process_file <- function(filepath) {
 ## these are mainly shannons! and avgmeths
 locals <- do.call(rbind, lapply(filepaths, process_file))
 
-head(locals)
+## head(locals)
 locals$patient <- as.factor(locals$patient)
 locals$location <- factor(locals$location, levels = c('NC', 'PT', 'LN', 'ML', 'MP', 'MO'))
 rownames(locals) <- paste(locals$patient, locals$location, rownames(locals), sep = "_")
 
 ```
 
+## By location 
+
 ```{r, fig.width = 10, fig.height = 10}
-par(mfrow = c(3,2))
+par(mfrow = c(3,2), pty = 's')
 for (loc in levels(locals$location)) {
     tmp <- locals[locals$location == loc,]
     plot(shannon~avg_meth, col = as.numeric(as.factor(tmp$location)), pch = '.', data = tmp, main = loc)
 }
+```
 
 
+## By patient (colored by location as before)
 
-par(mfrow = c(3,3))
+```{r, fig.width = 10, fig.height = 10}
+par(mfrow = c(3,3), pty = 's')
 for (patient in levels(locals$patient)) {
     tmp <- locals[locals$patient == patient,]
     plot(shannon~avg_meth, col = as.numeric(as.factor(tmp$location)), pch = '.', data = tmp, main = patient[1])
@@ -131,9 +137,11 @@ for (patient in levels(locals$patient)) {
 
 ```
 
-```{r, fig.width =8, fig.height = 10}
+## By patient and location
 
-par(mfrow = c(4,4))
+```{r, fig.width =8, fig.height = 11}
+
+par(mfrow = c(4,4), pty = 's')
 for (patient in levels(locals$patient)) {
     tmp <- locals[locals$patient == patient,]
     for (loc in unique(tmp$location)) {
@@ -147,24 +155,119 @@ for (patient in levels(locals$patient)) {
 
 ```
 
+# With window annotations {.tabset} {.tabset-pills}
+
 Let's stratify features by their annots
 
 and these are shannons within patient+location anyway
 
 ```{r, fig.width = 10, fig.height = 10}
-annot$single_label <- apply(annot, 1, function(row) colnames(annot)[which.max(row)])
+
+# the dominant annotation
+# gold <- apply(annot, 1, function(row) colnames(annot)[which.max(row != 0)])
+gold <- apply(annot, 1, function(row) {
+    if (all(row == 0)) {
+        res <- NA
+    } else { 
+        res <- colnames(annot)[which.max(row)]
+    }
+    res        
+})
+
+# the subdominant annotation (the one not being 1 but still max, to avoid long
+#  features to prevail over shorter ones)
+#  it will pick the first occurrence
+# silver <- apply(annot, 1, function(row) colnames(annot)[which.max(row <1 & row != 0)])
+silver <- apply(annot, 1, function(row) {
+    if (all(row == 0) | sum(row >0) == 1) {
+        res <- NA
+    } else {
+        tmp <- setNames(row, colnames(annot))
+        res <- names(tmp)[which.max(tmp< 1 & tmp > 0)]
+    }
+    res        
+})
+
+annot$gold <- gold
+annot$silver <- silver
+head(annot)
+
 annot$window <- rownames(annot)
 
-locals <- merge(locals, annot, by = 'window')
+locals <- merge(locals, annot[,c('gold', 'silver', 'window')], by = 'window')
 
-head(locals)
+```
 
-par(mfrow = c(3,3))
-for (func in unique(locals$single_label)) {
-    tmp <- locals[locals$single_label == func,]
-    plot(shannon~avg_meth, col = as.numeric(as.factor(tmp$loc)),
-         pch = '.', data = tmp, main = func)
-}
+## By patient and main annot
+
+```{r, fig.width = 10, fig.height = 12}
+ggplot(
+  locals,
+  aes(y = shannon, x = location)
+) +
+  geom_boxplot(
+    outlier.size = 0.6,
+    outlier.alpha = 0.3
+  ) +
+  labs(y = "Shannon entropy") +
+  geom_jitter(
+    position = position_dodge(width = 0.75),
+    size = 0.6, alpha = 0.3
+  ) +
+    facet_grid(gold~patient) + 
+    theme_bw() +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
 
 
 ```
+
+## Another
+
+```{r, fig.width = 10, fig.height = 8}
+ggplot(
+  locals,
+  aes(y = shannon, x = gold, color = location)
+) +
+  geom_boxplot(
+    outlier.size = 0.6,
+    outlier.alpha = 0.3
+  ) +
+  labs(y = "Shannon entropy") +
+  geom_jitter(
+    position = position_dodge(width = 0.75),
+    size = 0.6, alpha = 0.3
+  ) +
+    facet_grid(patient~., space = "free") + 
+    theme_bw() +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+```
+
+## Gold vs silver in PTs
+
+```{r, fig.width = 10, fig.height = 8}
+ggplot(
+  subset(locals, location == 'PT'),
+  aes(y = shannon, x = gold, color = silver)
+) +
+  geom_boxplot(
+    outlier.size = 0.6,
+    outlier.alpha = 0.3
+  ) +
+  labs(y = "Shannon entropy") +
+  geom_jitter(
+    position = position_dodge(width = 0.75),
+    size = 0.6, alpha = 0.3
+  ) +
+    facet_grid(patient~., space = "free") + 
+    theme_bw() +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+```
+
+<!-- ```{r} -->
+<!-- head(locals) -->
+
+<!-- ggplot(locals, -->
+<!--        aes( y = shannon, x= silver, color = gold)) + -->
+<!--     facet_grid(patient~location, space = "free") +  -->
+<!--     geom_boxplot(alpha=1) -->
+<!-- ``` -->
