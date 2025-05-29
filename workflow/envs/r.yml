@@ -11,3 +11,6 @@ dependencies:
   - r-ggplot2
   - r-lmertest
   - r-readr
+  - bioconductor-biocparallel
+  - bioconductor-complexheatmap
+  - bioconductor-limma

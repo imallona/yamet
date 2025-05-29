@@ -173,3 +173,67 @@ rule hg19_windows:
             bedtools makewindows -g {input[0]} -w 10000 |
                 sort -k1,1 -k2,2n >{output[0]}
         """
+
+
+rule hg19_single_annotion_coverage:
+    conda:
+        op.join("..", "envs", "processing.yml")
+    input:
+        windows=op.join(HG19_BASE, "bookended.custom.bed"),
+        annotation=op.join(HG19_BASE, "{subcat}.{cat}.bed"),
+    output:
+        header=temp(op.join(HG19_BASE, "{subcat}.{cat}.header")),
+        body=temp(op.join(HG19_BASE, "{subcat}.{cat}.body")),
+        annotated_windows=op.join(HG19_BASE, "{subcat}.{cat}.annotation.frac"),
+    shell:
+        """
+            bedtools coverage -a {input.windows} \
+                -b {input.annotation} | cut -f7 > {output.body}
+            echo "{wildcards.subcat}_{wildcards.cat}" > {output.header}
+            cat {output.header} {output.body} > {output.annotated_windows}
+        """
+
+
+ANN_MAP = {
+    "pmd": ["pmds", "hmds"],
+    "hmm": [
+        "0_Enhancer",
+        "2_Enhancer",
+        "11_Promoter",
+        "12_Promoter",
+        "1_Transcribed",
+        "4_Transcribed",
+        "5_RegPermissive",
+        "7_RegPermissive",
+        "6_LowConfidence",
+        "3_Quiescent",
+        "8_Quiescent",
+        "10_Quiescent",
+        "9_ConstitutiveHet",
+        "13_ConstitutiveHet",
+    ],
+    "chip": ["H3K27me3", "H3K9me3", "H3K4me3"],
+    "lad": ["laminb1"],
+    "custom": ["bookended"],
+}
+
+
+def list_annotated_windows():
+    res = []
+    for cat in ANN_MAP:
+        for subcat in ANN_MAP[cat]:
+            res.append(f"{subcat}.{cat}.annotation.frac")
+    return [op.join("hg19", item) for item in res]
+
+
+rule combine_annotated_windows:
+    conda:
+        op.join("..", "envs", "processing.yml")
+    input:
+        annotated_windows=list_annotated_windows(),
+    output:
+        op.join(HG19_BASE, "bookend_annotation.gz"),
+    shell:
+        """
+            paste {input.annotated_windows} | gzip -c >{output}
+        """

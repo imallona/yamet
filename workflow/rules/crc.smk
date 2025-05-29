@@ -92,29 +92,6 @@ rule yamet_crc_cg:
         "src/yamet.sh"
 
 
-ANN_MAP = {
-    "pmd": ["pmds", "hmds"],
-    "hmm": [
-        "0_Enhancer",
-        "2_Enhancer",
-        "11_Promoter",
-        "12_Promoter",
-        "1_Transcribed",
-        "4_Transcribed",
-        "5_RegPermissive",
-        "7_RegPermissive",
-        "6_LowConfidence",
-        "3_Quiescent",
-        "8_Quiescent",
-        "10_Quiescent",
-        "9_ConstitutiveHet",
-        "13_ConstitutiveHet",
-    ],
-    "chip": ["H3K27me3", "H3K9me3", "H3K4me3"],
-    "lad": ["laminb1"],
-    "custom": ["bookended"],
-}
-
 SAMPLES = {
     "CRC01": ["NC", "PT", "LN", "ML", "MP"],
     "CRC02": ["NC", "PT", "ML", "PT"],
@@ -141,8 +118,10 @@ rule crc_doc:
         op.join("..", "envs", "r.yml")
     input:
         crc_yamet_outputs(),
+        annotation=op.join(HG19_BASE, "bookend_annotation.gz"),
     params:
         yamet=CRC_YAMET,
+    threads: 8
     output:
         op.join("output", "crc.html"),
     script:
