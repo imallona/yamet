@@ -44,6 +44,16 @@ opts_chunk$set(fig.width = 7.5,
                cache.lazy = FALSE,
                warning = TRUE,
                message = TRUE)
+
+## render on error hook
+knitr::knit_hooks$set(error = function(x, options) {
+    ## if (exists(x)) {
+    ##     cat(str(x))
+    ## }
+
+    knitr::knit_exit()
+})
+
 ```
 
 ```{R logging, include = FALSE}
@@ -76,6 +86,8 @@ First, cluster the annots to make sure they make sense to start with, without an
 
 
 mannot <- head(annot, NROWS)
+rownames(annot) <- paste0('w', rownames(annot))
+
 
 plot(hclust(dist(t(mannot))))
 ```
@@ -87,8 +99,8 @@ Caution downsampled
 ```{r read_shannons}
 filepaths <- list.files( snakemake@params[["output_path"]], pattern = "\\.det\\.out$", full.names = TRUE)
 
-# (filepaths <- list.files('/home/imallona/src/yamet/workflow/data/crc/windows_output',
-#                          pattern = "\\.det\\.out$", full.names = TRUE))
+#  (filepaths <- list.files('/home/imallona/src/yamet/workflow/data/crc/windows_output',
+#                           pattern = "\\.det\\.out$", full.names = TRUE))
 
 ## filepaths <- filepaths[!grepl("\\.det\\.out$", filepaths)]
 ## filepaths <- filepaths[!grepl("\\.meth\\.out$", filepaths)]
@@ -99,23 +111,27 @@ process_reports <- function(filepath) {
     patient <- gsub(regex, "\\2", filename)
     location <- gsub(regex, "\\3", filename)
    
-  dt <- read.table(filepath, sep = "\t", na.strings = "-1", header = TRUE, nrows = NROWS)
+    dt <- read.table(filepath, sep = "\t", na.strings = "-1", header = TRUE, nrows = NROWS)
 
-  ## shannons
-  dtm <- dt[, c("shannon", "avg_meth")]    
-  dtm$patient <- patient
-  dtm$location <- location
-  dtm$window <- rownames(dt)
-
-  ## sampens
-
-  se <- as(as.matrix(dt[,grep('singleC', colnames(dt))]), 'dgCMatrix')
+    ## shannons
+    dtm <- dt[, c("shannon", "avg_meth")]    
+    dtm$patient <- patient
+    dtm$location <- location
+    dtm$window <- paste0("w", rownames(dt))
     
-  return(list(shannon = dtm,
-              sampen = list(file = filepath,
-                            patient = patient,
-                            location = location,
-                            sampen = se)))
+    ## sampens
+    cols <- grep('singleC', colnames(dt), value = TRUE)
+    rows <- paste0('w', 1:nrow(dt))
+
+    se <- as(as.matrix(dt[,cols]), 'dgCMatrix')
+    
+    dimnames(se) <- list(rows, cols)
+    
+    return(list(shannon = dtm,
+                sampen = list(file = filepath,
+                              patient = patient,
+                              location = location,
+                              sampen = se)))
 }
 
 ## these are mainly shannons! and avgmeths
@@ -191,8 +207,6 @@ colnames(med_sampens) <- lapply(sampens, function(x) return(x$file))
 ## colnames(med_sampens) <- gsub('.singleC.txt.gz', '', colnames(med_sampens))
 ## colnames(med_sampens) <- paste0('CRC', sapply(strsplit(colnames(med_sampens), "CRC"), function(x) return(x[2])))
 
-rownames(med_sampens) <- 1: nrow(med_sampens)
-
 #hist(apply(med_sampens, 1, function(x) sum(is.na(x))))
 
 # remove windows with more than 50 missing values
@@ -238,10 +252,13 @@ shannons_wide <- as.data.frame(pivot_wider(shannons,
 
     
 
-rownames(shannons_wide) <- shannons_wide$window
+rownames(shannons_wide) <-shannons_wide$window
 shannons_wide <- shannons_wide[,grep('window', colnames(shannons_wide), invert = TRUE)]
 
 ## clust samples by shannon; that's to order the cols for the lefthand annot heatmap to the main heatmap
+head(rownames(shannons_wide))
+head(rownames(med_sampens))
+     
 tmp <- t(as.matrix(shannons_wide)[rownames(med_sampens),])
 tmp.hc <- hclust(dist(tmp))
 # plot(tmp.hc)
@@ -274,7 +291,7 @@ colnames(range_sampens) <- lapply(sampens, function(x) return(x$file))
 ## colnames(range_sampens) <- gsub('.singleC.txt.gz', '', colnames(range_sampens))
 ## colnames(range_sampens) <- paste0('CRC', sapply(strsplit(colnames(range_sampens), "CRC"), function(x) return(x[2])))
 
-rownames(range_sampens) <- 1: nrow(range_sampens)
+rownames(range_sampens) <- paste0('w', 1: nrow(range_sampens))
 range_sampens[!is.finite(range_sampens)] <- NA
 #hist(apply(range_sampens, 1, function(x) sum(is.na(x))))
 
@@ -331,7 +348,6 @@ Just ~ patient + location
 
 sampen_fd <- do.call(cbind, lapply(sampens, function(x) x$sampen))
 
-
 meta <- data.frame(
   colname = colnames(sampen_fd),
   patient = sapply(strsplit(colnames(sampen_fd), "_"), function(x) x[3]),
@@ -347,14 +363,19 @@ hist(fit_no_meth$p.value)
 
 tt_no_meth <- topTable(fit_no_meth, coef = "meta$locationPT", n = Inf, sort.by="none")
 
-stopifnot(all(rownames(sampen_fd) == rownames(tt_no_meth)))
+##stopifnot(all(rownames(sampen_fd) == rownames(tt_no_meth)))
 table(tt_no_meth$adj.P.Val < 0.05)
 
 ```
 
 
-```{r, fig.width = 18, fig.height = 10}
-row_tt_no_meth <- rowAnnotation(PT_de_no_meth = ifelse(tt_no_meth$adj.P.Val < 0.05, yes = 1, no = 0))
+```{r with_limma_1, fig.width = 18, fig.height = 10}
+
+tt_no_meth <- tt_no_meth[rownames(med_sampens),]
+signif_no_meth <- ifelse(tt_no_meth$adj.P.Val < 0.05, yes = TRUE, no = FALSE)
+
+
+row_tt_no_meth <- rowAnnotation(PT_de_no_meth = signif_no_meth)
 
 Heatmap(med_sampens, name = "med sampens",
         top_annotation = column_ha,
@@ -369,6 +390,10 @@ Heatmap(med_sampens, name = "med sampens",
 ## With methylation correction
 
 correct for diffs in avg meth; or perhaps test separately and overlap the two sets
+
+# GO
+
+add 'genes' as a layer to the window annotation and store the id for gene ontology/geneset enrichment (on limma diff entropic regions)
 
 # Discrete window annotations {.tabset .tabset-pills}
 
@@ -406,7 +431,7 @@ silver <- apply(annot, 1, function(row) {
 annot$gold <- gold
 annot$silver <- silver
 
-annot$window <- rownames(annot)
+annot$window <-  rownames(annot)
 
 shannons <- merge(shannons, annot[,c('gold', 'silver', 'window')], by = 'window')
 
