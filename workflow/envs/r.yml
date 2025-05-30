@@ -16,3 +16,4 @@ dependencies:
   - bioconda::bioconductor-complexheatmap
   - conda-forge::r-viridis
   - conda-forge::r-tidyr
+  - bioconda::bioconductor-limma

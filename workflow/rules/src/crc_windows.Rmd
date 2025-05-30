@@ -27,6 +27,7 @@ suppressPackageStartupMessages({
   ## library(boot)
   library(tidyr)
   library(Matrix)
+  library(limma)
 })
 
 
@@ -63,9 +64,9 @@ NROWS <- 5e3
 
 ```{r}
 
-# annot <- read.table(gzfile(snakemake@input[['annotations']]), header = TRUE, nrows = NROWS)
- annot <- read.table(gzfile('/home/imallona/src/yamet/workflow/hg19/windows_10000_nt_annotation.gz'),
-                    header = T, nrows = NROWS)
+ annot <- read.table(gzfile(snakemake@input[['annotations']]), header = TRUE, nrows = NROWS)
+# annot <- read.table(gzfile('/home/imallona/src/yamet/workflow/hg19/windows_10000_nt_annotation.gz'),
+#                    header = T, nrows = NROWS)
 ```
 
 
@@ -320,9 +321,56 @@ Heatmap(curr_shannons, name = 'shannons',
 
 ```
 
+# Differential (sample) entropy / limma {.tabset .tabset-pills}
+
+Just ~ patient + location
+
+## No methylation correction
+
+```{r, fig.width = 3, fig.height = 3}
+
+sampen_fd <- do.call(cbind, lapply(sampens, function(x) x$sampen))
 
 
-# With window annotations {.tabset .tabset-pills}
+meta <- data.frame(
+  colname = colnames(sampen_fd),
+  patient = sapply(strsplit(colnames(sampen_fd), "_"), function(x) x[3]),
+  location = substr(sapply(strsplit(colnames(sampen_fd), "_"), function(x) x[4]), 1,2))
+
+meta$location <- relevel(factor(meta$location), ref = "NC")
+
+design <- model.matrix(~ meta$patient + meta$location)
+fit_no_meth <- lmFit(sampen_fd, design)
+fit_no_meth <- eBayes(fit_no_meth)
+
+hist(fit_no_meth$p.value)
+
+tt_no_meth <- topTable(fit_no_meth, coef = "meta$locationPT", n = Inf, sort.by="none")
+
+stopifnot(all(rownames(sampen_fd) == rownames(tt_no_meth)))
+table(tt_no_meth$adj.P.Val < 0.05)
+
+```
+
+
+```{r, fig.width = 18, fig.height = 10}
+row_tt_no_meth <- rowAnnotation(PT_de_no_meth = ifelse(tt_no_meth$adj.P.Val < 0.05, yes = 1, no = 0))
+
+Heatmap(med_sampens, name = "med sampens",
+        top_annotation = column_ha,
+        right_annotation = row_ha,
+        left_annotation = row_tt_no_meth,
+        show_row_names = FALSE,
+        column_labels = gsub('.det.out', '', basename(colnames(med_sampens))),
+        width = ncol(med_sampens)*unit(9, "mm"))
+```
+
+
+## With methylation correction
+
+correct for diffs in avg meth; or perhaps test separately and overlap the two sets
+
+# Discrete window annotations {.tabset .tabset-pills}
 
 Let's stratify features by their annots
 
