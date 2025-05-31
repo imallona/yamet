@@ -122,24 +122,31 @@ filepaths <- list.files(
   pattern = "bookended\\.custom\\..*\\.det\\.out$", full.names = T
 )
 
-regex <- "(.*)_(.*)_(.*).det.out"
 process_reports <- function(filepath) {
-  dt <- read_tsv(filepath, show_col_types = FALSE, na = "-1")
+  out_path <- gsub("\\.det", "", filepath)
+  out <- read_tsv(out_path, show_col_types = FALSE, na = "-1")
+  d_out <- read_tsv(filepath, show_col_types = FALSE, na = "-1")
 
-  se <- as(as.matrix(dt[, grep("singleC", colnames(dt))]), "dgCMatrix")
-  rownames(se) <- paste0(dt$chr, ":", dt$start, "-", dt$end)
+  se <- as(as.matrix(d_out[, grep("singleC", colnames(d_out))]), "dgCMatrix")
+  rownames(se) <- paste0(d_out$chr, ":", d_out$start, "-", d_out$end)
 
-  return(list(shannon = dt[, c("shannon", "avg_meth")], sampen = se))
+  return(
+    list(
+      shannon = d_out[, c("shannon", "avg_meth")],
+      sampen = se, cell_meth = out$avg_meth
+    )
+  )
 }
 
 param <- MulticoreParam(workers = snakemake@threads)
 all_data <- bplapply(filepaths, process_reports, BPPARAM = param)
-sampens <- do.call(cbind, lapply(all_data, function(x) x$sampen))
+sampens <- do.call(cbind, lapply(all_data, \(x) x$sampen))
 
 meta <- data.frame(
   colname = colnames(sampens),
-  patient = sapply(strsplit(colnames(sampens), "_"), function(x) x[3]),
-  subloc = sapply(strsplit(colnames(sampens), "_"), function(x) x[4])
+  patient = sapply(strsplit(colnames(sampens), "_"), \(x) x[3]),
+  subloc = sapply(strsplit(colnames(sampens), "_"), \(x) x[4]),
+  cell_meth = unlist(lapply(all_data, \(x) x$cell_meth), recursive = FALSE)
 )
 meta$loc <- substr(meta$subloc, 1, 2)
 meta$loc <- relevel(factor(meta$loc), ref = "NC")
@@ -148,16 +155,17 @@ sampens <- sampens[, meta$colname]
 
 groups <- unique(meta[c("subloc", "patient")])
 groups <- groups[order(as.integer(substr(groups$subloc, 1, 2)), groups$subloc, groups$patient), ]
-sub_sampens <- do.call(cbind, lapply(seq_len(nrow(groups)), function(i) {
+sub_sampens <- do.call(cbind, lapply(seq_len(nrow(groups)), \(i) {
   cols <- meta$colname[meta$patient == groups$patient[i] & meta$subloc == groups$subloc[i]]
   rowMeans(sampens[, cols, drop = FALSE], na.rm = TRUE)
 }))
 colnames(sub_sampens) <- paste(groups$subloc, groups$patient, sep = "_")
 
-design <- model.matrix(~ meta$patient + meta$loc)
+design <- model.matrix(~ patient + loc + cell_meth, meta)
 fit <- lmFit(sampens, design)
 fit <- eBayes(fit)
-regions <- rownames(topTable(fit, coef = "meta$locPT", number = 6000))
+regions <- rownames(topTable(fit, coef = "locPT", number = 20000))
+topTable(fit, coef = "locPT")
 
 dim(sub_sampens)
 sub_sampens <- na.omit(sub_sampens[regions, ])
