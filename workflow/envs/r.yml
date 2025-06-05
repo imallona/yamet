@@ -1,4 +1,4 @@
-name: R_4.3.2
+name: R_4.3.3
 channels:
   - default
   - conda-forge
@@ -11,3 +11,6 @@ dependencies:
   - r-ggplot2
   - r-lmertest
   - r-readr
+  - bioconductor-biocparallel
+  - bioconductor-complexheatmap
+  - bioconductor-limma
