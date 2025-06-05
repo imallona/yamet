@@ -116,6 +116,7 @@ ggplot(
 
 ## Heatmap
 
+We start by looking at differentially entropic regions and how the methylation levels look in these regions.
 ```{r}
 filepaths <- list.files(
   snakemake@params[["yamet"]],
@@ -124,16 +125,20 @@ filepaths <- list.files(
 
 process_reports <- function(filepath) {
   out_path <- gsub("\\.det", "", filepath)
+  m_out_path <- gsub("\\.det\\.", ".meth.", filepath)
   out <- read_tsv(out_path, show_col_types = FALSE, na = "-1")
   d_out <- read_tsv(filepath, show_col_types = FALSE, na = "-1")
+  m_out <- read_tsv(m_out_path, show_col_types = FALSE, na = "-1")
 
   se <- as(as.matrix(d_out[, grep("singleC", colnames(d_out))]), "dgCMatrix")
+  ms <- as(as.matrix(m_out[, grep("singleC", colnames(m_out))]), "dgCMatrix")
   rownames(se) <- paste0(d_out$chr, ":", d_out$start, "-", d_out$end)
+  rownames(ms) <- rownames(se)
 
   return(
     list(
       shannon = d_out[, c("shannon", "avg_meth")],
-      sampen = se, cell_meth = out$avg_meth
+      sampen = se, meth = ms, cell_meth = out$avg_meth
     )
   )
 }
@@ -141,6 +146,7 @@ process_reports <- function(filepath) {
 param <- MulticoreParam(workers = snakemake@threads)
 all_data <- bplapply(filepaths, process_reports, BPPARAM = param)
 sampens <- do.call(cbind, lapply(all_data, \(x) x$sampen))
+meths <- do.call(cbind, lapply(all_data, \(x) x$meth))
 
 meta <- data.frame(
   colname = colnames(sampens),
@@ -152,6 +158,7 @@ meta$loc <- substr(meta$subloc, 1, 2)
 meta$loc <- relevel(factor(meta$loc), ref = "NC")
 meta <- meta[order(as.integer(meta$loc), meta$subloc, meta$patient), ]
 sampens <- sampens[, meta$colname]
+meths <- meths[, meta$colname]
 
 groups <- unique(meta[c("subloc", "patient")])
 groups <- groups[order(as.integer(substr(groups$subloc, 1, 2)), groups$subloc, groups$patient), ]
@@ -160,6 +167,11 @@ sub_sampens <- do.call(cbind, lapply(seq_len(nrow(groups)), \(i) {
   rowMeans(sampens[, cols, drop = FALSE], na.rm = TRUE)
 }))
 colnames(sub_sampens) <- paste(groups$subloc, groups$patient, sep = "_")
+sub_meths <- do.call(cbind, lapply(seq_len(nrow(groups)), \(i) {
+  cols <- meta$colname[meta$patient == groups$patient[i] & meta$subloc == groups$subloc[i]]
+  rowMeans(meths[, cols, drop = FALSE], na.rm = TRUE)
+}))
+colnames(sub_meths) <- paste(groups$subloc, groups$patient, sep = "_")
 
 design <- model.matrix(~ patient + loc + cell_meth, meta)
 fit <- lmFit(sampens, design)
@@ -168,29 +180,36 @@ regions <- rownames(topTable(fit, coef = "locPT", number = 20000))
 topTable(fit, coef = "locPT")
 
 dim(sub_sampens)
+dim(sub_meths)
 sub_sampens <- na.omit(sub_sampens[regions, ])
-regions <- rownames(sub_sampens)
+sub_meths <- na.omit(sub_meths[regions, ])
+regions <- intersect(rownames(sub_sampens), rownames(sub_meths))
+sub_sampens <- sub_sampens[regions, ]
+sub_meths <- sub_meths[regions, ]
 dim(sub_sampens)
+dim(sub_meths)
 
 annot <- read.table(gzfile(snakemake@input[["annotation"]]), header = T)
 rownames(annot) <- rownames(sampens)
-row_ha <- rowAnnotation(tile_annotation = as.matrix(data.frame(
-  pmd = annot[regions, "pmds_pmd"],
-  hmd = annot[regions, "hmds_pmd"],
-  H3K27me3 = annot[regions, "H3K27me3_chip"],
-  H3K9me3 = annot[regions, "H3K9me3_chip"],
-  H3K4me3 = annot[regions, "H3K4me3_chip"],
-  laminb1 = annot[regions, "laminb1_lad"],
-  X8_Quiescent = annot[regions, "X8_Quiescent_hmm"]
-)))
-
+get_row_annotations <- function(regions) {
+  rowAnnotation(tile_annotation = as.matrix(data.frame(
+    pmd = annot[regions, "pmds_pmd"],
+    hmd = annot[regions, "hmds_pmd"],
+    H3K27me3 = annot[regions, "H3K27me3_chip"],
+    H3K9me3 = annot[regions, "H3K9me3_chip"],
+    H3K4me3 = annot[regions, "H3K4me3_chip"],
+    laminb1 = annot[regions, "laminb1_lad"],
+    X8_Quiescent = annot[regions, "X8_Quiescent_hmm"]
+  )))
+}
+row_ha <- get_row_annotations(regions)
 column_ha <- HeatmapAnnotation(
   loc = substr(groups$subloc, 1, 2),
   subloc = groups$subloc,
   patient = groups$patient
 )
 
-Heatmap(sub_sampens,
+ht <- Heatmap(sub_sampens,
   name = "sampens",
   top_annotation = column_ha,
   right_annotation = row_ha,
@@ -198,4 +217,94 @@ Heatmap(sub_sampens,
   show_column_names = FALSE,
   cluster_columns = FALSE
 )
+ht_drawn <- draw(ht)
+row_ordered <- row_order(ht_drawn)
+
+row_ha <- row_ha[row_ordered, ]
+
+Heatmap(sub_sampens[row_ordered, ],
+  name = "sampens",
+  top_annotation = column_ha,
+  right_annotation = row_ha,
+  show_row_names = FALSE,
+  show_column_names = FALSE,
+  cluster_columns = FALSE,
+  cluster_rows = FALSE
+) +
+  Heatmap(sub_meths[row_ordered, ],
+    name = "meths",
+    show_row_names = FALSE,
+    show_column_names = FALSE,
+    cluster_columns = FALSE,
+    cluster_rows = FALSE
+  )
+```
+
+At this point, one might be interested to look at differentialy entropic regions which are not differentially methylated and vice-versa.
+```{r}
+sub_sampens <- do.call(cbind, lapply(seq_len(nrow(groups)), \(i) {
+  cols <- meta$colname[meta$patient == groups$patient[i] & meta$subloc == groups$subloc[i]]
+  rowMeans(sampens[, cols, drop = FALSE], na.rm = TRUE)
+}))
+colnames(sub_sampens) <- paste(groups$subloc, groups$patient, sep = "_")
+sub_meths <- do.call(cbind, lapply(seq_len(nrow(groups)), \(i) {
+  cols <- meta$colname[meta$patient == groups$patient[i] & meta$subloc == groups$subloc[i]]
+  rowMeans(meths[, cols, drop = FALSE], na.rm = TRUE)
+}))
+colnames(sub_meths) <- paste(groups$subloc, groups$patient, sep = "_")
+
+design <- model.matrix(~ patient + loc, meta)
+fit <- lmFit(sampens, design)
+fit <- eBayes(fit)
+samp_regions <- rownames(topTable(fit, coef = "locPT", number = 20000))
+topTable(fit, coef = "locPT")
+
+fit <- lmFit(meths, design)
+fit <- eBayes(fit)
+meth_regions <- rownames(topTable(fit, coef = "locPT", number = 20000))
+topTable(fit, coef = "locPT")
+
+dim(sub_sampens)
+dim(sub_meths)
+sub_sampens <- na.omit(sub_sampens[samp_regions, ])
+sub_meths_sig <- na.omit(sub_meths[meth_regions, ])
+ver_cmr_regions <- setdiff(rownames(sub_sampens), rownames(sub_meths_sig))
+sub_sampens <- sub_sampens[ver_cmr_regions, ]
+sub_meths <- na.omit(sub_meths[ver_cmr_regions, ])
+ver_cmr_regions <- rownames(sub_meths)
+sub_sampens <- sub_sampens[ver_cmr_regions, ]
+dim(sub_sampens)
+dim(sub_meths)
+
+row_ha <- get_row_annotations(ver_cmr_regions)
+
+ht <- Heatmap(sub_sampens,
+  name = "sampens",
+  top_annotation = column_ha,
+  right_annotation = row_ha,
+  show_row_names = FALSE,
+  show_column_names = FALSE,
+  cluster_columns = FALSE
+)
+ht_drawn <- draw(ht)
+row_ordered <- row_order(ht_drawn)
+
+row_ha <- row_ha[row_ordered, ]
+
+Heatmap(sub_sampens[row_ordered, ],
+  name = "sampens",
+  top_annotation = column_ha,
+  right_annotation = row_ha,
+  show_row_names = FALSE,
+  show_column_names = FALSE,
+  cluster_columns = FALSE,
+  cluster_rows = FALSE
+) +
+  Heatmap(sub_meths[row_ordered, ],
+    name = "meths",
+    show_row_names = FALSE,
+    show_column_names = FALSE,
+    cluster_columns = FALSE,
+    cluster_rows = FALSE
+  )
 ```
