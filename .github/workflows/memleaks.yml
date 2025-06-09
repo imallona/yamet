@@ -4,8 +4,8 @@ on:
   workflow_dispatch:
   pull_request:
     paths:
-      - 'method/src/**.cpp'
-      - 'method/CMakeLists.txt'
+      - "method/src/**.cpp"
+      - "method/CMakeLists.txt"
 
 env:
   PREFIX: $HOME/build/
@@ -21,7 +21,7 @@ jobs:
       - name: Installs
         run: |
           sudo apt update && sudo apt install -y \
-            libboost-program-options-dev zlib1g-dev valgrind
+            libboost-program-options-dev libboost-iostreams-dev valgrind
 
       - name: Build and valgrind
         run: |
