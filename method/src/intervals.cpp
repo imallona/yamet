@@ -1,24 +1,25 @@
 #include <cerrno>
-#include <fstream>
 #include <iostream>
-#include <list>
 #include <sstream>
 #include <string>
 #include <vector>
 
 #include "chrData.h"
 
+#include "file_stream.cpp"
+
 /**
  * Parse a bed file of search intervals into a nested structure to be used for extracting the
  * relevant regions of the reference. We require that all search regions in a chromosome be disjoint
  * from one another.
  *
- * @param filename path to bed file to be extracted.
+ * @param filename path to bed file to be extracted (optionally compressed with gzip or zstd).
  * @return vector of structs which contain the chr information and intervals corresponding to it.
  */
-Intervals parseSearch(const std::string &filename, const unsigned int skip_header) {
-  std::ifstream bedFile(filename);
-  if (!bedFile.is_open()) {
+Intervals parseSearch(const std::string &filename, const unsigned int skip_header,
+                      const unsigned int chunk_size) {
+  FileStream bedFile(filename, chunk_size);
+  if (!bedFile.good()) {
     throw std::system_error(errno, std::generic_category(), "Opening " + filename);
   }
 
@@ -30,7 +31,7 @@ Intervals parseSearch(const std::string &filename, const unsigned int skip_heade
   unsigned int          skipped_headers = 0;
   std::vector<Interval> currentIntervals;
 
-  while (std::getline(bedFile, line)) {
+  while (bedFile.getline(line)) {
     if (skipped_headers < skip_header) {
       skipped_headers++;
       continue;

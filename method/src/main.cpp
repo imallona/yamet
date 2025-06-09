@@ -13,7 +13,8 @@ int main(int argc, char **argv) {
 
     std::vector<std::string> filenames = getCellFiles(vm);
 
-    Intervals intervals = parseSearch(getIntervals(vm), getSkipHeaderIntervals(vm));
+    Intervals intervals =
+        parseSearch(getIntervals(vm), getSkipHeaderIntervals(vm), getChunkSize(vm));
     if (vm.count("print-intervals")) {
       intervals.print();
     }

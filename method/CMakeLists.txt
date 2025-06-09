@@ -35,9 +35,7 @@ else()
 endif()
 
 # Set up dependencies
-set(Boost_USE_STATIC_LIBS ON)
-find_package(Boost REQUIRED COMPONENTS program_options)
-find_package(ZLIB REQUIRED)
+find_package(Boost REQUIRED COMPONENTS program_options iostreams)
 find_package(Threads REQUIRED)
 
 # set RPATH for executable
@@ -65,8 +63,8 @@ set_target_properties(${PROJECT_NAME}_static ${PROJECT_NAME}_shared PROPERTIES
 )
 
 # Link zlib and threads to library target
-target_link_libraries(${PROJECT_NAME}_static PRIVATE ZLIB::ZLIB Threads::Threads)
-target_link_libraries(${PROJECT_NAME}_shared PRIVATE ZLIB::ZLIB Threads::Threads)
+target_link_libraries(${PROJECT_NAME}_static PRIVATE Threads::Threads Boost::iostreams)
+target_link_libraries(${PROJECT_NAME}_shared PRIVATE Threads::Threads Boost::iostreams)
 
 # Include directories for the library
 target_include_directories(${PROJECT_NAME}_static PUBLIC
@@ -167,7 +165,7 @@ set(CPACK_PACKAGE_HOMEPAGE_URL https://github.com/imallona/yamet)
 set(CPACK_PACKAGE_LICENSE GPL-3.0-only)
 
 # Debian-specific metadata
-set(CPACK_DEBIAN_PACKAGE_DEPENDS "zlib1g-dev (>= 1.2.0)")
+set(CPACK_DEBIAN_PACKAGE_DEPENDS "libboost-program-options-dev(>= 1.83.0), libboost-iostreams-dev(>= 1.83.0)")
 set(CPACK_DEBIAN_PACKAGE_SECTION "utils")
 set(CPACK_DEBIAN_ARCHITECTURE ${CMAKE_SYSTEM_PROCESSOR})
 
