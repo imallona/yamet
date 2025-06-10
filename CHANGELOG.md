@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## Upcoming
 
+### Added
+
+- [method] Using `boost iostreams` as the decompression backend
+- [method] Compatibility with gzip and zstd compression
+- [method] read compressed annotation files
+
 ## [v1.1.0-rc.4](https://github.com/imallona/yamet/releases/tag/v1.1.0-rc.4)
 
 ### Added

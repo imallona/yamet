@@ -156,7 +156,10 @@ public:
 
   /**
    * Read the next line from the compressed file
-   * @param line Reference to string where the line will be stored
+   * Optimised for minimum I/O. Data is read from the file in chunks (size controlled by chunkSize_)
+   * and lines are parsed from these chunks.
+   *
+   * @param line[out] Reference to string where the line will be stored
    * @return true if a line was successfully read, false if EOF reached
    */
   bool getline(std::string &line) {
