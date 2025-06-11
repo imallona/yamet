@@ -24,7 +24,8 @@ public:
   void print();
 };
 
-Intervals parseSearch(const std::string &filename, const unsigned int skip_header = 0);
+Intervals parseSearch(const std::string &filename, const unsigned int skip_header = 0,
+                      const unsigned int chunk_size = 64 * 1024);
 
 struct ChrPositions {
   std::string                            chr;

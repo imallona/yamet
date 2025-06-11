@@ -30,14 +30,14 @@ po::variables_map parseCommandLine(int argc, char **argv) {
         "tab separated file, sorted by chromosome and position, for "
         "reference sites in the following format\n"
         "\n"
-        " chr1    5     7\n"
-        " chr1    7     9\n"
-        " chr1    9     11\n"
-        " chr1    11    13\n"
-        " chr2    2     4\n"
-        " chr2    4     6\n"
+        " chr1    5\n"
+        " chr1    7\n"
+        " chr1    9\n"
+        " chr1    11\n"
+        " chr2    2\n"
+        " chr2    4\n"
         "\n"
-        "where the columns are the chromosome, start position and the end position respectively")
+        "where the columns are the chromosome and start position respectively")
     ("intervals,i", po::value<std::string>(),
         "bed file, sorted by chromosome and start position, for "
         "intervals of interest in the following format\n"

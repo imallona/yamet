@@ -5,7 +5,7 @@
 #include <utility>
 #include <vector>
 
-#include <chrData.h>
+#include "chrData.h"
 
 struct BinCounts {
   std::vector<unsigned int> cm;
