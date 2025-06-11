@@ -54,7 +54,7 @@ Intervals parseSearch(const std::string &filename, const unsigned int skip_heade
 
     if (chr != currentChr) {
       if (!currentIntervals.empty()) {
-        intervals.emplace_back(currentChr, currentIntervals);
+        intervals.emplace_back(currentChr, std::move(currentIntervals));
         currentIntervals.clear();
       }
       currentChr = chr;
