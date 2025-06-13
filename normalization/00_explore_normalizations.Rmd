@@ -1,0 +1,191 @@
+---
+title: "Normalizing entropies, revisited"
+date: "`r format(Sys.time(), '%d %B, %Y %H:%M:%S')`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: show
+    code_download: true
+    number_sections: true
+    df_print: kable
+    theme: lumen
+editor_options: 
+  chunk_output_type: console
+---
+
+Revisiting the entropies-changes-are-methylation-changes again. Normalization.
+
+```{r}
+library(knitr)
+```
+
+```{r}
+opts_chunk$set(fig.width = 6,
+               fig.height = 6,
+               cache = FALSE,
+               include = TRUE,
+               dev = "png",
+               cache.lazy = FALSE,
+               warning = TRUE,
+               message = TRUE)
+```
+
+
+```{r}
+# shannon's entropy
+shannon <- function(dimers) {
+    p <- c(table(dimers)) / length(dimers)
+    -1 * sum(p * log2(p))
+}
+
+## avg methylation
+meth <- function(dimers) {
+    (sum(dimers == '10') + sum(dimers == '01') + 2* sum(dimers == '11')) / (2*length(dimers))
+}
+
+## quickly simulating dimersets, with some noise
+simulate_dimers <- function(unmeth_dimer_counts, meth_dimer_counts) {    
+    dimers <- c(rep('00', unmeth_dimer_counts + rnbinom(n = 1, size = 5, prob = 0.5)),
+                rep('01', rnbinom(n = 1, size = 5, prob = 0.5)),
+                rep('10', rnbinom(n = 1, size = 5, prob = 0.5)),
+                rep('11', meth_dimer_counts + rnbinom(n = 1, size = 5, prob = 0.5)))
+    return(dimers)
+}
+```
+
+
+```{r}
+## the idea is to build a background of dimers fulfilling the original avg methylation (amount of 0s and 1s)
+shannon_normalized_shuffled <- function(dimers) {
+    # observed probabilities and shannon's
+    p_obs <- c(table(dimers)) / length(dimers)
+    H_obs <- -sum(p_obs * log2(p_obs))
+    
+    # dimers to monomers
+    bits <- unlist(strsplit(dimers, "")) 
+    
+    # shuffle monomers, to preserve methylation level (0s and 1s)
+    shuffled_bits <- sample(bits, length(bits), replace = FALSE)
+    
+    # reconstruct dimers
+    shuffled_dimers <- paste0(shuffled_bits[seq(1, length(bits)-1, by=2)], 
+                              shuffled_bits[seq(2, length(bits), by=2)])
+    
+    # expected probs and shannon's from shuffled dimers
+    p_exp <- c(table(shuffled_dimers)) / length(shuffled_dimers)
+    H_exp <- -sum(p_exp * log2(p_exp))  
+    
+    # normalize independent of methylation
+    H_obs / H_exp
+}
+          
+```
+
+```{r}
+## same as above, but analitically
+shannon_normalized_analytical <- function(dimers) {
+    # observed probs, Shannon's
+    p_obs <- c(table(dimers)) / length(dimers)
+    H_obs <- -sum(p_obs * log2(p_obs)) 
+    
+    # again split dimers into monomers and get their probabilities
+    bits <- unlist(strsplit(dimers, "")) 
+    p0 <- sum(bits == "0") / length(bits)  # probability of '0'
+    p1 <- sum(bits == "1") / length(bits)  # probability of '1'
+    
+    # we expect dimer probabilities to be independent!
+    p_exp <- c("00" = p0 * p0, "01" = p0 * p1, "10" = p1 * p0, "11" = p1 * p1)
+    
+    # remove dimers that were not observed/ present originally
+    ## p_exp <- p_exp[names(p_exp) %in% unique(dimers)]
+    
+    # expected shannon's
+    H_exp <- -sum(p_exp * log2(p_exp))
+    
+    # normalize independent of methylation
+    H_obs / H_exp
+}
+```
+
+
+The problem
+
+```{r, fig.width = 4, fig.height = 4}
+
+res <- list()
+for (i in 1:100) {
+    for (j in 1:100) {
+        dimers <- simulate_dimers(unmeth_dimer_counts = i, meth_dimer_counts = j)
+
+        res[[paste0(i, j)]] <- c(meth(dimers), shannon(dimers)) 
+    }
+}
+
+res <- do.call(rbind.data.frame, res)
+colnames(res) <- c('meth', 'shannon')
+plot(res, pch = '.', 'unnormalized')
+```
+
+The solutions (shuffling and analytical)
+
+```{r}
+res <- list()
+for (i in 1:100) {
+    for (j in 1:100) {
+        dimers <- simulate_dimers(unmeth_dimer_counts = i, meth_dimer_counts = j)
+
+        res[[paste0(i, j)]] <- c(shannon(dimers), meth(dimers),shannon_normalized_shuffled(dimers), shannon_normalized_analytical(dimers))
+    }
+}
+
+
+res <- do.call(rbind.data.frame, res)
+colnames(res) <- c('shannon', 'meth', 'shannon_shuffling', 'shannon_analytical')
+
+plot(res, pch = '.')
+```
+
+
+Let's push it a bit and add lots of extra noise on the "unmethylated side"
+
+
+```{r}
+simulate_dimers_asym_dispersion <- function(unmeth_dimer_counts, meth_dimer_counts) {    
+    dimers <- c(rep('00', unmeth_dimer_counts + rnbinom(n = 1, size = 5, prob = 0.5)),
+                rep('01', rnbinom(n = 1, size = 1, prob = 0.5)),
+                rep('10', rnbinom(n = 1, size = 50, prob = 0.5)),  ## notice the size here
+                rep('11', meth_dimer_counts + rnbinom(n = 1, size = 5, prob = 0.5)))
+    return(dimers)
+}
+```
+
+```{r}
+res <- list()
+for (i in 1:20) { ## notice lower simulated fully unmeth dimers overall
+    for (j in 1:180) {
+        ## plus increased heterogeneity on unmeth dimers
+        dimers <- simulate_dimers_asym_dispersion(unmeth_dimer_counts = i, meth_dimer_counts = j) 
+        res[[paste0(i, j)]] <- c(shannon(dimers), meth(dimers),shannon_normalized_shuffled(dimers), shannon_normalized_analytical(dimers))        
+    }
+}
+
+res <- do.call(rbind.data.frame, res)
+colnames(res) <- c('shannon', 'meth', 'shannon_shuffling', 'shannon_analytical')
+
+
+plot(res, pch = '.')
+
+
+```
+
+In short,
+
+```{r, fig.width = 4, fig.height = 3}
+plot(res[,c('meth', 'shannon_analytical')], pch = '.')
+
+```
+
+```{r}
+sessionInfo()
+```
