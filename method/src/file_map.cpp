@@ -7,21 +7,48 @@
 
 #include "file_classes.h"
 
-void FileMap::addFile(const std::string &key, std::vector<ChrCounts> &chrCounts) {
-  (*this)[key] = File(std::move(chrCounts));
+void ParsedInfo::addFile(const std::string &key, std::vector<ChrCounts> &chrCounts) {
+  fileMap[key] = File(std::move(chrCounts));
 }
 
-void FileMap::aggregate() {
-  for (auto &[filename, file] : *this) {
-    for (unsigned int i = 0; i < file.chrCounts.size(); i++) {
-      for (unsigned int j = 0; j < file.chrCounts[i].bins.size(); j++) {
-        for (unsigned int k = 0; k < file.chrCounts[i].bins[j].cm_1.size(); k++) {
-          if (k < file.chrCounts[i].bins[j].cm.size() && file.chrCounts[i].bins[j].cm[k] > 1) {
-            file.chrCounts[i].bins[j].A +=
-                ((unsigned long long)(file.chrCounts[i].bins[j].cm[k]) *
-                 (unsigned long long)(file.chrCounts[i].bins[j].cm[k] - 1)) /
-                2;
+/**
+ * Aggregates methylation data across all files and calculates statistical metrics.
+ * Performs comprehensive aggregation of methylation data including:
+ * - k-mer count summation across files
+ * - Sample entropy calculations
+ * - Average methylation ratios
+ * - Shannon entropy calculations for aggregated data
+ *
+ * @note This function modifies both individual file data and populates the aggregated data
+ * structure
+ * @warning Assumes fileMap is not empty and all files have consistent chromosome/bin structure
+ *
+ * @details
+ * Processing steps:
+ * 1. Iterates through all chromosomes and bins
+ * 2. Aggregates pattern counts (cm, cm_1) across files
+ * 3. Calculates A/B values for sample entropy using combinatorial formula: n*(n-1)/2
+ * 4. Computes sample entropy as log(A/B) for each bin and file
+ * 5. Calculates average methylation as m/t ratio
+ * 6. Computes normalized Shannon entropy for aggregated pattern distributions
+ */
+void ParsedInfo::aggregate() {
+  for (unsigned int i = 0; i < fileMap.begin()->second.chrCounts.size(); i++) {
+    for (unsigned int j = 0; j < fileMap.begin()->second.chrCounts[i].bins.size(); j++) {
+      unsigned int total_cm = 0;
+      for (auto &[filename, file] : fileMap) {
+        for (size_t k = 0; k < file.chrCounts[i].bins[j].cm_1.size(); k++) {
+          if (k < file.chrCounts[i].bins[j].cm.size()) {
+            agg[i].bins[j].cm[k] += file.chrCounts[i].bins[j].cm[k];
+            total_cm += file.chrCounts[i].bins[j].cm[k];
+            if (file.chrCounts[i].bins[j].cm[k] > 1) {
+              file.chrCounts[i].bins[j].A +=
+                  ((unsigned long long)(file.chrCounts[i].bins[j].cm[k]) *
+                   (unsigned long long)(file.chrCounts[i].bins[j].cm[k] - 1)) /
+                  2;
+            }
           }
+          agg[i].bins[j].cm_1[k] += file.chrCounts[i].bins[j].cm_1[k];
           if (file.chrCounts[i].bins[j].cm_1[k] > 1) {
             file.chrCounts[i].bins[j].B +=
                 ((unsigned long long)(file.chrCounts[i].bins[j].cm_1[k]) *
@@ -29,20 +56,41 @@ void FileMap::aggregate() {
                 2;
           }
         }
+        /// sample entropy per bin per file
         if (file.chrCounts[i].bins[j].A > 0 && file.chrCounts[i].bins[j].B > 0) {
           file.A += file.chrCounts[i].bins[j].A;
           file.B += file.chrCounts[i].bins[j].B;
           file.chrCounts[i].bins[j].sampen =
               log(((double)file.chrCounts[i].bins[j].A) / ((double)file.chrCounts[i].bins[j].B));
         }
+        /// average methylation per bin per file
         if (file.chrCounts[i].bins[j].t > 0) {
           file.m += file.chrCounts[i].bins[j].m;
           file.t += file.chrCounts[i].bins[j].t;
+          agg[i].bins[j].m += file.chrCounts[i].bins[j].m;
+          agg[i].bins[j].t += file.chrCounts[i].bins[j].t;
           file.chrCounts[i].bins[j].avg_meth =
               ((double)file.chrCounts[i].bins[j].m) / ((double)file.chrCounts[i].bins[j].t);
         }
       }
+      /// shannon entropy per bin across files
+      if (total_cm > 0) {
+        agg[i].bins[j].shannon = 0;
+        for (size_t k = 0; k < agg[i].bins[j].cm.size(); k++) {
+          if (((double)agg[i].bins[j].cm[k]) / ((double)total_cm) > 0) {
+            agg[i].bins[j].shannon -= (((double)agg[i].bins[j].cm[k]) / ((double)total_cm)) *
+                                      log(((double)agg[i].bins[j].cm[k]) / ((double)total_cm));
+          }
+        }
+        agg[i].bins[j].shannon /= log(agg[i].bins[j].cm.size());
+      }
+      /// average methylation per bin across files
+      if (agg[i].bins[j].t > 0) {
+        agg[i].bins[j].avg_meth = ((double)agg[i].bins[j].m) / ((double)agg[i].bins[j].t);
+      }
     }
+  }
+  for (auto &[_, file] : fileMap) {
     if (file.A > 0 && file.B > 0) {
       file.sampen = log(((double)file.A) / ((double)file.B));
     }
@@ -52,18 +100,32 @@ void FileMap::aggregate() {
   }
 }
 
-void FileMap::print(const std::vector<std::string> &filenames) {
+/**
+ * Prints sample entropy information for all processed files.
+ * Outputs detailed entropy metrics including aggregate values per file
+ * and per-bin values organized by chromosome.
+ *
+ * @param filenames Vector of filenames to print entropy data for
+ *
+ * @note Output format:
+ * - File-level aggregate entropy
+ * - Per-chromosome breakdown
+ * - Per-bin entropy values within each chromosome
+ *
+ * @warning Assumes all filenames exist in the internal fileMap
+ */
+void ParsedInfo::print(const std::vector<std::string> &filenames) {
   std::cout << "--Sample Entropies------------------" << std::endl << std::endl;
   for (const auto &filename : filenames) {
     std::cout << "Filename: " << filename << std::endl;
-    std::cout << "  Aggregate: " << (*this)[filename].sampen << std::endl;
+    std::cout << "  Aggregate: " << fileMap[filename].sampen << std::endl;
     std::cout << "  Detailed:" << std::endl;
-    for (unsigned int chrIndex = 0; chrIndex < (*this)[filename].chrCounts.size(); chrIndex++) {
-      std::cout << "    Chromosome: " << (*this)[filename].chrCounts[chrIndex].chr << std::endl;
-      for (unsigned int binIndex = 0; binIndex < (*this)[filename].chrCounts[chrIndex].bins.size();
+    for (unsigned int chrIndex = 0; chrIndex < fileMap[filename].chrCounts.size(); chrIndex++) {
+      std::cout << "    Chromosome: " << fileMap[filename].chrCounts[chrIndex].chr << std::endl;
+      for (unsigned int binIndex = 0; binIndex < fileMap[filename].chrCounts[chrIndex].bins.size();
            binIndex++) {
         std::cout << "      Bin " << binIndex << " -> "
-                  << (*this)[filename].chrCounts[chrIndex].bins[binIndex].sampen << std::endl;
+                  << fileMap[filename].chrCounts[chrIndex].bins[binIndex].sampen << std::endl;
       }
     }
     std::cout << std::endl;
@@ -78,8 +140,8 @@ void FileMap::print(const std::vector<std::string> &filenames) {
  * @param filenames vector of filenames of all cell files.
  * @param intervals Intervals object with search intervals.
  */
-void FileMap::exportDetOut(const std::string &out, const std::vector<std::string> &filenames,
-                           const Intervals &intervals) {
+void ParsedInfo::exportDetOut(const std::string &out, const std::vector<std::string> &filenames,
+                              const Intervals &intervals) {
   std::ofstream outStream(out);
 
   if (!outStream.is_open()) {
@@ -98,38 +160,11 @@ void FileMap::exportDetOut(const std::string &out, const std::vector<std::string
       outStream << intervals[i].chr << "\t" << intervals[i].intervals[j].start << "\t"
                 << intervals[i].intervals[j].end << "\t";
       /// print sample entropies for all files at that region
-      unsigned int              total = 0;
-      std::vector<unsigned int> shan((*this->begin()).second.chrCounts[0].bins[0].cm.size(), 0);
-      unsigned int              m_agg = 0, t_agg = 0;
       for (const auto &filename : filenames) {
-        for (size_t k = 0; k < shan.size(); k++) {
-          shan[k] += (*this)[filename].chrCounts[i].bins[j].cm[k];
-          total += (*this)[filename].chrCounts[i].bins[j].cm[k];
-        }
-        m_agg += (*this)[filename].chrCounts[i].bins[j].m;
-        t_agg += (*this)[filename].chrCounts[i].bins[j].t;
-        outStream << (*this)[filename].chrCounts[i].bins[j].sampen << "\t";
+        outStream << fileMap[filename].chrCounts[i].bins[j].sampen << "\t";
       }
-      /// print shannon entropies at that region
-      double shannon = -1;
-      if (total > 0) {
-        shannon = 0;
-        for (size_t k = 0; k < shan.size(); k++) {
-          if (((double)shan[k]) / ((double)total) > 0) {
-            shannon -=
-                (((double)shan[k]) / ((double)total)) * log(((double)shan[k]) / ((double)total));
-          }
-        }
-        shannon /= log(shan.size());
-      }
-      outStream << shannon << "\t";
-      /// print average methylation at that region
-      if (t_agg == 0) {
-        outStream << -1.0;
-      } else {
-        outStream << (((double)m_agg) / ((double)t_agg));
-      }
-      outStream << std::endl;
+      /// print shannon entropies and average methylation at that region
+      outStream << agg[i].bins[j].shannon << "\t" << agg[i].bins[j].avg_meth << std::endl;
     }
   }
   outStream.close();
@@ -142,8 +177,8 @@ void FileMap::exportDetOut(const std::string &out, const std::vector<std::string
  * @param filenames vector of filenames of all cell files.
  * @param intervals Intervals object with search intervals.
  */
-void FileMap::exportMethOut(const std::string &out, const std::vector<std::string> &filenames,
-                            const Intervals &intervals) {
+void ParsedInfo::exportMethOut(const std::string &out, const std::vector<std::string> &filenames,
+                               const Intervals &intervals) {
   std::ofstream outStream(out);
 
   if (!outStream.is_open()) {
@@ -163,7 +198,7 @@ void FileMap::exportMethOut(const std::string &out, const std::vector<std::strin
                 << intervals[i].intervals[j].end;
       /// print average methylation for all files at that region
       for (const auto &filename : filenames) {
-        outStream << "\t" << (*this)[filename].chrCounts[i].bins[j].avg_meth;
+        outStream << "\t" << fileMap[filename].chrCounts[i].bins[j].avg_meth;
       }
       outStream << std::endl;
     }
@@ -177,7 +212,7 @@ void FileMap::exportMethOut(const std::string &out, const std::vector<std::strin
  * @param out path to tab separated file where sample entropy outputs are to be stored.
  * @param filenames vector of filenames of all cell files.
  */
-void FileMap::exportOut(const std::string &out, const std::vector<std::string> &filenames) {
+void ParsedInfo::exportOut(const std::string &out, const std::vector<std::string> &filenames) {
   std::ofstream outStream(out);
 
   if (!outStream.is_open()) {
@@ -188,7 +223,7 @@ void FileMap::exportOut(const std::string &out, const std::vector<std::string> &
 
   /// print aggregated sample entropy for each file
   for (const auto &filename : filenames) {
-    outStream << filename << "\t" << (*this)[filename].sampen << "\t" << (*this)[filename].avg_meth;
+    outStream << filename << "\t" << fileMap[filename].sampen << "\t" << fileMap[filename].avg_meth;
     outStream << std::endl;
   }
   outStream.close();

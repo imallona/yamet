@@ -24,7 +24,7 @@ struct ChrCounts {
   std::string            chr;
   std::vector<BinCounts> bins;
 
-  explicit ChrCounts(std::string c, unsigned int size, unsigned int m)
+  explicit ChrCounts(const std::string &c, unsigned int size, unsigned int m)
       : chr(c), bins(size, BinCounts(m)) {}
 };
 
@@ -55,9 +55,32 @@ struct File {
   explicit File(std::vector<ChrCounts> &&c) : chrCounts(std::move(c)) {}
 };
 
-using FileMapContainer = std::unordered_map<std::string, File>;
+using FileMap = std::unordered_map<std::string, File>;
 
-class FileMap : public FileMapContainer {
+struct BinAgg {
+  std::vector<unsigned int> cm;
+  std::vector<unsigned int> cm_1;
+  unsigned int              m        = 0;
+  unsigned int              t        = 0;
+  double                    avg_meth = -1.0;
+  double                    shannon  = -1.0;
+
+  explicit BinAgg(unsigned int m) : cm(1 << m, 0), cm_1(1 << (m + 1), 0) {}
+};
+
+struct ChrAgg {
+  std::string         chr;
+  std::vector<BinAgg> bins;
+
+  explicit ChrAgg(const std::string &c, unsigned int size, unsigned int m)
+      : chr(c), bins(size, BinAgg(m)) {}
+};
+
+class ParsedInfo {
+private:
+  FileMap             fileMap;
+  std::vector<ChrAgg> agg;
+
 public:
   void addFile(const std::string &key, std::vector<ChrCounts> &chrCounts);
   void aggregate();
@@ -67,4 +90,11 @@ public:
   void exportMethOut(const std::string &out, const std::vector<std::string> &filenames,
                      const Intervals &intervals);
   void exportOut(const std::string &out, const std::vector<std::string> &filenames);
+
+  explicit ParsedInfo(const Reference &ref, unsigned int m, size_t num_files) {
+    for (const auto &[chr, positions] : ref) {
+      agg.emplace_back(chr, positions.size(), m);
+    }
+    fileMap.reserve(num_files);
+  }
 };

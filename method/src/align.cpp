@@ -24,12 +24,11 @@
  * @param m[in] size of window.
  * @param chunk_size[in] size of file chunk.
  * @param fileMapMutex[in] mutex to protect fileMap while writing.
- * @param fileMap[out] FileMap object of key value pairs where the parsed methylation data is stored
- * in a FileMeths object against the filename as key.
+ * @param parsedInfo[out] ParsedInfo object as described in `alignWithRef`
  */
 void alignSingleWithRef(const std::string &filename, const Reference &ref, const unsigned int m,
                         const unsigned int skip_header, const unsigned int chunk_size,
-                        std::mutex &fileMapMutex, FileMap &fileMap) {
+                        std::mutex &fileMapMutex, ParsedInfo &parsedInfo) {
   FileStream file(filename, chunk_size);
   if (!file.good()) {
     throw std::system_error(errno, std::generic_category(), "Opening " + filename);
@@ -141,7 +140,7 @@ void alignSingleWithRef(const std::string &filename, const Reference &ref, const
   file.close();
   {
     std::lock_guard<std::mutex> lock(fileMapMutex);
-    fileMap.addFile(filename, fileCounts.getContainer());
+    parsedInfo.addFile(filename, fileCounts.getContainer());
   }
 }
 
@@ -153,14 +152,16 @@ void alignSingleWithRef(const std::string &filename, const Reference &ref, const
  * @param ref Reference object with all positions of interest in the genome.
  * @param m size of window.
  * @param chunk_size size of file chunk.
- * @return FileMap object of key value pairs where the parsed methylation data of every file is
- * stored in a FileMeths object against the filename as key
+ * @return ParsedInfo object containing two main sub-objects:
+ * - fileMap, where parsed metrics for each file are stored in key-value format
+ * (filename -> File object)
+ * - agg, where aggregated metrics across files are stored
+ * (just initialised and currently empty)
  */
-FileMap alignWithRef(const std::vector<std::string> &filenames, const Reference &ref,
-                     const unsigned int m, const unsigned int skip_header, unsigned int n_cores,
-                     const unsigned int chunk_size) {
-  FileMap fileMap;
-  fileMap.reserve(filenames.size());
+ParsedInfo alignWithRef(const std::vector<std::string> &filenames, const Reference &ref,
+                        const unsigned int m, const unsigned int skip_header, unsigned int n_cores,
+                        const unsigned int chunk_size) {
+  ParsedInfo parsedInfo(ref, m, filenames.size());
 
   unsigned int threads = std::min(n_cores, static_cast<unsigned int>(filenames.size()));
   ThreadPool   pool(threads);
@@ -170,7 +171,7 @@ FileMap alignWithRef(const std::vector<std::string> &filenames, const Reference 
   std::transform(
       filenames.begin(), filenames.end(), results.begin(), [&](const std::string &filename) {
         return pool.enqueue([&, filename]() {
-          alignSingleWithRef(filename, ref, m, skip_header, chunk_size, fileMapMutex, fileMap);
+          alignSingleWithRef(filename, ref, m, skip_header, chunk_size, fileMapMutex, parsedInfo);
         });
       });
 
@@ -180,5 +181,5 @@ FileMap alignWithRef(const std::vector<std::string> &filenames, const Reference 
 
   pool.rethrow_exception(); // Check if any task threw an exception and rethrow it
 
-  return fileMap;
+  return parsedInfo;
 }
