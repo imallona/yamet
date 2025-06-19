@@ -35,6 +35,9 @@ int main(int argc, char **argv) {
       if (vm.count("det-out")) {
         parsedInfo.exportDetOut(getDetOut(vm), filenames, intervals);
       }
+      if (vm.count("norm-det-out")) {
+        parsedInfo.exportNormDetOut(getNormDetOut(vm), filenames, intervals);
+      }
       if (vm.count("meth-out")) {
         parsedInfo.exportMethOut(getMethOut(vm), filenames, intervals);
       }

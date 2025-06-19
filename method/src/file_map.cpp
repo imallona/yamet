@@ -36,57 +36,70 @@ void ParsedInfo::aggregate() {
   for (unsigned int i = 0; i < fileMap.begin()->second.chrCounts.size(); i++) {
     for (unsigned int j = 0; j < fileMap.begin()->second.chrCounts[i].bins.size(); j++) {
       unsigned int total_cm = 0;
+      auto        &agg_bin  = agg[i].bins[j];
       for (auto &[filename, file] : fileMap) {
-        for (size_t k = 0; k < file.chrCounts[i].bins[j].cm_1.size(); k++) {
-          if (k < file.chrCounts[i].bins[j].cm.size()) {
-            agg[i].bins[j].cm[k] += file.chrCounts[i].bins[j].cm[k];
-            total_cm += file.chrCounts[i].bins[j].cm[k];
-            if (file.chrCounts[i].bins[j].cm[k] > 1) {
-              file.chrCounts[i].bins[j].A +=
-                  ((unsigned long long)(file.chrCounts[i].bins[j].cm[k]) *
-                   (unsigned long long)(file.chrCounts[i].bins[j].cm[k] - 1)) /
-                  2;
+        auto &file_bin = file.chrCounts[i].bins[j];
+        for (size_t k = 0; k < file_bin.cm_1.size(); k++) {
+          if (k < file_bin.cm.size()) {
+            agg_bin.cm[k] += file_bin.cm[k];
+            total_cm += file_bin.cm[k];
+            if (file_bin.cm[k] > 1) {
+              file_bin.A += (1ULL * file_bin.cm[k] * (file_bin.cm[k] - 1)) >> 1;
             }
           }
-          agg[i].bins[j].cm_1[k] += file.chrCounts[i].bins[j].cm_1[k];
-          if (file.chrCounts[i].bins[j].cm_1[k] > 1) {
-            file.chrCounts[i].bins[j].B +=
-                ((unsigned long long)(file.chrCounts[i].bins[j].cm_1[k]) *
-                 (unsigned long long)(file.chrCounts[i].bins[j].cm_1[k] - 1)) /
-                2;
+          agg_bin.cm_1[k] += file_bin.cm_1[k];
+          if (file_bin.cm_1[k] > 1) {
+            file_bin.B += (1ULL * file_bin.cm_1[k] * (file_bin.cm_1[k] - 1)) >> 1;
           }
         }
         /// sample entropy per bin per file
-        if (file.chrCounts[i].bins[j].A > 0 && file.chrCounts[i].bins[j].B > 0) {
-          file.A += file.chrCounts[i].bins[j].A;
-          file.B += file.chrCounts[i].bins[j].B;
-          file.chrCounts[i].bins[j].sampen =
-              log(((double)file.chrCounts[i].bins[j].A) / ((double)file.chrCounts[i].bins[j].B));
+        if (file_bin.A > 0 && file_bin.B > 0) {
+          file.A += file_bin.A;
+          file.B += file_bin.B;
+          file_bin.sampen = log(((double)file_bin.A) / ((double)file_bin.B));
         }
         /// average methylation per bin per file
-        if (file.chrCounts[i].bins[j].t > 0) {
-          file.m += file.chrCounts[i].bins[j].m;
-          file.t += file.chrCounts[i].bins[j].t;
-          agg[i].bins[j].m += file.chrCounts[i].bins[j].m;
-          agg[i].bins[j].t += file.chrCounts[i].bins[j].t;
-          file.chrCounts[i].bins[j].avg_meth =
-              ((double)file.chrCounts[i].bins[j].m) / ((double)file.chrCounts[i].bins[j].t);
+        if (file_bin.t > 0) {
+          file.m += file_bin.m;
+          file.t += file_bin.t;
+          agg_bin.m += file_bin.m;
+          agg_bin.t += file_bin.t;
+          file_bin.avg_meth = ((double)file_bin.m) / ((double)file_bin.t);
+        }
+        /// expected sample entropy per bin per file based on average methylation
+        if (file_bin.avg_meth != -1) {
+          auto &p             = file_bin.avg_meth;
+          file_bin.sampen_exp = -log(pow(p, 2) + pow(1 - p, 2));
+        }
+        /// normalized sample entropy per bin per file by the expected sample entropy
+        if (file_bin.sampen != -1 && file_bin.sampen_exp != -1 && file_bin.sampen_exp > 0) {
+          file_bin.sampen_norm = file_bin.sampen / file_bin.sampen_exp;
         }
       }
       /// shannon entropy per bin across files
       if (total_cm > 0) {
-        agg[i].bins[j].shannon = 0;
-        for (size_t k = 0; k < agg[i].bins[j].cm.size(); k++) {
-          if (((double)agg[i].bins[j].cm[k]) / ((double)total_cm) > 0) {
-            agg[i].bins[j].shannon -= (((double)agg[i].bins[j].cm[k]) / ((double)total_cm)) *
-                                      log(((double)agg[i].bins[j].cm[k]) / ((double)total_cm));
+        agg_bin.shannon = 0;
+        for (size_t k = 0; k < agg_bin.cm.size(); k++) {
+          if (((double)agg_bin.cm[k]) / ((double)total_cm) > 0) {
+            agg_bin.shannon -= (((double)agg_bin.cm[k]) / ((double)total_cm)) *
+                               log(((double)agg_bin.cm[k]) / ((double)total_cm));
           }
         }
-        agg[i].bins[j].shannon /= log(agg[i].bins[j].cm.size());
+        agg_bin.shannon /= log(agg_bin.cm.size());
       }
       /// average methylation per bin across files
-      if (agg[i].bins[j].t > 0) {
-        agg[i].bins[j].avg_meth = ((double)agg[i].bins[j].m) / ((double)agg[i].bins[j].t);
+      if (agg_bin.t > 0) {
+        agg_bin.avg_meth = ((double)agg_bin.m) / ((double)agg_bin.t);
+      }
+      /// expected shannon entropy per bin across files based on average methylation
+      if (agg_bin.avg_meth != -1) {
+        auto &p             = agg_bin.avg_meth;
+        agg_bin.shannon_exp = -2 * (p * log(p) + (1 - p) * log(1 - p));
+        agg_bin.shannon_exp /= log(agg_bin.cm.size());
+      }
+      /// normalized shannon entropy per bin across files by the expected shannon entropy
+      if (agg_bin.shannon != -1 && agg_bin.shannon_exp != -1 && agg_bin.shannon_exp > 0) {
+        agg_bin.shannon_norm = agg_bin.shannon / agg_bin.shannon_exp;
       }
     }
   }
@@ -165,6 +178,45 @@ void ParsedInfo::exportDetOut(const std::string &out, const std::vector<std::str
       }
       /// print shannon entropies and average methylation at that region
       outStream << agg[i].bins[j].shannon << "\t" << agg[i].bins[j].avg_meth << std::endl;
+    }
+  }
+  outStream.close();
+}
+
+/**
+ * Exports a tab separated file which primarily provides normalized sample entropies per region for
+ * every cell file. It also provides normalized shannon entropies and average methylation per region
+ * across cell files.
+ *
+ * @param out path to tab separated file where detailed sample entropy outputs are to be stored.
+ * @param filenames vector of filenames of all cell files.
+ * @param intervals Intervals object with search intervals.
+ */
+void ParsedInfo::exportNormDetOut(const std::string &out, const std::vector<std::string> &filenames,
+                                  const Intervals &intervals) {
+  std::ofstream outStream(out);
+
+  if (!outStream.is_open()) {
+    std::cerr << "Error: Could not open file " << out << " for writing." << std::endl;
+    return;
+  }
+  outStream << "chr\tstart\tend";
+  for (const auto &filename : filenames) {
+    outStream << "\t" << filename;
+  }
+  outStream << "\tshannon_norm\tavg_meth" << std::endl;
+
+  for (unsigned int i = 0; i < intervals.size(); i++) {
+    for (unsigned int j = 0; j < intervals[i].intervals.size(); j++) {
+      /// print the region information
+      outStream << intervals[i].chr << "\t" << intervals[i].intervals[j].start << "\t"
+                << intervals[i].intervals[j].end << "\t";
+      /// print normalized sample entropies for all files at that region
+      for (const auto &filename : filenames) {
+        outStream << fileMap[filename].chrCounts[i].bins[j].sampen_norm << "\t";
+      }
+      /// print normalized shannon entropies and average methylation at that region
+      outStream << agg[i].bins[j].shannon_norm << "\t" << agg[i].bins[j].avg_meth << std::endl;
     }
   }
   outStream.close();
