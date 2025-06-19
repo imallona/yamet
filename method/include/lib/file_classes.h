@@ -83,11 +83,12 @@ struct ChrAgg {
 };
 
 class ParsedInfo {
-private:
+public:
   FileMap             fileMap;
   std::vector<ChrAgg> agg;
 
-public:
+  explicit ParsedInfo(const Reference &ref, unsigned int m, size_t num_files);
+
   void addFile(const std::string &key, std::vector<ChrCounts> &chrCounts);
   void aggregate();
   void print(const std::vector<std::string> &filenames);
@@ -98,11 +99,4 @@ public:
   void exportMethOut(const std::string &out, const std::vector<std::string> &filenames,
                      const Intervals &intervals);
   void exportOut(const std::string &out, const std::vector<std::string> &filenames);
-
-  explicit ParsedInfo(const Reference &ref, unsigned int m, size_t num_files) {
-    for (const auto &[chr, positions] : ref) {
-      agg.emplace_back(chr, positions.size(), m);
-    }
-    fileMap.reserve(num_files);
-  }
 };

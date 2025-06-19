@@ -65,6 +65,7 @@ yamet <- function(
   se <- SummarizedExperiment::SummarizedExperiment(
     assays = list(
       sampens = yamet_raw$sampens,
+      sampens_norm = yamet_raw$sampens_norm,
       meths = yamet_raw$meths
     ),
     rowData = data.frame(
@@ -72,6 +73,7 @@ yamet <- function(
       start = yamet_raw$start,
       end = yamet_raw$end,
       shannon = yamet_raw$shannon,
+      shannon_norm = yamet_raw$shannon_norm,
       meth = yamet_raw$avg_meth
     ),
     colData = data.frame(

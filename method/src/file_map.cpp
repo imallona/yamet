@@ -7,6 +7,23 @@
 
 #include "file_classes.h"
 
+/**
+ * Constructs a ParsedInfo object for methylation data aggregation.
+ * Initializes the ParsedInfo object by initialising `agg` for each
+ * chromosome in the reference and reserving memory for `fileMap`.
+ *
+ * @param ref Reference object
+ * @param m Maximum entropy parameter or window size for aggregation calculations.
+ * @param num_files Number of input files to be processed. Used for memory pre-allocation to
+ * optimize performance.
+ */
+ParsedInfo::ParsedInfo(const Reference &ref, unsigned int m, size_t num_files) {
+  for (const auto &[chr, positions] : ref) {
+    agg.emplace_back(chr, positions.size(), m);
+  }
+  fileMap.reserve(num_files);
+}
+
 void ParsedInfo::addFile(const std::string &key, std::vector<ChrCounts> &chrCounts) {
   fileMap[key] = File(std::move(chrCounts));
 }
