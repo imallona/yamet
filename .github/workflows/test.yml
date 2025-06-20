@@ -125,9 +125,15 @@ jobs:
               test_normalization/in/simulations.tsv \
               -r test_normalization/in/reference.tsv \
               -i test_normalization/in/regions.bed \
-              --norm-det-out current_test_normalization.out
+              --out current_test_normalization.out \
+              --norm-det-out current_test_normalization.norm.out
 
-          echo 'Diff expected vs produced detailed output'
+          echo 'Diff expected vs produced normalized simple output'
+
+          diff test_normalization/out/simple.out \
+              current_test_normalization.out
+
+          echo 'Diff expected vs produced normalized detailed output'
 
           diff test_normalization/out/detailed.out \
-              current_test_normalization.out
+              current_test_normalization.norm.out
