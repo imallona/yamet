@@ -82,6 +82,7 @@ rule yamet_crc_cg:
     output:
         out=op.join(CRC_YAMET, "{subcat}.{cat}.{patient}.{stage}.out"),
         det_out=op.join(CRC_YAMET, "{subcat}.{cat}.{patient}.{stage}.det.out"),
+        norm_det_out=op.join(CRC_YAMET, "{subcat}.{cat}.{patient}.{stage}.norm.out"),
         meth_out=op.join(CRC_YAMET, "{subcat}.{cat}.{patient}.{stage}.meth.out"),
     group:
         "yamet"

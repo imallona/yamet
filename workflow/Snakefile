@@ -51,9 +51,10 @@ rule install_yamet:
         "envs/yamet.yml"
     output:
         op.join("build", "yamet"),
+    threads: 4
     shell:
         """
-            bash ../method/build.sh
+            bash ../method/build.sh {threads}
         """
 
 
