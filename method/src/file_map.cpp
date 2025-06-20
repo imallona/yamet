@@ -89,8 +89,10 @@ void ParsedInfo::aggregate() {
           file_bin.sampen_exp = -log(pow(p, 2) + pow(1 - p, 2));
         }
         /// normalized sample entropy per bin per file by the expected sample entropy
-        if (file_bin.sampen != -1 && file_bin.sampen_exp != -1 && file_bin.sampen_exp > 0) {
-          file_bin.sampen_norm = file_bin.sampen / file_bin.sampen_exp;
+        if (file_bin.sampen != -1 && file_bin.sampen_exp != -1) {
+          file_bin.sampen_norm = (file_bin.sampen_exp == 0 && file_bin.sampen == 0)
+                                     ? 0
+                                     : file_bin.sampen / file_bin.sampen_exp;
         }
       }
       /// shannon entropy per bin across files
@@ -111,12 +113,14 @@ void ParsedInfo::aggregate() {
       /// expected shannon entropy per bin across files based on average methylation
       if (agg_bin.avg_meth != -1) {
         auto &p             = agg_bin.avg_meth;
-        agg_bin.shannon_exp = -2 * (p * log(p) + (1 - p) * log(1 - p));
+        agg_bin.shannon_exp = (p == 1 || p == 0) ? 0 : -2 * (p * log(p) + (1 - p) * log(1 - p));
         agg_bin.shannon_exp /= log(agg_bin.cm.size());
       }
       /// normalized shannon entropy per bin across files by the expected shannon entropy
-      if (agg_bin.shannon != -1 && agg_bin.shannon_exp != -1 && agg_bin.shannon_exp > 0) {
-        agg_bin.shannon_norm = agg_bin.shannon / agg_bin.shannon_exp;
+      if (agg_bin.shannon != -1 && agg_bin.shannon_exp != -1) {
+        agg_bin.shannon_norm = (agg_bin.shannon_exp == 0 && agg_bin.shannon == 0)
+                                   ? 0
+                                   : agg_bin.shannon / agg_bin.shannon_exp;
       }
     }
   }
