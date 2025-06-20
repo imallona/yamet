@@ -79,6 +79,7 @@ yamet <- function(
     colData = data.frame(
       sample = filenames,
       sampen = yamet_raw$cell_sampen,
+      sampen_norm = yamet_raw$cell_sampen_norm,
       meth = yamet_raw$cell_meth
     ),
     metadata = list(
