@@ -165,7 +165,7 @@ set(CPACK_PACKAGE_HOMEPAGE_URL https://github.com/imallona/yamet)
 set(CPACK_PACKAGE_LICENSE GPL-3.0-only)
 
 # Debian-specific metadata
-set(CPACK_DEBIAN_PACKAGE_DEPENDS "libboost-program-options-dev(>= 1.83.0), libboost-iostreams-dev(>= 1.83.0)")
+set(CPACK_DEBIAN_PACKAGE_DEPENDS "libboost-program-options-dev (>= 1.83.0), libboost-iostreams-dev (>= 1.83.0)")
 set(CPACK_DEBIAN_PACKAGE_SECTION "utils")
 set(CPACK_DEBIAN_ARCHITECTURE ${CMAKE_SYSTEM_PROCESSOR})
 
