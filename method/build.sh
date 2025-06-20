@@ -1,5 +1,7 @@
 #!/bin/bash
 
+CORES=${1:-1}
+
 # Get the absolute path to the directory where the script is located
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
@@ -16,11 +18,11 @@ fi
 
 # Run CMake from the parent directory, pointing to the build directory
 cmake -S"$SCRIPT_DIR" -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
-      -DCMAKE_BUILD_TYPE=Release \
-      -B"$BUILD_DIR"
+  -DCMAKE_BUILD_TYPE=Release \
+  -B"$BUILD_DIR"
 
 # Build the project
-cmake --build build --config Release
+cmake --build $BUILD_DIR -j "$CORES" --config Release
 
 # Install the project to the specified location
-cmake --install build
+cmake --install $BUILD_DIR
