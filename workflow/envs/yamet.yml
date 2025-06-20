@@ -1,9 +1,7 @@
 name: yamet
 channels:
-  - defaults
   - conda-forge
 dependencies:
   - cmake
-  - boost-cpp
-  - zlib
+  - libboost-devel
   - cxx-compiler
