@@ -1,0 +1,1 @@
+Simulated data from `generate_test_inputs.R`. Aims to check whether the normalization of sample entropy, Shannon entropy work as intended.

@@ -117,3 +117,23 @@ jobs:
 
           diff test_1/out/stdout \
               current_test_1.stdout
+      - name: Test normalization
+        if: always()
+        run: |
+          cd test
+          ../method/build/yamet \
+              test_normalization/in/simulations.tsv \
+              -r test_normalization/in/reference.tsv \
+              -i test_normalization/in/regions.bed \
+              --out current_test_normalization.out \
+              --norm-det-out current_test_normalization.norm.out
+
+          echo 'Diff expected vs produced normalized simple output'
+
+          diff test_normalization/out/simple.out \
+              current_test_normalization.out
+
+          echo 'Diff expected vs produced normalized detailed output'
+
+          diff test_normalization/out/detailed.out \
+              current_test_normalization.norm.out
