@@ -6,11 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## Upcoming
 
+## [v1.1.0-rc.5](https://github.com/imallona/yamet/releases/tag/v1.1.0-rc.5)
+
 ### Added
 
 - [method] Using `boost iostreams` as the decompression backend
 - [method] Compatibility with gzip and zstd compression
 - [method] read compressed annotation files
+- [method] normalization for entropies at various granularities, accessible via `--norm-det-out` and updated `--out`
+- [test] test for normalization
+- [yamet-r] draft R bindings
 
 ## [v1.1.0-rc.4](https://github.com/imallona/yamet/releases/tag/v1.1.0-rc.4)
 
