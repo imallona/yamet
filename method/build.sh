@@ -22,7 +22,7 @@ cmake -S"$SCRIPT_DIR" -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
   -B"$BUILD_DIR"
 
 # Build the project
-cmake --build build -j "$CORES" --config Release
+cmake --build $BUILD_DIR -j "$CORES" --config Release
 
 # Install the project to the specified location
-cmake --install build
+cmake --install $BUILD_DIR
