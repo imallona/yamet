@@ -5,8 +5,7 @@
 #include <vector>
 
 #include "chrData.h"
-
-#include "file_stream.cpp"
+#include "file_stream.h"
 
 /**
  * Parse a bed file of search intervals into a nested structure to be used for extracting the

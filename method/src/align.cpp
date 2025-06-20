@@ -5,12 +5,12 @@
 #include <sstream>
 #include <vector>
 
-#include <align.h>
-#include <chrData.h>
-#include <file_classes.h>
-#include <window.h>
+#include "align.h"
+#include "chrData.h"
+#include "file_classes.h"
+#include "file_stream.h"
+#include "window.h"
 
-#include "file_stream.cpp"
 #include "thread_pool.cpp"
 
 /**

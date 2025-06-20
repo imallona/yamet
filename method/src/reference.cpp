@@ -4,8 +4,7 @@
 #include <vector>
 
 #include "chrData.h"
-
-#include "file_stream.cpp"
+#include "file_stream.h"
 
 /**
  * Parse a tab separated file of all positions of a reference genome into a nested structure
