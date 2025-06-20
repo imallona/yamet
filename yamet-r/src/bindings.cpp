@@ -63,6 +63,7 @@ Rcpp::List yamet_cpp(const Rcpp::CharacterVector filenames, const std::string &r
   Rcpp::IntegerVector   start(nrows);
   Rcpp::IntegerVector   end(nrows);
   Rcpp::NumericVector   cell_sampen(filenames.size());
+  Rcpp::NumericVector   cell_sampen_norm(filenames.size());
   Rcpp::NumericVector   cell_meth(filenames.size());
   Rcpp::NumericVector   shannon(nrows);
   Rcpp::NumericVector   shannon_norm(nrows);
@@ -121,12 +122,17 @@ Rcpp::List yamet_cpp(const Rcpp::CharacterVector filenames, const std::string &r
     if (cell_meth[k] == -1) {
       cell_sampen[k] = NA_REAL;
     }
+    cell_sampen_norm[k] = parsedInfo.fileMap[cpp_filenames[k]].sampen_norm;
+    if (cell_meth[k] == -1) {
+      cell_sampen_norm[k] = NA_REAL;
+    }
   }
 
   return Rcpp::List::create(
       Rcpp::Named("chr") = chr, Rcpp::Named("start") = start, Rcpp::Named("end") = end,
-      Rcpp::Named("cell_sampen") = cell_sampen, Rcpp::Named("cell_meth") = cell_meth,
-      Rcpp::Named("shannon") = shannon, Rcpp::Named("shannon_norm") = shannon_norm,
-      Rcpp::Named("avg_meth") = avg_meth, Rcpp::Named("sampens") = sampens,
-      Rcpp::Named("sampens_norm") = sampens_norm, Rcpp::Named("meths") = meths);
+      Rcpp::Named("cell_sampen") = cell_sampen, Rcpp::Named("cell_sampen_norm") = cell_sampen_norm,
+      Rcpp::Named("cell_meth") = cell_meth, Rcpp::Named("shannon") = shannon,
+      Rcpp::Named("shannon_norm") = shannon_norm, Rcpp::Named("avg_meth") = avg_meth,
+      Rcpp::Named("sampens") = sampens, Rcpp::Named("sampens_norm") = sampens_norm,
+      Rcpp::Named("meths") = meths);
 }
