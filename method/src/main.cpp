@@ -1,4 +1,3 @@
-#include <algorithm>
 #include <cerrno>
 #include <iostream>
 #include <vector>
@@ -14,7 +13,8 @@ int main(int argc, char **argv) {
 
     std::vector<std::string> filenames = getCellFiles(vm);
 
-    Intervals intervals = parseSearch(getIntervals(vm), getSkipHeaderIntervals(vm));
+    Intervals intervals =
+        parseSearch(getIntervals(vm), getSkipHeaderIntervals(vm), getChunkSize(vm));
     if (vm.count("print-intervals")) {
       intervals.print();
     }
@@ -24,22 +24,25 @@ int main(int argc, char **argv) {
       ref.print();
     }
 
-    FileMap fileMap =
+    ParsedInfo parsedInfo =
         alignWithRef(filenames, ref, 2, getSkipHeaderCell(vm), getCores(vm), getChunkSize(vm));
 
     if (printSampens(vm) || vm.count("det-out") || vm.count("meth-out") || vm.count("out")) {
-      fileMap.aggregate();
+      parsedInfo.aggregate();
       if (printSampens(vm)) {
-        fileMap.print(filenames);
+        parsedInfo.print(filenames);
       }
       if (vm.count("det-out")) {
-        fileMap.exportDetOut(getDetOut(vm), filenames, intervals);
+        parsedInfo.exportDetOut(getDetOut(vm), filenames, intervals);
+      }
+      if (vm.count("norm-det-out")) {
+        parsedInfo.exportNormDetOut(getNormDetOut(vm), filenames, intervals);
       }
       if (vm.count("meth-out")) {
-        fileMap.exportMethOut(getMethOut(vm), filenames, intervals);
+        parsedInfo.exportMethOut(getMethOut(vm), filenames, intervals);
       }
       if (vm.count("out")) {
-        fileMap.exportOut(getOut(vm), filenames);
+        parsedInfo.exportOut(getOut(vm), filenames);
       }
     }
 

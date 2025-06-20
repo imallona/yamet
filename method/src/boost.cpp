@@ -30,14 +30,14 @@ po::variables_map parseCommandLine(int argc, char **argv) {
         "tab separated file, sorted by chromosome and position, for "
         "reference sites in the following format\n"
         "\n"
-        " chr1    5     7\n"
-        " chr1    7     9\n"
-        " chr1    9     11\n"
-        " chr1    11    13\n"
-        " chr2    2     4\n"
-        " chr2    4     6\n"
+        " chr1    5\n"
+        " chr1    7\n"
+        " chr1    9\n"
+        " chr1    11\n"
+        " chr2    2\n"
+        " chr2    4\n"
         "\n"
-        "where the columns are the chromosome, start position and the end position respectively")
+        "where the columns are the chromosome and start position respectively")
     ("intervals,i", po::value<std::string>(),
         "bed file, sorted by chromosome and start position, for "
         "intervals of interest in the following format\n"
@@ -65,6 +65,7 @@ po::variables_map parseCommandLine(int argc, char **argv) {
   // clang-format off
   out.add_options()
     ("det-out,d", po::value<std::string>(), "(optional) path to detailed output file")
+    ("norm-det-out,n", po::value<std::string>(), "(optional) path to detailed normalized output file")
     ("meth-out,m", po::value<std::string>(), "(optional) path to average methylation output file")
     ("out,o", po::value<std::string>(), "(optional) path to simple output file");
   // clang-format on
@@ -163,6 +164,10 @@ unsigned int getSkipHeaderIntervals(const po::variables_map &vm) {
 
 std::string getDetOut(const po::variables_map &vm) {
   return vm["det-out"].as<std::string>();
+}
+
+std::string getNormDetOut(const po::variables_map &vm) {
+  return vm["norm-det-out"].as<std::string>();
 }
 
 std::string getMethOut(const po::variables_map &vm) {
