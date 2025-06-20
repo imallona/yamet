@@ -131,6 +131,16 @@ void ParsedInfo::aggregate() {
     if (file.t > 0) {
       file.avg_meth = ((double)file.m) / ((double)file.t);
     }
+    /// expected sample entropy per file based on average methylation
+    if (file.avg_meth != -1) {
+      auto &p         = file.avg_meth;
+      file.sampen_exp = -log(pow(p, 2) + pow(1 - p, 2));
+    }
+    /// normalized sample entropy per file by the expected sample entropy
+    if (file.sampen != -1 && file.sampen_exp != -1) {
+      file.sampen_norm =
+          (file.sampen_exp == 0 && file.sampen == 0) ? 0 : file.sampen / file.sampen_exp;
+    }
   }
 }
 
@@ -292,12 +302,12 @@ void ParsedInfo::exportOut(const std::string &out, const std::vector<std::string
     std::cerr << "Error: Could not open file " << out << " for writing." << std::endl;
     return;
   }
-  outStream << "file\tsampen\tavg_meth" << std::endl;
+  outStream << "file\tsampen\tsampen_norm\tavg_meth" << std::endl;
 
   /// print aggregated sample entropy for each file
   for (const auto &filename : filenames) {
-    outStream << filename << "\t" << fileMap[filename].sampen << "\t" << fileMap[filename].avg_meth;
-    outStream << std::endl;
+    outStream << filename << "\t" << fileMap[filename].sampen << "\t"
+              << fileMap[filename].sampen_norm << "\t" << fileMap[filename].avg_meth << std::endl;
   }
   outStream.close();
 }
