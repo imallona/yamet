@@ -27,9 +27,9 @@ Firstly, we read in the yamet output files and create a table storing the stage 
 ```{r, import}
 filepaths <- list.files(
   snakemake@params[["yamet"]],
-  pattern = "\\.out$", full.names = T
+  pattern = "\\.out.gz$", full.names = T
 )
-filepaths <- filepaths[!grepl("\\.(det|norm|meth)\\.out$|bookended\\.custom\\.", filepaths)]
+filepaths <- filepaths[!grepl("\\.(det|norm|meth)\\.out.gz$|bookended\\.custom\\.", filepaths)]
 process_file <- function(filepath) {
   filename <- basename(filepath)
 
@@ -38,7 +38,7 @@ process_file <- function(filepath) {
   patient <- parts[3]
   stage <- parts[4]
 
-  dt <- read_delim(filepath, delim = "\t", show_col_types = FALSE)
+  dt <- read_tsv(filepath, show_col_types = FALSE)
   dt <- dt[, c("sampen", "avg_meth")]
 
   dt$annotation <- annotation
@@ -120,7 +120,7 @@ We start by looking at differentially entropic regions and how the methylation l
 ```{r}
 filepaths <- list.files(
   snakemake@params[["yamet"]],
-  pattern = "bookended\\.custom\\..*\\.det\\.out$", full.names = T
+  pattern = "bookended\\.custom\\..*\\.det\\.out\\.gz$", full.names = T
 )
 
 process_reports <- function(filepath) {
@@ -216,7 +216,7 @@ sub_meths <- sub_meths[regions, ]
 dim(sub_sampens)
 dim(sub_meths)
 
-annot <- read.table(gzfile(snakemake@input[["annotation"]]), header = T)
+annot <- read_tsv(snakemake@input[["annotation"]], show_col_types = FALSE)
 rownames(annot) <- rownames(sampens)
 get_row_annotations <- function(regions) {
   rowAnnotation(tile_annotation = as.matrix(data.frame(
@@ -226,7 +226,7 @@ get_row_annotations <- function(regions) {
     H3K9me3 = annot[regions, "H3K9me3_chip"],
     H3K4me3 = annot[regions, "H3K4me3_chip"],
     laminb1 = annot[regions, "laminb1_lad"],
-    X8_Quiescent = annot[regions, "X8_Quiescent_hmm"]
+    X8_Quiescent = annot[regions, "8_Quiescent_hmm"]
   )))
 }
 row_ha <- get_row_annotations(regions)
@@ -292,7 +292,7 @@ sub_meths <- sub_meths[regions, ]
 dim(sub_n_sampens)
 dim(sub_meths)
 
-annot <- read.table(gzfile(snakemake@input[["annotation"]]), header = T)
+annot <- read_tsv(snakemake@input[["annotation"]], show_col_types = FALSE)
 rownames(annot) <- rownames(n_sampens)
 get_row_annotations <- function(regions) {
   rowAnnotation(tile_annotation = as.matrix(data.frame(
@@ -302,7 +302,7 @@ get_row_annotations <- function(regions) {
     H3K9me3 = annot[regions, "H3K9me3_chip"],
     H3K4me3 = annot[regions, "H3K4me3_chip"],
     laminb1 = annot[regions, "laminb1_lad"],
-    X8_Quiescent = annot[regions, "X8_Quiescent_hmm"]
+    X8_Quiescent = annot[regions, "8_Quiescent_hmm"]
   )))
 }
 row_ha <- get_row_annotations(regions)
