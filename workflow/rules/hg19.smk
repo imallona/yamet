@@ -29,31 +29,18 @@ rule hg19_ref:
         "src/make_ref.sh"
 
 
-rule hg19_get_genes:
+rule hg19_genes:
     conda:
         op.join("..", "envs", "processing.yml")
     output:
-        op.join(HG19_BASE, "genes.bed.gz"),
+        op.join(HG19_BASE, "genes.genes.bed.gz"),
     script:
         "src/download_hg19_genes.sh"
 
 
-rule hg19_genes:
-    conda:
-        op.join("..", "envs", "processing.yml")
-    input:
-        op.join(HG19_BASE, "genes.bed.gz"),
-    output:
-        op.join(HG19_BASE, "genes.genes.bed"),
-    shell:
-        """
-            gunzip -c {input} > {output}
-        """
-
-
 rule hg19_get_pmds:
     output:
-        op.join(HG19_BASE, "pmd.bed.gz"),
+        temp(op.join(HG19_BASE, "pmd.bed.gz")),
     params:
         loc="https://zhouserver.research.chop.edu/GenomeAnnotation/hg19/PMD_coordinates_hg19.bed.gz",
     shell:
@@ -69,35 +56,36 @@ rule hg19_pmds:
     input:
         op.join(HG19_BASE, "pmd.bed.gz"),
     output:
-        temp(op.join(HG19_BASE, "{md}.pmd.bed")),
+        op.join(HG19_BASE, "{md}.pmd.bed.gz"),
     params:
         filter=lambda wildcards: PMD_MAP[wildcards.md],
     shell:
         """
             gunzip -c {input} |
-                grep "{params.filter}$" >{output}
+                grep "{params.filter}$" |
+                gzip -c >{output}
         """
 
 
 rule hg19_get_hmm:
     output:
-        op.join(HG19_BASE, "hmm.bed.gz"),
+        temp(op.join(HG19_BASE, "hmm.bed")),
     params:
         loc="https://www.encodeproject.org/files/ENCFF526MRN/@@download/ENCFF526MRN.bed.gz",
     shell:
         """
-            curl -L {params.loc} | gunzip -c | sort -k1,1 -k2,2n | gzip -c > {output[0]}
+            curl -L {params.loc} | gunzip -c | sort -k1,1 -k2,2n >{output[0]}
         """
 
 
 rule hg19_hmm:
     input:
-        op.join(HG19_BASE, "hmm.bed.gz"),
+        op.join(HG19_BASE, "hmm.bed"),
     output:
-        temp(op.join(HG19_BASE, "{ann}.hmm.bed")),
+        op.join(HG19_BASE, "{ann}.hmm.bed.gz"),
     shell:
         """
-            gunzip -c {input} | grep "{wildcards.ann}" > {output}
+            grep "{wildcards.ann}" {input} | gzip -c >{output}
         """
 
 
@@ -108,47 +96,25 @@ CHIP_MAP = {
 }
 
 
-rule hg19_get_chip:
+rule hg19_chip:
     output:
-        op.join(HG19_BASE, "{chip}.bed.gz"),
+        op.join(HG19_BASE, "{chip}.chip.bed.gz"),
     params:
         loc=lambda wildcards: f"https://www.encodeproject.org/files/{CHIP_MAP[wildcards.chip]}/@@download/{CHIP_MAP[wildcards.chip]}.bed.gz",
     shell:
         """
-            curl -L {params.loc} | gunzip -c | sort -k1,1 -k2,2n | gzip -c > {output[0]}
+            curl -L {params.loc} | gunzip -c | sort -k1,1 -k2,2n | gzip -c >{output[0]}
         """
 
 
-rule hg19_chip:
-    input:
-        op.join(HG19_BASE, "{chip}.bed.gz"),
+rule hg19_lamin:
     output:
-        temp(op.join(HG19_BASE, "{chip}.chip.bed")),
-    shell:
-        """
-            gunzip -c {input} > {output}
-        """
-
-
-rule hg19_get_lamin:
-    output:
-        op.join(HG19_BASE, "laminb1.bed.gz"),
+        op.join(HG19_BASE, "laminb1.lad.bed.gz"),
     params:
         loc="https://github.com/jernst98/ChromHMM/raw/refs/heads/master/COORDS/hg19/laminB1lads.hg19.bed.gz",
     shell:
         """
             curl -L {params.loc} | gunzip -c | sort -k1,1 -k2,2n | gzip -c > {output[0]}
-        """
-
-
-rule hg19_lamin:
-    input:
-        op.join(HG19_BASE, "{lamin}.bed.gz"),
-    output:
-        temp(op.join(HG19_BASE, "{lamin}.lad.bed")),
-    shell:
-        """
-            gunzip -c {input} > {output}
         """
 
 
@@ -167,30 +133,27 @@ rule hg19_windows:
     input:
         op.join(HG19_BASE, "genome.sizes"),
     output:
-        op.join(HG19_BASE, "bookended.custom.bed"),
+        op.join(HG19_BASE, "bookended.custom.bed.gz"),
     shell:
         """
             bedtools makewindows -g {input[0]} -w 10000 |
-                sort -k1,1 -k2,2n >{output[0]}
+                sort -k1,1 -k2,2n | gzip -c >{output[0]}
         """
 
 
-rule hg19_single_annotion_coverage:
+rule hg19_single_annotation_coverage:
     conda:
         op.join("..", "envs", "processing.yml")
     input:
-        windows=op.join(HG19_BASE, "bookended.custom.bed"),
-        annotation=op.join(HG19_BASE, "{subcat}.{cat}.bed"),
+        windows=op.join(HG19_BASE, "bookended.custom.bed.gz"),
+        annotation=op.join(HG19_BASE, "{subcat}.{cat}.bed.gz"),
     output:
-        header=temp(op.join(HG19_BASE, "{subcat}.{cat}.header")),
-        body=temp(op.join(HG19_BASE, "{subcat}.{cat}.body")),
-        annotated_windows=op.join(HG19_BASE, "{subcat}.{cat}.annotation.frac"),
+        annotated_windows=temp(op.join(HG19_BASE, "{subcat}.{cat}.annotation.frac")),
     shell:
         """
+            echo "{wildcards.subcat}_{wildcards.cat}" >{output.annotated_windows}
             bedtools coverage -a {input.windows} \
-                -b {input.annotation} | cut -f7 > {output.body}
-            echo "{wildcards.subcat}_{wildcards.cat}" > {output.header}
-            cat {output.header} {output.body} > {output.annotated_windows}
+                -b {input.annotation} | cut -f7 >>{output.annotated_windows}
         """
 
 

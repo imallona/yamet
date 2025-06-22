@@ -78,12 +78,12 @@ rule yamet_crc_cg:
             file=get_raw_files(wildcards.patient, wildcards.stage),
         ),
         ref=op.join(HG19_BASE, "ref.CG.gz"),
-        intervals=op.join(HG19_BASE, "{subcat}.{cat}.bed"),
+        intervals=op.join(HG19_BASE, "{subcat}.{cat}.bed.gz"),
     output:
-        out=op.join(CRC_YAMET, "{subcat}.{cat}.{patient}.{stage}.out"),
-        det_out=op.join(CRC_YAMET, "{subcat}.{cat}.{patient}.{stage}.det.out"),
-        norm_det_out=op.join(CRC_YAMET, "{subcat}.{cat}.{patient}.{stage}.norm.out"),
-        meth_out=op.join(CRC_YAMET, "{subcat}.{cat}.{patient}.{stage}.meth.out"),
+        out=op.join(CRC_YAMET, "{subcat}.{cat}.{patient}.{stage}.out.gz"),
+        det_out=op.join(CRC_YAMET, "{subcat}.{cat}.{patient}.{stage}.det.out.gz"),
+        norm_det_out=op.join(CRC_YAMET, "{subcat}.{cat}.{patient}.{stage}.norm.out.gz"),
+        meth_out=op.join(CRC_YAMET, "{subcat}.{cat}.{patient}.{stage}.meth.out.gz"),
     group:
         "yamet"
     threads: 8
@@ -110,7 +110,7 @@ def crc_yamet_outputs():
         for subann in ANN_MAP[ann]:
             for patient in SAMPLES:
                 for sample in SAMPLES[patient]:
-                    res.append(f"{subann}.{ann}.{patient}.{sample}.det.out")
+                    res.append(f"{subann}.{ann}.{patient}.{sample}.det.out.gz")
     return [op.join(CRC_YAMET, item) for item in res]
 
 
