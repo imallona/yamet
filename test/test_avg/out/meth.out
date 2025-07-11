@@ -1,5 +1,5 @@
 chr	start	end	test_avg/in/simulations.1.tsv	test_avg/in/simulations.2.tsv
-chrAP	1	8	-1	0.428571
+chrAP	1	11	-1	0.380952
 chrM	1	8	1	-1
 chrR	1	8	-1	0.714286
 chrU	1	8	0	-1
