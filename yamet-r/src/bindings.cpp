@@ -18,6 +18,8 @@
 //' @param filenames A character vector of file paths to the methylation count files per cell.
 //' @param reference_path Path to the reference file (e.g., CpG positions).
 //' @param intervals_path Path to the BED file specifying genomic intervals to summarize over.
+//' @param all_meth flag indicating whether positions not involved in successful templates are
+//' also included.
 //' @param cores Number of threads to use.
 //' @param chunk_size Number of bytes to read at once from each file.
 //' @param skip_header_cell Number of lines to skip at the top of each cell file.
@@ -43,14 +45,15 @@
 //' }
 // [[Rcpp::export]]
 Rcpp::List yamet_cpp(const Rcpp::CharacterVector filenames, const std::string &reference_path,
-                     const std::string &intervals_path, const unsigned int cores,
-                     const unsigned int chunk_size, const unsigned int skip_header_cell,
-                     const unsigned int skip_header_reference,
+                     const std::string &intervals_path, const bool all_meth,
+                     const unsigned int cores, const unsigned int chunk_size,
+                     const unsigned int skip_header_cell, const unsigned int skip_header_reference,
                      const unsigned int skip_header_intervals) {
   std::vector<std::string> cpp_filenames = Rcpp::as<std::vector<std::string>>(filenames);
   Intervals                intervals     = parseSearch(intervals_path, skip_header_intervals);
-  Reference  ref        = parseRef(reference_path, intervals, skip_header_reference, chunk_size);
-  ParsedInfo parsedInfo = alignWithRef(cpp_filenames, ref, 2, skip_header_cell, cores, chunk_size);
+  Reference  ref = parseRef(reference_path, intervals, skip_header_reference, chunk_size);
+  ParsedInfo parsedInfo =
+      alignWithRef(cpp_filenames, ref, 2, all_meth, skip_header_cell, cores, chunk_size);
 
   parsedInfo.aggregate();
 

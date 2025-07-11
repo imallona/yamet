@@ -1,0 +1,19 @@
+#!/bin/bash
+
+if [ -n "$CONDA_BUILD" ] || [ -n "$PREFIX" ]; then
+  cat >src/Makevars <<EOF
+PKG_CPPFLAGS = -I\${PREFIX}/include
+PKG_LIBS = -L\${PREFIX}/lib -lyamet
+EOF
+
+else
+  if [ $(uname -s) = "Darwin" ]; then
+    RPATH='@loader_path/../libs'
+  else
+    RPATH='$$ORIGIN/../libs'
+  fi
+  cat >src/Makevars <<EOF
+PKG_CPPFLAGS = -I../inst/include
+PKG_LIBS = -L../inst/libs -lyamet -Wl,-rpath,'${RPATH}'
+EOF
+fi
