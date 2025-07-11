@@ -44,15 +44,28 @@ jobs:
               --meth-out current_test_avg.out \
               --cores 1 &> current_test_avg.stdout
 
+          ../method/build/yamet \
+              test_avg/in/simulations.*.tsv \
+              -r test_avg/in/reference.tsv \
+              -i test_avg/in/regions.bed \
+              --meth-out current_test_avg_all_meth.out \
+              --all-meth --cores 1 &> current_test_avg_all_meth.stdout
+
           echo 'Diff expected vs produced avg meth output'
 
           diff test_avg/out/meth.out \
               current_test_avg.out
 
+          diff test_avg/out/meth_all_meth.out \
+              current_test_avg_all_meth.out
+
           echo 'Diff expected vs produced stdout'
 
           diff test_avg/out/stdout \
               current_test_avg.stdout
+
+          diff test_avg/out/stdout \
+              current_test_avg_all_meth.stdout
 
       - name: Test Avg Meth multiple reports default
         if: always()
@@ -84,22 +97,21 @@ jobs:
               --print-sampens F \
               --det-out current_test_0.out
 
+          ../method/build/yamet \
+              test_0/in/cell1.bed.gz \
+              -r test_0/in/ref.bed.gz \
+              -i test_0/in/regions.bed \
+              --print-sampens F \
+              --det-out current_test_0_all_meth.out \
+              --all-meth
+
           echo 'Diff expected vs produced'
 
           diff test_0/out/detailed.out \
               current_test_0.out
-      - name: Test_0 two reports
-        if: always()
-        run: |
-          cd test
-          ../method/build/yamet \
-              test_0/in/cell1.bed.gz test_0/in/cell1.bed.gz \
-              -r test_0/in/ref.bed.gz \
-              -i test_0/in/regions.bed \
-              --print-sampens F \
-              --det-out current_test_0.out
-           ## no diff because we don't have the true outputs stored;
-           ##  exit code is enough
+
+          diff test_0/out/all_meth_detailed.out \
+              current_test_0_all_meth.out
       - name: Test_1
         if: always()
         run: |
@@ -110,15 +122,28 @@ jobs:
               -i test_1/in/regions.bed \
               --det-out current_test_1.out &> current_test_1.stdout
 
+          ../method/build/yamet \
+              test_1/in/simulations.tsv \
+              -r test_1/in/reference.tsv \
+              -i test_1/in/regions.bed \
+              --det-out current_test_1_all_meth.out \
+              --all-meth &> current_test_1_all_meth.stdout
+
           echo 'Diff expected vs produced detailed output'
 
           diff test_1/out/detailed.out \
               current_test_1.out
 
+          diff test_1/out/all_meth_detailed.out \
+              current_test_1_all_meth.out
+
           echo 'Diff expected vs produced stdout'
 
           diff test_1/out/stdout \
               current_test_1.stdout
+
+          diff test_1/out/stdout \
+              current_test_1_all_meth.stdout
       - name: Test normalization
         if: always()
         run: |
@@ -130,12 +155,26 @@ jobs:
               --out current_test_normalization.out \
               --norm-det-out current_test_normalization.norm.out
 
+          ../method/build/yamet \
+              test_normalization/in/simulations.tsv \
+              -r test_normalization/in/reference.tsv \
+              -i test_normalization/in/regions.bed \
+              --out current_test_normalization_all_meth.out \
+              --norm-det-out current_test_normalization_all_meth.norm.out \
+              --all-meth
+
           echo 'Diff expected vs produced normalized simple output'
 
           diff test_normalization/out/simple.out \
               current_test_normalization.out
 
+          diff test_normalization/out/simple_all_meth.out \
+              current_test_normalization_all_meth.out
+
           echo 'Diff expected vs produced normalized detailed output'
 
           diff test_normalization/out/detailed.out \
               current_test_normalization.norm.out
+
+          diff test_normalization/out/detailed_all_meth.out \
+              current_test_normalization_all_meth.norm.out
