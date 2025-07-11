@@ -24,8 +24,8 @@ int main(int argc, char **argv) {
       ref.print();
     }
 
-    ParsedInfo parsedInfo =
-        alignWithRef(filenames, ref, 2, getSkipHeaderCell(vm), getCores(vm), getChunkSize(vm));
+    ParsedInfo parsedInfo = alignWithRef(filenames, ref, 2, allMeth(vm), getSkipHeaderCell(vm),
+                                         getCores(vm), getChunkSize(vm));
 
     if (printSampens(vm) || vm.count("det-out") || vm.count("meth-out") || vm.count("out")) {
       parsedInfo.aggregate();

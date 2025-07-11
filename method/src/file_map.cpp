@@ -133,7 +133,7 @@ void ParsedInfo::aggregate() {
     }
     /// expected sample entropy per file based on average methylation
     if (file.avg_meth != -1) {
-      auto &p         = file.avg_meth;
+      const auto &p   = file.avg_meth;
       file.sampen_exp = -log(pow(p, 2) + pow(1 - p, 2));
     }
     /// normalized sample entropy per file by the expected sample entropy
