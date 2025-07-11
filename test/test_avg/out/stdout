@@ -13,10 +13,10 @@ Filename: test_avg/in/simulations.1.tsv
       Bin 0 -> 0
 
 Filename: test_avg/in/simulations.2.tsv
-  Aggregate: 0.916291
+  Aggregate: 1.09861
   Detailed:
     Chromosome: chrAP
-      Bin 0 -> 0.693147
+      Bin 0 -> -1
     Chromosome: chrM
       Bin 0 -> -1
     Chromosome: chrR
