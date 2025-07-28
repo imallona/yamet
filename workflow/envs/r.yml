@@ -12,4 +12,5 @@ dependencies:
   - r-readr
   - bioconductor-biocparallel
   - bioconductor-complexheatmap
+  - bioconductor-geoquery
   - bioconductor-limma
