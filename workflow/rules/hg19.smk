@@ -141,6 +141,18 @@ rule hg19_windows:
         """
 
 
+rule hg19_windows_250k:
+    input:
+        op.join(HG19_BASE, "genome.sizes"),
+    output:
+        op.join(HG19_BASE, "bookended_250k.custom.bed.gz"),
+    shell:
+        """
+            bedtools makewindows -g {input[0]} -w 250000 |
+                sort -k1,1 -k2,2n | gzip -c >{output[0]}
+        """
+
+
 rule hg19_single_annotation_coverage:
     conda:
         op.join("..", "envs", "processing.yml")

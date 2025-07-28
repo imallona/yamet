@@ -122,8 +122,44 @@ rule crc_doc:
         annotation=op.join(HG19_BASE, "bookend_annotation.gz"),
     params:
         yamet=CRC_YAMET,
-    threads: 8
+    threads: 16
     output:
         op.join("output", "crc.html"),
     script:
         "src/crc.Rmd"
+
+
+rule crc_stats_doc:
+    conda:
+        op.join("..", "envs", "r.yml")
+    input:
+        crc_yamet_outputs(),
+        annotation=op.join(HG19_BASE, "bookend_annotation.gz"),
+    params:
+        yamet=CRC_YAMET,
+    threads: 16
+    output:
+        op.join("output", "crc_stats.html"),
+    script:
+        "src/crc_stats.Rmd"
+
+
+rule crc_deletions_doc:
+    conda:
+        op.join("..", "envs", "r.yml")
+    input:
+        expand(
+            op.join(CRC_YAMET, "bookended_250k.custom.{patsamp}.det.out.gz"),
+            patsamp=[
+                f"{patient}.{sample}"
+                for patient, samples in SAMPLES.items()
+                for sample in samples
+            ],
+        ),
+    params:
+        yamet=CRC_YAMET,
+    threads: 16
+    output:
+        op.join("output", "crc_deletions.html"),
+    script:
+        "src/crc_deletions.Rmd"
