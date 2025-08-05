@@ -88,11 +88,25 @@ Miscellaneous:
 
 ## Repository
 
+- `.github/workflows` and `test`: testing and build automations
 - `method`: yamet code. See [our releases](https://github.com/imallona/yamet/releases) (including binaries)
-- `workflow`: yamet applications, including simulations
-- `.github/workflows` and `test`: testing
-- `old`: archived codebase from old version to be removed
+- `simulations`: yamet simulations
+- `workflow`: yamet applications, except simulations
+- `yamet-r`: yamet R package
+
+You might want to browse the issues and PRs to explore current developments.
 
 ## License
 
 GPLv3
+
+## Contact
+
+izaskun.mallona at gmail.com
+
+## Acknowledgements
+
+We thank [Mark D. Robinson at UZH](https://robinsonlabuzh.github.io/) for his support.
+
+`yamet` builds on great FOSS components, including [snakemake](https://snakemake.readthedocs.io/en/stable/), and uses public data from epigenomic atlases and scientific publications. Thank you!
+
