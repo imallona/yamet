@@ -22,13 +22,16 @@
  * for k-mer counts (optionally compressed with gzip or zstd).
  * @param ref[in] Reference object with all positions of interest in the genome.
  * @param m[in] size of window.
+ * @param all_meth[in] flag indicating whether positions not involved in successful templates are
+ * also included.
  * @param chunk_size[in] size of file chunk.
  * @param fileMapMutex[in] mutex to protect fileMap while writing.
  * @param parsedInfo[out] ParsedInfo object as described in `alignWithRef`
  */
 void alignSingleWithRef(const std::string &filename, const Reference &ref, const unsigned int m,
-                        const unsigned int skip_header, const unsigned int chunk_size,
-                        std::mutex &fileMapMutex, ParsedInfo &parsedInfo) {
+                        const bool all_meth, const unsigned int skip_header,
+                        const unsigned int chunk_size, std::mutex &fileMapMutex,
+                        ParsedInfo &parsedInfo) {
   FileStream file(filename, chunk_size);
   if (!file.good()) {
     throw std::system_error(errno, std::generic_category(), "Opening " + filename);
@@ -38,7 +41,7 @@ void alignSingleWithRef(const std::string &filename, const Reference &ref, const
   std::string  currentChr      = "";
   bool         foundChr        = false;
   unsigned int skipped_headers = 0;
-  Window       window(m + 1);
+  Window       window(m + 1, all_meth);
 
   FileCounts fileCounts(ref, m);
   /**
@@ -97,10 +100,9 @@ void alignSingleWithRef(const std::string &filename, const Reference &ref, const
       if (ref[chrIndex].positions[binIndex].size() > 0) {
         if (pos == ref[chrIndex].positions[binIndex][posIndex]) {
           if (lastBinPos > -1 && posIndex - lastBinPos > 1) {
-            window.append(-1).notify(fileCounts, chrIndex, binIndex);
+            window.append(-1, 0, 0).notify(fileCounts, chrIndex, binIndex);
           }
-          window.append(methValue).notify(fileCounts, chrIndex, binIndex);
-          fileCounts.addReads(mVal, tVal, chrIndex, binIndex);
+          window.append(methValue, mVal, tVal).notify(fileCounts, chrIndex, binIndex);
           increment = true, exit = true;
           lastBinPos = posIndex;
         } else if (pos < ref[chrIndex].positions[binIndex][posIndex])
@@ -151,6 +153,8 @@ void alignSingleWithRef(const std::string &filename, const Reference &ref, const
  * @param filenames list of tab separated files to be parsed.
  * @param ref Reference object with all positions of interest in the genome.
  * @param m size of window.
+ * @param all_meth flag indicating whether positions not involved in successful templates are
+ * also included.
  * @param chunk_size size of file chunk.
  * @return ParsedInfo object containing two main sub-objects:
  * - fileMap, where parsed metrics for each file are stored in key-value format
@@ -159,8 +163,8 @@ void alignSingleWithRef(const std::string &filename, const Reference &ref, const
  * (just initialised and currently empty)
  */
 ParsedInfo alignWithRef(const std::vector<std::string> &filenames, const Reference &ref,
-                        const unsigned int m, const unsigned int skip_header, unsigned int n_cores,
-                        const unsigned int chunk_size) {
+                        const unsigned int m, const bool all_meth, const unsigned int skip_header,
+                        unsigned int n_cores, const unsigned int chunk_size) {
   ParsedInfo parsedInfo(ref, m, filenames.size());
 
   unsigned int threads = std::min(n_cores, static_cast<unsigned int>(filenames.size()));
@@ -168,12 +172,13 @@ ParsedInfo alignWithRef(const std::vector<std::string> &filenames, const Referen
   std::vector<std::future<void>> results(filenames.size());
   std::mutex                     fileMapMutex;
 
-  std::transform(
-      filenames.begin(), filenames.end(), results.begin(), [&](const std::string &filename) {
-        return pool.enqueue([&, filename]() {
-          alignSingleWithRef(filename, ref, m, skip_header, chunk_size, fileMapMutex, parsedInfo);
-        });
-      });
+  std::transform(filenames.begin(), filenames.end(), results.begin(),
+                 [&](const std::string &filename) {
+                   return pool.enqueue([&, filename]() {
+                     alignSingleWithRef(filename, ref, m, all_meth, skip_header, chunk_size,
+                                        fileMapMutex, parsedInfo);
+                   });
+                 });
 
   for (auto &result : results) {
     result.get();

@@ -1,13 +1,16 @@
-name: R_4.3.2
+name: analysis-and-plotting
 channels:
-  - default
   - conda-forge
   - bioconda
 dependencies:
-  - r-base=4.3.3
+  - r-base=4.4
   - r-readxl
   - r-rmarkdown
   - r-bookdown
   - r-ggplot2
   - r-lmertest
   - r-readr
+  - bioconductor-biocparallel
+  - bioconductor-complexheatmap
+  - bioconductor-geoquery
+  - bioconductor-limma

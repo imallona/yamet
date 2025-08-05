@@ -70,25 +70,30 @@ rule harmonize_ecker_metadata:
 # print(slice_eckers_metadata('SubType', 'IT-L4 Shc3'))
 
 
-rule download_ecker:
-    conda:
-        "../envs/yamet.yml"
+rule ecker_urls:
     input:
-        meta=op.join("ecker_data", "MOp_Metadata.tsv.gz"),
+        op.join(ECKER_BASE, "meta.tsv.gz"),
     output:
-        raw_urls=temp(op.join("ecker_data", "raw_urls")),
-        urls=op.join("ecker_data", "urls"),
-        flag=op.join("ecker_data", "downloaded_ecker.flag"),
+        temp(op.join(ECKER_BASE, "urls")),
     params:
         base_url="https://data.nemoarchive.org/biccn/grant/u19_cemba/cemba/epigenome/sncell/mCseq/mouse/processed/counts/",
-        path="ecker_data/",
-    threads: 2
     shell:
         """
-        zcat {input.meta} | cut -f2 | grep -v AllcPath > {output.raw_urls}
-        sed 's\\/gale/raidix/rdx-4/CEMBA_RS1/\\{params.base_url}\\g' {output.raw_urls} | \
-           sed 's\\/allc/\\/\\g' | sed 's\\.gz\\.tar\\g' > {output.urls}
-        
-        wget -i {output.urls} --directory-prefix={params.path}
-        touch {output.flag}
+            zcat {input[0]} | cut -f29 | grep -v AllcPath >ecker_raw_urls
+            awk -F'/allc/' '{{gsub(/"/, "", $0); split($(NF-1), a, "/"); sub(/\\.tsv\\.gz$/, ".tsv.tar", $NF); print "{params[0]}" a[length(a)-1]"/"a[length(a)]"/"$NF}}' ecker_raw_urls > {output[0]}
+            rm ecker_raw_urls
         """
+
+
+rule download_ecker:
+    conda:
+        "../envs/processing.yml"
+    input:
+        op.join(ECKER_BASE, "urls"),
+    output:
+        flag=touch(op.join(ECKER_BASE, "downloaded.flag")),
+    params:
+        raw=op.join(ECKER_BASE, "raw"),
+    threads: 5
+    script:
+        "src/get_ecker_meth_files.sh"
