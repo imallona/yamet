@@ -13,5 +13,12 @@ ${snakemake_input[yamet]} \
     --intervals ${snakemake_input[intervals]} \
     --cores ${snakemake[threads]} \
     --print-sampens F \
-    --out ${snakemake_output[out]} \
-    --det-out ${snakemake_output[det_out]}
+    --out ${snakemake_output[out]%.gz} \
+    --det-out ${snakemake_output[det_out]%.gz} \
+    --norm-det-out ${snakemake_output[norm_det_out]%.gz} \
+    --meth-out ${snakemake_output[meth_out]%.gz}
+
+gzip ${snakemake_output[out]%.gz}
+gzip ${snakemake_output[det_out]%.gz}
+gzip ${snakemake_output[norm_det_out]%.gz}
+gzip ${snakemake_output[meth_out]%.gz}

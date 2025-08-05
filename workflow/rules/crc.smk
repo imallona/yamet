@@ -17,7 +17,7 @@ from glob import glob
 
 CRC_RAW = op.join("crc", "raw")
 CRC_DATA = op.join("crc", "data")
-CRC_YAMET = op.join("crc", "yamet")
+CRC_YAMET = op.join("output", "crc_yamet")
 
 
 rule download_crc_accessors:
@@ -78,57 +78,88 @@ rule yamet_crc_cg:
             file=get_raw_files(wildcards.patient, wildcards.stage),
         ),
         ref=op.join(HG19_BASE, "ref.CG.gz"),
-        intervals=op.join(HG19_BASE, "{subcat}.{cat}.bed"),
+        intervals=op.join(HG19_BASE, "{subcat}.{cat}.bed.gz"),
     output:
-        out=op.join(CRC_YAMET, "{subcat}.{cat}.{patient}.{stage}.out"),
-        det_out=op.join(CRC_YAMET, "{subcat}.{cat}.{patient}.{stage}.det.out"),
+        out=op.join(CRC_YAMET, "{subcat}.{cat}.{patient}.{stage}.out.gz"),
+        det_out=op.join(CRC_YAMET, "{subcat}.{cat}.{patient}.{stage}.det.out.gz"),
+        norm_det_out=op.join(CRC_YAMET, "{subcat}.{cat}.{patient}.{stage}.norm.out.gz"),
+        meth_out=op.join(CRC_YAMET, "{subcat}.{cat}.{patient}.{stage}.meth.out.gz"),
     group:
         "yamet"
-    threads: 16
+    threads: 8
     params:
         base=CRC_YAMET,
     script:
         "src/yamet.sh"
 
 
-CAT_MAP = {
-    "pmd": ["pmds", "hmds"],
-    "hmm": [
-        "0_Enhancer",
-        "2_Enhancer",
-        "11_Promoter",
-        "12_Promoter",
-        "1_Transcribed",
-        "4_Transcribed",
-        "5_RegPermissive",
-        "7_RegPermissive",
-        "6_LowConfidence",
-        "3_Quiescent",
-        "8_Quiescent",
-        "10_Quiescent",
-        "9_ConstitutiveHet",
-        "13_ConstitutiveHet",
-    ],
-    "chip": ["H3K27me3", "H3K9me3", "H3K4me3"],
-    "lad": ["laminb1"],
+SAMPLES = {
+    "CRC01": ["NC", "PT", "LN", "ML", "MP"],
+    "CRC02": ["NC", "PT", "ML", "PT"],
+    "CRC04": ["NC", "PT"],
+    "CRC10": ["NC", "PT", "LN"],
+    "CRC11": ["NC", "PT", "LN"],
+    "CRC13": ["NC", "PT", "LN"],
+    "CRC15": ["NC", "PT", "LN", "ML", "MO"],
 }
-STAGES = ["NC", "PT"]
-PATIENTS = ["CRC01", "CRC02", "CRC04", "CRC10", "CRC11", "CRC13", "CRC15"]
+
+
+def crc_yamet_outputs():
+    res = []
+    for ann in ANN_MAP:
+        for subann in ANN_MAP[ann]:
+            for patient in SAMPLES:
+                for sample in SAMPLES[patient]:
+                    res.append(f"{subann}.{ann}.{patient}.{sample}.det.out.gz")
+    return [op.join(CRC_YAMET, item) for item in res]
 
 
 rule crc_doc:
     conda:
         op.join("..", "envs", "r.yml")
     input:
+        crc_yamet_outputs(),
+        annotation=op.join(HG19_BASE, "bookend_annotation.gz"),
+    params:
+        yamet=CRC_YAMET,
+    threads: 16
+    output:
+        op.join("output", "crc.html"),
+    script:
+        "src/crc.Rmd"
+
+
+rule crc_stats_doc:
+    conda:
+        op.join("..", "envs", "r.yml")
+    input:
+        crc_yamet_outputs(),
+        annotation=op.join(HG19_BASE, "bookend_annotation.gz"),
+    params:
+        yamet=CRC_YAMET,
+    threads: 16
+    output:
+        op.join("output", "crc_stats.html"),
+    script:
+        "src/crc_stats.Rmd"
+
+
+rule crc_deletions_doc:
+    conda:
+        op.join("..", "envs", "r.yml")
+    input:
         expand(
-            op.join(CRC_YAMET, "{jnt}.{patient}.{stage}.out"),
-            jnt=[f"{subcat}.{cat}" for cat in CAT_MAP for subcat in CAT_MAP[cat]],
-            stage=STAGES,
-            patient=PATIENTS,
+            op.join(CRC_YAMET, "bookended_250k.custom.{patsamp}.det.out.gz"),
+            patsamp=[
+                f"{patient}.{sample}"
+                for patient, samples in SAMPLES.items()
+                for sample in samples
+            ],
         ),
     params:
         yamet=CRC_YAMET,
+    threads: 16
     output:
-        op.join("crc", "crc.html"),
+        op.join("output", "crc_deletions.html"),
     script:
-        "src/crc.Rmd"
+        "src/crc_deletions.Rmd"

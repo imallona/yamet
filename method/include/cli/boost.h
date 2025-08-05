@@ -17,6 +17,7 @@ unsigned int getSkipHeaderIntervals(const po::variables_map &vm);
 std::string  getDetOut(const po::variables_map &vm);
 std::string  getNormDetOut(const po::variables_map &vm);
 std::string  getMethOut(const po::variables_map &vm);
+bool         allMeth(const po::variables_map &vm);
 std::string  getOut(const po::variables_map &vm);
 unsigned int getCores(const po::variables_map &vm);
 unsigned int getChunkSize(const po::variables_map &vm);

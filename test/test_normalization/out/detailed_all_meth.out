@@ -1,0 +1,6 @@
+chr	start	end	test_normalization/in/simulations.tsv	shannon_norm	avg_meth
+chrM	1	201	0	0	1
+chrU	1	201	0	0	0
+chr1_1	1	201	0	0.541486	0.338346
+chr3_1	1	201	0.671491	0.770093	0.603604
+chr_random	1	201	1.30339	1.10286	0.318519

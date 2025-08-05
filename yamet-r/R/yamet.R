@@ -5,8 +5,8 @@
 #'
 #' @param filenames Character vector of input file paths.
 #'   Each file must be tab-separated, sorted by chromosome and position, and
-#'   contain five columns: chromosome, position, methylated reads, total reads and rate.
-#'   Optionally, files can be gzipped.
+#'   contain five columns: chromosome, position, methylated reads,
+#'   total reads and rate. Optionally, files can be gzipped.
 #' @param reference_path Path to the reference file.
 #'   The file should be tab-separated, sorted by chromosome and position, and
 #'   contain two columns: chromosome and position.
@@ -14,6 +14,8 @@
 #' @param intervals_path Path to BED file or similar defining genomic intervals.
 #'   It should be tab-separated, sorted by chromosome and start position, and
 #'   contain three columns: chromosome, start and end.
+#' @param all_meth flag indicating whether positions not involved in successful
+#'   templates are also included. (default: FALSE).
 #' @param cores Number of cores to use (default: 1).
 #' @param chunk_size per file chunk size bytes as an character (default: 64K).
 #'   Number of bytes to process at once in each file.
@@ -27,8 +29,8 @@
 #'
 #' @export
 yamet <- function(
-    filenames = c(), reference_path = NULL, intervals_path = NULL, cores = NULL,
-    chunk_size = "64K", skip_header_cell = 0,
+    filenames = c(), reference_path = NULL, intervals_path = NULL,
+    all_meth = FALSE, cores = NULL, chunk_size = "64K", skip_header_cell = 0,
     skip_header_reference = 0, skip_header_intervals = 0) {
   if (length(filenames) == 0 || !all(file.exists(filenames))) {
     stop("Please provide at least one cell file in 'filenames'.")
@@ -54,6 +56,7 @@ yamet <- function(
       filenames,
       reference_path,
       intervals_path,
+      all_meth,
       cores,
       chunk_size,
       skip_header_cell,

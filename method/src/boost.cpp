@@ -67,6 +67,7 @@ po::variables_map parseCommandLine(int argc, char **argv) {
     ("det-out,d", po::value<std::string>(), "(optional) path to detailed output file")
     ("norm-det-out,n", po::value<std::string>(), "(optional) path to detailed normalized output file")
     ("meth-out,m", po::value<std::string>(), "(optional) path to average methylation output file")
+    ("all-meth", po::value<std::string>()->default_value("false")->implicit_value("true"))
     ("out,o", po::value<std::string>(), "(optional) path to simple output file");
   // clang-format on
 
@@ -172,6 +173,15 @@ std::string getNormDetOut(const po::variables_map &vm) {
 
 std::string getMethOut(const po::variables_map &vm) {
   return vm["meth-out"].as<std::string>();
+}
+
+bool allMeth(const po::variables_map &vm) {
+  char t = (char)std::tolower(vm["all-meth"].as<std::string>()[0]);
+  if (t == 't' || t == '1') {
+    return true;
+  } else {
+    return false;
+  }
 }
 
 std::string getOut(const po::variables_map &vm) {
