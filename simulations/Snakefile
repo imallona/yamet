@@ -20,6 +20,7 @@ rule all:
         "output/04_feat_diff.html",
         "output/05_within_cell.html",
         "output/06_between_cell.html",
+        # "output/figures/simulations_emanuel.html"
 
 
 # every row in the parameter file is a parameterization of one simulation
@@ -77,13 +78,16 @@ rule simulate_data:
     output:
         directory("output/sim_data"),
         html_output_path="output/01_sim_data.html",
+    log:
+        "logs/01_sim_data.log"
     conda:
         "envs/r_sim.yaml"
     shell:
         """
-          Rscript -e 'rmarkdown::render("src/01_sim_data.Rmd", "html_document", 
-                                        output_file="../{output.html_output_path}",
-                                        params=list(parameters_path="{input.parameters_path}"))'
+        mkdir -p logs
+        Rscript -e 'rmarkdown::render("src/01_sim_data.Rmd", "html_document", 
+                                       output_file="../{output.html_output_path}",
+                                       params=list(parameters_path="{input.parameters_path}"))' &> {log}
         """
 
 
@@ -103,6 +107,28 @@ rule visualize_coverage:
         """
 
 
+# """
+# This is nowhere close to the entropy vs methylation etc plots we have on the paper,
+# where is the sourcecode?
+# """
+# rule figure_simulations_emanuel:
+#     input:
+#         sim_data_file="output/01_sim_data.html",
+#         sim_data_dir="output/sim_data",
+#         another_report="output/02_coverage_plots.html"
+#     output:
+#         html_output_path="output/figures/simulations_emanuel.html",
+#     conda:
+#         "envs/r_plot.yaml"
+#     shell:
+#         """
+#           mkdir -p output/figures
+#           Rscript -e 'rmarkdown::render("src/figure_simulations_emanuel.Rmd", "html_document", 
+#                                         output_file="../{output.html_output_path}",
+#                                         params=list(sim_data_dir="{input.sim_data_dir}"))'
+#         """
+
+
 rule install_yamet:
     conda:
         "envs/yamet.yaml"
@@ -113,7 +139,9 @@ rule install_yamet:
           bash ../method/build.sh
         """
 
-
+"""
+yamet_search.tsv does not exist?
+"""
 rule run_yamet:
     conda:
         "envs/yamet.yaml"
