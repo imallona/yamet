@@ -6,6 +6,7 @@
 
 import os.path as op
 import pandas as pd
+import csv
 
 # dictionary with keys being the dataset names => place this in the config
 EXTERNAL_ORIGIN = {
@@ -110,6 +111,8 @@ rule visualize_coverage:
 # """
 # This is nowhere close to the entropy vs methylation etc plots we have on the paper,
 # where is the sourcecode?
+# maybe https://github.com/emsonder/smp-analysis/tree/master/simulations ?
+# maybe https://github.com/emsonder/smp-analysis/blob/master/simulations/visualizationSim_sv.R ?
 # """
 # rule figure_simulations_emanuel:
 #     input:
@@ -142,24 +145,57 @@ rule install_yamet:
 """
 yamet_search.tsv does not exist?
 """
+
+def write_sim_interval_bed(file_path, chrom="chrSim", start=1, end=100000):
+    """
+    Writes a tab-separated file with a single line: chrom<tab>start<tab>end.
+
+    Parameters
+    ----------
+    file_path : str
+        Path to the output BED file.
+    chrom : str, optional
+        Chromosome name (default "chrSim").
+    start : int, optional
+        Start coordinate (default 1).
+    end : int, optional
+        End coordinate (default 100000).
+    """
+    with open(file_path, "w", newline="") as fh:
+        writer = csv.writer(fh, delimiter="\t")
+        writer.writerow([chrom, str(start), str(end)])
+
+rule write_reference_file_for_emanuel:
+    input:
+        sim_data=op.join("output", "sim_data"),
+    output:
+        bed='emanuel_intervals.bed'
+    threads: 1
+    run:
+        write_sim_interval_bed(file_path = output.bed)
+        
 rule run_yamet:
     conda:
         "envs/yamet.yaml"
     input:
         yamet=op.join("build", "yamet"),
         sim_data=op.join("output", "sim_data"),
+        bed='emanuel_intervals.bed'
     output:
         out=directory(op.join("output", "yamet", "out")),
+        flag = 'output/yamet/out/10000.tsv'
     threads: 6
     params:
         ncpgs="50 100 1000 10000",
     shell:
         """
           mkdir -p {output.out}
-          for ncpg in {params.ncpgs}; do
-          {input.yamet} --cell {input.sim_data}/sim_cell_*_*_${{ncpg}}_*.tsv \
+          
+          for ncpg in {params.ncpgs};
+          do
+             {input.yamet} --cell {input.sim_data}/sim_cell_*_*_${{ncpg}}_*.tsv \
                         --reference {input.sim_data}/cpgPositions_${{ncpg}}.tsv \
-                        --intervals src/yamet_search.tsv \
+                        --intervals {input.bed} \
                         --out {output.out}/${{ncpg}}.tsv \
                         --cores {threads} \
                         --print-sampens F
@@ -167,11 +203,12 @@ rule run_yamet:
         """
 
 
-rule visualize_yamet_results:
+rule visualize_emanuels_simulations_results:
     conda:
         "envs/r_plot.yaml"
     input:
         yamet_dir="output/yamet/out",
+        flag = 'output/yamet/out/10000.tsv'
     output:
         html="output/03_yamet_plots.html",
     shell:
