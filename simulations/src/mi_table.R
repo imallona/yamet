@@ -7,7 +7,7 @@
 library(infotheo)
 library(ggpubr)
 
-mi_table_gen <- function(jnt, index_name, table = F, dataframe = FALSE) {
+mi_table_gen <- function(jnt, index_name, table = F) {
   index <- jnt[[index_name]]
   te <- entropy(index)
 
