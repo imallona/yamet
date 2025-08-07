@@ -6,7 +6,7 @@ dependencies:
   - r-base=4.3.3
   - r-data.table=1.15.4
   - bioconductor-scmet
-  - r-ggplot2=3.5.1
+  - r-ggplot2=3.5.2
   - r-ggpubr
   - r-infotheo
   - r-rmarkdown
