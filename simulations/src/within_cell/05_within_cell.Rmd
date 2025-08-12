@@ -456,8 +456,8 @@ print(arranged)
 ggsave(
   filename = "output/figure_atreya_simulations_within.svg",
   plot   = arranged,
-  width  = 12,
-  height  = 8,
+  width  = 15,
+  height  = 15,
   units   = "in"
 )
 
