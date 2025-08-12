@@ -13,6 +13,8 @@ output:
 suppressPackageStartupMessages({
   library(ggplot2)
 })
+
+source('src/ggtheme.R')
 ```
 
 ```{r}
@@ -60,22 +62,22 @@ ggplot(all.long, aes(x = meth, y = sampen, color = type)) +
   theme_minimal() +
   labs(
     title = "Sample Entropy in different TR settings",
-    x = "Average Methylation", y = "Sample Entropy", color = "TR"
-  )
+    x = "avg. methylation", y = "sample entropy", color = "TR"
+  ) + theme_ng()
 
 ggplot(jnt, aes(x = avg_meth, y = shannon, color = type)) +
   geom_point(alpha = 0.7) +
   theme_minimal() +
   labs(
     title = "Shannon Entropy in different TR settings (per cell)",
-    x = "Average Methylation", y = "Shannon Entropy", color = "TR"
-  )
+    x = "avg. methylation", y = "Shannon entropy", color = "TR"
+  ) + theme_ng()
 
 ggplot(all.long, aes(x = shannon, y = sampen, color = type)) +
   geom_point(alpha = 0.7) +
   theme_minimal() +
   labs(
     title = "Sample Entropy in different TR settings",
-    x = "Shannon Entropy", y = "Sample Entropy", color = "TR"
-  )
+    x = "Shannon entropy", y = "sample entropy", color = "TR"
+  ) + theme_ng()
 ```

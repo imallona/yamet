@@ -25,6 +25,7 @@ cbbPalette <- c(
 )
 
 source("simPattern.R")
+source("ggtheme.R")
 ```
 
 ```{r, paths}
@@ -187,7 +188,8 @@ ggplot(
   xlim(c(0, 25)) +
   geom_histogram() +
   scale_color_manual(values = cbbPalette) +
-  scale_fill_manual(values = c("darkgrey", "white"))
+  scale_fill_manual(values = c("darkgrey", "white")) +
+  theme_ng()
 ```
 
 ```{r}
@@ -222,7 +224,8 @@ ggplot(
   ggtitle("Quantiles of length of covered stretches") +
   facet_grid(cols = vars(mode), rows = vars(what)) +
   scale_color_manual(values = cbbPalette) +
-  geom_point(size = 2)
+  geom_point(size = 2) +
+  theme_ng()
 ```
 
 ```{r, sessionInfo}
