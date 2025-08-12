@@ -425,14 +425,14 @@ arranged <- ggarrange(
   ggarrange(
     # combined panels without legends
     ggarrange(
-      s_plots$nmi   + theme(legend.position = "none"),
-      s_plots$seconds  + theme(legend.position = "none"),
-      s_plots$mem + theme(legend.position = "none"),
-      n_plots$nmi   + theme(legend.position = "none"),
-      n_plots$seconds  + theme(legend.position = "none"),
-      n_plots$mem   + theme(legend.position = "none"),
-      ncol = 3,
-      nrow = 2
+        s_plots$nmi   + theme(legend.position = "none") + xlab('# cells') + ylab("performance (metric NMI)"),
+        s_plots$seconds  + theme(legend.position = "none") + xlab('# cells') + ylab("CPU time (s)"),
+        s_plots$mem + theme(legend.position = "none") + xlab('# cells') + ylab("memory usage (MB)"),
+        n_plots$nmi   + theme(legend.position = "none") + xlab('# features')+ ylab("performance (metric NMI)"),
+        n_plots$seconds  + theme(legend.position = "none") + xlab('# features') + ylab("CPU time (s)"),
+        n_plots$mem   + theme(legend.position = "none") + xlab('# features') + ylab("memory usage (MB)"),
+        ncol = 3,
+        nrow = 2
     ),
     
     # shared legends stacked

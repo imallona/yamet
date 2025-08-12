@@ -65,6 +65,7 @@ n_plots <- make_grid_plots(N_GRID, "N", "bc_vi", data_dir)
 ```
 
 ## One Example
+
 We show one example with `r DISP$S` samples, `r DISP$N` features where each feature has `r DISP$f` CpGs (all covered).
 ```{r}
 S <- DISP$S
@@ -112,8 +113,8 @@ samp_meth <- ggplot(all.long, aes(x = meth, y = sampen, color = bc_vi)) +
   geom_point(alpha = 0.7) +
   theme_ng() +
   labs(
-    title = "Sample Entropy in different bcVI values",
-    x = "Average Methylation", y = "Sample Entropy", color = "bcVI"
+    ## title = "Sample Entropy in different bcVI values",
+    x = "avg. methylation", y = "sample entropy", color = "bcVI"
   )
 
 samp_vi <- ggplot(all.long, aes(x = as.factor(bc_vi), y = sampen)) +
@@ -121,32 +122,32 @@ samp_vi <- ggplot(all.long, aes(x = as.factor(bc_vi), y = sampen)) +
   geom_violin(alpha = 0.3, position = position_dodge(0.8)) +
   theme_ng() +
   labs(
-    title = "Sample Entropy in different bcVI values",
-    x = "bcVI", y = "Sample Entropy"
+    ## title = "Sample Entropy in different bcVI values",
+    x = "bcVI", y = "sample entropy"
   )
 
 shannon_meth <- ggplot(jnt, aes(x = avg_meth, y = shannon, color = bc_vi)) +
   geom_point(alpha = 0.7) +
   theme_ng() +
   labs(
-    title = "Shannon Entropy in different bcVI values (per feature)",
-    x = "Average Methylation", y = "Shannon Entropy", color = "bcVI"
+    ## title = "Shannon Entropy in different bcVI values (per feature)",
+    x = "avg. methylation", y = "Shannon entropy", color = "bcVI"
   )
 
 shannon_vi <- ggplot(jnt, aes(x = as.factor(bc_vi), y = shannon, color = avg_meth)) +
   geom_point(alpha = 0.7) +
   theme_ng() +
   labs(
-    title = "Shannon Entropy in different bcVI values (per feature)",
-    x = "bcVI", y = "Shannon Entropy", color = "meth"
+    ## title = "Shannon Entropy in different bcVI values (per feature)",
+    x = "bcVI", y = "Shannon entropy", color = "avg. methylation"
   )
 
 samp_shan <- ggplot(all.long, aes(x = shannon, y = sampen, color = bc_vi)) +
   geom_point(alpha = 0.7) +
   theme_ng() +
   labs(
-    title = "Sample Entropy in different bcVI values",
-    x = "Shannon Entropy", y = "Sample Entropy", color = "bcVI"
+    ## title = "Sample Entropy in different bcVI values",
+    x = "Shannon entropy", y = "sample entropy", color = "bcVI"
   )
 ```
 
@@ -165,48 +166,48 @@ ggplot(jnt, aes(x = as.factor(bc_vi), y = scmet_mu, color = avg_meth)) +
   geom_point(alpha = 0.7) +
   theme_ng() +
   labs(
-    title = "scMET (mu) in different bcVI values (per feature)",
-    x = "bcVI", y = "mu", color = "meth"
+    ## title = "scMET (mu) in different bcVI values (per feature)",
+    x = "bcVI", y = expression("scMET " ~ mu), color = "avg. methylation"
   )
 
 scmet_mu_meth <- ggplot(jnt, aes(x = avg_meth, y = scmet_mu, color = bc_vi)) +
   geom_point(alpha = 0.7) +
   theme_ng() +
   labs(
-    title = "scMET (mu) in different meth values (per feature)",
-    x = "meth", y = "mu", color = "bcVI"
+    ## title = "scMET (mu) in different meth values (per feature)",
+    x = "avg. methylation", y = expression("scMET " ~ mu), color = "bcVI"
   )
 
 scmet_gamma_meth <- ggplot(jnt, aes(x = avg_meth, y = scmet_gamma, color = bc_vi)) +
   geom_point(alpha = 0.7) +
   theme_ng() +
   labs(
-    title = "scMET (gamma) in different meth values (per feature)",
-    x = "meth", y = "gamma", color = "bcVI"
+    ## title = "scMET (gamma) in different meth values (per feature)",
+    x = "avg. methylation", y = expression("scMET " ~ gamma), color = "bcVI"
   )
 
 scmet_epsilon_meth <- ggplot(jnt, aes(x = avg_meth, y = scmet_epsilon, color = bc_vi)) +
   geom_point(alpha = 0.7) +
   theme_ng() +
   labs(
-    title = "scMET (epsilon) in different meth values (per feature)",
-    x = "meth", y = "mu", color = "bcVI"
+    ## title = "scMET (epsilon) in different meth values (per feature)",
+    x = "avg. methylation", y = expression("scMET " ~ epislon), color = "bcVI"
   )
 
 ggplot(jnt, aes(x = as.factor(bc_vi), y = sampen_avg, color = avg_meth)) +
   geom_point(alpha = 0.7) +
   theme_ng() +
   labs(
-    title = "Sample Entropy in different bcVI values (per feature)",
-    x = "bcVI", y = "sampen (average)", color = "meth"
+    ## title = "Sample Entropy in different bcVI values (per feature)",
+    x = "bcVI", y = "avg. sample entropy", color = "avg. methylation"
   )
 
 ggplot(jnt, aes(x = avg_meth, y = sampen_avg, color = bc_vi)) +
   geom_point(alpha = 0.7) +
   theme_ng() +
   labs(
-    title = "Sample Entropy in different meth values (per feature)",
-    x = "meth", y = "sampen (average)", color = "bcVI"
+    ## title = "Sample Entropy in different meth values (per feature)",
+    x = "avg. methylation", y = "avg. sample entropy", color = "bcVI"
   )
 ```
 
@@ -258,7 +259,7 @@ ggarrange(
 # Simpler figure
 
 
-```{r}
+```{r assembled, fig.width=15, fig.height=15, out.width="100%"}
 
 # update scMET to greek
 scmet_mu_meth <- scmet_mu_meth + labs(title = expression(scMET~mu))
@@ -298,12 +299,12 @@ arranged <- ggarrange(
   ggarrange(
     # combined panels without legends
     ggarrange(
-      s_plots$nmi   + theme(legend.position = "none"),
-      s_plots$seconds  + theme(legend.position = "none"),
-      s_plots$mem + theme(legend.position = "none"),
-      n_plots$nmi   + theme(legend.position = "none"),
-      n_plots$seconds  + theme(legend.position = "none"),
-      n_plots$mem   + theme(legend.position = "none"),
+      s_plots$nmi   + theme(legend.position = "none") + xlab('# cells') + ylab("performance (metric NMI)"),
+      s_plots$seconds  + theme(legend.position = "none") + xlab('# cells') + ylab("CPU time (s)"),
+      s_plots$mem + theme(legend.position = "none") + xlab('# cells') + ylab("memory usage (MB)"),
+      n_plots$nmi   + theme(legend.position = "none") + xlab('# features')+ ylab("performance (metric NMI)"),
+      n_plots$seconds  + theme(legend.position = "none") + xlab('# features') + ylab("CPU time (s)"),
+      n_plots$mem   + theme(legend.position = "none") + xlab('# features') + ylab("memory usage (MB)"),
       ncol = 3,
       nrow = 2
     ),
@@ -323,6 +324,7 @@ arranged <- ggarrange(
   nrow   = 2,
   heights = c(2.5, 1.5)
 )
+
 
 print(arranged)
 
