@@ -78,6 +78,7 @@ rule simulate_data:
         downloaded_data="data/downloaded_data.tsv",
     output:
         directory("output/sim_data"),
+        "output/sim_data/sim_cell_9_50_50_rand_medium_lmr.tsv",
         html_output_path="output/01_sim_data.html",
     log:
         "logs/01_sim_data.log"
@@ -96,6 +97,7 @@ rule visualize_coverage:
     input:
         sim_data_file="output/01_sim_data.html",
         sim_data_dir="output/sim_data",
+        flag = "output/sim_data/sim_cell_9_50_50_rand_medium_lmr.tsv"
     output:
         html_output_path="output/02_coverage_plots.html",
     conda:
@@ -180,6 +182,7 @@ rule run_yamet:
     input:
         yamet=op.join("build", "yamet"),
         sim_data=op.join("output", "sim_data"),
+        flag = "output/sim_data/sim_cell_9_50_50_rand_medium_lmr.tsv",
         bed='emanuel_intervals.bed'
     output:
         out=directory(op.join("output", "yamet", "out")),
@@ -208,7 +211,8 @@ rule visualize_emanuels_simulations_results:
         "envs/r_plot.yaml"
     input:
         yamet_dir="output/yamet/out",
-        flag = 'output/yamet/out/10000.tsv'
+        flag = "output/sim_data/sim_cell_9_50_50_rand_medium_lmr.tsv",
+        another_flag = 'output/yamet/out/10000.tsv'
     output:
         html="output/03_yamet_plots.html",
     shell:

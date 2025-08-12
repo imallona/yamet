@@ -326,7 +326,8 @@ simMetPattern <- function(nCpGs, nCells,
 
   # metTable$pos <- seq(1,nCpGs,1)
   # --- patch: recycle pos/chr to exactly .N rows ---
-  metTable[, pos := rep(seq_len(nCpGs), length.out = .N)]
+  ## metTable[, pos := rep(seq_len(nCpGs), length.out = .N)]
+  metTable[, pos := seq_len(.N)]
   metTable$chr <- "chrSim"
 
   return(metTable)
