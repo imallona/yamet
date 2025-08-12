@@ -19,8 +19,8 @@ rule all:
         "output/02_coverage_plots.html",
         "output/03_yamet_plots.html",
         "output/04_feat_diff.html",
-        "output/05_within_cell.html",
-        "output/06_between_cell.html",
+        # "output/05_within_cell.html",
+        # "output/06_between_cell.html",
         # "output/figures/simulations_emanuel.html"
 
 
