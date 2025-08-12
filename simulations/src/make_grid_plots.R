@@ -1,7 +1,9 @@
 suppressPackageStartupMessages({
   library(ggplot2)
 })
+
 source("src/mi_table.R")
+source("src/ggtheme.R")
 
 get_combs <- function(GRID) {
   combinations <- expand.grid(GRID)
@@ -72,11 +74,11 @@ make_grid_plots <- function(GRID, grid_var, x, data_dir) {
     geom_point(size = 3) +
     # scale_color_manual(values = c("yamet" = "#E69F00", "scmet" = "#56B4E9")) +
     labs(
-      title = "NMI Comparison",
-      x = paste(grid_var, "(Parameter Value"), y = "NMI",
+      ## title = "NMI Comparison",
+      x = paste(grid_var), y = "NMI",
       color = "Metric"
     ) +
-    theme_minimal() +
+    theme_ng() +
     theme(
       legend.position = "right",
       plot.title = element_text(hjust = 0.5),
@@ -89,10 +91,10 @@ make_grid_plots <- function(GRID, grid_var, x, data_dir) {
     stat_summary(fun = mean, geom = "line", linewidth = 1.2, aes(group = mtd)) +
     scale_color_manual(values = c("yamet" = "#E69F00", "scmet" = "#56B4E9")) +
     labs(
-      x = paste(grid_var, "(Parameter Value"), y = "seconds (log scale)",
+      x = paste(grid_var), y = "seconds",
       color = "Method"
     ) +
-    theme_minimal() +
+    theme_ng() +
     theme(
       legend.position = "top",
       plot.title = element_text(hjust = 0.5),
@@ -105,10 +107,10 @@ make_grid_plots <- function(GRID, grid_var, x, data_dir) {
     stat_summary(fun = mean, geom = "line", linewidth = 1.2, aes(group = mtd)) +
     scale_color_manual(values = c("yamet" = "#E69F00", "scmet" = "#56B4E9")) +
     labs(
-      x = paste(grid_var, "(Parameter Value"), y = "MB (log scale)",
+      x = paste(grid_var), y = "MB",
       color = "Method"
     ) +
-    theme_minimal() +
+    theme_ng() +
     theme(
       legend.position = "top",
       plot.title = element_text(hjust = 0.5),
