@@ -32,7 +32,7 @@ mi_table_gen <- function(jnt, index_name, table = F) {
     NMI = unname(nmi_values),
     stringsAsFactors = FALSE
   )
-
+  
   if (table) {
     tbl <- ggtexttable(
       mi_results,

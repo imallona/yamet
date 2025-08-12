@@ -15,9 +15,9 @@ EXTERNAL_ORIGIN = {
 
 rule all:
     input:
-        "output/02_coverage_plots.html",
-        "output/03_yamet_plots.html",
-        "output/04_feat_diff.html",
+        # "output/02_coverage_plots.html",
+        # "output/03_yamet_plots.html",
+        # "output/04_feat_diff.html",
         "output/05_within_cell.html",
         "output/06_between_cell.html",
 
@@ -77,13 +77,15 @@ rule simulate_data:
     output:
         directory("output/sim_data"),
         html_output_path="output/01_sim_data.html",
+    log:
+        "logs/simulate_data_emanuel.log"
     conda:
-        "envs/r_sim.yaml"
+        "envs/r_emanuel_sim.yaml"
     shell:
         """
-          Rscript -e 'rmarkdown::render("src/01_sim_data.Rmd", "html_document", 
-                                        output_file="../{output.html_output_path}",
-                                        params=list(parameters_path="{input.parameters_path}"))'
+        mkdir -p logs
+        
+        Rscript -e 'rmarkdown::render("src/01_sim_data.Rmd", "html_document", output_file="../{output.html_output_path}", params=list(parameters_path="{input.parameters_path}"))' &> {log}
         """
 
 
@@ -113,25 +115,59 @@ rule install_yamet:
           bash ../method/build.sh
         """
 
+def write_sim_interval_bed(file_path, chrom="chrSim", start=1, end=100000):
+    """
+    Writes a tab-separated file with a single line: chrom<tab>start<tab>end.
 
+    Parameters
+    ----------
+    file_path : str
+        Path to the output BED file.
+    chrom : str, optional
+        Chromosome name (default "chrSim").
+    start : int, optional
+        Start coordinate (default 1).
+    end : int, optional
+        End coordinate (default 100000).
+    """
+    with open(file_path, "w", newline="") as fh:
+        writer = csv.writer(fh, delimiter="\t")
+        writer.writerow([chrom, str(start), str(end)])
+
+rule write_reference_file_for_emanuel:
+    input:
+        sim_data=op.join("output", "sim_data"),
+        sim_data_file="output/01_sim_data.html"
+    output:
+        bed='emanuel_intervals.bed'
+    threads: 1
+    run:
+        write_sim_interval_bed(file_path = output.bed)
+        
+        
 rule run_yamet:
     conda:
         "envs/yamet.yaml"
     input:
         yamet=op.join("build", "yamet"),
         sim_data=op.join("output", "sim_data"),
+        sim_data_file="output/01_sim_data.html",
+        bed='emanuel_intervals.bed'
     output:
         out=directory(op.join("output", "yamet", "out")),
+        flag = 'output/yamet/out/10000.tsv'
     threads: 6
     params:
         ncpgs="50 100 1000 10000",
     shell:
         """
           mkdir -p {output.out}
-          for ncpg in {params.ncpgs}; do
-          {input.yamet} --cell {input.sim_data}/sim_cell_*_*_${{ncpg}}_*.tsv \
+          
+          for ncpg in {params.ncpgs};
+          do
+             {input.yamet} --cell {input.sim_data}/sim_cell_*_*_${{ncpg}}_*.tsv \
                         --reference {input.sim_data}/cpgPositions_${{ncpg}}.tsv \
-                        --intervals src/yamet_search.tsv \
+                        --intervals {input.bed} \
                         --out {output.out}/${{ncpg}}.tsv \
                         --cores {threads} \
                         --print-sampens F
@@ -139,11 +175,14 @@ rule run_yamet:
         """
 
 
+
+
 rule visualize_yamet_results:
     conda:
         "envs/r_plot.yaml"
     input:
         yamet_dir="output/yamet/out",
+        flag = 'output/yamet/out/10000.tsv'
     output:
         html="output/03_yamet_plots.html",
     shell:
