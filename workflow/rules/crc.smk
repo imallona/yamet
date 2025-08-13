@@ -15,9 +15,9 @@ This is hg19
 
 from glob import glob
 
-CRC_RAW = op.join("crc", "raw")
-CRC_DATA = op.join("crc", "data")
-CRC_YAMET = op.join("output", "crc_yamet")
+CRC_RAW = op.join("crc", "raw")            # bismark files
+CRC_DATA = op.join("crc", "data")          # awk-ed to suit yamet
+CRC_YAMET = op.join("output", "crc_yamet") # yamet outputs
 
 
 rule download_crc_accessors:
@@ -36,17 +36,16 @@ def list_raw_files_from_metadata():
     input_list_path = op.join("src", "sctrioseq_bismark_files.txt")
     with open(input_list_path, "r") as f:
         files = [line.strip() for line in f if line.strip()]
-    return [op.join(CRC_DATA, file) for file in files]
+    return [op.join(CRC_RAW, file) for file in files]
 
 
-rule download_crc:
+rule download_crc_bismark_report:
     conda:
         op.join("..", "envs", "processing.yml")
     input:
         gsm=op.join("crc", "bisulfites_gsm.txt"),
     output:
-        touch(op.join("crc", "download.flag")),
-        list_raw_files_from_metadata()
+        protected(list_raw_files_from_metadata())
     params:
         raw=CRC_RAW,
     message:
@@ -57,14 +56,16 @@ rule download_crc:
         "src/get_crc_meth_files.sh"
 
 
-rule parse_single_crc:
+rule harmonize_single_crc_bismark_report:
     conda:
         op.join("..", "envs", "processing.yml")
     input:
-        op.join("crc", "download.flag"),
+        op.join(CRC_RAW, "download.flag"),
         list_raw_files_from_metadata()
     output:
-        op.join(CRC_DATA, "{file}"),
+        protected(op.join(CRC_DATA, "{file}")),
+    threads:
+        max(8, workflow.cores/8) # to reduce IO pressure
     params:
         raw=CRC_RAW,
     script:
@@ -75,7 +76,7 @@ def get_raw_files(patient, stage):
     return [op.basename(file) for file in filepaths]
 
 
-rule yamet_crc_cg:
+rule run_yamet_cg:
     conda:
         op.join("..", "envs", "yamet.yml")
     input:
@@ -98,7 +99,6 @@ rule yamet_crc_cg:
         base=CRC_YAMET,
     script:
         "src/yamet.sh"
-
 
 SAMPLES = {
     "CRC01": ["NC", "PT", "LN", "ML", "MP"],
