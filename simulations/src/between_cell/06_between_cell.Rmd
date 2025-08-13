@@ -43,6 +43,15 @@ suppressPackageStartupMessages({
   library(svglite)
 })
 
+knitr::opts_chunk$set(
+    echo = FALSE,
+    message = FALSE,
+    warning = FALSE,
+    fig.path = "../output/06_plots/",
+    dev = c("png", "svg"),
+    dpi=500
+)
+
 source("src/mi_table.R")
 source("src/make_grid_plots.R")
 source('src/ggtheme.R')

@@ -15,10 +15,22 @@ output:
 condaEnvPath <- file.path(Sys.getenv("CONDA_PREFIX"), "lib", "R", "library")
 .libPaths(condaEnvPath)
 
+source('ggtheme.R')
+
 suppressPackageStartupMessages({
   library(ggplot2)
   library(data.table)
+  library(knitr)
 })
+
+knitr::opts_chunk$set(
+    echo = FALSE,
+    message = FALSE,
+    warning = FALSE,
+    fig.path = "../output/03_plots/",
+    dev = c("png", "svg"),
+    dpi=500
+)
 ```
 
 Firstly, we import the different yamet output files.
@@ -41,12 +53,19 @@ data[, c("file", "ignore") := NULL]
 factor_cols <- c("ncpgs", "type", "coverage", "tr")
 data[, (factor_cols) := lapply(.SD, as.factor), .SDcols = factor_cols]
 data <- data[sampen != -1 & avg_meth != -1]
-head(data)
+
+print(unique(data$coverage))
+print(unique(data$type))
+data$coverage <- factor(data$coverage, levels = c("low", "lowReal", "real", "medium",
+    "high", "complete"))
+data$type <- factor(data$type, levels = c('nb', 'rand'))
+data$tr <- factor(data$tr, levels = c('lmr', 'imrCons', 'imrRand', 'hmr'))
+## print(head(data))
 ```
 
 Plot the data
 
-```{r, plots}
+```{r, plots, fig.width = 7, fig.height = 7}
 unique.types <- unique(data$type)
 plots.list <- list()
 
@@ -57,8 +76,9 @@ for (unique.type in unique.types) {
     theme_minimal() +
     labs(
       title = paste("Sample Entropy in different TR settings for type", unique.type),
-      x = "Average Methylation", y = "Sample Entropy", color = "TR"
-    )
+      x = "avg. methylation", y = "sample entropy", color = "TR"
+    ) +
+      theme_ng()+ scale_color_viridis_d()
   plots.list[[unique.type]] <- p
 }
 print(plots.list)
