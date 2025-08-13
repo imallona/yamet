@@ -18,7 +18,7 @@ ${snakemake_input[yamet]} \
     --norm-det-out ${snakemake_output[norm_det_out]%.gz} \
     --meth-out ${snakemake_output[meth_out]%.gz}
 
-gzip ${snakemake_output[out]%.gz}
-gzip ${snakemake_output[det_out]%.gz}
-gzip ${snakemake_output[norm_det_out]%.gz}
-gzip ${snakemake_output[meth_out]%.gz}
+pigz -p ${snakemake[threads]} ${snakemake_output[out]%.gz}
+pigz -p ${snakemake[threads]} ${snakemake_output[det_out]%.gz}
+pigz -p ${snakemake[threads]} ${snakemake_output[norm_det_out]%.gz}
+pigz -p ${snakemake[threads]} ${snakemake_output[meth_out]%.gz}

@@ -32,6 +32,12 @@ rule download_crc_accessors:
     script:
         "src/get_crc_accessors.sh"
 
+def list_raw_files_from_metadata():
+    input_list_path = op.join("src", "sctrioseq_bismark_files.txt")
+    with open(input_list_path, "r") as f:
+        files = [line.strip() for line in f if line.strip()]
+    return [op.join(CRC_DATA, file) for file in files]
+
 
 rule download_crc:
     conda:
@@ -40,6 +46,7 @@ rule download_crc:
         gsm=op.join("crc", "bisulfites_gsm.txt"),
     output:
         touch(op.join("crc", "download.flag")),
+        list_raw_files_from_metadata()
     params:
         raw=CRC_RAW,
     message:
@@ -55,13 +62,13 @@ rule parse_single_crc:
         op.join("..", "envs", "processing.yml")
     input:
         op.join("crc", "download.flag"),
+        list_raw_files_from_metadata()
     output:
         op.join(CRC_DATA, "{file}"),
     params:
         raw=CRC_RAW,
     script:
         "src/parse_crc_meth_file.sh"
-
 
 def get_raw_files(patient, stage):
     filepaths = glob(op.join(CRC_RAW, f"G*_{patient}_{stage}*.txt.gz"))
@@ -86,7 +93,7 @@ rule yamet_crc_cg:
         meth_out=op.join(CRC_YAMET, "{subcat}.{cat}.{patient}.{stage}.meth.out.gz"),
     group:
         "yamet"
-    threads: 8
+    threads: max(8, workflow.cores/8) # to reduce IO pressure
     params:
         base=CRC_YAMET,
     script:

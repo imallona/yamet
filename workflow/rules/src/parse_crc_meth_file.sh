@@ -5,7 +5,7 @@
 ## Single-cell Multi-omics Sequencing and Analyses of Human Colorectal Cancer
 ## for use with yamet
 ##
-## Atreya Choudhury
+## Atreya Choudhury, Izaskun Mallona
 ## Started 20thDec 2024
 
 gunzip -c ${snakemake_params[raw]}/${snakemake_wildcards[file]} |
