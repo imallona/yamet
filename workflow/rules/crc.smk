@@ -93,7 +93,7 @@ rule download_crc:
     input:
         gsm=op.join(CRC, "bisulfites_gsm.txt")
     output:
-        download_flag = protected(op.join(CRC, "download.flag")),
+        download_flag = op.join(CRC, "download.flag"),
         files = protected(list_raw_files_from_metadata())
     log:
         op.join("logs", "crc_download.log")
@@ -109,7 +109,6 @@ rule download_crc:
         ##  not robust neither, we should keep a list of the files being included into the
         ##  analysis and not glob them afterwards
         echo {output.download_flag}
-        cat {output.download_flag}
         
         if [ ! -f {output.download_flag} ]
         then
@@ -129,7 +128,7 @@ rule download_crc:
               fi
           done < {input.gsm} > {log}
         
-        date >> {output.download_flag}
+        date > {output.download_flag}
         fi
         """
 
