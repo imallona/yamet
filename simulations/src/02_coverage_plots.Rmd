@@ -26,6 +26,15 @@ cbbPalette <- c(
 
 source("simPattern.R")
 source("ggtheme.R")
+
+knitr::opts_chunk$set(
+    echo = FALSE,
+    message = FALSE,
+    warning = FALSE,
+    fig.path = "../output/02_plots/",
+    dev = c("png", "svg"),
+    dpi=500
+)
 ```
 
 ```{r, paths}
@@ -100,7 +109,8 @@ ggplot(ovCovDt, aes(
   ylab("Fraction of CpGs with non-missing values") +
   geom_boxplot() +
   scale_color_manual(values = cbbPalette) +
-  scale_fill_manual(values = c("darkgrey", "white"))
+  scale_fill_manual(values = c("darkgrey", "white")) +
+  theme_bw()
 ```
 
 ## Length of stretches
@@ -179,6 +189,7 @@ strLenDt$coverage_mode <- factor(strLenDt$coverage_mode,
   )
 )
 maxCpGs <- max(simParams$n_cpgs)
+
 ggplot(
   subset(strLenDt, n_cpgs == maxCpGs & what == "covered"),
   aes(x = length, color = coverage_mode, fill = type)
