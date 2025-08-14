@@ -58,6 +58,10 @@ SAMPLES = {"CRC01" : ['NC', 'PT', 'LN', 'ML', 'MP'],
 
 
 def list_raw_files_from_metadata():
+    """
+    Reports a hardcoded list of bismark meth reports, to make sure download is complete
+    """
+    
     input_list_path = op.join("src", "sctrioseq_bismark_files.txt")
     with open(input_list_path, "r") as f:
         files = [line.strip() for line in f if line.strip()]
@@ -86,101 +90,136 @@ rule download_crc_accessors:
           cut -f5 -d"," > {output.gsm}
         """
 
-
-rule download_crc:
+checkpoint download_crc_bismarks:
     conda:
         op.join("..", "envs", "processing.yml")
     input:
         gsm=op.join(CRC, "bisulfites_gsm.txt")
     output:
+        urls = temp(op.join(CRC_RAW, 'tmp.urls')),
         download_flag = op.join(CRC, "download.flag"),
         files = protected(list_raw_files_from_metadata())
     log:
         op.join("logs", "crc_download.log")
     params:
         raw=CRC_RAW
+    threads:
+        max(8, workflow.cores/8)
     message:
         """
         CRC download
         """
     shell:
         """
-        ## this is extremely dirty, better control to avoid re-download needed
-        ##  not robust neither, we should keep a list of the files being included into the
-        ##  analysis and not glob them afterwards
-        echo {output.download_flag}
         
-        if [ ! -f {output.download_flag} ]
-        then
-          echo "downloading data "
-        
-          while read -r gsm
+        while read -r gsm
           do
+            echo $gsm
             short="$(echo $gsm | cut -c1-7)"
             url=ftp://ftp.ncbi.nlm.nih.gov/geo/samples/"$short"nnn/"$gsm"/suppl/
-            if [ ! -e "{params.raw}"/$(basename "$url") ]
-            then
-              # removed a -r because it was making -nc not work
-              # but might be -r is necessary, not deleting files to debug
-              # so if not working add `-r`
-              wget --no-directories --directory-prefix={params.raw} \
-                --no-clobber --execute robots=off -k -A gz $url
-              fi
-          done < {input.gsm} > {log}
         
-        date > {output.download_flag}
-        fi
+            wget -q -e robots=off -r -k -A gz -nd -P {params.raw} $url
+        
+            echo "$url" >> {output.urls}
+          
+          done < {input.gsm} &> {log}
+        
+        cp {output.urls} {output.download_flag}
         """
 
-# ruleorder: harmonize_cell_report_for_yamet > run_yamet_on_separate_features > run_yamet_on_windows
 
+# ## to align the bedfiles and collapse strands
+# checkpoint harmonize_bismarks_for_yamet:
+#     conda:
+#         op.join("..", "envs", "processing.yml")
+#     input:
+#         # list_raw_files_from_metadata(),
+#         op.join(CRC_RAW, "G{.*}scTrioSeqMet_{patient}_{location}_.*gz"),
+#         op.join(CRC, "download.flag")
+#     output:
+#         outdir = directory(op.join(CRC_HARMONIZED, "{patient}", "{location}"))
+#     params:
+#         raw = CRC_RAW
+#     message:
+#         "harmonizing %s files" %(len(list_raw_files_from_metadata()))
+#     shell:
+#         r"""
+#         set -euo pipefail
+#         mkdir -p {output.outdir}
+#         shopt -s nullglob
+#         for f in {params.raw}/G*_{wildcards.patient}_{wildcards.location}*.txt.gz; do
+#           base=$(basename "$f")
+#           gunzip -c "$f" |
+#             grep "CpG$" |
+#             awk '{{OFS="\t"; if ($4 == "-") $2 = $2 - 2; else if ($4 == "+") $2 = $2 - 1; print $1, $2, $2+1, "", "", $4, $6, $5;}}' |
+#             bedtools merge -c 7,8 -o sum |
+#             awk '{{OFS=FS="\t"; bin = ($4/$5 > 0.1) ? 1 : 0; print $1,$2,$4,$5,bin}}' |
+#             sort -k1,1 -k2,2n |
+#             gzip -c > {output.outdir}/"$base"
+#         done
+#         """
 
-checkpoint harmonize_cell_report_for_yamet:
+# def get_harmonized_files(wildcards):
+#     ckpt = checkpoints.harmonize_bismarks_for_yamet.get(
+#         patient=wildcards.patient, location=wildcards.location
+#     )
+#     outdir = ckpt.output.outdir
+#     return sorted(glob(op.join(outdir, "*.txt.gz")))
+
+rule harmonize_cell_report_for_yamet:
     conda:
         op.join("..", "envs", "processing.yml")
     input:
-        list_raw_files_from_metadata(),
-        op.join(CRC, "download.flag")
+        op.join(CRC, "download.flag"),
+        op.join(CRC_RAW, "{file}")        
+        # op.join(CRC_RAW, "{gsm}_{patient}_{location}_{cellid}.singleC.txt.gz")
     output:
-        outdir = directory(op.join(CRC_HARMONIZED, "{patient}", "{location}"))
+        protected(op.join(CRC_HARMONIZED, "{file}")) ## these should tmp, but now protecting them (development)
     params:
-        raw = CRC_RAW
+        raw=CRC_RAW,
+        harmonized=CRC_HARMONIZED
     shell:
-        r"""
-        set -euo pipefail
-        mkdir -p {output.outdir}
-        shopt -s nullglob
-        for f in {params.raw}/G*_{wildcards.patient}_{wildcards.location}*.txt.gz; do
-          base=$(basename "$f")
-          gunzip -c "$f" |
-            grep "CpG$" |
-            awk '{{OFS="\t"; if ($4 == "-") $2 = $2 - 2; else if ($4 == "+") $2 = $2 - 1; print $1, $2, $2+1, "", "", $4, $6, $5;}}' |
-            bedtools merge -c 7,8 -o sum |
-            awk '{{OFS=FS="\t"; bin = ($4/$5 > 0.1) ? 1 : 0; print $1,$2,$4,$5,bin}}' |
-            sort -k1,1 -k2,2n |
-            gzip -c > {output.outdir}/"$base"
-        done
+        """
+        gunzip -c {params.raw}/{wildcards.file} |
+          grep "CpG$" |
+        awk '
+            {{OFS="\\t";}} {{
+                if ($4 == "-") $2 = $2 - 2;
+                else if ($4 == "+") $2 = $2 - 1;
+                print $1, $2, $2+1, "", "", $4, $6, $5;
+            }}
+        ' |
+        bedtools merge -c 7,8 -o sum |
+        awk '
+             {{OFS=FS="\\t";
+                bin = ($4/$5 > 0.1) ? 1 : 0;
+                print $1,$2,$4,$5,bin}}
+        ' |
+        sort -k1,1 -k2,2n |
+        gzip -c > {output}
         """
 
-def get_harmonized_files(wildcards):
-    ckpt = checkpoints.harmonize_cell_report_for_yamet.get(
-        patient=wildcards.patient, location=wildcards.location
-    )
-    outdir = ckpt.output.outdir
-    return sorted(glob(op.join(outdir, "*.txt.gz")))
+## location is whether is a NC, PT, LN and so on
+## patient is whether CRC01, CRC01 and so on
+def get_harmonized_files(patient, location):
+    ckpt = checkpoints.download_crc_bismarks.get()
+    
+    filepaths = glob(op.join(CRC_RAW, f"G*_{patient}_{location}*.txt.gz"))
+    if len(filepaths) == 0:
+        raise Exception('No cytosine reports matching the specs.')
+    return [op.join(CRC_HARMONIZED, op.basename(file)) for file in filepaths]
 
-        
-# print(get_harmonized_files(patient = 'CRC01', location = "NC"))
+
 
 rule run_yamet_on_separate_features:
     conda:
         op.join("..", "envs", "yamet.yml")
     input:
-        # cells=lambda wildcards: expand(
-        #     "{file}",
-        #     file=get_harmonized_files(wildcards.patient, wildcards.location),
-        # ),
-        cells = get_harmonized_files,
+        # cells = get_harmonized_files,
+        cells=lambda wildcards: expand(
+            "{file}",
+            file=get_harmonized_files(wildcards.patient, wildcards.location),
+        ),
         ref=op.join(HG19_BASE, "ref.CG.gz"),
         bed=op.join(HG19_BASE, "{subcat}.{cat}.bed")
     output:
@@ -193,7 +232,7 @@ rule run_yamet_on_separate_features:
         "yamet"
     params:
         path = CRC_OUTPUT
-    threads: 16
+    threads: max(8, workflow.cores/8)
     shell:
         """
         mkdir -p {params.path}
@@ -261,7 +300,7 @@ rule make_windows_hg19:
     input:
         sizes = op.join(HG19_BASE, "hg19.sizes"),
     output:
-        windows =  op.join(HG19_BASE, "windows_{win_size,\d+}_nt.bed")
+        windows =  op.join(HG19_BASE, r"windows_{win_size,\d+}_nt.bed")
     shell:
         """
         bedtools makewindows -g {input.sizes} \
@@ -316,11 +355,11 @@ rule run_yamet_on_windows:
     conda:
         op.join("..", "envs", "yamet.yml")
     input:
-        # cells=lambda wildcards: expand(
-        #     "{file}",
-        #     file=get_harmonized_files(wildcards.patient, wildcards.location),
-        # ),
-        cells = get_harmonized_files,
+        cells=lambda wildcards: expand(
+            "{file}",
+            file=get_harmonized_files(wildcards.patient, wildcards.location),
+        ),
+        # cells = get_harmonized_files,
         ref=op.join(HG19_BASE, "ref.CG.gz"),
         windows=op.join(HG19_BASE, "windows_{win_size}_nt.bed")
     output:
@@ -333,7 +372,7 @@ rule run_yamet_on_windows:
         "yamet"
     params:
         path = CRC_WINDOWS_OUTPUT
-    threads: 16
+    threads: max(8, workflow.cores/8)
     shell:
         """
         mkdir -p {params.path}
@@ -360,7 +399,7 @@ rule render_crc_windows_report:
         op.join("..", "envs", "r.yml")
     input:
         yamet_dets = list_relevant_yamet_windows_outputs(),
-        annotations = op.join(HG19_BASE, "windows_{win_size,\d+}_nt_annotation.gz")
+        annotations = op.join(HG19_BASE, r"windows_{win_size,\d+}_nt_annotation.gz")
     params:
         output_path=CRC_WINDOWS_OUTPUT
     output:
