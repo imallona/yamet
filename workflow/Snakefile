@@ -146,7 +146,6 @@ rule run_yamet_simulated_features:
 # def download_mm10_repeats(assembly = 'mm10'):
 #     return NULL
 
-
 rule get_mm10_genome:
     conda:
         op.join("envs", "yamet.yml")

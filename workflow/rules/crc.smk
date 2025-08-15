@@ -412,3 +412,18 @@ rule render_crc_windows_report:
     #     """
     #     echo 'nothing done' > {output}
     #     """
+
+rule render_crc_windows_report:
+    conda:
+        op.join("..", "envs", "r.yml")
+    input:
+        yamet_dets = list_relevant_yamet_windows_outputs(),
+        annotations = op.join(HG19_BASE, r"windows_{win_size,\d+}_nt_annotation.gz")
+    params:
+        output_path=CRC_WINDOWS_OUTPUT
+    output:
+        op.join(CRC, "results", "crc_windows_{win_size}_nt.html")
+    log:
+        log = op.join("logs", "render_crc_windows_{win_size}.log")
+    script:
+        "src/crc_windows.Rmd"
