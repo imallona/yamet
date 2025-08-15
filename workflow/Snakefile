@@ -48,7 +48,8 @@ rule all:
         # op.join("feature_simulations", "output", "yamet_detailed.out"),  ## feature simulations,
         # op.join('scnmt_gastrulation_data', 'output', 'yamet_summarized.out') ## an scNMT example
         # op.join('hg19', "windows_10000_nt_annotation.gz"),
-        op.join(CRC, "results", "crc_windows_10000_nt.html")
+        op.join(CRC, "results", "crc_windows_10000_nt.html"),
+        op.join(CRC, "results", "crc.html")
 
 rule install_yamet:
     """

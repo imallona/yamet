@@ -97,20 +97,24 @@ checkpoint download_crc_bismarks:
         gsm=op.join(CRC, "bisulfites_gsm.txt")
     output:
         urls = temp(op.join(CRC_RAW, 'tmp.urls')),
-        download_flag = op.join(CRC, "download.flag"),
-        files = protected(list_raw_files_from_metadata())
+        download_flag = op.join(CRC, "download.flag")#,
+        # files = list_raw_files_from_metadata() ## commented out so snmk does not remove all these files before re-running the rule, so the finding/skipping algo makes sense
     log:
         op.join("logs", "crc_download.log")
     params:
         raw=CRC_RAW
     threads:
-        max(8, workflow.cores/8)
+        1
     message:
         """
         CRC download
         """
-    shell:
-        """
+    shell: ## this is stupid, because it wipes out the folder before exec
+       """
+        exec &> {log}
+        
+        set -euo pipefail
+        mkdir -p "{params.raw}"
         
         while read -r gsm
           do
@@ -118,59 +122,46 @@ checkpoint download_crc_bismarks:
             short="$(echo $gsm | cut -c1-7)"
             url=ftp://ftp.ncbi.nlm.nih.gov/geo/samples/"$short"nnn/"$gsm"/suppl/
         
-            wget -q -e robots=off -r -k -A gz -nd -P {params.raw} $url
-        
-            echo "$url" >> {output.urls}
+            # wget -q -e robots=off -r -k -A gz -nd -P {params.raw} $url
+            matches=$(find "{params.raw}" \
+                   -maxdepth 1 \
+                   -type f \
+                   -name "${{gsm}}*" \
+                   -print)
+            echo "$matches"
+ 
+            if [[ -n "$matches" ]]; then
+               echo "Found existing report for $gsm:"
+               printf "  %s Skipping download\\n\\n" "${{matches[@]}}"
+            else
+               printf "Downloading $gsm from $url\\n\\n"
+
+               wget \
+                  --quiet \
+                  --execute=robots=off \
+                  --recursive \
+                  --convert-links \
+                  --accept=gz \
+                  --no-directories \
+                  --directory-prefix={params.raw} \
+                  --timestamping \
+                  "$url"
+            
+                echo "$url" >> {output.urls}
+           fi
           
-          done < {input.gsm} &> {log}
+        done < {input.gsm}
         
         cp {output.urls} {output.download_flag}
         """
 
-
-# ## to align the bedfiles and collapse strands
-# checkpoint harmonize_bismarks_for_yamet:
-#     conda:
-#         op.join("..", "envs", "processing.yml")
-#     input:
-#         # list_raw_files_from_metadata(),
-#         op.join(CRC_RAW, "G{.*}scTrioSeqMet_{patient}_{location}_.*gz"),
-#         op.join(CRC, "download.flag")
-#     output:
-#         outdir = directory(op.join(CRC_HARMONIZED, "{patient}", "{location}"))
-#     params:
-#         raw = CRC_RAW
-#     message:
-#         "harmonizing %s files" %(len(list_raw_files_from_metadata()))
-#     shell:
-#         r"""
-#         set -euo pipefail
-#         mkdir -p {output.outdir}
-#         shopt -s nullglob
-#         for f in {params.raw}/G*_{wildcards.patient}_{wildcards.location}*.txt.gz; do
-#           base=$(basename "$f")
-#           gunzip -c "$f" |
-#             grep "CpG$" |
-#             awk '{{OFS="\t"; if ($4 == "-") $2 = $2 - 2; else if ($4 == "+") $2 = $2 - 1; print $1, $2, $2+1, "", "", $4, $6, $5;}}' |
-#             bedtools merge -c 7,8 -o sum |
-#             awk '{{OFS=FS="\t"; bin = ($4/$5 > 0.1) ? 1 : 0; print $1,$2,$4,$5,bin}}' |
-#             sort -k1,1 -k2,2n |
-#             gzip -c > {output.outdir}/"$base"
-#         done
-#         """
-
-# def get_harmonized_files(wildcards):
-#     ckpt = checkpoints.harmonize_bismarks_for_yamet.get(
-#         patient=wildcards.patient, location=wildcards.location
-#     )
-#     outdir = ckpt.output.outdir
-#     return sorted(glob(op.join(outdir, "*.txt.gz")))
 
 rule harmonize_cell_report_for_yamet:
     conda:
         op.join("..", "envs", "processing.yml")
     input:
         op.join(CRC, "download.flag"),
+        list_raw_files_from_metadata(),
         op.join(CRC_RAW, "{file}")        
         # op.join(CRC_RAW, "{gsm}_{patient}_{location}_{cellid}.singleC.txt.gz")
     output:
@@ -393,25 +384,6 @@ def list_relevant_yamet_windows_outputs():
         for location in SAMPLES[patient]:
             res.append(f"{{win_size}}_{patient}_{location}.det.out")
     return [op.join(CRC_WINDOWS_OUTPUT, item) for item in res]
-
-rule render_crc_windows_report:
-    conda:
-        op.join("..", "envs", "r.yml")
-    input:
-        yamet_dets = list_relevant_yamet_windows_outputs(),
-        annotations = op.join(HG19_BASE, r"windows_{win_size,\d+}_nt_annotation.gz")
-    params:
-        output_path=CRC_WINDOWS_OUTPUT
-    output:
-        op.join(CRC, "results", "crc_windows_{win_size}_nt.html")
-    log:
-        log = op.join("logs", "render_crc_windows_{win_size}.log")
-    script:
-        "src/crc_windows.Rmd"
-    # shell:
-    #     """
-    #     echo 'nothing done' > {output}
-    #     """
 
 rule render_crc_windows_report:
     conda:
