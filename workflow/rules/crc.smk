@@ -161,17 +161,22 @@ rule harmonize_cell_report_for_yamet:
         op.join("..", "envs", "processing.yml")
     input:
         op.join(CRC, "download.flag"),
-        list_raw_files_from_metadata(),
+        # list_raw_files_from_metadata(),
         op.join(CRC_RAW, "{file}")        
         # op.join(CRC_RAW, "{gsm}_{patient}_{location}_{cellid}.singleC.txt.gz")
     output:
-        protected(op.join(CRC_HARMONIZED, "{file}")) ## these should tmp, but now protecting them (development)
+        op.join(CRC_HARMONIZED, "{file}") ## these should tmp
     params:
         raw=CRC_RAW,
         harmonized=CRC_HARMONIZED
+    threads: max(8, workflow.cores/8)
+    log:
+        op.join("logs", "{file}_harmonization.log")
     shell:
         """
-        gunzip -c {params.raw}/{wildcards.file} |
+        exec &> {log}
+
+        zcat {params.raw}/{wildcards.file} |
           grep "CpG$" |
         awk '
             {{OFS="\\t";}} {{

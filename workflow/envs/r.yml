@@ -15,3 +15,4 @@ dependencies:
   - bioconductor-complexheatmap
   - bioconductor-geoquery
   - bioconductor-limma
+  - conda-forge::r-effects
