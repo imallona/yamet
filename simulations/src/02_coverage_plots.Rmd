@@ -191,7 +191,8 @@ strLenDt$coverage_mode <- factor(strLenDt$coverage_mode,
 maxCpGs <- max(simParams$n_cpgs)
 
 ggplot(
-  subset(strLenDt, n_cpgs == maxCpGs & what == "covered"),
+  subset(strLenDt, n_cpgs == maxCpGs & what == "covered" & 
+                   coverage_mode!="complete"),
   aes(x = length, color = coverage_mode, fill = type)
 ) +
   ggtitle(paste("Length of covered stretches (N-CpGs:", maxCpGs, ")")) +
