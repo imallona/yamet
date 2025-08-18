@@ -19,6 +19,8 @@ include: op.join("rules", "crc.smk")
 include: op.join("rules", "ecker.smk")
 
 
+shell.prefix("set -o pipefail; export PATH=$HOME/.local/yamet/bin:$PATH;")
+
 # include: op.join("rules", "feature_simulations.smk")
 # include: op.join("rules", "scnmt_gastrulation.smk")
 
@@ -28,10 +30,11 @@ include: op.join("rules", "ecker.smk")
 rule all:
     input:
         # op.join('ecker_data', 'downloaded_ecker.flag'), ## this is to download Ecker's cytosine reports
-        # op.join('ecker_data', 'harmonized_ecker_metadata.tsv.gz'), ## this to download Ecker's metadata
+        # op.join('data', 'brain', 'harmonized_ecker_metadata.tsv.gz'), ## this to download Ecker's metadata
         # op.join("annotation", "mm10", "done.flag"),  ## this to download regions for Ecker's
-        # op.join("crc_data", "downloaded_crc.flag"),  # this to download CRC cytosine reports
-        op.join("output", "crc.html"),
+        # op.join("data", "crc", "download.flag"),  # this to download CRC cytosine reports, caution will redownload them
+        # op.join("data", "crc", "results",  "crc.html") , ## this requires the `download.flag` being present (and the cytosine reports; dependencies are not well captured)
+        # op.join(op.expanduser("~"), ".local", "yamet", "bin", "yamet")
         # op.join('scnmt_gastrulation_data', 'downloaded_data.tsv'), ## this is Argelaguet's gastrulation
         # expand(
         #     op.join(
@@ -44,17 +47,25 @@ rule all:
         ## to get a random background features
         # op.join("feature_simulations", "output", "yamet_detailed.out"),  ## feature simulations,
         # op.join('scnmt_gastrulation_data', 'output', 'yamet_summarized.out') ## an scNMT example
-
+        # op.join('hg19', "windows_10000_nt_annotation.gz"),
+        op.join(CRC, "results", "crc_windows_10000_nt.html"),
+        op.join(CRC, "results", "crc.html")
 
 rule install_yamet:
+    """
+    Binary to goes to ~/.local/yamet; export path accordingly
+    """
     conda:
         "envs/yamet.yml"
     output:
-        op.join("build", "yamet"),
-    threads: 4
+        op.join(op.expanduser("~"), ".local", "yamet", "bin", "yamet")
+    log:
+        op.join("logs", "build.log")
     shell:
         """
-            bash ../method/build.sh {threads}
+        mkdir -p logs
+        bash ../method/build.sh &> {log}
+        yamet --help &>> {log}
         """
 
 
@@ -135,7 +146,6 @@ rule run_yamet_simulated_features:
 # ## perhaps lines and sines separately?
 # def download_mm10_repeats(assembly = 'mm10'):
 #     return NULL
-
 
 rule get_mm10_genome:
     conda:

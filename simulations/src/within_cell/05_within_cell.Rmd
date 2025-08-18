@@ -68,6 +68,15 @@ source("src/mi_table.R")
 source("src/make_grid_plots.R")
 source("src/ggtheme.R")
 
+knitr::opts_chunk$set(
+    echo = FALSE,
+    message = FALSE,
+    warning = FALSE,
+    fig.path = "../output/05_plots/",
+    dev = c("png", "svg"),
+    dpi=500
+)
+
 data_dir <- dirname(snakemake@input[["disp_scmet"]])
 S_GRID <- snakemake@params[["S_GRID"]]
 N_GRID <- snakemake@params[["N_GRID"]]
