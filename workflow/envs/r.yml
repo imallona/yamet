@@ -10,7 +10,9 @@ dependencies:
   - r-ggplot2
   - r-lmertest
   - r-readr
+  - r-viridis
   - bioconductor-biocparallel
   - bioconductor-complexheatmap
   - bioconductor-geoquery
   - bioconductor-limma
+  - conda-forge::r-effects

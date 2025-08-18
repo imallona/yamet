@@ -1,0 +1,630 @@
+---
+title: "CRC by genomic tiles, first exploration"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: hide
+    code_download: true
+    number_sections: true
+    df_print: default # kable
+    theme: lumen
+
+---
+
+
+```{r, setup}
+suppressPackageStartupMessages({
+  ## library(readr)
+  library(lmerTest)
+  library(ggplot2)
+  library(knitr)
+#  library('effects')
+  library(ComplexHeatmap)
+  library(viridis)
+  ## library(showtext)
+  ## library(boot)
+  library(tidyr)
+  library(Matrix)
+  library(limma)
+})
+
+
+## options(bitmapType="cairo")
+## showtext_auto()
+```
+
+```{r}
+
+source("src/ggtheme.R")
+
+
+opts_chunk$set(fig.width = 7.5,
+               fig.height = 7.5,
+               cache = FALSE,
+               include = TRUE,
+               fig.path = "crc_windows_plots/",
+               dev = c("png", "svg"),
+               cache.lazy = FALSE,
+               warning = TRUE,
+               message = TRUE)
+
+## render on error hook
+knitr::knit_hooks$set(error = function(x, options) {
+    ## if (exists(x)) {
+    ##     cat(str(x))
+    ## }
+
+    knitr::knit_exit()
+})
+
+```
+
+```{R logging, include = FALSE}
+log <- file(snakemake@log$log, open = "wt")
+sink(log)
+sink(log, type = "message")
+```
+
+# Tile annotations  {.tabset .tabset-pills}
+
+To double check annotations are ok.
+
+
+Caution downsampling
+
+
+```{r downsampling}
+NROWS <- 3e4
+
+```
+
+```{r}
+
+ annot <- read.table(gzfile(snakemake@input[['annotations']]), header = TRUE, nrows = NROWS)
+# annot <- read.table(gzfile('/home/imallona/src/yamet/workflow/hg19/windows_10000_nt_annotation.gz'),
+#                    header = T, nrows = NROWS)
+```
+
+
+First, cluster the annots to make sure they make sense to start with, without any sampens
+
+```{r, fig.width = 12, fig.height = 6}
+
+
+mannot <- head(annot, NROWS)
+rownames(annot) <- paste0('w', rownames(annot))
+
+
+plot(hclust(dist(t(mannot))))
+```
+
+
+# QC  {.tabset .tabset-pills}
+
+## Local reports - Shannon {.tabset .tabset-pills}
+
+Caution downsampled
+
+```{r read_shannons}
+filepaths <- list.files( snakemake@params[["output_path"]], pattern = "\\.det\\.out$", full.names = TRUE)
+
+#  (filepaths <- list.files('/home/imallona/src/yamet/workflow/data/crc/windows_output',
+#                           pattern = "\\.det\\.out$", full.names = TRUE))
+
+## filepaths <- filepaths[!grepl("\\.det\\.out$", filepaths)]
+## filepaths <- filepaths[!grepl("\\.meth\\.out$", filepaths)]
+
+regex <- "(.*)_(.*)_(.*).det.out"
+process_reports <- function(filepath) {
+    filename <- basename(filepath)
+    patient <- gsub(regex, "\\2", filename)
+    location <- gsub(regex, "\\3", filename)
+   
+    dt <- read.table(filepath, sep = "\t", na.strings = "-1", header = TRUE, nrows = NROWS)
+
+    ## shannons
+    dtm <- dt[, c("shannon", "avg_meth")]    
+    dtm$patient <- patient
+    dtm$location <- location
+    dtm$window <- paste0("w", rownames(dt))
+    
+    ## sampens
+    cols <- grep('singleC', colnames(dt), value = TRUE)
+    rows <- paste0('w', 1:nrow(dt))
+
+    se <- as(as.matrix(dt[,cols]), 'dgCMatrix')
+    
+    dimnames(se) <- list(rows, cols)
+    
+    return(list(shannon = dtm,
+                sampen = list(file = filepath,
+                              patient = patient,
+                              location = location,
+                              sampen = se)))
+}
+
+## these are mainly shannons! and avgmeths
+shannons <- do.call(rbind, lapply(filepaths, function(x) process_reports(x)$shannon))
+
+## head(shannons)
+shannons$patient <- as.factor(shannons$patient)
+shannons$location <- factor(shannons$location, levels = c('NC', 'PT', 'LN', 'ML', 'MP', 'MO'))
+rownames(shannons) <- paste(shannons$patient, shannons$location, rownames(shannons), sep = "_")
+
+
+sampens <- lapply(filepaths, function(x) process_reports(x)$sampen)
+
+## let's get a value per window - median
+sampens <- lapply(sampens, function(x) {
+    x$median <- apply(x$sampen, 1, function(x) median(x, na.rm = TRUE)) # median sampEn per window/genomic tile
+    x$range <- suppressWarnings(apply(x$sampen, 1, function(x) max(x, na.rm = TRUE) - min(x, na.rm = TRUE)))
+    return(x)
+})
+
+```
+
+## By location 
+
+```{r, fig.width = 10, fig.height = 10}
+par(mfrow = c(3,2), pty = 's')
+for (loc in levels(shannons$location)) {
+    tmp <- shannons[shannons$location == loc,]
+    plot(shannon~avg_meth, col = as.numeric(as.factor(tmp$location)), pch = '.', data = tmp, main = loc)
+}
+```
+
+
+## By patient (colored by location as before)
+
+```{r, fig.width = 10, fig.height = 10}
+par(mfrow = c(3,3), pty = 's')
+for (patient in levels(shannons$patient)) {
+    tmp <- shannons[shannons$patient == patient,]
+    plot(shannon~avg_meth, col = as.numeric(as.factor(tmp$location)), pch = '.', data = tmp, main = patient[1])
+}
+
+```
+
+## By patient and location
+
+```{r, fig.width =8, fig.height = 11}
+
+par(mfrow = c(4,4), pty = 's')
+for (patient in levels(shannons$patient)) {
+    tmp <- shannons[shannons$patient == patient,]
+    for (loc in unique(tmp$location)) {
+        tmp <- shannons[shannons$patient == patient & shannons$location == loc,]
+        plot(shannon~avg_meth, col = as.numeric(as.factor(tmp$location)),
+             pch = '.', data = tmp, main = paste(loc, patient[1]))
+    }
+}
+```
+
+# Heatmaps {.tabset .tabset-pills}
+
+
+## Median sampens
+
+Mind each column should be a miniheatmap instead, not depicting a median
+
+```{r, fig.width = 10, fig.height = 10}
+
+med_sampens <- as.matrix(do.call(cbind.data.frame, lapply(sampens, function(x) return(x$median))))
+colnames(med_sampens) <- lapply(sampens, function(x) return(x$file))
+
+## ## let's prettify colnames a bit
+## colnames(med_sampens) <- gsub('.singleC.txt.gz', '', colnames(med_sampens))
+## colnames(med_sampens) <- paste0('CRC', sapply(strsplit(colnames(med_sampens), "CRC"), function(x) return(x[2])))
+
+#hist(apply(med_sampens, 1, function(x) sum(is.na(x))))
+
+# remove windows with more than 50 missing values
+# med_sampens <- med_sampens[apply(med_sampens, 1, function(x) sum(is.na(x))) < 50,]
+## dim(na.omit(med_sampens))
+## rather all nas go out
+
+med_sampens <- na.omit(med_sampens)
+
+column_ha <- HeatmapAnnotation(patient = gsub(regex, "\\2", basename(colnames(med_sampens))),
+                               location = gsub(regex, "\\3", basename(colnames(med_sampens))))
+
+
+row_ha <- rowAnnotation(tile_annotation = as.matrix(data.frame(
+                            pmd = annot[rownames(med_sampens), 'pmds_pmd'],
+                            hmd = annot[rownames(med_sampens), 'hmds_pmd'],
+                            H3K27me3 = annot[rownames(med_sampens), 'H3K27me3_chip'],
+                            H3K9me3 = annot[rownames(med_sampens), 'H3K9me3_chip'],
+                            H3K4me3 = annot[rownames(med_sampens), 'H3K4me3_chip'],
+                            laminb1 = annot[rownames(med_sampens), 'laminb1_lad'],
+                            X8_Quiescent = annot[rownames(med_sampens), 'X8_Quiescent_hmm'])))
+
+
+Heatmap(med_sampens, name = "med sampens",
+        top_annotation = column_ha,
+        right_annotation = row_ha,
+        show_row_names = FALSE,
+        column_labels = gsub('.det.out', '', basename(colnames(med_sampens))))
+
+
+```
+
+## Plus Shannons tile margin
+
+Let's add the shannons, out of curiosity
+
+```{r, fig.width = 15, fig.height = 10, eval = TRUE}
+
+shannons_wide <- as.data.frame(pivot_wider(shannons,
+                                           id_cols = 'window',
+                                           names_from = c('patient', 'location'),
+                                           values_from = 'shannon'))
+
+    
+
+rownames(shannons_wide) <-shannons_wide$window
+shannons_wide <- shannons_wide[,grep('window', colnames(shannons_wide), invert = TRUE)]
+
+## clust samples by shannon; that's to order the cols for the lefthand annot heatmap to the main heatmap
+     
+tmp <- t(as.matrix(shannons_wide)[rownames(med_sampens),])
+tmp.hc <- hclust(dist(tmp))
+# plot(tmp.hc)
+# tmp.hc$order
+
+row_shannons <- rowAnnotation(shannons = as.matrix(shannons_wide)[rownames(med_sampens),tmp.hc$order],
+                              width = ncol(med_sampens)*unit(3, "mm"))
+
+#?Heatmap
+Heatmap(med_sampens, name = "med sampens",
+        top_annotation = column_ha,
+        right_annotation = row_ha,
+        left_annotation = row_shannons,
+        show_row_names = FALSE,
+        column_labels = gsub('.det.out', '', basename(colnames(med_sampens))),
+        width = ncol(med_sampens)*unit(9, "mm"))
+
+```
+
+## Range sampens
+
+If Shannon is high we're interested in knowing the range of sampEns.
+
+```{r, fig.width = 15, fig.height = 10}
+
+range_sampens <- as.matrix(do.call(cbind.data.frame, lapply(sampens, function(x) return(x$range))))
+colnames(range_sampens) <- lapply(sampens, function(x) return(x$file))
+
+## ## let's prettify colnames a bit
+## colnames(range_sampens) <- gsub('.singleC.txt.gz', '', colnames(range_sampens))
+## colnames(range_sampens) <- paste0('CRC', sapply(strsplit(colnames(range_sampens), "CRC"), function(x) return(x[2])))
+
+rownames(range_sampens) <- paste0('w', 1: nrow(range_sampens))
+range_sampens[!is.finite(range_sampens)] <- NA
+#hist(apply(range_sampens, 1, function(x) sum(is.na(x))))
+
+# remove windows with more than 50 missing values
+# range_sampens <- range_sampens[apply(range_sampens, 1, function(x) sum(is.na(x))) < 50,]
+## dim(na.omit(range_sampens))
+## rather all nas go out
+
+range_sampens <- na.omit(range_sampens)
+
+
+Heatmap(range_sampens, name = "range sampens",
+        top_annotation = column_ha,
+        right_annotation = row_ha,
+        left_annotation = row_shannons,        
+        show_row_names = FALSE,
+        column_labels = gsub('.det.out', '', basename(colnames(range_sampens))),
+        width = ncol(range_sampens)*unit(9, "mm"))
+
+
+```
+
+
+## Rather cluster the Shannon's and add sampEns as tile margins
+
+What if clustering the shannon's instead, and annotating the avg sampens?
+
+```{r, fig.width = 18, fig.height = 10, eval = TRUE}
+
+curr_shannons <- as.matrix(shannons_wide)[rownames(med_sampens),]
+
+col_ha <- HeatmapAnnotation(patient = gsub("(.*)_(.*)", "\\1", basename(colnames(curr_shannons))),
+                               location = gsub("(.*)_(.*)", "\\2", basename(colnames(curr_shannons))))
+
+colnames(med_sampens) <- gsub('.det.out', '', basename(colnames(med_sampens)))
+row_med_sampens <- rowAnnotation(med_sampens = med_sampens)
+
+Heatmap(curr_shannons, name = 'shannons',
+        top_annotation = col_ha,
+        left_annotation = row_med_sampens,
+        right_annotation = row_ha,
+        show_row_names = FALSE)
+
+
+```
+
+# Differential (sample) entropy / limma {.tabset .tabset-pills}
+
+Just ~ patient + location
+
+## Only sampen, no methylation correction
+
+```{r, fig.width = 3, fig.height = 3}
+
+sampen_fd <- do.call(cbind, lapply(sampens, function(x) x$sampen))
+
+meta <- data.frame(
+  colname = colnames(sampen_fd),
+  patient = sapply(strsplit(colnames(sampen_fd), "_"), function(x) x[3]),
+  location = substr(sapply(strsplit(colnames(sampen_fd), "_"), function(x) x[4]), 1,2))
+
+meta$location <- relevel(factor(meta$location), ref = "NC")
+
+design <- model.matrix(~ meta$patient + meta$location)
+fit_sampen <- lmFit(sampen_fd, design)
+fit_sampen <- eBayes(fit_sampen)
+
+hist(fit_sampen$p.value)
+
+tt_sampen <- topTable(fit_sampen, coef = "meta$locationPT", n = Inf, sort.by="none")
+
+##stopifnot(all(rownames(sampen_fd) == rownames(tt_sampen)))
+table(tt_sampen$adj.P.Val < 0.05)
+
+```
+
+
+```{r with_limma_0, fig.width = 18, fig.height = 10}
+
+tt_sampen <- tt_sampen[rownames(med_sampens),]
+signif_sampen <- ifelse(tt_sampen$adj.P.Val < 0.05, yes = 1, no = 0)
+
+
+row_tt_sampen <- rowAnnotation(PT_de_sampen = signif_sampen)
+
+Heatmap(med_sampens, name = "med sampens",
+        top_annotation = column_ha,
+        right_annotation = row_ha,
+        left_annotation = row_tt_sampen,
+        show_row_names = FALSE,
+        column_labels = gsub('.det.out', '', basename(colnames(med_sampens))),
+        width = ncol(med_sampens)*unit(9, "mm"))
+```
+
+
+## Only methylation
+
+correct for diffs in avg meth; or perhaps test separately and overlap the two sets
+
+
+```{r}
+filepaths <- list.files( snakemake@params[["output_path"]], pattern = "\\.meth\\.out$", full.names = TRUE)
+
+#  (filepaths <- list.files('/home/imallona/src/yamet/workflow/data/crc/windows_output',
+#                           pattern = "\\.meth\\.out$", full.names = TRUE))
+
+regex <- "(.*)_(.*)_(.*).meth.out"
+process_meth_reports <- function(filepath) {
+    filename <- basename(filepath)
+    patient <- gsub(regex, "\\2", filename)
+    location <- gsub(regex, "\\3", filename)
+   
+    dt <- read.table(filepath, sep = "\t", na.strings = "-1", header = TRUE, nrows = NROWS)
+
+    ## meths
+    cols <- grep('singleC', colnames(dt), value = TRUE)
+    rows <- paste0('w', 1:nrow(dt))
+
+    se <- as(as.matrix(dt[,cols]), 'dgCMatrix')
+    
+    dimnames(se) <- list(rows, cols)
+    
+    return(list(meth = list(file = filepath,
+                              patient = patient,
+                              location = location,
+                              meth = se)))
+}
+
+
+meths <- lapply(filepaths, function(x) process_meth_reports(x)$meth)
+
+
+meths_fd <- do.call(cbind, lapply(meths, function(x) x$meth))
+
+design <- model.matrix(~ meta$patient + meta$location) # same design as above
+fit_meth <- lmFit(meths_fd, design)
+fit_meth <- eBayes(fit_meth)
+```
+
+
+```{r, fig.width = 3, fig.height = 3}
+
+hist(fit_meth$p.value)
+
+tt_meth <- topTable(fit_meth, coef = "meta$locationPT", n = Inf, sort.by="none")
+
+##stopifnot(all(rownames(meths_fd) == rownames(tt_meth)))
+table(tt_meth$adj.P.Val < 0.05)
+
+```
+
+
+```{r with_limma_1, fig.width = 18, fig.height = 10}
+
+tt_meth <- tt_meth[rownames(med_sampens),]
+signif_meth <- ifelse(tt_meth$adj.P.Val < 0.05, yes = 1, no = 0)
+
+table(signif_meth %in% signif_sampen)
+
+row_tt <- rowAnnotation(limma = as.matrix(data.frame(PT_de_meth = signif_meth,
+                                                     PT_de_sampen = signif_sampen)))
+
+Heatmap(med_sampens, name = "med sampens",
+        top_annotation = column_ha,
+        right_annotation = row_ha,
+        left_annotation = row_tt,
+        show_row_names = FALSE,
+        column_labels = gsub('.det.out', '', basename(colnames(med_sampens))),
+        width = ncol(med_sampens)*unit(9, "mm"))
+```
+
+## sampen with methylation correction
+
+Doing 
+
+## GO
+
+add 'genes' as a layer to the window annotation and store the id for gene ontology/geneset enrichment (on limma diff entropic regions)
+
+
+
+```{r}
+
+sessionInfo()
+knitr::knit_exit()
+```
+
+<!-- # Discrete window annotations {.tabset .tabset-pills} -->
+
+<!-- Let's stratify features by their annots -->
+
+<!-- and these are shannons within patient+location anyway -->
+
+<!-- ```{r, fig.width = 10, fig.height = 10} -->
+
+<!-- # the dominant annotation -->
+<!-- # gold <- apply(annot, 1, function(row) colnames(annot)[which.max(row != 0)]) -->
+<!-- gold <- apply(annot, 1, function(row) { -->
+<!--     if (all(row == 0)) { -->
+<!--         res <- 'other' -->
+<!--     } else {  -->
+<!--         res <- colnames(annot)[which.max(row)] -->
+<!--     } -->
+<!--     res         -->
+<!-- }) -->
+
+<!-- # the subdominant annotation (the one not being 1 but still max, to avoid long -->
+<!-- #  features to prevail over shorter ones) -->
+<!-- #  it will pick the first occurrence -->
+<!-- # silver <- apply(annot, 1, function(row) colnames(annot)[which.max(row <1 & row != 0)]) -->
+<!-- silver <- apply(annot, 1, function(row) { -->
+<!--     if (all(row == 0) | sum(row >0) == 1) { -->
+<!--         res <- 'other' -->
+<!--     } else { -->
+<!--         tmp <- setNames(row, colnames(annot)) -->
+<!--         res <- names(tmp)[which.max(tmp< 1 & tmp > 0)] -->
+<!--     } -->
+<!--     res         -->
+<!-- }) -->
+
+<!-- annot$gold <- gold -->
+<!-- annot$silver <- silver -->
+
+<!-- annot$window <-  rownames(annot) -->
+
+<!-- shannons <- merge(shannons, annot[,c('gold', 'silver', 'window')], by = 'window') -->
+
+<!-- ``` -->
+
+<!-- ## By patient and main annot -->
+
+<!-- ```{r, fig.width = 10, fig.height = 12} -->
+<!-- ggplot( -->
+<!--   shannons, -->
+<!--   aes(y = shannon, x = location) -->
+<!-- ) + -->
+<!--   geom_boxplot( -->
+<!--     outlier.size = 0.6, -->
+<!--     outlier.alpha = 0.3 -->
+<!--   ) + -->
+<!--   labs(y = "Shannon entropy") + -->
+<!--   geom_jitter( -->
+<!--     position = position_dodge(width = 0.75), -->
+<!--     size = 0.6, alpha = 0.3 -->
+<!--   ) + -->
+<!--     facet_grid(gold~patient) +  -->
+<!--     theme_ng() + -->
+<!--     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) -->
+
+
+<!-- ``` -->
+
+<!-- ## With gold (main) annotation -->
+
+<!-- ```{r, fig.width = 10, fig.height = 8} -->
+<!-- ggplot( -->
+<!--   shannons, -->
+<!--   aes(y = shannon, x = gold, color = location) -->
+<!-- ) + -->
+<!--   geom_boxplot( -->
+<!--     outlier.size = 0.6, -->
+<!--     outlier.alpha = 0.3 -->
+<!--   ) + -->
+<!--   labs(y = "Shannon entropy") + -->
+<!--   geom_jitter( -->
+<!--     position = position_dodge(width = 0.75), -->
+<!--     size = 0.6, alpha = 0.3 -->
+<!--   ) + -->
+<!--     facet_grid(patient~., space = "free") +  -->
+<!--     theme_ng() + -->
+<!--     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) -->
+<!-- ``` -->
+
+<!-- ## Gold vs silver in PTs -->
+
+<!-- ```{r, fig.width = 10, fig.height = 8} -->
+<!-- ggplot( -->
+<!--   subset(shannons, location == 'PT'), -->
+<!--   aes(y = shannon, x = gold, color = silver) -->
+<!-- ) + -->
+<!--   geom_boxplot( -->
+<!--     outlier.size = 0.6, -->
+<!--     outlier.alpha = 0.3 -->
+<!--   ) + -->
+<!--   labs(y = "Shannon entropy") + -->
+<!--   geom_jitter( -->
+<!--     position = position_dodge(width = 0.75), -->
+<!--     size = 0.6, alpha = 0.3 -->
+<!--   ) + -->
+<!--     facet_grid(patient~., space = "free") +  -->
+<!--     theme_ng() + -->
+<!--     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) -->
+<!-- ``` -->
+
+<!-- ## Does Shannon vary with tile annotations anyway? -->
+
+<!-- ```{r} -->
+<!-- ## foo <- pivot_wider(na.omit(shannons), -->
+<!-- ##             names_from = c('gold'), -->
+<!-- ##             values_from = 'shannon') -->
+
+<!-- m1 <- lmer( -->
+<!--   shannon ~ location + gold + silver + (1 | patient), -->
+<!--   data = subset(shannons, location %in% c('NC', 'PT', 'LN')) -->
+<!-- ) -->
+<!-- summary(m1) -->
+<!-- anova(m1, type = 3) -->
+
+<!-- m2 <- lmer( -->
+<!--   shannon ~ location:gold + silver + (1 | patient), -->
+<!--   data =  subset(shannons, location %in% c('NC', 'PT', 'LN')) -->
+<!-- ) -->
+<!-- summary(m2) -->
+<!-- anova(m2, type = 3) -->
+
+<!-- anova(m1, m2) -->
+<!-- ``` -->
+
+
+<!-- ```{r} -->
+<!-- head(shannons) -->
+
+<!-- ggplot(shannons, -->
+<!--        aes( y = shannon, x= silver, color = gold)) + -->
+<!--     facet_grid(patient~location, space = "free") +  -->
+<!--     geom_boxplot(alpha=1) -->
+<!-- ``` -->

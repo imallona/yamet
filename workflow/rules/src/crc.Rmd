@@ -1,49 +1,85 @@
 ---
-title: "CRC"
-author: "Atreya Choudhury, Izaskun Mallona"
+title: "CRC by feature (no windows)"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
+author: 'Izaskun Mallona'
 output:
-  bookdown::html_document2:
+  html_document:
+    toc: true
+    toc_float: true
     code_folding: hide
-    theme: flatly
-    number_sections: no
-    fig_crop: yes
+    code_download: true
+    number_sections: true
+    df_print: default # kable
+    theme: lumen
+
 ---
 
-We require `readr`, `lmerTest` and `ggplot2` for our analysis.
+
 ```{r, setup}
 suppressPackageStartupMessages({
-  library(readr)
+  ## library(readr)
   library(lmerTest)
   library(ggplot2)
-  library(Matrix)
+  library(knitr)
+  library('effects')
   library(ComplexHeatmap)
-  library(BiocParallel)
-  library(limma)
+  library(viridis)
+  ## library(showtext)
 })
+
+
+## options(bitmapType="cairo")
+## showtext_auto()
+
+source("src/ggtheme.R")
+
 ```
 
-Firstly, we read in the yamet output files and create a table storing the stage of cancer, patient and annotation type against the yamet output.
-```{r, import}
-filepaths <- list.files(
-  snakemake@params[["yamet"]],
-  pattern = "\\.out.gz$", full.names = T
-)
-filepaths <- filepaths[!grepl("\\.(det|norm|meth)\\.out.gz$|bookended\\.custom\\.", filepaths)]
+```{r}
+opts_chunk$set(fig.width = 7.5,
+               fig.height = 7.5,
+               cache = FALSE,
+               include = TRUE,
+               fig.path = "crc_plots/",
+               dev = c("png", "svg"),
+               dpi=500,
+               cache.lazy = FALSE,
+               warning = TRUE,
+               message = TRUE)
+```
+
+```{R logging, include = FALSE}
+log <- file(snakemake@log$log, open = "wt")
+sink(log)
+sink(log, type = "message")
+```
+
+# Short (global) reports by annotation  {.tabset .tabset-pills}
+
+## Modelling
+
+Firstly, we read in the yamet output files and create a table storing the biopsy location, patient id and genomic segmentation.
+
+```{r, import_short_reports}
+filepaths <- list.files( snakemake@params[["output_path"]], pattern = "\\.out$", full.names = TRUE)
+
+filepaths <- filepaths[!grepl("\\.det\\.out$", filepaths)]
+filepaths <- filepaths[!grepl("\\.meth\\.out$", filepaths)]
+
+regex <- "(.*)_(.*)_(.*)\\.(.*).out"
 process_file <- function(filepath) {
-  filename <- basename(filepath)
+  filename <- gsub('.hmm.', '_hmm_', basename(filepath), fixed = TRUE) # dirty fix for an upstream problem
 
-  parts <- strsplit(filename, "\\.")[[1]]
-  annotation <- parts[1]
-  patient <- parts[3]
-  stage <- parts[4]
-
-  dt <- read_tsv(filepath, show_col_types = FALSE)
+  annotation <- gsub(regex, "\\1", filename)
+  patient <- gsub(regex, "\\3", filename)
+  location <- gsub(regex, "\\4", filename)
+   
+  dt <- read.table(filepath, sep = "\t", na.strings = "-1", header = TRUE)
   dt <- dt[, c("sampen", "avg_meth")]
 
   dt$annotation <- annotation
   dt$patient <- patient
-  dt$stage <- stage
+  dt$location <- location
 
   return(dt)
 }
@@ -52,38 +88,88 @@ files <- do.call(rbind, lapply(filepaths, process_file))
 
 files$annotation <- as.factor(files$annotation)
 files$patient <- as.factor(files$patient)
-files$stage <- as.factor(files$stage)
-files[files == -1] <- NA
+files$location <- factor(files$location, levels = c('NC', 'PT', 'LN', 'ML', 'MP', 'MO'))
+## print(unique(files$patient))
+## print(unique(files$location))
+
 ```
 
-We account for fixed effects of stage and average methylation and a random effect from the patient.
+Patient as random effect
+
 ```{r, lmer}
 lmer.files <- lmer(
-  sampen ~ stage * avg_meth + (1 | patient),
+  sampen ~ location * avg_meth + (1 | patient),
   data = subset(files, annotation == "pmds")
 )
 summary(lmer.files)
 anova(lmer.files, type = 3)
 ```
-We observe that the effect of the different stages on sample entropy is strongly confounded by the average methylation.
 
-```{r, plot, out.width="100%"}
+## Scatters by location and annotation
+ 
+```{r}
 ggplot(
-  subset(files, patient == "CRC01"),
-  aes(y = sampen, x = avg_meth, color = stage)
+    ## subset(files, patient == "CRC01"),
+    files,
+  aes(y = sampen, x = avg_meth, color = location, shape = patient)
 ) +
-  geom_point(size = 0.9, alpha = 0.7) +
-  scale_color_brewer(palette = "Dark2") +
+    geom_point(size = 0.9, alpha = 0.2) +
+    scale_color_brewer(palette = "Set1") +
+    scale_shape_manual(values=1:nlevels(files$patient)) +
   facet_wrap(~annotation) +
   labs(
     x = "average methylation",
     y = "sample entropy"
   ) +
-  guides(color = guide_legend(override.aes = list(size = 2)))
+    guides(color = guide_legend(override.aes = list(size = 2))) +
+    theme_ng()
+```
 
+## Scatters by location and annotation and patient
+ 
+```{r, fig.height = 15}
+ggplot(
+    ## subset(files, patient == "CRC01"),
+    files,
+    aes(y = sampen, x = avg_meth, color = location)
+) +
+    geom_point(size = 0.9, alpha = 0.2) +
+    scale_color_brewer(palette = "Set1") +
+  facet_grid(annotation~patient) +
+  labs(
+    x = "average methylation",
+    y = "sample entropy"
+  ) +
+    guides(color = guide_legend(override.aes = list(size = 2))) +
+    theme_ng() +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+```
+
+## Scatters by location and annotation and patient (shorter)
+ 
+```{r, fig.height = 3.2}
+ggplot(
+    subset(files, annotation %in% c('laminb1', 'H3K27me3', 'H3K9me3')),
+    aes(y = sampen, x = avg_meth, color = location)
+) +
+    geom_point(size = 0.9, alpha = 0.2) +
+    scale_color_brewer(palette = "Set1") +
+  facet_grid(annotation~patient) +
+  labs(
+    x = "average methylation",
+    y = "sample entropy"
+  ) +
+    guides(color = guide_legend(override.aes = list(size = 2))) +
+    theme_ng() +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+```
+
+## sampEn boxes by location and annotation - crc01
+
+```{r, fig.height = 6, fig.width = 10}
 ggplot(
   subset(files, patient == "CRC01"),
-  aes(y = sampen, x = annotation, color = stage)
+  aes(y = sampen, x = annotation, color = location)
 ) +
   geom_boxplot(
     outlier.size = 0.6,
@@ -95,11 +181,16 @@ ggplot(
     size = 0.6, alpha = 0.3
   ) +
   scale_color_brewer(palette = "Dark2") +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+    theme_ng() +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+```
 
+## meth boxes by location and annotation - crc01
+
+```{r, fig.height = 6, fig.width = 10}
 ggplot(
   subset(files, patient == "CRC01"),
-  aes(y = avg_meth, x = annotation, color = stage)
+  aes(y = avg_meth, x = annotation, color = location)
 ) +
   geom_boxplot(
     outlier.size = 0.6,
@@ -110,304 +201,149 @@ ggplot(
     position = position_dodge(width = 0.75),
     size = 0.6, alpha = 0.3
   ) +
-  scale_color_brewer(palette = "Dark2") +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+    scale_color_brewer(palette = "Dark2") +
+    theme_ng() +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
 ```
 
-## Heatmap
+# Full (local) reports for **downsampled** PMDs and CRC01
 
-We start by looking at differentially entropic regions and how the methylation levels look in these regions.
-```{r}
-filepaths <- list.files(
-  snakemake@params[["yamet"]],
-  pattern = "bookended\\.custom\\..*\\.det\\.out\\.gz$", full.names = T
-)
+Caution downsampled to some rows only.
 
-process_reports <- function(filepath) {
-  out_path <- gsub("\\.det", "", filepath)
-  n_out_path <- gsub("\\.det\\.", ".norm.", filepath)
-  m_out_path <- gsub("\\.det\\.", ".meth.", filepath)
+```{r, import_log_reports}
 
-  out <- read_tsv(out_path, show_col_types = FALSE, na = "-1")
-  se <- read_tsv(filepath, show_col_types = FALSE, na = "-1")
-  n_se <- read_tsv(n_out_path, show_col_types = FALSE, na = "-1")
-  ms <- read_tsv(m_out_path, show_col_types = FALSE, na = "-1")
+DOWNSAMPLING <- 5e4
 
-  rwnms <- paste0(se$chr, ":", se$start, "-", se$end)
+process_det_report <- function(filepath) {
+  filename <- basename(filepath)
 
-  shannon <- se[, c("shannon", "avg_meth")]
-
-  se <- as.matrix(se[, grep("singleC", colnames(se))])
-  n_se <- as.matrix(n_se[, grep("singleC", colnames(n_se))])
-  ms <- as.matrix(ms[, grep("singleC", colnames(ms))])
-
-  rownames(se) <- rwnms
-  rownames(n_se) <- rwnms
-  rownames(ms) <- rwnms
-
-  return(
-    list(
-      shannon = shannon,
-      sampen = se, n_sampen = n_se, meth = ms, cell_meth = out$avg_meth
-    )
-  )
+  dt <- read.table(filepath, sep = "\t", na.strings = "-1", header = TRUE, nrows = DOWNSAMPLING)
+  colnames(dt) <- basename(colnames(dt))
+  return(dt)
 }
 
-param <- MulticoreParam(workers = snakemake@threads)
-all_data <- bplapply(filepaths, process_reports, BPPARAM = param)
-sampens <- do.call(cbind, lapply(all_data, \(x) x$sampen))
-n_sampens <- do.call(cbind, lapply(all_data, \(x) x$n_sampen))
-meths <- do.call(cbind, lapply(all_data, \(x) x$meth))
 
-meta <- data.frame(
-  colname = colnames(sampens),
-  patient = sapply(strsplit(colnames(sampens), "_"), \(x) x[3]),
-  subloc = sapply(strsplit(colnames(sampens), "_"), \(x) x[4]),
-  cell_meth = unlist(lapply(all_data, \(x) x$cell_meth), recursive = FALSE)
-)
-meta$loc <- substr(meta$subloc, 1, 2)
-meta$loc <- relevel(factor(meta$loc), ref = "NC")
-meta <- meta[order(as.integer(meta$loc), meta$subloc, meta$patient), ]
-sampens <- sampens[, meta$colname]
-n_sampens <- n_sampens[, meta$colname]
-meths <- meths[, meta$colname]
+annotation <- 'pmds'
+patient <- 'CRC01'
 
-groups <- unique(meta[c("subloc", "patient")])
-groups <- groups[
-  order(as.integer(substr(groups$subloc, 1, 2)), groups$subloc, groups$patient),
-]
-sub_sampens <- do.call(cbind, lapply(seq_len(nrow(groups)), \(i) {
-  cols <- meta$colname[
-    meta$patient == groups$patient[i] & meta$subloc == groups$subloc[i]
-  ]
-  rowMeans(sampens[, cols, drop = FALSE], na.rm = TRUE)
-}))
-colnames(sub_sampens) <- paste(groups$subloc, groups$patient, sep = "_")
-sub_n_sampens <- do.call(cbind, lapply(seq_len(nrow(groups)), \(i) {
-  cols <- meta$colname[
-    meta$patient == groups$patient[i] & meta$subloc == groups$subloc[i]
-  ]
-  rowMeans(n_sampens[, cols, drop = FALSE], na.rm = TRUE)
-}))
-colnames(sub_n_sampens) <- paste(groups$subloc, groups$patient, sep = "_")
-sub_meths <- do.call(cbind, lapply(seq_len(nrow(groups)), \(i) {
-  cols <- meta$colname[
-    meta$patient == groups$patient[i] & meta$subloc == groups$subloc[i]
-  ]
-  rowMeans(meths[, cols, drop = FALSE], na.rm = TRUE)
-}))
-colnames(sub_meths) <- paste(groups$subloc, groups$patient, sep = "_")
-```
+local <- list()
+for (location in c('NC', 'PT', 'LN', 'ML', 'MP')) {
+    filepaths <- list.files( snakemake@params[["output_path"]], pattern = "\\.det\\.out$", full.names = TRUE)
+    filepaths <- grep(location, filepaths, value = TRUE)
+    filepaths <- grep(annotation, filepaths, value = TRUE)
+    filepaths <- grep(patient, filepaths, value = TRUE)
+    
+    d <- lapply(filepaths, function(x) {
+        tmp <- process_det_report(x)
+        ## tmp$avg_sampen <- apply(tmp[,grep(location, colnames(tmp))], 1, function(y) mean(y, na.rm = TRUE))
+        ## tmp$median_sampen <- apply(tmp[,grep(location, colnames(tmp))], 1, function(y) median(y, na.rm = TRUE))
+    })
 
-```{r}
-design <- model.matrix(~ patient + loc + cell_meth, meta)
-fit <- lmFit(sampens, design)
-fit <- eBayes(fit)
-regions <- rownames(topTable(fit, coef = "locPT", number = 500))
-topTable(fit, coef = "locPT", number = 10)
-
-dim(sub_sampens)
-dim(sub_meths)
-sub_sampens <- na.omit(sub_sampens[regions, ])
-sub_meths <- na.omit(sub_meths[regions, ])
-regions <- intersect(rownames(sub_sampens), rownames(sub_meths))
-sub_sampens <- sub_sampens[regions, ]
-sub_meths <- sub_meths[regions, ]
-dim(sub_sampens)
-dim(sub_meths)
-
-annot <- read_tsv(snakemake@input[["annotation"]], show_col_types = FALSE)
-rownames(annot) <- rownames(sampens)
-get_row_annotations <- function(regions) {
-  rowAnnotation(tile_annotation = as.matrix(data.frame(
-    pmd = annot[regions, "pmds_pmd"],
-    hmd = annot[regions, "hmds_pmd"],
-    H3K27me3 = annot[regions, "H3K27me3_chip"],
-    H3K9me3 = annot[regions, "H3K9me3_chip"],
-    H3K4me3 = annot[regions, "H3K4me3_chip"],
-    laminb1 = annot[regions, "laminb1_lad"],
-    X8_Quiescent = annot[regions, "8_Quiescent_hmm"]
-  )))
+    d2 <- lapply(d, function(x) {
+        avg_sampen <- apply(x[,grep(location, colnames(x))], 1, function(y) mean(y, na.rm = TRUE))
+        median_sampen <- apply(x[,grep(location, colnames(x))], 1, function(y) median(y, na.rm = TRUE))
+        q25_sampen <- apply(x[,grep(location, colnames(x))], 1, function(y) quantile(y, 0.25, na.rm = TRUE))
+        q75_sampen <- apply(x[,grep(location, colnames(x))], 1, function(y) quantile(y, 0.75, na.rm = TRUE))
+        return(cbind(x, data.frame(avg_sampen = avg_sampen, median_sampen = median_sampen,
+                                   q25_sampen = q25_sampen, q75_sampen = q75_sampen,
+                                   location = location,
+                                   patient = patient,
+                                   annotation = annotation)))
+    })
+    
+    local[[location]] <- d2[[1]]
+    rm(d, d2)
 }
-row_ha <- get_row_annotations(regions)
-column_ha <- HeatmapAnnotation(
-  loc = substr(groups$subloc, 1, 2),
-  subloc = groups$subloc,
-  patient = groups$patient
-)
 
-ht <- Heatmap(sub_sampens,
-  name = "sampens",
-  top_annotation = column_ha,
-  right_annotation = row_ha,
-  show_row_names = FALSE,
-  show_column_names = FALSE,
-  cluster_columns = FALSE
-)
-ht_drawn <- draw(ht)
-row_ordered <- row_order(ht_drawn)
 
-row_ha <- row_ha[row_ordered, ]
 
-Heatmap(sub_sampens[row_ordered, ],
-  name = "sampens",
-  top_annotation = column_ha,
-  right_annotation = row_ha,
-  show_row_names = FALSE,
-  show_column_names = FALSE,
-  cluster_columns = FALSE,
-  cluster_rows = FALSE
-) +
-  Heatmap(sub_meths[row_ordered, ],
-    name = "meths",
-    show_row_names = FALSE,
-    show_column_names = FALSE,
-    cluster_columns = FALSE,
-    cluster_rows = FALSE
-  )
 ```
 
-Let us also look at how the normalized sample entropies look like when tested differentially.
+## Scatters {.tabset .tabset-pills}
 
-```{r}
-sub_meths <- do.call(cbind, lapply(seq_len(nrow(groups)), \(i) {
-  cols <- meta$colname[meta$patient == groups$patient[i] & meta$subloc == groups$subloc[i]]
-  rowMeans(meths[, cols, drop = FALSE], na.rm = TRUE)
-}))
-colnames(sub_meths) <- paste(groups$subloc, groups$patient, sep = "_")
+### By meth NC
 
-design <- model.matrix(~ patient + loc, meta)
-fit <- lmFit(n_sampens, design)
-fit <- eBayes(fit)
-regions <- rownames(topTable(fit, coef = "locPT", number = 500))
-topTable(fit, coef = "locPT", number = 10)
 
-dim(sub_n_sampens)
-dim(sub_meths)
-sub_n_sampens <- na.omit(sub_n_sampens[regions, ])
-sub_meths <- na.omit(sub_meths[regions, ])
-regions <- intersect(rownames(sub_n_sampens), rownames(sub_meths))
-sub_n_sampens <- sub_n_sampens[regions, ]
-sub_meths <- sub_meths[regions, ]
-dim(sub_n_sampens)
-dim(sub_meths)
+```{r, fig.width = 10, fig.height = 10}
 
-annot <- read_tsv(snakemake@input[["annotation"]], show_col_types = FALSE)
-rownames(annot) <- rownames(n_sampens)
-get_row_annotations <- function(regions) {
-  rowAnnotation(tile_annotation = as.matrix(data.frame(
-    pmd = annot[regions, "pmds_pmd"],
-    hmd = annot[regions, "hmds_pmd"],
-    H3K27me3 = annot[regions, "H3K27me3_chip"],
-    H3K9me3 = annot[regions, "H3K9me3_chip"],
-    H3K4me3 = annot[regions, "H3K4me3_chip"],
-    laminb1 = annot[regions, "laminb1_lad"],
-    X8_Quiescent = annot[regions, "8_Quiescent_hmm"]
-  )))
+saveRDS(local, file = 'local_debug.rds')
+
+pal <- viridis(10, alpha = 0.8)
+
+beta2m <- function (betas, epsilon = 1e-05) 
+{
+  if (!is.numeric(betas)) {
+    stop("Non-numeric betas")
+  }
+  if (!(is.numeric(epsilon)  && (!is.na(epsilon)))) {
+    stop("Epison not valid")
+  }
+  if (epsilon < 0 || epsilon >= 0.5) {
+    stop("Not 0 < epsilon < 0.5")
+  }
+  betas[betas < epsilon] <- epsilon
+  betas[betas > (1 - epsilon)] <- 1 - epsilon
+  return(log2(betas/(1 - betas)))
 }
-row_ha <- get_row_annotations(regions)
-column_ha <- HeatmapAnnotation(
-  loc = substr(groups$subloc, 1, 2),
-  subloc = groups$subloc,
-  patient = groups$patient
-)
 
-ht <- Heatmap(pmin(sub_n_sampens, 1.5),
-  name = "norm_sampens",
-  top_annotation = column_ha,
-  right_annotation = row_ha,
-  show_row_names = FALSE,
-  show_column_names = FALSE,
-  cluster_columns = FALSE
-)
-ht_drawn <- draw(ht)
-row_ordered <- row_order(ht_drawn)
+pmds <- data.frame(shannon_NC = local$NC$shannon,
+                   ## meth_NC_m = beta2m(local$NC$avg_meth),
+                   meth_NC = local$NC$avg_meth,                   
+                   med_sampen_NC = local$NC$median_sampen,
+                   shannon_PT = local$PT$shannon,
+                   ## meth_PT_m = beta2m(local$PT$avg_meth),
+                   meth_PT = local$PT$avg_meth,
+                   med_sampen_PT = local$PT$median_sampen)
+pmds$meth_change <- pmds$meth_PT - pmds$meth_NC
+pmds <- na.omit(pmds)
 
-row_ha <- row_ha[row_ordered, ]
+pmds$by_meth_nc <- cut(pmds$meth_NC, breaks = 10)
+pmds$by_meth_pt <- cut(pmds$meth_PT, breaks = 10)
 
-Heatmap(sub_n_sampens[row_ordered, ],
-  name = "norm_sampens",
-  top_annotation = column_ha,
-  right_annotation = row_ha,
-  show_row_names = FALSE,
-  show_column_names = FALSE,
-  cluster_columns = FALSE,
-  cluster_rows = FALSE
-) +
-  Heatmap(sub_meths[row_ordered, ],
-    name = "meths",
-    show_row_names = FALSE,
-    show_column_names = FALSE,
-    cluster_columns = FALSE,
-    cluster_rows = FALSE
-  )
+plot(pmds[,grep('by', colnames(pmds), invert = TRUE)],
+     pch = ".", col = pal[as.numeric(pmds$by_meth_nc)], main = 'by_meth_nc')
 ```
 
-At this point, one might be interested to look at differentialy entropic regions which are not differentially methylated and vice-versa.
+### By median sampen PT
+
+
+```{r, fig.width = 10, fig.height = 10}
+
+pmds$by_med_sampen_pt <- cut(pmds$med_sampen_PT, breaks = 10)
+plot(pmds[,grep('by', colnames(pmds), invert = TRUE)],
+     pch = ".", col = pal[as.numeric(pmds$by_med_sampen_pt)], main = "by_med_sampen_PT")
+
+```
+
+### By median sampen NC
+
+```{r, fig.width = 10, fig.height = 10, results = 'asis'}
+pmds$by_med_sampen_nc <- cut(pmds$med_sampen_NC, breaks = 10)
+plot(pmds[,grep('by', colnames(pmds), invert = TRUE)],
+     pch = ".", col = pal[as.numeric(pmds$by_med_sampen_nc)], main = "by_med_sampen_nc")
+
+```
+
+### By methylation change
+
+```{r, fig.width = 10, fig.height = 10, results = 'asis'}
+pmds$by_meth_change <- cut(pmds$meth_change, breaks = 10)
+plot(pmds[,grep('by', colnames(pmds), invert = TRUE)],
+     pch = ".", col = pal[as.numeric(pmds$by_meth_change)], main = "by_meth_change")
+```
+
+Add extra discretization.
+
 ```{r}
-sub_sampens <- do.call(cbind, lapply(seq_len(nrow(groups)), \(i) {
-  cols <- meta$colname[meta$patient == groups$patient[i] & meta$subloc == groups$subloc[i]]
-  rowMeans(sampens[, cols, drop = FALSE], na.rm = TRUE)
-}))
-colnames(sub_sampens) <- paste(groups$subloc, groups$patient, sep = "_")
-sub_meths <- do.call(cbind, lapply(seq_len(nrow(groups)), \(i) {
-  cols <- meta$colname[meta$patient == groups$patient[i] & meta$subloc == groups$subloc[i]]
-  rowMeans(meths[, cols, drop = FALSE], na.rm = TRUE)
-}))
-colnames(sub_meths) <- paste(groups$subloc, groups$patient, sep = "_")
+pmds$by_sampen_pt <- cut(pmds$med_sampen_PT, breaks = 10)
+pmds$by_sampen_nc <- cut(pmds$med_sampen_NC, breaks = 10)
+pmds$by_shannon_pt <- cut(pmds$shannon_PT, breaks = 10)
+pmds$by_shannon_nc <- cut(pmds$shannon_NC, breaks = 10)
+```
 
-design <- model.matrix(~ patient + loc, meta)
-fit <- lmFit(sampens, design)
-fit <- eBayes(fit)
-samp_regions <- rownames(topTable(fit, coef = "locPT", number = 3000))
-topTable(fit, coef = "locPT")
 
-fit <- lmFit(meths, design)
-fit <- eBayes(fit)
-meth_regions <- rownames(topTable(fit, coef = "locPT", number = 3000))
-topTable(fit, coef = "locPT")
+# Session
 
-dim(sub_sampens)
-dim(sub_meths)
-sub_sampens <- na.omit(sub_sampens[samp_regions, ])
-sub_meths_sig <- na.omit(sub_meths[meth_regions, ])
-ver_cmr_regions <- setdiff(rownames(sub_sampens), rownames(sub_meths_sig))
-sub_sampens <- sub_sampens[ver_cmr_regions, ]
-sub_meths <- na.omit(sub_meths[ver_cmr_regions, ])
-ver_cmr_regions <- rownames(sub_meths)
-sub_sampens <- sub_sampens[ver_cmr_regions, ]
-dim(sub_sampens)
-dim(sub_meths)
-
-row_ha <- get_row_annotations(ver_cmr_regions)
-
-ht <- Heatmap(sub_sampens,
-  name = "sampens",
-  top_annotation = column_ha,
-  right_annotation = row_ha,
-  show_row_names = FALSE,
-  show_column_names = FALSE,
-  cluster_columns = FALSE
-)
-ht_drawn <- draw(ht)
-row_ordered <- row_order(ht_drawn)
-
-row_ha <- row_ha[row_ordered, ]
-
-Heatmap(sub_sampens[row_ordered, ],
-  name = "sampens",
-  top_annotation = column_ha,
-  right_annotation = row_ha,
-  show_row_names = FALSE,
-  show_column_names = FALSE,
-  cluster_columns = FALSE,
-  cluster_rows = FALSE
-) +
-  Heatmap(sub_meths[row_ordered, ],
-    name = "meths",
-    show_row_names = FALSE,
-    show_column_names = FALSE,
-    cluster_columns = FALSE,
-    cluster_rows = FALSE
-  )
+```{r, cache = FALSE}
+sessionInfo()
 ```
