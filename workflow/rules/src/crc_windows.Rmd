@@ -36,11 +36,16 @@ suppressPackageStartupMessages({
 ```
 
 ```{r}
+
+source("src/ggtheme.R")
+
+
 opts_chunk$set(fig.width = 7.5,
                fig.height = 7.5,
                cache = FALSE,
                include = TRUE,
-               dev = "png",
+               fig.path = "crc_windows_plots/",
+               dev = c("png", "svg"),
                cache.lazy = FALSE,
                warning = TRUE,
                message = TRUE)
@@ -63,6 +68,9 @@ sink(log, type = "message")
 ```
 
 # Tile annotations  {.tabset .tabset-pills}
+
+To double check annotations are ok.
+
 
 Caution downsampling
 
@@ -92,7 +100,10 @@ rownames(annot) <- paste0('w', rownames(annot))
 plot(hclust(dist(t(mannot))))
 ```
 
-# Local reports - Shannon {.tabset .tabset-pills}
+
+# QC  {.tabset .tabset-pills}
+
+## Local reports - Shannon {.tabset .tabset-pills}
 
 Caution downsampled
 
@@ -256,8 +267,6 @@ rownames(shannons_wide) <-shannons_wide$window
 shannons_wide <- shannons_wide[,grep('window', colnames(shannons_wide), invert = TRUE)]
 
 ## clust samples by shannon; that's to order the cols for the lefthand annot heatmap to the main heatmap
-head(rownames(shannons_wide))
-head(rownames(med_sampens))
      
 tmp <- t(as.matrix(shannons_wide)[rownames(med_sampens),])
 tmp.hc <- hclust(dist(tmp))
@@ -429,6 +438,10 @@ meths_fd <- do.call(cbind, lapply(meths, function(x) x$meth))
 design <- model.matrix(~ meta$patient + meta$location) # same design as above
 fit_meth <- lmFit(meths_fd, design)
 fit_meth <- eBayes(fit_meth)
+```
+
+
+```{r, fig.width = 3, fig.height = 3}
 
 hist(fit_meth$p.value)
 
@@ -461,217 +474,150 @@ Heatmap(med_sampens, name = "med sampens",
 
 ## sampen with methylation correction
 
-This correction doesn't make much sense to be honest
+Doing 
 
-```{r}
-
-colnames(meths_fd) <- paste0('meth', colnames(meths_fd))
-colnames(sampen_fd) <- paste0('sampen', colnames(sampen_fd))
-
-fd <- cbind(meths_fd, sampen_fd)
-rm(meths_fd, sampen_fd)
-
-meta <- data.frame(
-  colname = colnames(fd),
-  patient = sapply(strsplit(colnames(fd), "_"), function(x) x[3]),
-  location = substr(sapply(strsplit(colnames(fd), "_"), function(x) x[4]), 1,2),
-  score = ifelse(grepl('^meth', colnames(fd)), yes = 'meth', no = 'sampen'))
-
-meta$location <- relevel(factor(meta$location), ref = "NC")
-meta$score <- relevel(factor(meta$score), ref = "sampen")
-
-
-design <- model.matrix(~ patient + location * score, data = meta)
-(colnames(design) <- gsub(':', '_', colnames(design)))
-
-fit_both <- lmFit(fd, design)
-
-con <- makeContrasts(locationPT - (scoremeth + locationPT_scoremeth)/2,
-                     levels=design)
-
-
-fit_both <- contrasts.fit(fit_both, con)
-fit_both <- eBayes(fit_both)
-
-tt_both <- topTable(fit_both, n = Inf, sort.by="B")
-
-
-both <- setNames(tt_both$adj.P.Val < 0.01, rownames(tt_both))
-#both[both] <- 'corrected_signif'
-meth <- setNames(tt_meth$adj.P.Val < 0.01, rownames(tt_meth))
-#meth[meth] <- 'meth_signif'
-sampen <- setNames(tt_sampen$adj.P.Val < 0.01, rownames(tt_sampen))
-#sampen[sampen] <- 'sampen_signif'
-
-meth <- meth[names(both)]
-sampen <- sampen[names(both)]
-
-status <- data.frame(both = both,
-                     meth = meth,
-                     sampen = sampen)
-
-sum(status$both & status$meth & status$sampen, na.rm = TRUE)
-sum(status$both & status$meth,na.rm = TRUE)
-sum(status$both & status$sampen, na.rm = TRUE)
-
-```
-
-
-```{r with_limma_2, fig.width = 18, fig.height = 10}
-
-tt_both <- tt_both[rownames(med_sampens),]
-signif_both <- ifelse(tt_both$adj.P.Val < 0.05, yes = 1, no = 0)
-
-
-row_tt <- rowAnnotation(limma = as.matrix(data.frame(PT_de_meth = signif_meth,
-                                                     PT_de_sampen = signif_sampen,
-                                                     PT_de_sampen_corrected = signif_both)))
-
-Heatmap(med_sampens, name = "med sampens",
-        top_annotation = column_ha,
-        right_annotation = row_ha,
-        left_annotation = row_tt,
-        show_row_names = FALSE,
-        column_labels = gsub('.det.out', '', basename(colnames(med_sampens))),
-        width = ncol(med_sampens)*unit(9, "mm"))
-```
-
-
-
-# GO
+## GO
 
 add 'genes' as a layer to the window annotation and store the id for gene ontology/geneset enrichment (on limma diff entropic regions)
 
-# Discrete window annotations {.tabset .tabset-pills}
 
-Let's stratify features by their annots
-
-and these are shannons within patient+location anyway
-
-```{r, fig.width = 10, fig.height = 10}
-
-# the dominant annotation
-# gold <- apply(annot, 1, function(row) colnames(annot)[which.max(row != 0)])
-gold <- apply(annot, 1, function(row) {
-    if (all(row == 0)) {
-        res <- 'other'
-    } else { 
-        res <- colnames(annot)[which.max(row)]
-    }
-    res        
-})
-
-# the subdominant annotation (the one not being 1 but still max, to avoid long
-#  features to prevail over shorter ones)
-#  it will pick the first occurrence
-# silver <- apply(annot, 1, function(row) colnames(annot)[which.max(row <1 & row != 0)])
-silver <- apply(annot, 1, function(row) {
-    if (all(row == 0) | sum(row >0) == 1) {
-        res <- 'other'
-    } else {
-        tmp <- setNames(row, colnames(annot))
-        res <- names(tmp)[which.max(tmp< 1 & tmp > 0)]
-    }
-    res        
-})
-
-annot$gold <- gold
-annot$silver <- silver
-
-annot$window <-  rownames(annot)
-
-shannons <- merge(shannons, annot[,c('gold', 'silver', 'window')], by = 'window')
-
-```
-
-## By patient and main annot
-
-```{r, fig.width = 10, fig.height = 12}
-ggplot(
-  shannons,
-  aes(y = shannon, x = location)
-) +
-  geom_boxplot(
-    outlier.size = 0.6,
-    outlier.alpha = 0.3
-  ) +
-  labs(y = "Shannon entropy") +
-  geom_jitter(
-    position = position_dodge(width = 0.75),
-    size = 0.6, alpha = 0.3
-  ) +
-    facet_grid(gold~patient) + 
-    theme_bw() +
-    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
-
-
-```
-
-## With gold (main) annotation
-
-```{r, fig.width = 10, fig.height = 8}
-ggplot(
-  shannons,
-  aes(y = shannon, x = gold, color = location)
-) +
-  geom_boxplot(
-    outlier.size = 0.6,
-    outlier.alpha = 0.3
-  ) +
-  labs(y = "Shannon entropy") +
-  geom_jitter(
-    position = position_dodge(width = 0.75),
-    size = 0.6, alpha = 0.3
-  ) +
-    facet_grid(patient~., space = "free") + 
-    theme_bw() +
-    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
-```
-
-## Gold vs silver in PTs
-
-```{r, fig.width = 10, fig.height = 8}
-ggplot(
-  subset(shannons, location == 'PT'),
-  aes(y = shannon, x = gold, color = silver)
-) +
-  geom_boxplot(
-    outlier.size = 0.6,
-    outlier.alpha = 0.3
-  ) +
-  labs(y = "Shannon entropy") +
-  geom_jitter(
-    position = position_dodge(width = 0.75),
-    size = 0.6, alpha = 0.3
-  ) +
-    facet_grid(patient~., space = "free") + 
-    theme_bw() +
-    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
-```
-
-## Does Shannon vary with tile annotations anyway?
 
 ```{r}
-## foo <- pivot_wider(na.omit(shannons),
-##             names_from = c('gold'),
-##             values_from = 'shannon')
 
-m1 <- lmer(
-  shannon ~ location + gold + silver + (1 | patient),
-  data = subset(shannons, location %in% c('NC', 'PT', 'LN'))
-)
-summary(m1)
-anova(m1, type = 3)
-
-m2 <- lmer(
-  shannon ~ location:gold + silver + (1 | patient),
-  data =  subset(shannons, location %in% c('NC', 'PT', 'LN'))
-)
-summary(m2)
-anova(m2, type = 3)
-
-anova(m1, m2)
+sessionInfo()
+knitr::knit_exit()
 ```
+
+<!-- # Discrete window annotations {.tabset .tabset-pills} -->
+
+<!-- Let's stratify features by their annots -->
+
+<!-- and these are shannons within patient+location anyway -->
+
+<!-- ```{r, fig.width = 10, fig.height = 10} -->
+
+<!-- # the dominant annotation -->
+<!-- # gold <- apply(annot, 1, function(row) colnames(annot)[which.max(row != 0)]) -->
+<!-- gold <- apply(annot, 1, function(row) { -->
+<!--     if (all(row == 0)) { -->
+<!--         res <- 'other' -->
+<!--     } else {  -->
+<!--         res <- colnames(annot)[which.max(row)] -->
+<!--     } -->
+<!--     res         -->
+<!-- }) -->
+
+<!-- # the subdominant annotation (the one not being 1 but still max, to avoid long -->
+<!-- #  features to prevail over shorter ones) -->
+<!-- #  it will pick the first occurrence -->
+<!-- # silver <- apply(annot, 1, function(row) colnames(annot)[which.max(row <1 & row != 0)]) -->
+<!-- silver <- apply(annot, 1, function(row) { -->
+<!--     if (all(row == 0) | sum(row >0) == 1) { -->
+<!--         res <- 'other' -->
+<!--     } else { -->
+<!--         tmp <- setNames(row, colnames(annot)) -->
+<!--         res <- names(tmp)[which.max(tmp< 1 & tmp > 0)] -->
+<!--     } -->
+<!--     res         -->
+<!-- }) -->
+
+<!-- annot$gold <- gold -->
+<!-- annot$silver <- silver -->
+
+<!-- annot$window <-  rownames(annot) -->
+
+<!-- shannons <- merge(shannons, annot[,c('gold', 'silver', 'window')], by = 'window') -->
+
+<!-- ``` -->
+
+<!-- ## By patient and main annot -->
+
+<!-- ```{r, fig.width = 10, fig.height = 12} -->
+<!-- ggplot( -->
+<!--   shannons, -->
+<!--   aes(y = shannon, x = location) -->
+<!-- ) + -->
+<!--   geom_boxplot( -->
+<!--     outlier.size = 0.6, -->
+<!--     outlier.alpha = 0.3 -->
+<!--   ) + -->
+<!--   labs(y = "Shannon entropy") + -->
+<!--   geom_jitter( -->
+<!--     position = position_dodge(width = 0.75), -->
+<!--     size = 0.6, alpha = 0.3 -->
+<!--   ) + -->
+<!--     facet_grid(gold~patient) +  -->
+<!--     theme_ng() + -->
+<!--     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) -->
+
+
+<!-- ``` -->
+
+<!-- ## With gold (main) annotation -->
+
+<!-- ```{r, fig.width = 10, fig.height = 8} -->
+<!-- ggplot( -->
+<!--   shannons, -->
+<!--   aes(y = shannon, x = gold, color = location) -->
+<!-- ) + -->
+<!--   geom_boxplot( -->
+<!--     outlier.size = 0.6, -->
+<!--     outlier.alpha = 0.3 -->
+<!--   ) + -->
+<!--   labs(y = "Shannon entropy") + -->
+<!--   geom_jitter( -->
+<!--     position = position_dodge(width = 0.75), -->
+<!--     size = 0.6, alpha = 0.3 -->
+<!--   ) + -->
+<!--     facet_grid(patient~., space = "free") +  -->
+<!--     theme_ng() + -->
+<!--     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) -->
+<!-- ``` -->
+
+<!-- ## Gold vs silver in PTs -->
+
+<!-- ```{r, fig.width = 10, fig.height = 8} -->
+<!-- ggplot( -->
+<!--   subset(shannons, location == 'PT'), -->
+<!--   aes(y = shannon, x = gold, color = silver) -->
+<!-- ) + -->
+<!--   geom_boxplot( -->
+<!--     outlier.size = 0.6, -->
+<!--     outlier.alpha = 0.3 -->
+<!--   ) + -->
+<!--   labs(y = "Shannon entropy") + -->
+<!--   geom_jitter( -->
+<!--     position = position_dodge(width = 0.75), -->
+<!--     size = 0.6, alpha = 0.3 -->
+<!--   ) + -->
+<!--     facet_grid(patient~., space = "free") +  -->
+<!--     theme_ng() + -->
+<!--     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) -->
+<!-- ``` -->
+
+<!-- ## Does Shannon vary with tile annotations anyway? -->
+
+<!-- ```{r} -->
+<!-- ## foo <- pivot_wider(na.omit(shannons), -->
+<!-- ##             names_from = c('gold'), -->
+<!-- ##             values_from = 'shannon') -->
+
+<!-- m1 <- lmer( -->
+<!--   shannon ~ location + gold + silver + (1 | patient), -->
+<!--   data = subset(shannons, location %in% c('NC', 'PT', 'LN')) -->
+<!-- ) -->
+<!-- summary(m1) -->
+<!-- anova(m1, type = 3) -->
+
+<!-- m2 <- lmer( -->
+<!--   shannon ~ location:gold + silver + (1 | patient), -->
+<!--   data =  subset(shannons, location %in% c('NC', 'PT', 'LN')) -->
+<!-- ) -->
+<!-- summary(m2) -->
+<!-- anova(m2, type = 3) -->
+
+<!-- anova(m1, m2) -->
+<!-- ``` -->
 
 
 <!-- ```{r} -->
