@@ -145,8 +145,7 @@ rule install_yamet:
           bash ../method/build.sh
         """
 
-
-def write_sim_interval_bed(file_path, chrom="chrSim", start=1, end=100000):
+def write_sim_interval_bed(parameters_path, file_path, chrom="chrSim", start=1):
     """
     Writes a tab-separated file with a single line: chrom<tab>start<tab>end.
 
@@ -159,21 +158,26 @@ def write_sim_interval_bed(file_path, chrom="chrSim", start=1, end=100000):
     start : int, optional
         Start coordinate (default 1).
     end : int, optional
-        End coordinate (default 100000).
+        End coordinate
     """
+    
+    df = pd.read_table(parameters_path, delimiter='\t', header=0)
+    end = df["n_cpgs"].max()
+    
     with open(file_path, "w", newline="") as fh:
         writer = csv.writer(fh, delimiter="\t")
         writer.writerow([chrom, str(start), str(end)])
 
 rule write_reference_file_for_emanuel:
     input:
+        parameters_file="input/parameters.tsv",
         sim_data=op.join("output", "sim_data"),
         sim_data_file="output/01_sim_data.html"
     output:
         bed='emanuel_intervals.bed'
     threads: 1
     run:
-        write_sim_interval_bed(file_path = output.bed)
+        write_sim_interval_bed(parameters_path=input.parameters_file, file_path = output.bed)
         
 rule run_yamet:
     conda:
