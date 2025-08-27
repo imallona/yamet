@@ -5,5 +5,3 @@ dependencies:
   - cmake
   - libboost-devel
   - cxx-compiler
-  - libstdcxx-ng>=12.2       # any 12.x or above has GLIBCXX_3.4.30+
-  - libgcc-ng    

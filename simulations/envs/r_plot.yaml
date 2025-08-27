@@ -11,4 +11,4 @@ dependencies:
   - r-infotheo
   - r-rmarkdown
   - r-bookdown
-  - conda-forge::r-svglite
+  - r-svglite
