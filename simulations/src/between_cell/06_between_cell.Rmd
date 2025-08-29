@@ -44,17 +44,16 @@ suppressPackageStartupMessages({
 })
 
 knitr::opts_chunk$set(
-    echo = FALSE,
-    message = FALSE,
-    warning = FALSE,
-    fig.path = "../output/06_plots/",
-    dev = c("png", "svg"),
-    dpi=500
+  echo = FALSE,
+  message = FALSE, warning = FALSE,
+  fig.path = snakemake@params[["plots_dir"]],
+  dev = c("png", "svg"),
+  dpi = 500
 )
 
 source("src/mi_table.R")
 source("src/make_grid_plots.R")
-source('src/ggtheme.R')
+source("src/ggtheme.R")
 
 data_dir <- dirname(snakemake@input[["disp_scmet"]])
 S_GRID <- snakemake@params[["S_GRID"]]
@@ -269,14 +268,13 @@ ggarrange(
 
 
 ```{r assembled, fig.width=15, fig.height=15, out.width="100%"}
-
 # update scMET to greek
-scmet_mu_meth <- scmet_mu_meth + labs(title = expression(scMET~mu))
-scmet_gamma_meth   <- scmet_gamma_meth + labs(title = expression(scMET~gamma))
-scmet_epsilon_meth <- scmet_epsilon_meth + labs(title = expression(scMET~epsilon))
+scmet_mu_meth <- scmet_mu_meth + labs(title = expression(scMET ~ mu))
+scmet_gamma_meth <- scmet_gamma_meth + labs(title = expression(scMET ~ gamma))
+scmet_epsilon_meth <- scmet_epsilon_meth + labs(title = expression(scMET ~ epsilon))
 
 # extract legends for bottom section
-legend_nmi  <- get_legend(s_plots$nmi + theme(legend.position = "right"))
+legend_nmi <- get_legend(s_plots$nmi + theme(legend.position = "right"))
 legend_perf <- get_legend(s_plots$seconds + theme(legend.position = "right"))
 
 
@@ -290,47 +288,45 @@ arranged <- ggarrange(
       nrow   = 1,
       widths = c(2.5, 2.5)
     ),
-    
+
     # Bottom row: scMET plots
     ggarrange(
       scmet_mu_meth,
       scmet_gamma_meth,
       scmet_epsilon_meth,
-      nrow  = 1,
-      widths  = c(2, 2, 2),
+      nrow = 1,
+      widths = c(2, 2, 2),
       common.legend = TRUE
     ),
-    ncol    = 1,
+    ncol = 1,
     heights = c(1.8, 1.2)
   ),
-  
+
   # bottom section: S-plots (row 1) and N-plots (row 2)
   ggarrange(
     # combined panels without legends
     ggarrange(
-      s_plots$nmi   + theme(legend.position = "none") + xlab('# cells') + ylab("performance (metric NMI)"),
-      s_plots$seconds  + theme(legend.position = "none") + xlab('# cells') + ylab("CPU time (s)"),
-      s_plots$mem + theme(legend.position = "none") + xlab('# cells') + ylab("memory usage (MB)"),
-      n_plots$nmi   + theme(legend.position = "none") + xlab('# features')+ ylab("performance (metric NMI)"),
-      n_plots$seconds  + theme(legend.position = "none") + xlab('# features') + ylab("CPU time (s)"),
-      n_plots$mem   + theme(legend.position = "none") + xlab('# features') + ylab("memory usage (MB)"),
+      s_plots$nmi + theme(legend.position = "none") + xlab("# cells") + ylab("performance (metric NMI)"),
+      s_plots$seconds + theme(legend.position = "none") + xlab("# cells") + ylab("CPU time (s)"),
+      s_plots$mem + theme(legend.position = "none") + xlab("# cells") + ylab("memory usage (MB)"),
+      n_plots$nmi + theme(legend.position = "none") + xlab("# features") + ylab("performance (metric NMI)"),
+      n_plots$seconds + theme(legend.position = "none") + xlab("# features") + ylab("CPU time (s)"),
+      n_plots$mem + theme(legend.position = "none") + xlab("# features") + ylab("memory usage (MB)"),
       ncol = 3,
       nrow = 2
     ),
-    
+
     # shared legends stacked
     ggarrange(
       legend_nmi,
       legend_perf,
       ncol = 1
     ),
-    
-    ncol   = 2,
+    ncol = 2,
     widths = c(3, 0.5)
   ),
-  
-  ncol   = 1,
-  nrow   = 2,
+  ncol = 1,
+  nrow = 2,
   heights = c(2.5, 1.5)
 )
 
@@ -338,11 +334,12 @@ arranged <- ggarrange(
 print(arranged)
 
 ggsave(
-  filename = "output/figure_atreya_simulations_across.svg",
-  plot   = arranged,
-  width  = 15,
-  height  = 15,
-  units   = "in"
+  filename = paste0(
+    dirname(snakemake@output[["html"]]), "/figure_atreya_simulations_across.svg"
+  ),
+  plot = arranged,
+  width = 15,
+  height = 15,
+  units = "in"
 )
-
 ```

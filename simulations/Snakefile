@@ -482,6 +482,7 @@ rule between_cell_plots:
         S_GRID=BC_S_GRID,
         N_GRID=BC_N_GRID,
         DISP=BC_DISP,
+        plots_dir="../../output/06_plots/",
     threads: 4
     output:
         html="output/06_between_cell.html",
