@@ -488,3 +488,19 @@ rule between_cell_plots:
         html="output/06_between_cell.html",
     script:
         "src/between_cell/06_between_cell.Rmd"
+
+
+rule atreya_sim_panel:
+    conda:
+        "envs/r_plot.yaml"
+    input:
+        "output/05_within_cell.html",
+        "output/06_between_cell.html",
+    params:
+        bet_rds_path="output/05_plots.rds",
+        wit_rds_path="output/06_plots.rds",
+    threads: 4
+    output:
+        "output/07_atreya_panel.pdf",
+    script:
+        "src/atreya_panel.R"
