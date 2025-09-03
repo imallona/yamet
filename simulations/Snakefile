@@ -20,7 +20,7 @@ rule all:
         "output/03_yamet_plots.html",
         "output/04_feat_diff.html",
         "output/05_within_cell.html",
-        "output/06_between_cell.html"
+        "output/06_between_cell.html",
         # "output/figures/simulations_emanuel.html"
 
 
@@ -81,7 +81,7 @@ rule simulate_data:
         "output/sim_data/sim_cell_9_50_50_rand_medium_lmr.tsv",
         html_output_path="output/01_sim_data.html",
     log:
-        "logs/simulate_data_emanuel.log"
+        "logs/simulate_data_emanuel.log",
     conda:
         "envs/r_emanuel_sim.yaml"
     shell:
@@ -98,7 +98,7 @@ rule visualize_coverage:
     input:
         sim_data_file="output/01_sim_data.html",
         sim_data_dir="output/sim_data",
-        flag = "output/sim_data/sim_cell_9_50_50_rand_medium_lmr.tsv"
+        flag="output/sim_data/sim_cell_9_50_50_rand_medium_lmr.tsv",
     output:
         html_output_path="output/02_coverage_plots.html",
     conda:
@@ -129,7 +129,7 @@ rule visualize_coverage:
 #     shell:
 #         """
 #           mkdir -p output/figures
-#           Rscript -e 'rmarkdown::render("src/figure_simulations_emanuel.Rmd", "html_document", 
+#           Rscript -e 'rmarkdown::render("src/figure_simulations_emanuel.Rmd", "html_document",
 #                                         output_file="../{output.html_output_path}",
 #                                         params=list(sim_data_dir="{input.sim_data_dir}"))'
 #         """
@@ -165,28 +165,30 @@ def write_sim_interval_bed(file_path, chrom="chrSim", start=1, end=100000):
         writer = csv.writer(fh, delimiter="\t")
         writer.writerow([chrom, str(start), str(end)])
 
+
 rule write_reference_file_for_emanuel:
     input:
         sim_data=op.join("output", "sim_data"),
-        sim_data_file="output/01_sim_data.html"
+        sim_data_file="output/01_sim_data.html",
     output:
-        bed='emanuel_intervals.bed'
+        bed="emanuel_intervals.bed",
     threads: 1
     run:
-        write_sim_interval_bed(file_path = output.bed)
-        
+        write_sim_interval_bed(file_path=output.bed)
+
+
 rule run_yamet:
     conda:
         "envs/yamet.yaml"
     input:
         yamet=op.join("build", "yamet"),
         sim_data=op.join("output", "sim_data"),
-        flag = "output/sim_data/sim_cell_9_50_50_rand_medium_lmr.tsv",
+        flag="output/sim_data/sim_cell_9_50_50_rand_medium_lmr.tsv",
         sim_data_file="output/01_sim_data.html",
-        bed='emanuel_intervals.bed'
+        bed="emanuel_intervals.bed",
     output:
         out=directory(op.join("output", "yamet", "out")),
-        flag = 'output/yamet/out/10000.tsv'
+        flag="output/yamet/out/10000.tsv",
     threads: 6
     params:
         ncpgs="50 100 1000 10000",
@@ -212,8 +214,8 @@ rule visualize_yamet_results:
     input:
         covplots="output/02_coverage_plots.html",
         yamet_dir="output/yamet/out",
-        flag = "output/sim_data/sim_cell_9_50_50_rand_medium_lmr.tsv",
-        another_flag = 'output/yamet/out/10000.tsv'
+        flag="output/sim_data/sim_cell_9_50_50_rand_medium_lmr.tsv",
+        another_flag="output/yamet/out/10000.tsv",
     output:
         html="output/03_yamet_plots.html",
     shell:
@@ -278,6 +280,7 @@ rule feat_diff_plots:
     params:
         N=lambda wildcards, input: input.det_out.split(".")[1],
         f=lambda wildcards, input: input.det_out.split(".")[2],
+        plots_dir="../../output/04_plots/",
     output:
         html="output/04_feat_diff.html",
     script:
@@ -378,6 +381,7 @@ rule within_cell_plots:
         S_GRID=WC_S_GRID,
         N_GRID=WC_N_GRID,
         DISP=WC_DISP,
+        plots_dir="../../output/05_plots/",
     threads: 4
     output:
         html="output/05_within_cell.html",
@@ -478,8 +482,25 @@ rule between_cell_plots:
         S_GRID=BC_S_GRID,
         N_GRID=BC_N_GRID,
         DISP=BC_DISP,
+        plots_dir="../../output/06_plots/",
     threads: 4
     output:
         html="output/06_between_cell.html",
     script:
         "src/between_cell/06_between_cell.Rmd"
+
+
+rule atreya_sim_panel:
+    conda:
+        "envs/r_plot.yaml"
+    input:
+        "output/05_within_cell.html",
+        "output/06_between_cell.html",
+    params:
+        bet_rds_path="output/05_plots.rds",
+        wit_rds_path="output/06_plots.rds",
+    threads: 4
+    output:
+        "output/07_atreya_panel.pdf",
+    script:
+        "src/atreya_panel.R"

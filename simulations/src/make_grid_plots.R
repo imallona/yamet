@@ -69,52 +69,63 @@ make_grid_plots <- function(GRID, grid_var, x, data_dir) {
   plots <- list()
 
   plots$nmi <- ggplot(mi_data, aes(x = .data[[grid_var]], y = NMI, color = Metric, group = Metric)) +
-    # scale_y_log10() +
     geom_line(linewidth = 1.2) +
     geom_point(size = 3) +
-    # scale_color_manual(values = c("yamet" = "#E69F00", "scmet" = "#56B4E9")) +
     labs(
-      ## title = "NMI Comparison",
       x = paste(grid_var), y = "NMI",
       color = "Metric"
     ) +
     theme_ng() +
     theme(
       legend.position = "right",
-      plot.title = element_text(hjust = 0.5),
-      panel.grid.minor = element_blank()
+      plot.title = element_text(hjust = 0.5)
     )
 
-  plots$seconds <- ggplot(bm_data, aes(x = .data[[grid_var]], y = s, color = mtd, group = mtd)) +
-    scale_y_log10() +
-    geom_point(size = 3, alpha = 0.7) +
-    stat_summary(fun = mean, geom = "line", linewidth = 1.2, aes(group = mtd)) +
-    scale_color_manual(values = c("yamet" = "#E69F00", "scmet" = "#56B4E9")) +
-    labs(
-      x = paste(grid_var), y = "seconds",
-      color = "Method"
-    ) +
-    theme_ng() +
-    theme(
-      legend.position = "top",
-      plot.title = element_text(hjust = 0.5),
-      panel.grid.minor = element_blank()
-    )
+  ylim.prim <- range(bm_data$s, na.rm = TRUE)
+  ylim.sec <- range(bm_data$max_rss, na.rm = TRUE)
 
-  plots$mem <- ggplot(bm_data, aes(x = .data[[grid_var]], y = max_rss, color = mtd, group = mtd)) +
-    scale_y_log10() +
-    geom_point(size = 3) +
-    stat_summary(fun = mean, geom = "line", linewidth = 1.2, aes(group = mtd)) +
-    scale_color_manual(values = c("yamet" = "#E69F00", "scmet" = "#56B4E9")) +
-    labs(
-      x = paste(grid_var), y = "MB",
-      color = "Method"
+  b <- diff(ylim.prim) / diff(ylim.sec)
+  a <- ylim.prim[1] - b * ylim.sec[1]
+
+  plots$secmem <- ggplot(bm_data, aes(x = .data[[grid_var]], color = mtd, group = mtd)) +
+    stat_summary(aes(y = s), fun = mean, geom = "line", linewidth = 1.1) +
+    geom_point(aes(y = s), size = 2, alpha = 0.6, shape = 16) +
+    stat_summary(aes(y = a + max_rss * b),
+      fun = mean, geom = "line",
+      linewidth = 1.1, linetype = "dotted"
     ) +
+    geom_point(aes(y = a + max_rss * b), size = 2, alpha = 0.6, shape = 17) +
+
+    # axis setup
+    scale_y_continuous(
+      name = "Time elapsed (s)",
+      sec.axis = sec_axis(~ (. - a) / b, name = "Memory (MB)")
+    ) +
+    scale_color_manual(values = c("yamet" = "#E69F00", "scmet" = "#56B4E9")) +
+    geom_line(aes(x = -Inf, y = -Inf, linetype = "seconds"),
+      color = "black", linewidth = 1.1
+    ) +
+    geom_line(aes(x = -Inf, y = -Inf, linetype = "memory"),
+      color = "black", linewidth = 1.1
+    ) +
+    geom_point(aes(x = -Inf, y = -Inf, shape = "seconds"),
+      color = "black", size = 2
+    ) +
+    geom_point(aes(x = -Inf, y = -Inf, shape = "memory"),
+      color = "black", size = 2
+    ) +
+    scale_linetype_manual(name = "Resource", values = c(seconds = "solid", memory = "dotted")) +
+    scale_shape_manual(name = "Resource", values = c(seconds = 16, memory = 17)) +
+    guides(
+      color = guide_legend(title = "Method", order = 1),
+      linetype = guide_legend(title = "Resource", order = 2),
+      shape = guide_legend(title = "Resource", order = 2)
+    ) +
+    labs(x = paste(grid_var)) +
     theme_ng() +
     theme(
-      legend.position = "top",
-      plot.title = element_text(hjust = 0.5),
-      panel.grid.minor = element_blank()
+      legend.position = "right",
+      plot.title = element_text(hjust = 0.5)
     )
 
   return(plots)

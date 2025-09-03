@@ -14,15 +14,14 @@ suppressPackageStartupMessages({
   library(ggplot2)
 })
 
-source('src/ggtheme.R')
+source("src/ggtheme.R")
 
 knitr::opts_chunk$set(
-    echo = FALSE,
-    message = FALSE,
-    warning = FALSE,
-    fig.path = "../output/04_plots/",
-    dev = c("png", "svg"),
-    dpi=500
+  echo = FALSE,
+  message = FALSE, warning = FALSE,
+  fig.path = snakemake@params[["plots_dir"]],
+  dev = c("png", "svg"),
+  dpi = 500
 )
 ```
 
@@ -68,9 +67,7 @@ all.long <- cbind(jnt.long, meth.long)
 
 print(str(all.long))
 
-## all.long$coverage <- factor(all.long$coverage, levels = c("low", "lowReal", "real", "medium",
-    ## "high", "complete"))
-all.long$type <- factor(all.long$type, levels = c('lmr', 'imrCons', 'imrRand', 'hmr'))
+all.long$type <- factor(all.long$type, levels = c("lmr", "imrCons", "imrRand", "hmr"))
 
 
 ggplot(all.long, aes(x = meth, y = sampen, color = type)) +
@@ -79,7 +76,9 @@ ggplot(all.long, aes(x = meth, y = sampen, color = type)) +
   labs(
     title = "Sample Entropy in different TR settings",
     x = "avg. methylation", y = "sample entropy", color = "TR"
-  ) + theme_ng() + scale_color_viridis_d()
+  ) +
+  theme_ng() +
+  scale_color_viridis_d()
 
 ggplot(jnt, aes(x = avg_meth, y = shannon, color = type)) +
   geom_point(alpha = 0.7) +
@@ -87,7 +86,9 @@ ggplot(jnt, aes(x = avg_meth, y = shannon, color = type)) +
   labs(
     title = "Shannon Entropy in different TR settings (per cell)",
     x = "avg. methylation", y = "Shannon entropy", color = "TR"
-  ) + theme_ng() + scale_color_viridis_d()
+  ) +
+  theme_ng() +
+  scale_color_viridis_d()
 
 ggplot(all.long, aes(x = shannon, y = sampen, color = type)) +
   geom_point(alpha = 0.7) +
@@ -95,5 +96,7 @@ ggplot(all.long, aes(x = shannon, y = sampen, color = type)) +
   labs(
     title = "Sample Entropy in different TR settings",
     x = "Shannon entropy", y = "sample entropy", color = "TR"
-  ) + theme_ng() + scale_color_viridis_d()
+  ) +
+  theme_ng() +
+  scale_color_viridis_d()
 ```

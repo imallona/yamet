@@ -69,23 +69,17 @@ source("src/make_grid_plots.R")
 source("src/ggtheme.R")
 
 knitr::opts_chunk$set(
-    echo = FALSE,
-    message = FALSE,
-    warning = FALSE,
-    fig.path = "../output/05_plots/",
-    dev = c("png", "svg"),
-    dpi=500
+  echo = FALSE,
+  message = FALSE, warning = FALSE,
+  fig.path = snakemake@params[["plots_dir"]],
+  dev = c("png", "svg"),
+  dpi = 500
 )
 
 data_dir <- dirname(snakemake@input[["disp_scmet"]])
 S_GRID <- snakemake@params[["S_GRID"]]
 N_GRID <- snakemake@params[["N_GRID"]]
 DISP <- snakemake@params[["DISP"]]
-```
-
-
-```{r}
-dir.create('rds', showWarnings = FALSE)
 ```
 
 ## Variation
@@ -143,7 +137,9 @@ meth.long <- do.call(rbind, lapply(output_cols, function(col) {
 
 all.long <- cbind(jnt.long, meth.long)
 
-samp_meth <- ggplot(all.long, aes(x = meth, y = sampen, color = wc_vi)) +
+main_plots <- list()
+
+main_plots$samp_meth <- ggplot(all.long, aes(x = meth, y = sampen, color = wc_vi)) +
   geom_point(alpha = 0.3) +
   theme_ng() +
   labs(
@@ -176,7 +172,7 @@ shannon_vi <- ggplot(jnt, aes(x = as.factor(wc_vi), y = shannon, color = avg_met
     x = "wcVI", y = "Shannon Entropy", color = "meth"
   )
 
-samp_shan <- ggplot(all.long, aes(x = shannon, y = sampen, color = wc_vi)) +
+main_plots$samp_shan <- ggplot(all.long, aes(x = shannon, y = sampen, color = wc_vi)) +
   geom_point(alpha = 0.7) +
   theme_ng() +
   labs(
@@ -204,28 +200,28 @@ ggplot(jnt, aes(x = as.factor(wc_vi), y = scmet_mu, color = avg_meth)) +
     x = "wcVI", y = expression("scMET " ~ mu), color = "meth"
   )
 
-scmet_mu_meth <- ggplot(jnt, aes(x = avg_meth, y = scmet_mu, color = wc_vi)) +
+main_plots$scmet_mu_meth <- ggplot(jnt, aes(x = avg_meth, y = scmet_mu, color = wc_vi)) +
   geom_point(alpha = 0.7) +
   theme_ng() +
   labs(
     ## title = "scMET (mu) in different meth values (per feature)",
-    x = "avg. methylation", y = expression("scMET " ~mu), color = "wcVI"
+    x = "avg. methylation", y = expression("scMET " ~ mu), color = "wcVI"
   )
 
-scmet_gamma_meth <- ggplot(jnt, aes(x = avg_meth, y = scmet_gamma, color = wc_vi)) +
+main_plots$scmet_gamma_meth <- ggplot(jnt, aes(x = avg_meth, y = scmet_gamma, color = wc_vi)) +
   geom_point(alpha = 0.7) +
   theme_ng() +
   labs(
     ## title = "scMET (gamma) in different meth values (per feature)",
-    x = "avg. methylation", y = expression("scMET " ~gamma), color = "wcVI"
+    x = "avg. methylation", y = expression("scMET " ~ gamma), color = "wcVI"
   )
 
-scmet_epsilon_meth <- ggplot(jnt, aes(x = avg_meth, y = scmet_epsilon, color = wc_vi)) +
+main_plots$scmet_epsilon_meth <- ggplot(jnt, aes(x = avg_meth, y = scmet_epsilon, color = wc_vi)) +
   geom_point(alpha = 0.7) +
   theme_ng() +
   labs(
     ## title = "scMET (epsilon) in different meth values (per feature)",
-    x = "avg. methylation", y = expression("scMET " ~epsilon), color = "wcVI"
+    x = "avg. methylation", y = expression("scMET " ~ epsilon), color = "wcVI"
   )
 
 ggplot(jnt, aes(x = as.factor(wc_vi), y = sampen_avg, color = avg_meth)) +
@@ -248,14 +244,13 @@ ggplot(jnt, aes(x = avg_meth, y = sampen_avg, color = wc_vi)) +
 ```{r}
 mi_table <- mi_table_gen(jnt, "wc_vi", table = T)
 mi_fd <- mi_table_gen(jnt, "wc_vi", table = F) ## the metrics dataframe, as a dataframe
-saveRDS(mi_fd, 'rds/perf_within.rds')
-
+saveRDS(mi_fd, paste0(dirname(snakemake@output[["html"]]), "/05_perf.rds"))
 ```
 
 ```{r fig.width=20, fig.height=15, out.width="100%"}
 ggarrange(
   ggarrange(
-    samp_meth,
+    main_plots$samp_meth,
     ggarrange(
       ggarrange(
         s_plots$nmi, n_plots$nmi,
@@ -263,26 +258,26 @@ ggarrange(
         ncol = 2, widths = c(1, 1)
       ),
       ggarrange(
-        s_plots$seconds, n_plots$seconds,
-        s_plots$mem, n_plots$mem,
-        legend = "top", common.legend = T,
-        ncol = 2, nrow = 2, widths = c(1, 1)
+        s_plots$secmem, n_plots$secmem,
+        legend = "right", common.legend = T,
+        ncol = 2
       ),
+      common.legend = T,
       ncol = 1, nrow = 2, heights = c(1, 2)
     ),
     nrow = 2, heights = c(2, 3)
   ),
   ggarrange(
-    samp_shan,
+    main_plots$samp_shan,
     samp_vi,
     shannon_meth,
     shannon_vi,
     nrow = 4
   ),
   ggarrange(
-    scmet_mu_meth,
-    scmet_gamma_meth,
-    scmet_epsilon_meth,
+    main_plots$scmet_mu_meth,
+    main_plots$scmet_gamma_meth,
+    main_plots$scmet_epsilon_meth,
     mi_table,
     common.legend = T,
     nrow = 3
@@ -293,14 +288,9 @@ ggarrange(
 
 # Simpler figure
 
-
-
 Performances first
 
-
 ```{r}
-## saveRDS(jnt, 'rds/jnt_within.rds')
-
 metric_labels <- c(
   "Sample Entropy" = "sample entropy",
   "Shannon Entropy" = "Shannon entropy",
@@ -311,163 +301,91 @@ metric_labels <- c(
 )
 
 nmi <- ggplot(mi_fd, aes(x = reorder(Metric, -NMI), y = NMI)) +
-    geom_point(size=2) +
-    geom_text(aes(label = round(NMI, 3)), vjust = -0.5, size = 4) +
-    theme_ng() +
-    scale_x_discrete(labels = metric_labels) +
-    labs(
-        ## title = "Normalized Mutual Information",
-        x = NULL,
-        y = "Normalized Mutual Information (to wcVI)"
-    ) +
-    scale_y_continuous(expand = expansion(mult = c(0, 0.1))) +
-    theme(axis.text.x = element_text(angle = 30, hjust = 1))
+  geom_point(size = 2) +
+  geom_text(aes(label = round(NMI, 3)), vjust = -0.5, size = 4) +
+  theme_ng() +
+  scale_x_discrete(labels = metric_labels) +
+  labs(
+    ## title = "Normalized Mutual Information",
+    x = NULL,
+    y = "Normalized Mutual Information (to wcVI)"
+  ) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.1))) +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1))
 
 print(nmi)
 ```
 
 ```{r assembled, fig.width=15, fig.height=15, out.width="100%"}
-ggarrange(  
-  #  top section: entropy and scMET
-  ggarrange(
-    # top row: sampen vs meth and shannon
-    ggarrange(
-      samp_meth,
-      samp_shan,
-      nrow   = 1,
-      widths = c(2.5, 2.5)
-    ),
-    
-    # Bottom row: scMET plots
-    ggarrange(
-      scmet_mu_meth,
-      scmet_gamma_meth,
-      scmet_epsilon_meth,
-      nrow          = 1,
-      widths        = c(2, 2, 2),
-      common.legend = TRUE
-    ),
-    ncol    = 1,
-    heights = c(1.8, 1.2)
-  ),
-  
-  # bottom section: S-plots (row 1) and N-plots (row 2)
-  ggarrange(
-    # S-plots row
-    ggarrange(
-      s_plots$nmi,
-      ggarrange(
-        s_plots$seconds,
-        s_plots$mem,
-        ncol          = 2,
-        widths        = c(1, 1),
-        common.legend = TRUE,
-        legend        = "right"
-      ),
-      ncol    = 2,
-      widths  = c(1, 1.5),
-      heights = c(1, 1)   
-    ),
-    
-    # N-plots row
-    ggarrange(
-      n_plots$nmi,
-      ggarrange(
-        n_plots$seconds,
-        n_plots$mem,
-        ncol          = 2,
-        widths        = c(1, 1),
-        common.legend = TRUE,
-        legend        = "right"
-      ),
-      ncol    = 2,
-      widths  = c(1, 1.5),
-      heights = c(1, 1)
-    ),
-    
-    ncol  = 1,
-    nrow  = 2,
-    heights = c(1.2, 1.2)
-  ),
-  
-  ncol  = 1,
-  nrow  = 2,
-  heights = c(2.5, 1.5)
-)
-
-
-# update scMET to greek
-scmet_mu_meth <- scmet_mu_meth + labs(title = expression(scMET~mu))
-scmet_gamma_meth   <- scmet_gamma_meth + labs(title = expression(scMET~gamma))
-scmet_epsilon_meth <- scmet_epsilon_meth + labs(title = expression(scMET~epsilon))
-
 # extract legends for bottom section
-legend_nmi  <- get_legend(s_plots$nmi + theme(legend.position = "right"))
-legend_perf <- get_legend(s_plots$seconds + theme(legend.position = "right"))
-
+legends <- list()
+legends$wcVI <- get_legend(main_plots$samp_meth)
+legends$nmi <- get_legend(s_plots$nmi)
+legends$perf <- get_legend(s_plots$secmem)
 
 arranged <- ggarrange(
-  #  top section: entropy and scMET
   ggarrange(
     # top row: sampen vs meth and shannon
     ggarrange(
-      samp_meth,
-      samp_shan,
-      nrow   = 1,
-      widths = c(2.5, 2.5)
+      main_plots$samp_meth,
+      main_plots$samp_shan,
+      legend = "none",
+      nrow = 1
     ),
-    
+
     # Bottom row: scMET plots
     ggarrange(
-      scmet_mu_meth,
-      scmet_gamma_meth,
-      scmet_epsilon_meth,
-      nrow  = 1,
-      widths  = c(2, 2, 2),
-      common.legend = TRUE
+      main_plots$scmet_mu_meth,
+      main_plots$scmet_gamma_meth,
+      main_plots$scmet_epsilon_meth,
+      legend = "none",
+      nrow = 1
     ),
-    ncol    = 1,
-    heights = c(1.8, 1.2)
+
+    # bottom section: S-plots (row 1) and N-plots (row 2)
+    ggarrange(
+      s_plots$nmi + xlab("# cells") + ylab("performance (metric NMI)"),
+      s_plots$secmem + xlab("# cells") + ylab("CPU time (s)"),
+      n_plots$nmi + xlab("# features") + ylab("performance (metric NMI)"),
+      n_plots$secmem + xlab("# features") + ylab("CPU time (s)"),
+      legend = "none",
+      ncol = 4
+    ),
+    ncol = 1,
+    nrow = 3,
+    heights = c(2, 1, 1)
   ),
-  
-  # bottom section: S-plots (row 1) and N-plots (row 2)
+
+  # shared legends stacked
   ggarrange(
-    # combined panels without legends
-    ggarrange(
-        s_plots$nmi   + theme(legend.position = "none") + xlab('# cells') + ylab("performance (metric NMI)"),
-        s_plots$seconds  + theme(legend.position = "none") + xlab('# cells') + ylab("CPU time (s)"),
-        s_plots$mem + theme(legend.position = "none") + xlab('# cells') + ylab("memory usage (MB)"),
-        n_plots$nmi   + theme(legend.position = "none") + xlab('# features')+ ylab("performance (metric NMI)"),
-        n_plots$seconds  + theme(legend.position = "none") + xlab('# features') + ylab("CPU time (s)"),
-        n_plots$mem   + theme(legend.position = "none") + xlab('# features') + ylab("memory usage (MB)"),
-        ncol = 3,
-        nrow = 2
-    ),
-    
-    # shared legends stacked
-    ggarrange(
-      legend_nmi,
-      legend_perf,
-      ncol = 1
-    ),
-    
-    ncol   = 2,
-    widths = c(3, 0.5)
+    legends$wcVI,
+    legends$nmi,
+    legends$perf,
+    ncol = 1,
+    align = "v"
   ),
-  
-  ncol   = 1,
-  nrow   = 2,
-  heights = c(2.5, 1.5)
+  ncol = 2,
+  nrow = 1,
+  widths = c(6, 1),
+  align = "h"
 )
 
-print(arranged)
+saveRDS(list(
+  main_plots = main_plots, s_plots = s_plots,
+  n_plots = n_plots, legends = legends
+), file = paste0(
+  dirname(snakemake@output[["html"]]), "/05_plots.rds"
+))
+
+arranged
 
 ggsave(
-  filename = "output/figure_atreya_simulations_within.svg",
-  plot   = arranged,
-  width  = 15,
-  height  = 15,
-  units   = "in"
+  filename = paste0(
+    dirname(snakemake@output[["html"]]), "/05_within.svg"
+  ),
+  plot = arranged,
+  width = 15,
+  height = 15,
+  units = "in"
 )
-
 ```
