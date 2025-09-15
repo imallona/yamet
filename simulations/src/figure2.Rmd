@@ -1,0 +1,171 @@
+---
+title: "Figure 2"
+author: "Emanuel Sonder"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+params: 
+  yamet_dir:
+output:
+  bookdown::html_document2:
+    code_folding: hide
+    number_sections: no
+    fig_crop: yes
+---
+
+```{r, setup}
+condaEnvPath <- file.path(Sys.getenv("CONDA_PREFIX"), "lib", "R", "library")
+.libPaths(condaEnvPath)
+
+source('ggtheme.R')
+source("simPattern.R")
+
+suppressPackageStartupMessages({
+  library(ggplot2)
+  library(ggh4x)
+  library(magick)
+  library(patchwork)
+  library(data.table)
+  library(knitr)
+  library(plyr)
+})
+cbbPaletteTrunc <- c("darkgrey","#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+```
+
+```{r, paths}
+outDir <- file.path("..", "schemes")
+if(!dir.exists(outDir)) dir.create(outDir)
+```
+
+# Panel A: 
+
+```{r, import scheme}
+scheme <- magick::image_read_svg("../schemes/simulations_nb_overview.svg", 
+                                 width=2880, height=1620)
+panelA <- magick::image_ggplot(scheme) + labs(tag="A") +
+    theme(plot.tag = element_text(face="bold", size=16), 
+          plot.margin=unit(c(0,0,0,0), "pt"))
+```
+
+# Panel B: 
+
+```{r, coverage}
+ovCovDt <- readRDS(file.path("..", "output/sim_data_coverage/overall_coverage.rds"))
+ovCovDt <- subset(ovCovDt, coverage_mode!="low")
+ovCovDt[,coverage_mode:=revalue(coverage_mode, c("real"="Argelaguet - 2019",
+                                            "lowReal"="low",
+                                            "medium"="medium",
+                                            "high"="high",
+                                            "complete"="complete"))]
+ovCovDt[,coverage_mode:=factor(coverage_mode, levels=c("Argelaguet - 2019",
+                                             "low", 
+                                             "medium", 
+                                             "high", 
+                                             "complete"), 
+                          ordered=TRUE)]
+
+panelB <- ggplot(ovCovDt, aes(y=coverage_mode, x=coverage, 
+                              fill=coverage_mode))+
+          geom_boxplot()+
+          scale_fill_manual(values=cbbPaletteTrunc)+
+          labs(x="fraction of covered CpGs", fill="", tag="B")+
+          ggh4x::facet_nested(. ~ "number of CpGs" + n_cpgs)+
+          #scale_x_discrete(guide = guide_axis(n.dodge=3))+
+          theme_ng_discrete()+
+          theme(plot.tag = element_text(face="bold", size=16),
+                axis.title.y=element_blank(),
+                legend.position="bottom",
+                plot.margin=unit(c(0,0,0,0), "pt"))
+panelB
+```
+
+# Panel C: 
+
+```{r, stretches length}
+maxCpGs <- max(ovCovDt$n_cpgs)
+
+strLenDt <- readRDS(file.path("..", "output/sim_data_coverage/covered_stretches_length.rds"))
+strLenDt <- subset(strLenDt, !(coverage_mode %in% c("low", "complete")))
+strLenDt[,coverage_mode:=revalue(coverage_mode, c("real"="Argelaguet - 2019",
+                                                  "lowReal"="low",
+                                                  "medium"="medium",
+                                                  "high"="high"))]
+strLenDt[,coverage_mode:=factor(coverage_mode, levels=c("Argelaguet - 2019",
+                                             "low", 
+                                             "medium", 
+                                             "high"), 
+                          ordered=TRUE)]
+
+
+panelC <- ggplot(
+  subset(strLenDt, n_cpgs == maxCpGs & what == "covered"),
+  aes(x = length, color = coverage_mode, fill = coverage_mode)) +
+  geom_histogram(aes(y=after_stat(density))) +
+  xlim(c(0,25))+
+  labs(y="relative proportion", fill="coverage", color="coverage", 
+       x="covered stretches length", tag="C")+
+  ggh4x::facet_nested(. ~ "coverage" + coverage_mode, scales="free_y")+
+  scale_color_manual(values = cbbPaletteTrunc)+
+  scale_fill_manual(values = cbbPaletteTrunc)+
+  theme_ng()+
+  theme(plot.tag = element_text(face="bold", size=16), 
+          plot.margin=unit(c(0,0,0,0), "pt"), 
+        legend.position="none")
+panelC
+```
+
+# Panel D: Yamet scores
+
+```{r, import yamet outputs}
+dataDir <- file.path("..", params$yamet_dir)
+dataPaths <- list.files(dataDir, pattern = "\\.tsv$", full.names = TRUE)
+yametDts <- lapply(dataPaths, fread)
+yametDt <- rbindlist(yametDts)
+```
+
+```{r, prepare data}
+yametDt[,c("n_cells", "n_cpgs", 
+           "mode", "coverage", "transMat"):=tstrsplit(file, keep=5:9, 
+                                                       type.convert=TRUE, 
+                                                       split="_")]
+yametDt[,transMat:=factor(gsub(".tsv", "", transMat))]
+yametDt[,transMat:=revalue(transMat, c("hmr"="HMR", 
+                                       "lmr"="LMR",
+                                       "imrCons"="IMR (ordered)",
+                                       "imrRand"="IMR (disordered)"))]
+
+yametDt <- subset(yametDt, mode=="nb" & coverage %in% c("lowReal", 
+                                                        "medium", 
+                                                        "high", 
+                                                        "complete") & 
+                    avg_meth!=-1 & sampen!=-1)
+yametDt[,coverage:=revalue(coverage, c("lowReal"="low", 
+                                       "medium"="medium",
+                                       "high"="high",
+                                       "complete"="complete"))]
+yametDt[,coverage:=factor(coverage, levels=c("low", "medium", "high", "complete"), 
+                          ordered=TRUE)]
+```
+
+```{r, panelD, fig.width = 12, fig.height = 7}
+panelD <- ggplot(yametDt, aes(x = avg_meth, y = sampen, color = transMat)) +
+     geom_point(alpha = 0.7) +
+     ggh4x::facet_nested("number of CpGs" + n_cpgs~ "coverage" + coverage)+
+     theme_minimal() +
+     labs(
+      title = "Sample Entropy for different methylation patterns",
+      x = "methylation level", y = "sample entropy", color = "methylation pattern"
+     ) +
+    labs(tag="D") +
+    theme_ng_discrete()+
+    theme(plot.tag = element_text(face="bold", size=16), 
+          plot.margin=unit(c(0,0,0,-2), "pt"))
+panelD
+```
+
+
+# Combine the figure
+
+```{r, combine figure}
+fig2 <- (panelA / ((panelB / panelC)) & theme(plot.margin=margin(0, -30, 0, 0))) | panelD
+ggsave(file.path(outDir, "Figure2.pdf"), fig2, width = 20, height = 10, device = cairo_pdf)
+ggsave(file.path(outDir, "Figure2.svg"), fig2, width = 20, height = 10)
+```
