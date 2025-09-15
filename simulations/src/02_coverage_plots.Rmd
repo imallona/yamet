@@ -39,6 +39,9 @@ knitr::opts_chunk$set(
 
 ```{r, paths}
 dataDir <- file.path("..", params$sim_data_dir)
+outDir <- file.path("..", "output/sim_data_coverage")
+if (!dir.exists(outDir)) dir.create(outDir)
+
 
 simFiles <- list.files(dataDir, full.names = TRUE)
 simFiles <- simFiles[!grepl("cpgPositions_", simFiles)]
@@ -100,6 +103,7 @@ ovCovDt$coverage_mode <- factor(ovCovDt$coverage_mode,
     "high", "complete"
   )
 )
+saveRDS(ovCovDt, file.path(outDir, "overall_coverage.rds"))
 
 ggplot(ovCovDt, aes(
   x = coverage_mode, y = coverage, color = coverage_mode,
@@ -189,6 +193,7 @@ strLenDt$coverage_mode <- factor(strLenDt$coverage_mode,
   )
 )
 maxCpGs <- max(simParams$n_cpgs)
+saveRDS(strLenDt, file.path(outDir, "covered_stretches_length.rds"))
 
 ggplot(
   subset(strLenDt, n_cpgs == maxCpGs & what == "covered" & 

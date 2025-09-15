@@ -8,6 +8,10 @@ dependencies:
   - bioconductor-scmet
   - r-ggplot2=3.5.2
   - r-ggpubr
+  - r-ggh4x
+  - r-patchwork
+  - r-rsvg
+  - r-magick
   - r-infotheo
   - r-rmarkdown
   - r-bookdown
