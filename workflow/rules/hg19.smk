@@ -5,17 +5,18 @@ To generate a reference file from hg19 assembly and download corresponding annot
 CHRS = [str(i) for i in range(1, 23)] + ["X", "Y"]
 HG19_BASE = "hg19"
 
-        
+
 rule build_hg19_chr_per_chr:
     conda:
         op.join("..", "envs", "processing.yml")
     output:
-        temp(op.join(HG19_BASE, "{chr}.{meth_pat}.ref"))
+        temp(op.join(HG19_BASE, "{chr}.{meth_pat}.ref")),
     params:
         fa="Homo_sapiens.GRCh37.dna.chromosome.{chr}.fa",
         base="https://ftp.ensembl.org/pub/grch37/current/fasta/homo_sapiens/dna/",
     script:
         "src/get_chr_ref.sh"
+
 
 rule build_genome_hg19_ref:
     input:
@@ -32,27 +33,14 @@ rule get_genes_hg19:
     conda:
         op.join("..", "envs", "processing.yml")
     output:
-        op.join(HG19_BASE, "genes.bed.gz"),
+        op.join(HG19_BASE, "genes.genes.bed.gz"),
     script:
         "src/download_hg19_genes.sh"
 
 
-rule uncompress_hg19:
-    conda:
-        op.join("..", "envs", "processing.yml")
-    input:
-        op.join(HG19_BASE, "genes.bed.gz"),
+rule get_pmds_file_hg19:
     output:
-        temp(op.join(HG19_BASE, "genes.genes.bed")),
-    shell:
-        """
-            gunzip -c {input} > {output}
-        """
-
-
-rule get_pmds_hg19:
-    output:
-        op.join(HG19_BASE, "pmd.bed.gz"),
+        temp(op.join(HG19_BASE, "pmd.bed.gz")),
     params:
         loc="https://zhouserver.research.chop.edu/GenomeAnnotation/hg19/PMD_coordinates_hg19.bed.gz",
     shell:
@@ -63,39 +51,41 @@ rule get_pmds_hg19:
 
 PMD_MAP = {"pmds": "commonPMD", "hmds": "commonHMD"}
 
-rule uncompress_pmds_hg19:
+
+rule get_pmds_hmds_hg19:
     input:
         op.join(HG19_BASE, "pmd.bed.gz"),
     output:
-        temp(op.join(HG19_BASE, "{md}.pmd.bed")),
+        op.join(HG19_BASE, "{md}.pmd.bed.gz"),
     params:
         filter=lambda wildcards: PMD_MAP[wildcards.md],
     shell:
         """
             gunzip -c {input} |
-                grep "{params.filter}$" >{output}
+                grep "{params.filter}$" |
+                gzip -c >{output}
         """
 
 
-rule get_hmm_setmentation_hg19:
+rule get_hmm_file_hg19:
     output:
-        op.join(HG19_BASE, "hmm.bed.gz"),
+        temp(op.join(HG19_BASE, "hmm.bed")),
     params:
         loc="https://www.encodeproject.org/files/ENCFF526MRN/@@download/ENCFF526MRN.bed.gz",
     shell:
         """
-            curl -L {params.loc} | gunzip -c | sort -k1,1 -k2,2n | gzip -c > {output[0]}
+            curl -L {params.loc} | gunzip -c | sort -k1,1 -k2,2n >{output}
         """
 
 
-rule uncompress_and_filter_hmm_hg19:
+rule get_hmm_hg19:
     input:
-        op.join(HG19_BASE, "hmm.bed.gz"),
+        op.join(HG19_BASE, "hmm.bed"),
     output:
-        temp(op.join(HG19_BASE, "{ann}.hmm.bed")),
+        op.join(HG19_BASE, "{ann}.hmm.bed.gz"),
     shell:
         """
-            gunzip -c {input} | grep "{wildcards.ann}" > {output}
+            grep "{wildcards.ann}" {input} | gzip -c >{output}
         """
 
 
@@ -108,43 +98,21 @@ CHIP_MAP = {
 
 rule get_encode_chip_data_hg19:
     output:
-        op.join(HG19_BASE, "{chip}.bed.gz"),
+        op.join(HG19_BASE, "{chip}.chip.bed.gz"),
     params:
         loc=lambda wildcards: f"https://www.encodeproject.org/files/{CHIP_MAP[wildcards.chip]}/@@download/{CHIP_MAP[wildcards.chip]}.bed.gz",
     shell:
         """
-            curl -L {params.loc} | gunzip -c | sort -k1,1 -k2,2n | gzip -c > {output[0]}
-        """
-
-
-rule uncompress_hgencode_chip_data_hg19:
-    input:
-        op.join(HG19_BASE, "{chip}.bed.gz"),
-    output:
-        temp(op.join(HG19_BASE, "{chip}.chip.bed")),
-    shell:
-        """
-            gunzip -c {input} > {output}
+            curl -L {params.loc} | gunzip -c | sort -k1,1 -k2,2n | gzip -c >{output}
         """
 
 
 rule get_lads_hg19:
     output:
-        op.join(HG19_BASE, "laminb1.bed.gz"),
+        op.join(HG19_BASE, "{lamin}.lad.bed.gz"),
     params:
         loc="https://github.com/jernst98/ChromHMM/raw/refs/heads/master/COORDS/hg19/laminB1lads.hg19.bed.gz",
     shell:
         """
-            curl -L {params.loc} | gunzip -c | sort -k1,1 -k2,2n | gzip -c > {output[0]}
-        """
-
-
-rule uncompress_lads_hg19:
-    input:
-        op.join(HG19_BASE, "{lamin}.bed.gz"),
-    output:
-        temp(op.join(HG19_BASE, "{lamin}.lad.bed")),
-    shell:
-        """
-            gunzip -c {input} > {output}
+            curl -L {params.loc} | gunzip -c | sort -k1,1 -k2,2n | gzip -c >{output}
         """

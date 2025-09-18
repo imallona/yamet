@@ -49,23 +49,25 @@ rule all:
         # op.join('scnmt_gastrulation_data', 'output', 'yamet_summarized.out') ## an scNMT example
         # op.join('hg19', "windows_10000_nt_annotation.gz"),
         op.join(CRC, "results", "crc_windows_10000_nt.html"),
-        op.join(CRC, "results", "crc.html")
+        op.join("results", "crc.html"),
+
 
 rule install_yamet:
     """
-    Binary to goes to ~/.local/yamet; export path accordingly
+    Built binary in output location can be used directly
     """
     conda:
         "envs/yamet.yml"
     output:
-        op.join(op.expanduser("~"), ".local", "yamet", "bin", "yamet")
+        op.join("build", "yamet"),
     log:
-        op.join("logs", "build.log")
+        op.join("logs", "build.log"),
+    threads: 4
     shell:
         """
         mkdir -p logs
-        bash ../method/build.sh &> {log}
-        yamet --help &>> {log}
+        bash ../method/build.sh {threads} &> {log}
+        {output} --help &>> {log}
         """
 
 
@@ -146,6 +148,7 @@ rule run_yamet_simulated_features:
 # ## perhaps lines and sines separately?
 # def download_mm10_repeats(assembly = 'mm10'):
 #     return NULL
+
 
 rule get_mm10_genome:
     conda:
