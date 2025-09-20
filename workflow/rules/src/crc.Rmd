@@ -11,13 +11,11 @@ output:
     number_sections: true
     df_print: default # kable
     theme: lumen
-
 ---
-
 
 ```{r, setup}
 suppressPackageStartupMessages({
-  ## library(readr)
+  library(readr)
   library(lmerTest)
   library(ggplot2)
   library(knitr)
@@ -46,7 +44,7 @@ opts_chunk$set(
 )
 ```
 
-```{R logging, include = FALSE}
+```{r logging, include = FALSE}
 log <- file(snakemake@log$log, open = "wt")
 sink(log)
 sink(log, type = "message")
@@ -59,7 +57,10 @@ sink(log, type = "message")
 Firstly, we read in the yamet output files and create a table storing the biopsy location, patient id and genomic segmentation.
 
 ```{r, import_short_reports}
-filepaths <- list.files(snakemake@params[["output_path"]], pattern = "\\.out\\.gz$", full.names = TRUE)
+filepaths <- list.files(
+  snakemake@params[["output_path"]],
+  pattern = "\\.out\\.gz$", full.names = TRUE
+)
 
 filepaths <- filepaths[!grepl("\\.det\\.out\\.gz$", filepaths)]
 filepaths <- filepaths[!grepl("\\.norm\\.out\\.gz$", filepaths)]
@@ -69,7 +70,7 @@ regex <- "(.*)_(.*)_(.*)_(.*).out.gz"
 process_file <- function(filepath) {
   filename <- basename(filepath)
 
-  dt <- read.table(gzfile(filepath), sep = "\t", na.strings = "-1", header = TRUE)
+  dt <- read_tsv(filepath, na = "-1", show_col_types = FALSE)
   dt <- dt[, c("sampen", "avg_meth")]
 
   dt$annotation <- gsub(regex, "\\1", filename)
@@ -83,7 +84,10 @@ files <- do.call(rbind, bplapply(filepaths, process_file, BPPARAM = param))
 
 files$annotation <- as.factor(files$annotation)
 files$patient <- as.factor(files$patient)
-files$location <- factor(files$location, levels = c("NC", "PT", "LN", "ML", "MP", "MO"))
+files$location <- factor(
+  files$location,
+  levels = c("NC", "PT", "LN", "ML", "MP", "MO")
+)
 ```
 
 Patient as random effect
@@ -205,42 +209,48 @@ Caution downsampled to some rows only.
 ```{r, import_log_reports}
 DOWNSAMPLING <- 5e4
 
-process_det_report <- function(filepath) {
-  filename <- basename(filepath)
-  dt <- read.table(gzfile(filepath), sep = "\t", na.strings = "-1", header = TRUE, nrows = DOWNSAMPLING)
-  colnames(dt) <- basename(colnames(dt))
-  return(dt)
-}
-
 annotation <- "pmds"
 patient <- "CRC01"
 
 local <- list()
 for (location in c("NC", "PT", "LN", "ML", "MP")) {
-  filepaths <- list.files(snakemake@params[["output_path"]], pattern = "\\.det\\.out\\.gz$", full.names = TRUE)
+  filepaths <- list.files(
+    snakemake@params[["output_path"]],
+    pattern = "\\.det\\.out\\.gz$", full.names = TRUE
+  )
   filepaths <- grep(location, filepaths, value = TRUE)
   filepaths <- grep(annotation, filepaths, value = TRUE)
   filepaths <- grep(patient, filepaths, value = TRUE)
 
   d <- bplapply(filepaths, \(filepath) {
-    filename <- basename(filepath)
-    dt <- read.table(gzfile(filepath), sep = "\t", na.strings = "-1", header = TRUE, nrows = DOWNSAMPLING)
+    dt <- read_tsv(
+      filepath,
+      na = "-1", n_max = DOWNSAMPLING, show_col_types = FALSE
+    )
     colnames(dt) <- basename(colnames(dt))
     dt
   }, BPPARAM = param)
 
-  d2 <- bplapply(d, function(x) {
-    avg_sampen <- apply(x[, grep(location, colnames(x))], 1, function(y) mean(y, na.rm = TRUE))
-    median_sampen <- apply(x[, grep(location, colnames(x))], 1, function(y) median(y, na.rm = TRUE))
-    q25_sampen <- apply(x[, grep(location, colnames(x))], 1, function(y) quantile(y, 0.25, na.rm = TRUE))
-    q75_sampen <- apply(x[, grep(location, colnames(x))], 1, function(y) quantile(y, 0.75, na.rm = TRUE))
-    return(cbind(x, data.frame(
+  d2 <- bplapply(d, \(x) {
+    avg_sampen <- apply(
+      x[, grep(location, colnames(x))], 1, \(y) mean(y, na.rm = TRUE)
+    )
+    median_sampen <- apply(
+      x[, grep(location, colnames(x))], 1, \(y) median(y, na.rm = TRUE)
+    )
+    q25_sampen <- apply(
+      x[, grep(location, colnames(x))], 1, \(y) quantile(y, 0.25, na.rm = TRUE)
+    )
+    q75_sampen <- apply(
+      x[, grep(location, colnames(x))], 1, \(y) quantile(y, 0.75, na.rm = TRUE)
+    )
+    cbind(x, data.frame(
       avg_sampen = avg_sampen, median_sampen = median_sampen,
       q25_sampen = q25_sampen, q75_sampen = q75_sampen,
       location = location,
       patient = patient,
       annotation = annotation
-    )))
+    ))
   }, BPPARAM = param)
 
   local[[location]] <- d2[[1]]
@@ -253,8 +263,6 @@ for (location in c("NC", "PT", "LN", "ML", "MP")) {
 ### By meth NC
 
 ```{r, fig.width = 10, fig.height = 10}
-saveRDS(local, file = "local_debug.rds")
-
 pal <- viridis(10, alpha = 0.8)
 
 beta2m <- function(betas, epsilon = 1e-05) {
@@ -274,11 +282,9 @@ beta2m <- function(betas, epsilon = 1e-05) {
 
 pmds <- data.frame(
   shannon_NC = local$NC$shannon,
-  ## meth_NC_m = beta2m(local$NC$avg_meth),
   meth_NC = local$NC$avg_meth,
   med_sampen_NC = local$NC$median_sampen,
   shannon_PT = local$PT$shannon,
-  ## meth_PT_m = beta2m(local$PT$avg_meth),
   meth_PT = local$PT$avg_meth,
   med_sampen_PT = local$PT$median_sampen
 )
@@ -299,7 +305,8 @@ plot(pmds[, grep("by", colnames(pmds), invert = TRUE)],
 ```{r, fig.width = 10, fig.height = 10}
 pmds$by_med_sampen_pt <- cut(pmds$med_sampen_PT, breaks = 10)
 plot(pmds[, grep("by", colnames(pmds), invert = TRUE)],
-  pch = ".", col = pal[as.numeric(pmds$by_med_sampen_pt)], main = "by_med_sampen_PT"
+  pch = ".", col = pal[as.numeric(pmds$by_med_sampen_pt)],
+  main = "by_med_sampen_PT"
 )
 ```
 
@@ -308,7 +315,8 @@ plot(pmds[, grep("by", colnames(pmds), invert = TRUE)],
 ```{r, fig.width = 10, fig.height = 10, results = 'asis'}
 pmds$by_med_sampen_nc <- cut(pmds$med_sampen_NC, breaks = 10)
 plot(pmds[, grep("by", colnames(pmds), invert = TRUE)],
-  pch = ".", col = pal[as.numeric(pmds$by_med_sampen_nc)], main = "by_med_sampen_nc"
+  pch = ".", col = pal[as.numeric(pmds$by_med_sampen_nc)],
+  main = "by_med_sampen_nc"
 )
 ```
 
@@ -317,7 +325,8 @@ plot(pmds[, grep("by", colnames(pmds), invert = TRUE)],
 ```{r, fig.width = 10, fig.height = 10, results = 'asis'}
 pmds$by_meth_change <- cut(pmds$meth_change, breaks = 10)
 plot(pmds[, grep("by", colnames(pmds), invert = TRUE)],
-  pch = ".", col = pal[as.numeric(pmds$by_meth_change)], main = "by_meth_change"
+  pch = ".", col = pal[as.numeric(pmds$by_meth_change)],
+  main = "by_meth_change"
 )
 ```
 

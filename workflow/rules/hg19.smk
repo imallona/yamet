@@ -5,6 +5,29 @@ To generate a reference file from hg19 assembly and download corresponding annot
 CHRS = [str(i) for i in range(1, 23)] + ["X", "Y"]
 HG19_BASE = "hg19"
 
+## bedfiles
+ANNOTATIONS = {
+    "pmd": ["pmds", "hmds"],
+    "hmm": [
+        "0_Enhancer",
+        "2_Enhancer",
+        "11_Promoter",
+        "12_Promoter",
+        "1_Transcribed",
+        "4_Transcribed",
+        "5_RegPermissive",
+        "7_RegPermissive",
+        "6_LowConfidence",
+        "3_Quiescent",
+        "8_Quiescent",
+        "10_Quiescent",
+        "9_ConstitutiveHet",
+        "13_ConstitutiveHet",
+    ],
+    "chip": ["H3K27me3", "H3K9me3", "H3K4me3"],
+    "lad": ["laminb1"],
+}
+
 
 rule build_hg19_chr_per_chr:
     conda:
@@ -27,6 +50,70 @@ rule build_genome_hg19_ref:
         op.join(HG19_BASE, "ref.{meth_pat}.gz"),
     script:
         "src/make_ref.sh"
+
+
+rule get_sizes_hg19:
+    conda:
+        op.join("..", "envs", "processing.yml")
+    output:
+        op.join(HG19_BASE, "hg19.sizes"),
+    params:
+        asm="hg19",
+    script:
+        "src/download_genome_sizes.sh"
+
+
+rule make_windows_hg19:
+    conda:
+        op.join("..", "envs", "processing.yml")
+    input:
+        op.join(HG19_BASE, "hg19.sizes"),
+    output:
+        op.join(HG19_BASE, "windows_{win_size}_nt.bed.gz"),
+    shell:
+        """
+        bedtools makewindows -g {input} -w {wildcards.win_size} |
+            sort -k1,1 -k2,2n | gzip -c >{output}
+        """
+
+
+rule get_single_annotion_coverage_per_window:
+    conda:
+        op.join("..", "envs", "processing.yml")
+    input:
+        windows=op.join(HG19_BASE, "windows_{win_size}_nt.bed.gz"),
+        annotation=op.join(HG19_BASE, "{subcat}.{cat}.bed.gz"),
+    output:
+        temp(op.join(HG19_BASE, "windows_{win_size}_nt_{subcat}_{cat}_annotation.frac")),
+    shell:
+        """
+        echo "{wildcards.subcat}_{wildcards.cat}" >{output}
+        bedtools coverage \
+            -a <(gunzip -c {input.windows}) \
+            -b <(gunzip -c {input.annotation}) \
+            | cut -f7 >>{output}
+        """
+
+
+def list_annotated_windows():
+    res = []
+    for cat in ANNOTATIONS:
+        for subcat in ANNOTATIONS[cat]:
+            res.append(f"windows_{{win_size}}_nt_{subcat}_{cat}_annotation.frac")
+    return [op.join("hg19", item) for item in res]
+
+
+rule combine_annotated_windows:
+    conda:
+        op.join("..", "envs", "yamet.yml")
+    input:
+        annotated_windows=list_annotated_windows(),
+    output:
+        op.join(HG19_BASE, "windows_{win_size}_nt_annotation.gz"),
+    shell:
+        """
+        paste {input.annotated_windows} | gzip -c >{output}
+        """
 
 
 rule get_genes_hg19:

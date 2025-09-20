@@ -24,28 +24,6 @@ CRC_HARMONIZED = op.join(CRC, "harmonized")  ## ingestable by yamet
 CRC_OUTPUT = op.join(CRC, "output")  ## output for features (genes, promoters etc)
 CRC_WINDOWS_OUTPUT = op.join(CRC, "windows_output")  ## output for tiles/genomic windows
 
-## bedfiles
-ANNOTATIONS = {
-    "pmd": ["pmds", "hmds"],
-    "hmm": [
-        "0_Enhancer",
-        "2_Enhancer",
-        "11_Promoter",
-        "12_Promoter",
-        "1_Transcribed",
-        "4_Transcribed",
-        "5_RegPermissive",
-        "7_RegPermissive",
-        "6_LowConfidence",
-        "3_Quiescent",
-        "8_Quiescent",
-        "10_Quiescent",
-        "9_ConstitutiveHet",
-        "13_ConstitutiveHet",
-    ],
-    "chip": ["H3K27me3", "H3K9me3", "H3K4me3"],
-    "lad": ["laminb1"],
-}
 
 ## patient -> biopsy sites mapping
 SAMPLES = {
@@ -273,81 +251,9 @@ rule render_crc_report:
 """ the idea is to get a common set of features, genomic tiles, to run
     some data mining techniques afterwards
     largey las in prototyping/crc_prototype.sh
-"""
 
-
-rule get_sizes_hg19:
-    conda:
-        op.join("..", "envs", "yamet.yml")
-    output:
-        sizes=op.join(HG19_BASE, "hg19.sizes"),
-    shell:
-        """
-        ## the `hg19.smk` code is so convoluted we need to download it again, cannot reuse
-        mysql --user=genome --host=genome-mysql.soe.ucsc.edu -N -s -e \
-          'SELECT chrom,size FROM hg19.chromInfo' > {output.sizes}       
-        """
-
-
-rule make_windows_hg19:
-    conda:
-        op.join("..", "envs", "yamet.yml")
-    input:
-        sizes=op.join(HG19_BASE, "hg19.sizes"),
-    output:
-        windows=op.join(HG19_BASE, r"windows_{win_size,\d+}_nt.bed"),
-    shell:
-        """
-        bedtools makewindows -g {input.sizes} \
-           -w {wildcards.win_size} | sort -k1,1 -k2,2n -k3,3n > {output.windows}
-        """
-
-
-rule get_single_annotion_coverage_per_window:
-    conda:
-        op.join("..", "envs", "yamet.yml")
-    input:
-        windows=op.join(HG19_BASE, "windows_{win_size}_nt.bed"),
-        annotation=op.join(HG19_BASE, "{subcat}.{cat}.bed"),
-    output:
-        header=temp(op.join(HG19_BASE, "{win_size}_nt_{subcat}.{cat}.header")),
-        body=temp(op.join(HG19_BASE, "{win_size}_nt_{subcat}.{cat}.body")),
-        annotated_windows=op.join(
-            HG19_BASE, "windows_{win_size}_nt_{subcat}_{cat}_annotation.frac"
-        ),
-    shell:
-        """
-        bedtools coverage -a {input.windows} \
-            -b {input.annotation} | cut -f7 > {output.body}
-        echo "{wildcards.subcat}_{wildcards.cat}" > {output.header}
-        cat {output.header} {output.body} > {output.annotated_windows}
-        """
-
-
-def list_annotated_windows():
-    res = []
-    for cat in ANNOTATIONS:
-        for subcat in ANNOTATIONS[cat]:
-            res.append(f"windows_{{win_size}}_nt_{subcat}_{cat}_annotation.frac")
-    return [op.join("hg19", item) for item in res]
-
-
-rule combine_annotated_windows:
-    conda:
-        op.join("..", "envs", "yamet.yml")
-    input:
-        annotated_windows=list_annotated_windows(),
-    output:
-        op.join(HG19_BASE, "windows_{win_size}_nt_annotation.gz"),
-    shell:
-        """
-        paste {input.annotated_windows} | gzip -c> {output}
-        """
-
-
-"""
-issue is, we need to permute backgrounds... and/or correct analytically
-favouring the analytical aproach now, skip permuting
+    issue is, we need to permute backgrounds... and/or correct analytically
+    favouring the analytical aproach now, skip permuting
 """
 
 
@@ -355,44 +261,40 @@ rule run_yamet_on_windows:
     conda:
         op.join("..", "envs", "yamet.yml")
     input:
+        yamet=op.join("build", "yamet"),
         cells=lambda wildcards: expand(
             "{file}",
             file=get_harmonized_files(wildcards.patient, wildcards.location),
         ),
-        # cells = get_harmonized_files,
         ref=op.join(HG19_BASE, "ref.CG.gz"),
-        windows=op.join(HG19_BASE, "windows_{win_size}_nt.bed"),
+        intervals=op.join(HG19_BASE, "windows_{win_size}_nt.bed.gz"),
     output:
-        simple=op.join(CRC_WINDOWS_OUTPUT, "{win_size}_{patient}_{location}.out"),
-        det=op.join(CRC_WINDOWS_OUTPUT, "{win_size}_{patient}_{location}.det.out"),
-        meth=op.join(CRC_WINDOWS_OUTPUT, "{win_size}_{patient}_{location}.meth.out"),
+        out=op.join(CRC_WINDOWS_OUTPUT, "{win_size}_{patient}_{location}.out.gz"),
+        det_out=op.join(
+            CRC_WINDOWS_OUTPUT, "{win_size}_{patient}_{location}.det.out.gz"
+        ),
+        norm_det_out=op.join(
+            CRC_WINDOWS_OUTPUT, "{win_size}_{patient}_{location}.norm.out.gz"
+        ),
+        meth_out=op.join(
+            CRC_WINDOWS_OUTPUT, "{win_size}_{patient}_{location}.meth.out.gz"
+        ),
     log:
         op.join("logs", "yamet_{win_size}_{patient}_{location}.log"),
     group:
         "yamet"
     params:
-        path=CRC_WINDOWS_OUTPUT,
+        base=CRC_WINDOWS_OUTPUT,
     threads: max(8, workflow.cores / 8)
-    shell:
-        """
-        mkdir -p {params.path}
-        yamet \
-         --cell {input.cells} \
-         --reference {input.ref} \
-         --intervals {input.windows} \
-         --cores {threads} \
-         --print-sampens F \
-         --out {output.simple} \
-         --det-out {output.det} \
-         --meth-out {output.meth} &> {log}
-        """
+    script:
+        "src/yamet.sh"
 
 
 def list_relevant_yamet_windows_outputs():
     res = []
     for patient in SAMPLES.keys():
         for location in SAMPLES[patient]:
-            res.append(f"{{win_size}}_{patient}_{location}.det.out")
+            res.append(f"{{win_size}}_{patient}_{location}.det.out.gz")
     return [op.join(CRC_WINDOWS_OUTPUT, item) for item in res]
 
 
@@ -401,12 +303,13 @@ rule render_crc_windows_report:
         op.join("..", "envs", "r.yml")
     input:
         yamet_dets=list_relevant_yamet_windows_outputs(),
-        annotations=op.join(HG19_BASE, r"windows_{win_size,\d+}_nt_annotation.gz"),
+        annotations=op.join(HG19_BASE, "windows_{win_size}_nt_annotation.gz"),
     params:
         output_path=CRC_WINDOWS_OUTPUT,
     output:
-        op.join(CRC, "results", "crc_windows_{win_size}_nt.html"),
+        op.join("results", "crc_windows_{win_size}_nt.html"),
     log:
         log=op.join("logs", "render_crc_windows_{win_size}.log"),
+    threads: 8
     script:
         "src/crc_windows.Rmd"

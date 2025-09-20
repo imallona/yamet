@@ -19,8 +19,6 @@ include: op.join("rules", "crc.smk")
 include: op.join("rules", "ecker.smk")
 
 
-shell.prefix("set -o pipefail; export PATH=$HOME/.local/yamet/bin:$PATH;")
-
 # include: op.join("rules", "feature_simulations.smk")
 # include: op.join("rules", "scnmt_gastrulation.smk")
 
@@ -33,8 +31,6 @@ rule all:
         # op.join('data', 'brain', 'harmonized_ecker_metadata.tsv.gz'), ## this to download Ecker's metadata
         # op.join("annotation", "mm10", "done.flag"),  ## this to download regions for Ecker's
         # op.join("data", "crc", "download.flag"),  # this to download CRC cytosine reports, caution will redownload them
-        # op.join("data", "crc", "results",  "crc.html") , ## this requires the `download.flag` being present (and the cytosine reports; dependencies are not well captured)
-        # op.join(op.expanduser("~"), ".local", "yamet", "bin", "yamet")
         # op.join('scnmt_gastrulation_data', 'downloaded_data.tsv'), ## this is Argelaguet's gastrulation
         # expand(
         #     op.join(
@@ -48,8 +44,8 @@ rule all:
         # op.join("feature_simulations", "output", "yamet_detailed.out"),  ## feature simulations,
         # op.join('scnmt_gastrulation_data', 'output', 'yamet_summarized.out') ## an scNMT example
         # op.join('hg19', "windows_10000_nt_annotation.gz"),
-        op.join(CRC, "results", "crc_windows_10000_nt.html"),
         op.join("results", "crc.html"),
+        op.join("results", "crc_windows_10000_nt.html"),
 
 
 rule install_yamet:
