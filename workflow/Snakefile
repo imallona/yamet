@@ -46,6 +46,8 @@ rule all:
         # op.join('hg19', "windows_10000_nt_annotation.gz"),
         op.join("results", "crc.html"),
         op.join("results", "crc_windows_10000_nt.html"),
+        op.join("results", "crc_stats_10000.html"),
+        op.join("results", "crc_deletions_250000.html"),
 
 
 rule install_yamet:

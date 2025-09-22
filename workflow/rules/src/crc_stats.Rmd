@@ -18,12 +18,22 @@ suppressPackageStartupMessages({
   library(BiocParallel)
   library(limma)
 })
+
+param <- MulticoreParam(workers = snakemake@threads)
+```
+
+```{r logging, include = FALSE}
+log <- file(snakemake@log$log, open = "wt")
+sink(log)
+sink(log, type = "message")
 ```
 
 ```{r}
 filepaths <- list.files(
-  snakemake@params[["yamet"]],
-  pattern = "bookended\\.custom\\..*\\.det\\.out\\.gz$", full.names = T
+  snakemake@params[["output_path"]],
+  pattern = paste0(
+    snakemake@wildcards[["win_size"]], "_(.*)\\.det\\.out\\.gz$"
+  ), full.names = TRUE
 )
 
 process_reports <- function(filepath) {
@@ -52,7 +62,6 @@ process_reports <- function(filepath) {
   )
 }
 
-param <- MulticoreParam(workers = snakemake@threads)
 all_data <- bplapply(filepaths, process_reports, BPPARAM = param)
 sampens <- do.call(cbind, lapply(all_data, \(x) x$sampen))
 meths <- do.call(cbind, lapply(all_data, \(x) x$meth))
@@ -277,7 +286,9 @@ coefs_valid$adj_p <- adj_p
 coefs_df$moderated_t <- NA
 coefs_df$moderated_p <- NA
 coefs_df$adj_p <- NA
-coefs_df[valid, c("moderated_t", "moderated_p", "adj_p")] <- coefs_valid[, c("moderated_t", "moderated_p", "adj_p")]
+coefs_df[
+  valid, c("moderated_t", "moderated_p", "adj_p")
+] <- coefs_valid[, c("moderated_t", "moderated_p", "adj_p")]
 
 dim(coefs_df)
 head(coefs_df)

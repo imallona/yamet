@@ -90,7 +90,12 @@ plot(hclust(dist(t(mannot))))
 Caution downsampled
 
 ```{r read_shannons}
-filepaths <- list.files(snakemake@params[["output_path"]], pattern = "\\.det\\.out\\.gz$", full.names = TRUE)
+filepaths <- list.files(
+  snakemake@params[["output_path"]],
+  pattern = paste0(
+    snakemake@wildcards[["win_size"]], "_(.*)\\.det\\.out\\.gz$"
+  ), full.names = TRUE
+)
 
 regex <- "(.*)_(.*)_(.*).det.out.gz"
 process_reports <- function(filepath) {
@@ -393,7 +398,9 @@ correct for diffs in avg meth; or perhaps test separately and overlap the two se
 ```{r}
 filepaths <- list.files(
   snakemake@params[["output_path"]],
-  pattern = "\\.meth\\.out\\.gz$", full.names = TRUE
+  pattern = paste0(
+    snakemake@wildcards[["win_size"]], "_(.*)\\.meth\\.out\\.gz$"
+  ), full.names = TRUE
 )
 
 regex <- "(.*)_(.*)_(.*).meth.out.gz"

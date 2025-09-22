@@ -313,3 +313,36 @@ rule render_crc_windows_report:
     threads: 8
     script:
         "src/crc_windows.Rmd"
+
+
+rule crc_stats_doc:
+    conda:
+        op.join("..", "envs", "r.yml")
+    input:
+        list_relevant_yamet_windows_outputs(),
+        annotation=op.join(HG19_BASE, "windows_{win_size}_nt_annotation.gz"),
+    output:
+        op.join("results", "crc_stats_{win_size}.html"),
+    params:
+        output_path=CRC_WINDOWS_OUTPUT,
+    log:
+        log=op.join("logs", "render_crc_stats_{win_size}.log"),
+    threads: 16
+    script:
+        "src/crc_stats.Rmd"
+
+
+rule crc_deletions_doc:
+    conda:
+        op.join("..", "envs", "r.yml")
+    input:
+        yamet_dets=list_relevant_yamet_windows_outputs(),
+    output:
+        op.join("results", "crc_deletions_{win_size}.html"),
+    params:
+        output_path=CRC_WINDOWS_OUTPUT,
+    log:
+        log=op.join("logs", "render_crc_deletions_{win_size}.log"),
+    threads: 16
+    script:
+        "src/crc_deletions.Rmd"

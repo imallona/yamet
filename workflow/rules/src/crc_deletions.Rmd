@@ -20,10 +20,18 @@ suppressPackageStartupMessages({
 })
 ```
 
+```{r logging, include = FALSE}
+log <- file(snakemake@log$log, open = "wt")
+sink(log)
+sink(log, type = "message")
+```
+
 ```{r}
 filepaths <- list.files(
-  snakemake@params[["yamet"]],
-  pattern = "bookended_250k\\.custom\\..*\\.det\\.out\\.gz$", full.names = T
+  snakemake@params[["output_path"]],
+  pattern = paste0(
+    snakemake@wildcards[["win_size"]], "_(.*)\\.det\\.out\\.gz$"
+  ), full.names = TRUE
 )
 
 process_reports <- function(filepath) {
@@ -95,7 +103,9 @@ dim(sub_sampens)
 ```
 
 ```{r, fig.asp=1.6}
-chrs <- sapply(strsplit(rownames(sub_sampens), ":"), function(x) gsub("chr", "", x[1]))
+chrs <- sapply(
+  strsplit(rownames(sub_sampens), ":"), function(x) gsub("chr", "", x[1])
+)
 row_ha <- rowAnnotation(
   chr = chrs,
   col = list(chr = setNames(
@@ -106,7 +116,6 @@ row_ha <- rowAnnotation(
   show_legend = FALSE,
   show_annotation_name = TRUE
 )
-unique(chrs)
 
 column_ha <- HeatmapAnnotation(
   loc = substr(groups$subloc, 1, 2),
