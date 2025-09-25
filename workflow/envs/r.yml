@@ -11,8 +11,8 @@ dependencies:
   - r-lmertest
   - r-readr
   - r-viridis
+  - r-effects
   - bioconductor-biocparallel
   - bioconductor-complexheatmap
   - bioconductor-geoquery
   - bioconductor-limma
-  - conda-forge::r-effects
