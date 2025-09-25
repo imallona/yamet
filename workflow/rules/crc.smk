@@ -336,11 +336,12 @@ rule crc_deletions_doc:
     conda:
         op.join("..", "envs", "r.yml")
     input:
-        yamet_dets=list_relevant_yamet_windows_outputs(),
+        expand(
+            op.join(CRC_WINDOWS_OUTPUT, "{{win_size}}_CRC01_{location}.det.out.gz"),
+            location=SAMPLES["CRC01"],
+        ),
     output:
         op.join("results", "crc_deletions_{win_size}.html"),
-    params:
-        output_path=CRC_WINDOWS_OUTPUT,
     log:
         log=op.join("logs", "render_crc_deletions_{win_size}.log"),
     threads: 16
