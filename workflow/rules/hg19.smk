@@ -77,7 +77,7 @@ rule make_windows_hg19:
         """
 
 
-rule get_single_annotion_coverage_per_window:
+rule get_single_annotation_coverage_per_window:
     conda:
         op.join("..", "envs", "processing.yml")
     input:
@@ -95,6 +95,31 @@ rule get_single_annotion_coverage_per_window:
         """
 
 
+rule get_amplification_coverage_per_window:
+    conda:
+        op.join("..", "envs", "processing.yml")
+    input:
+        windows=op.join(HG19_BASE, "windows_{win_size}_nt.bed.gz"),
+        annotation=op.join(HG19_BASE, "scna.bed.gz"),
+    output:
+        temp(op.join(HG19_BASE, "windows_{win_size}_nt_scna_annotation.frac")),
+    shell:
+        """
+        bedtools intersect \
+            -a <(gunzip -c {input.windows}) \
+            -b <(gunzip -c {input.annotation}) -wao |
+            awk 'BEGIN{{OFS="\t"; print "scna_frac","scna_status"}}
+                {{
+                    win_len = $3 - $2
+                    overlap = $NF
+                    frac = (win_len > 0 ? overlap / win_len : 0)
+                    status = $(NF-1)
+                    if (status == ".") status = "NA"
+                    print frac, status
+                }}' >{output}
+        """
+
+
 def list_annotated_windows():
     res = []
     for cat in ANNOTATIONS:
@@ -108,11 +133,12 @@ rule combine_annotated_windows:
         op.join("..", "envs", "yamet.yml")
     input:
         annotated_windows=list_annotated_windows(),
+        scna=op.join("hg19", "windows_{win_size}_nt_scna_annotation.frac"),
     output:
         op.join(HG19_BASE, "windows_{win_size}_nt_annotation.gz"),
     shell:
         """
-        paste {input.annotated_windows} | gzip -c >{output}
+        paste {input.annotated_windows} {input.scna} | gzip -c >{output}
         """
 
 

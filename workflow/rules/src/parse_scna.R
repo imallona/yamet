@@ -35,10 +35,13 @@ scnas <- scnas[
   , c("chr", "start", "end", setdiff(names(scnas), c("chr", "start", "end")))
 ]
 
+# filter for SCNAs with q value < 0.05
+scnas <- scnas[scnas$`residual q value` < 0.05, ]
+
 tmp_bed <- tempfile(fileext = ".bed")
 write.table(
   scnas, tmp_bed,
-  col.names = TRUE, row.names = FALSE, sep = "\t", quote = FALSE
+  col.names = FALSE, row.names = FALSE, sep = "\t", quote = FALSE
 )
 
 system(
