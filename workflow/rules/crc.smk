@@ -336,10 +336,11 @@ rule crc_deletions_doc:
     conda:
         op.join("..", "envs", "r.yml")
     input:
-        expand(
+        yamet_dets=expand(
             op.join(CRC_WINDOWS_OUTPUT, "{{win_size}}_CRC01_{location}.det.out.gz"),
             location=SAMPLES["CRC01"],
         ),
+        annotation=op.join(HG19_BASE, "windows_{win_size}_nt_annotation.gz"),
     output:
         op.join("results", "crc_deletions_{win_size}.html"),
     log:

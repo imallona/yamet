@@ -55,7 +55,10 @@ process_reports <- function(filepath) {
   )
 }
 
-all_data <- bplapply(unlist(snakemake@input), process_reports, BPPARAM = param)
+all_data <- bplapply(
+  unlist(snakemake@input[["yamet_dets"]]), process_reports,
+  BPPARAM = param
+)
 sampens <- do.call(cbind, lapply(all_data, \(x) x$sampen))
 meths <- do.call(cbind, lapply(all_data, \(x) x$meth))
 
@@ -94,8 +97,19 @@ dim(sub_sampens)
 chrs <- sapply(
   strsplit(rownames(sub_sampens), ":"), function(x) gsub("chr", "", x[1])
 )
+annot <- read_tsv(snakemake@input[["annotation"]], show_col_types = FALSE)
+rownames(annot) <- rownames(sampens)
 row_ha <- rowAnnotation(
   chr = chrs,
+  scna = anno_barplot(
+    annot$scna_frac,
+    gp = gpar(
+      col = ifelse(
+        is.na(annot$scna_status), "grey80",
+        ifelse(annot$scna_status == "amplified", "red", "blue")
+      )
+    )
+  ),
   col = list(chr = setNames(
     rep(c("black", "white"), length.out = length(unique(chrs))),
     unique(chrs)
