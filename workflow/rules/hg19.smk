@@ -116,6 +116,17 @@ rule combine_annotated_windows:
         """
 
 
+rule get_scna_hg19:
+    conda:
+        op.join("..", "envs", "r.yml")
+    input:
+        op.join("src", "scna_hg19.xlsx"),
+    output:
+        op.join(HG19_BASE, "scna.bed.gz"),
+    script:
+        "src/parse_scna.R"
+
+
 rule get_genes_hg19:
     conda:
         op.join("..", "envs", "processing.yml")
