@@ -1,6 +1,7 @@
 #!/bin/bash
 ##
-## Retrieves assembly for one chromosome
+## Generates a C (perhaps CG) reference coordinate file by parsing a single-chromosome fasta
+##   file; these are later aggregated by another script, `make_ref.chf` (perhaps to be renamed)
 ##
 ## Atreya Choudhury
 ## Started 26th Feb 2025

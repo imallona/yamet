@@ -24,7 +24,7 @@ CRC_HARMONIZED = op.join(CRC, "harmonized")         ## ingestable by yamet
 CRC_OUTPUT = op.join(CRC, "output")                 ## output for features (genes, promoters etc)
 CRC_WINDOWS_OUTPUT = op.join(CRC, 'windows_output') ## output for tiles/genomic windows
 
-## bedfiles
+## bedfiles ADD genes, CpGis and SCNAs here TODO
 ANNOTATIONS = {
     "pmd": ["pmds", "hmds"],
     "hmm": [
@@ -303,6 +303,7 @@ rule make_windows_hg19:
            -w {wildcards.win_size} | sort -k1,1 -k2,2n -k3,3n > {output.windows}
         """
 
+## @todo make sure this ingests genes, CpGis and SCNAs!
 rule get_single_annotion_coverage_per_window:
     conda:
         op.join("..", "envs", "yamet.yml")
@@ -423,9 +424,8 @@ rule run_crc_stats_report:
     conda:
         op.join("..", "envs", "r.yml")
     input:
-        scna_bed = op.join(CRC_OUTPUT, "patient_crc01_scna.bed.gz"),
         list_relevant_yamet_windows_outputs(),
-        annotation=op.join(HG19_BASE, "windows_{win_size}_nt_annotation.gz"),
+        annotation=op.join(HG19_BASE, "windows_{win_size}_nt_annotation.gz")
     output:
         op.join("results", "crc_stats_{win_size}.html"),
     params:

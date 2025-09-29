@@ -37,7 +37,7 @@ rule get_genes_hg19:
         "src/download_hg19_genes.sh"
 
 
-rule uncompress_hg19:
+rule uncompress_hg19_genes:
     conda:
         op.join("..", "envs", "processing.yml")
     input:
