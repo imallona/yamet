@@ -390,10 +390,24 @@ def list_relevant_yamet_windows_outputs():
             res.append(f"{{win_size}}_{patient}_{location}.det.out")
     return [op.join(CRC_WINDOWS_OUTPUT, item) for item in res]
 
+
+## other reports from Atreya to be re-categorized / placed somewhere - caution not sure where the SCNA bedfile is used during the annotation phase @todo
+
+rule get_scna_patient1_from_supplementary_data:
+    conda:
+        op.join("..", "envs", "r.yml")
+    input:
+        op.join("src", "scna_hg19.xlsx"),
+    output:
+        scna_bed = op.join(CRC_OUTPUT, "patient_crc01_scna.bed.gz") ## caution path
+    script:
+        "src/parse_scna.R"
+
 rule render_crc_windows_report:
     conda:
         op.join("..", "envs", "r.yml")
     input:
+        scna_bed = op.join(CRC_OUTPUT, "patient_crc01_scna.bed.gz"),
         yamet_dets = list_relevant_yamet_windows_outputs(),
         annotations = op.join(HG19_BASE, r"windows_{win_size,\d+}_nt_annotation.gz")
     params:
@@ -404,3 +418,38 @@ rule render_crc_windows_report:
         log = op.join("logs", "render_crc_windows_{win_size}.log")
     script:
         "src/crc_windows.Rmd"
+
+rule run_crc_stats_report:
+    conda:
+        op.join("..", "envs", "r.yml")
+    input:
+        scna_bed = op.join(CRC_OUTPUT, "patient_crc01_scna.bed.gz"),
+        list_relevant_yamet_windows_outputs(),
+        annotation=op.join(HG19_BASE, "windows_{win_size}_nt_annotation.gz"),
+    output:
+        op.join("results", "crc_stats_{win_size}.html"),
+    params:
+        output_path=CRC_WINDOWS_OUTPUT,
+    log:
+        log=op.join("logs", "render_crc_stats_{win_size}.log"),
+    threads: 16
+    script:
+        "src/crc_stats.Rmd"
+
+rule run_crc_deletions_report:
+    conda:
+        op.join("..", "envs", "r.yml")
+    input:
+        scna_bed = op.join(CRC_OUTPUT, "patient_crc01_scna.bed.gz"),
+        yamet_dets=expand(
+            op.join(CRC_WINDOWS_OUTPUT, "{{win_size}}_CRC01_{location}.det.out.gz"),
+            location=SAMPLES["CRC01"],
+        ),
+        annotation=op.join(HG19_BASE, "windows_{win_size}_nt_annotation.gz"), ## but we want this on scnas themselves, not only on windows
+    output:
+        op.join("results", "crc_deletions_{win_size}.html"),
+    log:
+        log=op.join("logs", "render_crc_deletions_{win_size}.log"),
+    threads: 16
+    script:
+        "src/crc_deletions.Rmd"
