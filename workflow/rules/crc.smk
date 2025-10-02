@@ -46,7 +46,8 @@ ANNOTATIONS = {
     "chip": ["H3K27me3", "H3K9me3", "H3K4me3"],
     "lad": ["laminb1"],
     "genes": ["genes"],
-    "cpgIslandExt": ['cpgIslandExt']
+    "cpgIslandExt": ['cpgIslandExt'],
+    "scna": ["patient_crc01_scna"]
 }
 
 ## patient -> biopsy sites mapping
@@ -154,7 +155,7 @@ checkpoint download_crc_bismarks:
           
         done < {input.gsm}
         
-        cp {output.urls} {output.download_flag}
+        touch {output.download_flag}
         """
 
 
@@ -402,15 +403,25 @@ rule get_scna_patient1_from_supplementary_data:
     input:
         op.join("src", "scna_hg19.xlsx"),
     output:
-        scna_bed = op.join(CRC_OUTPUT, "patient_crc01_scna.bed.gz") ## caution path
+        scna_bed = op.join(HG19_BASE, "patient_crc01_scna.scna.bed.gz")
     script:
         "src/parse_scna.R"
 
+rule umcompress_scna_patient1:
+    conda:
+        op.join("..", "envs", "r.yml")
+    input:
+        scna_bed = op.join(HG19_BASE, "patient_crc01_scna.scna.bed.gz")
+    output:
+        temp(op.join(HG19_BASE, "patient_crc01_scna.scna.bed"))
+    shell:
+        "gzip -c {input.scna_bed} > {output}"
+        
 rule render_crc_windows_report:
     conda:
         op.join("..", "envs", "r.yml")
     input:
-        scna_bed = op.join(CRC_OUTPUT, "patient_crc01_scna.bed.gz"),
+        scna_bed = op.join(HG19_BASE, "patient_crc01_scna.scna.bed.gz"),
         yamet_dets = list_relevant_yamet_windows_outputs(),
         annotations = op.join(HG19_BASE, r"windows_{win_size,\d+}_nt_annotation.gz")
     params:
@@ -442,7 +453,7 @@ rule run_crc_deletions_report:
     conda:
         op.join("..", "envs", "r.yml")
     input:
-        scna_bed = op.join(CRC_OUTPUT, "patient_crc01_scna.bed.gz"),
+        scna_bed =  op.join(HG19_BASE, "patient_crc01_scna.scna.bed.gz"),
         yamet_dets=expand(
             op.join(CRC_WINDOWS_OUTPUT, "{{win_size}}_CRC01_{location}.det.out.gz"),
             location=SAMPLES["CRC01"],
