@@ -24,7 +24,7 @@ CRC_HARMONIZED = op.join(CRC, "harmonized")         ## ingestable by yamet
 CRC_OUTPUT = op.join(CRC, "output")                 ## output for features (genes, promoters etc)
 CRC_WINDOWS_OUTPUT = op.join(CRC, 'windows_output') ## output for tiles/genomic windows
 
-## bedfiles ADD genes, CpGis and SCNAs here TODO
+## bedfiles ADD SCNAs here TODO
 ANNOTATIONS = {
     "pmd": ["pmds", "hmds"],
     "hmm": [
@@ -45,6 +45,8 @@ ANNOTATIONS = {
     ],
     "chip": ["H3K27me3", "H3K9me3", "H3K4me3"],
     "lad": ["laminb1"],
+    "genes": ["genes"],
+    "cpgIslandExt": ['cpgIslandExt']
 }
 
 ## patient -> biopsy sites mapping

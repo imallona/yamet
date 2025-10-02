@@ -5,6 +5,19 @@ To generate a reference file from hg19 assembly and download corresponding annot
 CHRS = [str(i) for i in range(1, 23)] + ["X", "Y"]
 HG19_BASE = "hg19"
 
+rule get_cpgislandext_hg9:
+    conda:
+        op.join("..", "envs", "processing.yml")
+    output:
+        op.join(HG19_BASE, "cpgIslandExt.cpgIslandExt.bed")
+    shell:
+        """
+        wget -qO- http://hgdownload.cse.ucsc.edu/goldenpath/hg19/database/cpgIslandExt.txt.gz \\
+        | gunzip -c \\
+        | awk 'BEGIN{{ OFS="\\t"; }}{{ print $2, $3, $4, $5$6, $7, $8, $9, $10, $11, $12 }}' \\
+        > {output}
+        """
+        
         
 rule build_hg19_chr_per_chr:
     conda:
@@ -77,7 +90,10 @@ rule uncompress_pmds_hg19:
         """
 
 
-rule get_hmm_setmentation_hg19:
+# https://www.encodeproject.org/files/ENCFF526MRN/
+# https://www.encodeproject.org/annotations/ENCSR814YSQ/
+# Segway annotation of BC_COLON_H12817N
+rule get_hmm_segmentation_colon_hg19:
     output:
         op.join(HG19_BASE, "hmm.bed.gz"),
     params:
