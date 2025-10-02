@@ -164,3 +164,13 @@ rule uncompress_lads_hg19:
         """
             gunzip -c {input} > {output}
         """
+
+rule get_hg19_genome_sizes:
+    conda:
+        op.join("..", "envs", "processing.yml")
+    output:
+        op.join(HG19_BASE, "genome.sizes"),
+    params:
+        asm="hg19",
+    script:
+        "src/download_genome_sizes.sh"

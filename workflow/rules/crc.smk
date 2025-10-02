@@ -24,7 +24,6 @@ CRC_HARMONIZED = op.join(CRC, "harmonized")         ## ingestable by yamet
 CRC_OUTPUT = op.join(CRC, "output")                 ## output for features (genes, promoters etc)
 CRC_WINDOWS_OUTPUT = op.join(CRC, 'windows_output') ## output for tiles/genomic windows
 
-## bedfiles ADD SCNAs here TODO
 ANNOTATIONS = {
     "pmd": ["pmds", "hmds"],
     "hmm": [
@@ -47,7 +46,7 @@ ANNOTATIONS = {
     "lad": ["laminb1"],
     "genes": ["genes"],
     "cpgIslandExt": ['cpgIslandExt'],
-    "scna": ["patient_crc01_scna"]
+    "scna": ["crc01_nc_scna", "crc01_gain_scna", "crc01_lost_scna"]
 }
 
 ## patient -> biopsy sites mapping
@@ -407,21 +406,29 @@ rule get_scna_patient1_from_supplementary_data:
     script:
         "src/parse_scna.R"
 
-rule umcompress_scna_patient1:
+rule split_patient1_crc_in_kept_lost_gained:
     conda:
         op.join("..", "envs", "r.yml")
     input:
-        scna_bed = op.join(HG19_BASE, "patient_crc01_scna.scna.bed.gz")
+        scna_bed = op.join(HG19_BASE, "patient_crc01_scna.scna.bed.gz"),
+        genome_sizes = op.join(HG19_BASE, "genome.sizes"),
     output:
-        temp(op.join(HG19_BASE, "patient_crc01_scna.scna.bed"))
+        uncomp = temp(op.join(HG19_BASE, "crc01_scna.bed")),
+        gained = op.join(HG19_BASE, "crc01_gain_scna.scna.bed"),
+        lost = op.join(HG19_BASE, "crc01_lost_scna.scna.bed"),
+        kept = op.join(HG19_BASE, "crc01_nc_scna.scna.bed"),        
     shell:
-        "gzip -c {input.scna_bed} > {output}"
+        """
+           gzip -d -c {input.scna_bed} > {output.uncomp}
+           grep "deleted" {output.uncomp} | bedtools sort > {output.lost}
+           grep "amplified" {output.uncomp} | bedtools sort > {output.gained}
+           bedtools complement -i {output.uncomp} -g {input.genome_sizes} > {output.kept}
+        """
         
 rule render_crc_windows_report:
     conda:
         op.join("..", "envs", "r.yml")
     input:
-        scna_bed = op.join(HG19_BASE, "patient_crc01_scna.scna.bed.gz"),
         yamet_dets = list_relevant_yamet_windows_outputs(),
         annotations = op.join(HG19_BASE, r"windows_{win_size,\d+}_nt_annotation.gz")
     params:
@@ -433,36 +440,36 @@ rule render_crc_windows_report:
     script:
         "src/crc_windows.Rmd"
 
-rule run_crc_stats_report:
-    conda:
-        op.join("..", "envs", "r.yml")
-    input:
-        list_relevant_yamet_windows_outputs(),
-        annotation=op.join(HG19_BASE, "windows_{win_size}_nt_annotation.gz")
-    output:
-        op.join("results", "crc_stats_{win_size}.html"),
-    params:
-        output_path=CRC_WINDOWS_OUTPUT,
-    log:
-        log=op.join("logs", "render_crc_stats_{win_size}.log"),
-    threads: 16
-    script:
-        "src/crc_stats.Rmd"
+# rule run_crc_stats_report:
+#     conda:
+#         op.join("..", "envs", "r.yml")
+#     input:
+#         list_relevant_yamet_windows_outputs(),
+#         annotation=op.join(HG19_BASE, "windows_{win_size}_nt_annotation.gz")
+#     output:
+#         op.join("results", "crc_stats_{win_size}.html"),
+#     params:
+#         output_path=CRC_WINDOWS_OUTPUT,
+#     log:
+#         log=op.join("logs", "render_crc_stats_{win_size}.log"),
+#     threads: 16
+#     script:
+#         "src/crc_stats.Rmd"
 
-rule run_crc_deletions_report:
-    conda:
-        op.join("..", "envs", "r.yml")
-    input:
-        scna_bed =  op.join(HG19_BASE, "patient_crc01_scna.scna.bed.gz"),
-        yamet_dets=expand(
-            op.join(CRC_WINDOWS_OUTPUT, "{{win_size}}_CRC01_{location}.det.out.gz"),
-            location=SAMPLES["CRC01"],
-        ),
-        annotation=op.join(HG19_BASE, "windows_{win_size}_nt_annotation.gz"), ## but we want this on scnas themselves, not only on windows
-    output:
-        op.join("results", "crc_deletions_{win_size}.html"),
-    log:
-        log=op.join("logs", "render_crc_deletions_{win_size}.log"),
-    threads: 16
-    script:
-        "src/crc_deletions.Rmd"
+# rule run_crc_deletions_report:
+#     conda:
+#         op.join("..", "envs", "r.yml")
+#     input:
+#         scna_bed =  op.join(HG19_BASE, "patient_crc01_scna.scna.bed.gz"),
+#         yamet_dets=expand(
+#             op.join(CRC_WINDOWS_OUTPUT, "{{win_size}}_CRC01_{location}.det.out.gz"),
+#             location=SAMPLES["CRC01"],
+#         ),
+#         annotation=op.join(HG19_BASE, "windows_{win_size}_nt_annotation.gz"), ## but we want this on scnas themselves, not only on windows
+#     output:
+#         op.join("results", "crc_deletions_{win_size}.html"),
+#     log:
+#         log=op.join("logs", "render_crc_deletions_{win_size}.log"),
+#     threads: 16
+#     script:
+#         "src/crc_deletions.Rmd"
