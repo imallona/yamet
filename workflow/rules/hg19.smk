@@ -54,9 +54,9 @@ rule uncompress_hg19_genes:
     conda:
         op.join("..", "envs", "processing.yml")
     input:
-        op.join(HG19_BASE, "genes.bed.gz"),
+        op.join(HG19_BASE, "genes.bed.gz")
     output:
-        temp(op.join(HG19_BASE, "genes.genes.bed")),
+        temp(op.join(HG19_BASE, "genes.genes.bed"))
     shell:
         """
             gunzip -c {input} > {output}
@@ -78,9 +78,9 @@ PMD_MAP = {"pmds": "commonPMD", "hmds": "commonHMD"}
 
 rule uncompress_pmds_hg19:
     input:
-        op.join(HG19_BASE, "pmd.bed.gz"),
+        op.join(HG19_BASE, "pmd.bed.gz")
     output:
-        temp(op.join(HG19_BASE, "{md}.pmd.bed")),
+        temp(op.join(HG19_BASE, "{md}.pmd.bed"))
     params:
         filter=lambda wildcards: PMD_MAP[wildcards.md],
     shell:
@@ -100,15 +100,15 @@ rule get_hmm_segmentation_colon_hg19:
         loc="https://www.encodeproject.org/files/ENCFF526MRN/@@download/ENCFF526MRN.bed.gz",
     shell:
         """
-            curl -L {params.loc} | gunzip -c | sort -k1,1 -k2,2n | gzip -c > {output[0]}
+            curl -L {params.loc} | gunzip -c | sort -k1,1 -k2,2n | gzip -c > {output}
         """
 
 
 rule uncompress_and_filter_hmm_hg19:
     input:
-        op.join(HG19_BASE, "hmm.bed.gz"),
+        op.join(HG19_BASE, "hmm.bed.gz")
     output:
-        temp(op.join(HG19_BASE, "{ann}.hmm.bed")),
+        temp(op.join(HG19_BASE, "{ann}.hmm.bed"))
     shell:
         """
             gunzip -c {input} | grep "{wildcards.ann}" > {output}
@@ -124,20 +124,20 @@ CHIP_MAP = {
 
 rule get_encode_chip_data_hg19:
     output:
-        op.join(HG19_BASE, "{chip}.bed.gz"),
+        op.join(HG19_BASE, "{chip}.bed.gz")
     params:
-        loc=lambda wildcards: f"https://www.encodeproject.org/files/{CHIP_MAP[wildcards.chip]}/@@download/{CHIP_MAP[wildcards.chip]}.bed.gz",
+        loc=lambda wildcards: f"https://www.encodeproject.org/files/{CHIP_MAP[wildcards.chip]}/@@download/{CHIP_MAP[wildcards.chip]}.bed.gz"
     shell:
         """
-            curl -L {params.loc} | gunzip -c | sort -k1,1 -k2,2n | gzip -c > {output[0]}
+            curl -L {params.loc} | gunzip -c | sort -k1,1 -k2,2n | gzip -c > {output}
         """
 
 
 rule uncompress_hgencode_chip_data_hg19:
     input:
-        op.join(HG19_BASE, "{chip}.bed.gz"),
+        op.join(HG19_BASE, "{chip}.bed.gz")
     output:
-        temp(op.join(HG19_BASE, "{chip}.chip.bed")),
+        temp(op.join(HG19_BASE, "{chip}.chip.bed"))
     shell:
         """
             gunzip -c {input} > {output}
@@ -151,7 +151,7 @@ rule get_lads_hg19:
         loc="https://github.com/jernst98/ChromHMM/raw/refs/heads/master/COORDS/hg19/laminB1lads.hg19.bed.gz",
     shell:
         """
-            curl -L {params.loc} | gunzip -c | sort -k1,1 -k2,2n | gzip -c > {output[0]}
+            curl -L {params.loc} | gunzip -c | sort -k1,1 -k2,2n | gzip -c > {output}
         """
 
 
@@ -169,7 +169,7 @@ rule get_hg19_genome_sizes:
     conda:
         op.join("..", "envs", "processing.yml")
     output:
-        op.join(HG19_BASE, "genome.sizes"),
+        op.join(HG19_BASE, "genome.sizes")
     params:
         asm="hg19",
     script:

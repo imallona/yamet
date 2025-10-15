@@ -153,7 +153,8 @@ checkpoint download_crc_bismarks:
            fi
           
         done < {input.gsm}
-        
+
+        touch {output.urls} # in case files were already there
         touch {output.download_flag}
         """
 
@@ -342,7 +343,7 @@ rule combine_annotated_windows:
         op.join(HG19_BASE, "windows_{win_size}_nt_annotation.gz")
     shell:
         """
-        paste {input.annotated_windows} | gzip -c> {output}
+        paste {input.annotated_windows} | gzip -c > {output}
         """
 
 """

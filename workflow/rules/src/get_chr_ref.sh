@@ -8,7 +8,7 @@
 
 curl "${snakemake_params[base]}${snakemake_params[fa]}".gz --output ${snakemake_params[fa]}.gz
 
-gunzip ${snakemake_params[fa]}.gz
+gunzip -f ${snakemake_params[fa]}.gz
 
 faSize ${snakemake_params[fa]} -detailed >${snakemake_params[fa]}.sizes
 
