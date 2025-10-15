@@ -31,6 +31,8 @@ rule build_hg19_chr_per_chr:
         "src/get_chr_ref.sh"
 
 rule build_genome_hg19_ref:
+    conda:
+        op.join("..", "envs", "processing.yml")
     input:
         expand(op.join(HG19_BASE, "{chr}.{{meth_pat}}.ref"), chr=CHRS),
     params:
@@ -64,6 +66,8 @@ rule uncompress_hg19_genes:
 
 
 rule get_pmds_hg19:
+    conda:
+        op.join("..", "envs", "processing.yml")
     output:
         op.join(HG19_BASE, "pmd.bed.gz"),
     params:
@@ -77,6 +81,8 @@ rule get_pmds_hg19:
 PMD_MAP = {"pmds": "commonPMD", "hmds": "commonHMD"}
 
 rule uncompress_pmds_hg19:
+    conda:
+        op.join("..", "envs", "processing.yml")
     input:
         op.join(HG19_BASE, "pmd.bed.gz")
     output:
@@ -94,6 +100,8 @@ rule uncompress_pmds_hg19:
 # https://www.encodeproject.org/annotations/ENCSR814YSQ/
 # Segway annotation of BC_COLON_H12817N
 rule get_hmm_segmentation_colon_hg19:
+    conda:
+        op.join("..", "envs", "processing.yml")
     output:
         op.join(HG19_BASE, "hmm.bed.gz"),
     params:
@@ -103,8 +111,9 @@ rule get_hmm_segmentation_colon_hg19:
             curl -L {params.loc} | gunzip -c | sort -k1,1 -k2,2n | gzip -c > {output}
         """
 
-
 rule uncompress_and_filter_hmm_hg19:
+    conda:
+        op.join("..", "envs", "processing.yml")
     input:
         op.join(HG19_BASE, "hmm.bed.gz")
     output:
@@ -113,7 +122,6 @@ rule uncompress_and_filter_hmm_hg19:
         """
             gunzip -c {input} | grep "{wildcards.ann}" > {output}
         """
-
 
 CHIP_MAP = {
     "H3K27me3": "ENCFF255ARD",
@@ -134,6 +142,8 @@ rule get_encode_chip_data_hg19:
 
 
 rule uncompress_hgencode_chip_data_hg19:
+    conda:
+        op.join("..", "envs", "processing.yml")
     input:
         op.join(HG19_BASE, "{chip}.bed.gz")
     output:
@@ -143,8 +153,9 @@ rule uncompress_hgencode_chip_data_hg19:
             gunzip -c {input} > {output}
         """
 
-
 rule get_lads_hg19:
+    conda:
+        op.join("..", "envs", "processing.yml")
     output:
         op.join(HG19_BASE, "laminb1.bed.gz"),
     params:
@@ -156,6 +167,8 @@ rule get_lads_hg19:
 
 
 rule uncompress_lads_hg19:
+    conda:
+        op.join("..", "envs", "processing.yml")
     input:
         op.join(HG19_BASE, "{lamin}.bed.gz"),
     output:
