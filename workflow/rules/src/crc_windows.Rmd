@@ -24,6 +24,7 @@ suppressPackageStartupMessages({
   library(Matrix)
   library(limma)
   library(BiocParallel)
+  library(circlize)
 })
 
 source("src/ggtheme.R")
@@ -665,31 +666,48 @@ row_ha <- rowAnnotation(tile_annotation = as.matrix(data.frame(
 ```
 
 
-Caution not sure both heatmaps are clustered the same way (left and right)
 
 ```{r, fig.width =20, fig.height = 10}
 
+## ht <- Heatmap(
+##   sub_sampens,
+##   name = "Sample Entropy",
+##   cluster_columns = FALSE,
+##   cluster_rows = TRUE,
+##   show_row_names = FALSE,
+##   show_column_names = FALSE
+## )
+
+#ht_drawn <- draw(ht)
+# row_ordered <- row_order(ht)
+
+## euclidean distance directly
+row.hc <- hclust(dist(sub_sampens), method = "ward.D2")
 
 column_ha <- HeatmapAnnotation(
   loc = substr(groups$subloc, 1, 2),
-  ## subloc = groups$subloc,
   patient = groups$patient
 )
 
+stopifnot(all(rownames(sub_sampens) == rownames(sub_meths)))
+
+# x11()
+
 Heatmap(sub_sampens,
-  name = "sampens",
+  name = "Sample entropy",
   top_annotation = column_ha,
   right_annotation = row_ha,
   show_row_names = FALSE,
   show_column_names = FALSE,
-  cluster_columns = TRUE,
-  cluster_rows = TRUE
-)  + Heatmap(sub_meths,
-    name = "meths",
-    show_row_names = FALSE,
-    show_column_names = FALSE,
-    cluster_columns = TRUE,
-    cluster_rows = TRUE)
+  cluster_columns = FALSE,
+  cluster_rows = row.hc,
+)  +  Heatmap(sub_meths,
+              name = "DNA methylation",              
+              col = colorRamp2(c(0, 1), c("white", "black")),
+              show_row_names = FALSE,
+              show_column_names = FALSE,
+              cluster_columns = FALSE,
+              cluster_rows = row.hc)
 ```
 
 

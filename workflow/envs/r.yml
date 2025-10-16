@@ -13,6 +13,8 @@ dependencies:
   - r-readr
   - r-viridis
   - r-effects
+  - r-ggstance
+  - r-dplyr
   - bioconductor-biocparallel
   - bioconductor-complexheatmap
   - bioconductor-geoquery

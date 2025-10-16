@@ -23,6 +23,9 @@ suppressPackageStartupMessages({
   library(ComplexHeatmap)
   library(viridis)
   library(BiocParallel)
+  library(ggplot2)
+  library(ggstance)  # for horizontal error bars
+  library(dplyr)
 })
 
 source("src/ggtheme.R")
@@ -205,6 +208,77 @@ ggplot(
   scale_color_brewer(palette = "Dark2") +
   theme_ng() +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+```
+
+## Range plots - by compartment
+
+```{r, fig.height = 10, fig.width = 10}
+
+
+ranges <- as.data.frame(files %>%
+   filter(patient == "CRC01") %>%
+   group_by(compartment = annotation, location) %>%
+   summarise(
+     sampen_mean = mean(sampen, na.rm = TRUE),
+     sampen_min  = min(sampen, na.rm = TRUE),
+     sampen_max  = max(sampen, na.rm = TRUE),
+     meth_mean   = mean(avg_meth, na.rm = TRUE),
+     meth_min    = min(avg_meth, na.rm = TRUE),
+     meth_max    = max(avg_meth, na.rm = TRUE)))
+
+## ggplot(ranges, aes(x = meth_mean, y = sampen_mean, color = location)) +
+##   geom_point(shape = 3, size = 1.2) +  # "+" symbol
+##   geom_errorbar(aes(ymin = sampen_min, ymax = sampen_max), width = 0.3, alpha = 1, size = 1) +
+##   geom_errorbarh(aes(xmin = meth_min, xmax = meth_max), height = 0.3, alpha = 1, size = 0) +
+##   scale_color_brewer(palette = "Dark2") +
+##   labs(
+##     x = "DNA methylation",
+##     y = "Sample entropy"
+##   ) +
+##   facet_wrap(~ compartment) +
+##   theme_ng()
+
+# I think this is the correct one
+ggplot(ranges, aes(color = location)) +
+  ## horizontal segment: range of methylations for that location/compartment
+  geom_segment(
+    aes(x = meth_min, xend = meth_max, y = sampen_mean, yend = sampen_mean),
+    size = 0.6, alpha = 1
+  ) +
+  # vertical segment: range of sampens for that location/compartment
+  geom_segment(
+    aes(x = meth_mean, xend = meth_mean, y = sampen_min, yend = sampen_max),
+    size = 0.6, alpha = 1
+  ) +
+  # center point
+  geom_point(
+    aes(x = meth_mean, y = sampen_mean),
+    shape = 3, size = 1.2
+  ) +
+  scale_color_brewer(palette = "Dark2") +
+  labs(x = "DNA methylation", y = "Sample entropy") +
+  facet_wrap(~ compartment) +
+  theme_ng()
+
+```
+
+## Others
+
+```{r, fig.height = 10, fig.width = 10}
+
+ggplot(ranges, aes(x = compartment, y = location, fill = sampen_mean)) +
+  geom_tile(color = "white") +
+  scale_fill_viridis_c() +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90))
+
+
+ggplot(ranges, aes(x = compartment, y = location, fill = meth_mean)) +
+  geom_tile(color = "white") +
+  scale_fill_viridis_c() +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90))
+
 ```
 
 # Full (local) reports for **downsampled** PMDs and CRC01
