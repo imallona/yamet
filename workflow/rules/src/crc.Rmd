@@ -344,6 +344,8 @@ pmds$by_shannon_pt <- cut(pmds$shannon_PT, breaks = 10)
 pmds$by_shannon_nc <- cut(pmds$shannon_NC, breaks = 10)
 ```
 
+
+
 # Session
 
 ```{r, cache = FALSE}

@@ -74,6 +74,7 @@ annot <- read_tsv(
   snakemake@input[["annotations"]],
   n_max = NROWS, show_col_types = FALSE
 )
+
 ```
 
 
@@ -214,7 +215,7 @@ for (patient in levels(shannons$patient)) {
 
 Mind each column should be a miniheatmap instead, not depicting a median
 
-```{r, fig.width = 10, fig.height = 10}
+```{r, fig.width = 14, fig.height = 10}
 med_sampens <- as.matrix(do.call(cbind.data.frame, lapply(sampens, function(x) {
   return(x$median)
 })))
@@ -235,13 +236,39 @@ column_ha <- HeatmapAnnotation(
 )
 
 row_ha <- rowAnnotation(tile_annotation = as.matrix(data.frame(
+  genes = annot[rownames(med_sampens), "genes_genes"],
+  islands = annot[rownames(med_sampens), "cpgIslandExt_cpgIslandExt"],                     
+
   pmd = annot[rownames(med_sampens), "pmds_pmd"],
   hmd = annot[rownames(med_sampens), "hmds_pmd"],
+
+  scna_nc = annot[rownames(med_sampens), "crc01_nc_scna_scna"],
+  scna_gain = annot[rownames(med_sampens), "crc01_gain_scna_scna"],
+  scna_loss = annot[rownames(med_sampens), "crc01_lost_scna_scna"],  
+
   H3K27me3 = annot[rownames(med_sampens), "H3K27me3_chip"],
   H3K9me3 = annot[rownames(med_sampens), "H3K9me3_chip"],
   H3K4me3 = annot[rownames(med_sampens), "H3K4me3_chip"],
   laminb1 = annot[rownames(med_sampens), "laminb1_lad"],
-  X8_Quiescent = annot[rownames(med_sampens), "8_Quiescent_hmm"]
+  
+  X0_Enhancer_hmm = annot[rownames(med_sampens), "0_Enhancer_hmm"],
+  X2_Enhancer_hmm = annot[rownames(med_sampens), "2_Enhancer_hmm"],
+  X1_Transcribed_hmm = annot[rownames(med_sampens), "1_Transcribed_hmm"],
+  X4_Transcribed_hmm = annot[rownames(med_sampens), "4_Transcribed_hmm"],
+  X5_RegPermissive_hmm = annot[rownames(med_sampens), "5_RegPermissive_hmm"],
+  X7_RegPermissive_hmm = annot[rownames(med_sampens), "7_RegPermissive_hmm"],
+  
+  X3_Quiescent = annot[rownames(med_sampens), "3_Quiescent_hmm"],
+  X8_Quiescent = annot[rownames(med_sampens), "8_Quiescent_hmm"],
+  X10_Quiescent = annot[rownames(med_sampens), "10_Quiescent_hmm"],
+
+  X11_Promoter = annot[rownames(med_sampens), "11_Promoter_hmm"],
+  X12_Promoter = annot[rownames(med_sampens), "12_Promoter_hmm"],
+
+  X9_ConstitutiveHet = annot[rownames(med_sampens), "9_ConstitutiveHet_hmm"],
+  X13_ConstitutiveHet = annot[rownames(med_sampens), "13_ConstitutiveHet_hmm"],
+  
+  X6_LowConfidence = annot[rownames(med_sampens), "6_LowConfidence_hmm"]
 )))
 
 Heatmap(med_sampens,
@@ -344,154 +371,495 @@ Heatmap(curr_shannons,
 )
 ```
 
-# Differential (sample) entropy / limma {.tabset .tabset-pills}
 
-Just ~ patient + location
+# Atreya's stats
 
-## Only sampen, no methylation correction
+As in  https://github.com/imallona/yamet/blob/857bc788d711b26cd64b8ca4586ca2c3927900c4/workflow/rules/src/crc_stats.Rmd etc.
 
-```{r, fig.width = 3, fig.height = 3}
-sampen_fd <- do.call(cbind, lapply(sampens, \(x) x$sampen))
-
-meta <- data.frame(
-  colname = colnames(sampen_fd),
-  patient = sapply(strsplit(colnames(sampen_fd), "_"), function(x) x[3]),
-  location = substr(
-    sapply(strsplit(colnames(sampen_fd), "_"), function(x) x[4]), 1, 2
-  )
-)
-
-meta$location <- relevel(factor(meta$location), ref = "NC")
-
-design <- model.matrix(~ meta$patient + meta$location)
-fit_sampen <- lmFit(sampen_fd, design)
-fit_sampen <- eBayes(fit_sampen)
-
-hist(fit_sampen$p.value)
-
-tt_sampen <- topTable(
-  fit_sampen,
-  coef = "meta$locationPT", n = Inf, sort.by = "none"
-)
-
-table(tt_sampen$adj.P.Val < 0.05)
-```
-
-
-```{r with_limma_0, fig.width = 18, fig.height = 10}
-tt_sampen <- tt_sampen[rownames(med_sampens), ]
-signif_sampen <- ifelse(tt_sampen$adj.P.Val < 0.05, yes = 1, no = 0)
-
-row_tt_sampen <- rowAnnotation(PT_de_sampen = signif_sampen)
-
-Heatmap(med_sampens,
-  name = "med sampens",
-  top_annotation = column_ha,
-  right_annotation = row_ha,
-  left_annotation = row_tt_sampen,
-  show_row_names = FALSE,
-  column_labels = gsub(".det.out", "", basename(colnames(med_sampens))),
-  width = ncol(med_sampens) * unit(9, "mm")
-)
-```
-
-
-## Only methylation
-
-correct for diffs in avg meth; or perhaps test separately and overlap the two sets
 
 
 ```{r}
 filepaths <- list.files(
   snakemake@params[["output_path"]],
   pattern = paste0(
-    snakemake@wildcards[["win_size"]], "_(.*)\\.meth\\.out\\.gz$"
+    snakemake@wildcards[["win_size"]], "_(.*)\\.det\\.out\\.gz$"
   ), full.names = TRUE
 )
 
-regex <- "(.*)_(.*)_(.*).meth.out.gz"
-process_meth_reports <- function(filepath) {
-  filename <- basename(filepath)
-  patient <- gsub(regex, "\\2", filename)
-  location <- gsub(regex, "\\3", filename)
+process_reports <- function(filepath) {
+  out_path <- gsub("\\.det", "", filepath)
+  m_out_path <- gsub("\\.det\\.", ".meth.", filepath)
 
-  dt <- read_tsv(
-    filepath,
-    na = "-1", n_max = NROWS,
-    show_col_types = FALSE
+  out <- read_tsv(out_path, show_col_types = FALSE, na = "-1")
+  se <- read_tsv(filepath, show_col_types = FALSE, na = "-1")
+  ms <- read_tsv(m_out_path, show_col_types = FALSE, na = "-1")
+
+  rwnms <- paste0(se$chr, ":", se$start, "-", se$end)
+
+  shannon <- se[, c("shannon", "avg_meth")]
+
+  se <- as.matrix(se[, grep("singleC", colnames(se))])
+  ms <- as.matrix(ms[, grep("singleC", colnames(ms))])
+
+  rownames(se) <- rwnms
+  rownames(ms) <- rwnms
+
+  return(
+    list(
+      shannon = shannon,
+      sampen = se, meth = ms, cell_meth = out$avg_meth
+    )
   )
+}
 
-  ## meths
-  cols <- grep("singleC", colnames(dt), value = TRUE)
-  rows <- paste0("w", seq_len(nrow(dt)))
+all_data <- bplapply(filepaths, process_reports, BPPARAM = param)
+sampens <- do.call(cbind, lapply(all_data, \(x) x$sampen))
+meths <- do.call(cbind, lapply(all_data, \(x) x$meth))
 
-  se <- as(as.matrix(dt[, cols]), "dgCMatrix")
+annot <- read_tsv(snakemake@input[["annotations"]], show_col_types = FALSE)
+rownames(annot) <- rownames(sampens)
 
-  dimnames(se) <- list(rows, cols)
+get_row_annotations <- function(regions) {
+  rowAnnotation(tile_annotation = as.matrix(data.frame(
+    ## pmd = annot[regions, "pmds_pmd"],
+    ## hmd = annot[regions, "hmds_pmd"],
+    ## H3K27me3 = annot[regions, "H3K27me3_chip"],
+    ## H3K9me3 = annot[regions, "H3K9me3_chip"],
+    ## H3K4me3 = annot[regions, "H3K4me3_chip"],
+    ## laminb1 = annot[regions, "laminb1_lad"],
+    ## X8_Quiescent = annot[regions, "8_Quiescent_hmm"]
+  genes = annot[rownames(med_sampens), "genes_genes"],
+  islands = annot[rownames(med_sampens), "cpgIslandExt_cpgIslandExt"],                     
 
-  return(list(meth = list(
-    file = filepath,
-    patient = patient,
-    location = location,
-    meth = se
+  pmd = annot[rownames(med_sampens), "pmds_pmd"],
+  hmd = annot[rownames(med_sampens), "hmds_pmd"],
+
+  scna_nc = annot[rownames(med_sampens), "crc01_nc_scna_scna"],
+  scna_gain = annot[rownames(med_sampens), "crc01_gain_scna_scna"],
+  scna_loss = annot[rownames(med_sampens), "crc01_lost_scna_scna"],  
+
+  H3K27me3 = annot[rownames(med_sampens), "H3K27me3_chip"],
+  H3K9me3 = annot[rownames(med_sampens), "H3K9me3_chip"],
+  H3K4me3 = annot[rownames(med_sampens), "H3K4me3_chip"],
+  laminb1 = annot[rownames(med_sampens), "laminb1_lad"],
+  
+  X0_Enhancer_hmm = annot[rownames(med_sampens), "0_Enhancer_hmm"],
+  X2_Enhancer_hmm = annot[rownames(med_sampens), "2_Enhancer_hmm"],
+  X1_Transcribed_hmm = annot[rownames(med_sampens), "1_Transcribed_hmm"],
+  X4_Transcribed_hmm = annot[rownames(med_sampens), "4_Transcribed_hmm"],
+  X5_RegPermissive_hmm = annot[rownames(med_sampens), "5_RegPermissive_hmm"],
+  X7_RegPermissive_hmm = annot[rownames(med_sampens), "7_RegPermissive_hmm"],
+  
+  X3_Quiescent = annot[rownames(med_sampens), "3_Quiescent_hmm"],
+  X8_Quiescent = annot[rownames(med_sampens), "8_Quiescent_hmm"],
+  X10_Quiescent = annot[rownames(med_sampens), "10_Quiescent_hmm"],
+
+  X11_Promoter = annot[rownames(med_sampens), "11_Promoter_hmm"],
+  X12_Promoter = annot[rownames(med_sampens), "12_Promoter_hmm"],
+
+  X9_ConstitutiveHet = annot[rownames(med_sampens), "9_ConstitutiveHet_hmm"],
+  X13_ConstitutiveHet = annot[rownames(med_sampens), "13_ConstitutiveHet_hmm"],
+  
+  X6_LowConfidence = annot[rownames(med_sampens), "6_LowConfidence_hmm"]
+  
   )))
 }
 
-meths <- bplapply(filepaths, \(x) process_meth_reports(x)$meth, BPPARAM = param)
-
-
-meths_fd <- do.call(cbind, lapply(meths, \(x) x$meth))
-
-design <- model.matrix(~ meta$patient + meta$location) # same design as above
-fit_meth <- lmFit(meths_fd, design)
-fit_meth <- eBayes(fit_meth)
-```
-
-
-```{r, fig.width = 3, fig.height = 3}
-hist(fit_meth$p.value)
-
-tt_meth <- topTable(
-  fit_meth,
-  coef = "meta$locationPT", n = Inf, sort.by = "none"
+meta <- data.frame(
+  colname = colnames(sampens),
+  patient = sapply(strsplit(colnames(sampens), "_"), \(x) x[3]),
+  subloc = sapply(strsplit(colnames(sampens), "_"), \(x) x[4]),
+  cell_meth = unlist(lapply(all_data, \(x) x$cell_meth), recursive = FALSE)
 )
+meta$loc <- substr(meta$subloc, 1, 2)
+meta$loc <- relevel(factor(meta$loc), ref = "NC")
+meta <- meta[order(as.integer(meta$loc), meta$subloc, meta$patient), ]
+sampens <- sampens[, meta$colname]
+meths <- meths[, meta$colname]
 
-table(tt_meth$adj.P.Val < 0.05)
+groups <- unique(meta[c("subloc", "patient")])
+groups <- groups[
+  order(substr(groups$subloc, 1, 2), groups$subloc, groups$patient),
+]
+sub_sampens <- do.call(cbind, lapply(seq_len(nrow(groups)), \(i) {
+  cols <- meta$colname[
+    meta$patient == groups$patient[i] & meta$subloc == groups$subloc[i]
+  ]
+  rowMeans(sampens[, cols, drop = FALSE], na.rm = TRUE)
+}))
+colnames(sub_sampens) <- paste(groups$subloc, groups$patient, sep = "_")
+
+sub_meths <- do.call(cbind, lapply(seq_len(nrow(groups)), \(i) {
+  cols <- meta$colname[
+    meta$patient == groups$patient[i] & meta$subloc == groups$subloc[i]
+  ]
+  rowMeans(meths[, cols, drop = FALSE], na.rm = TRUE)
+}))
+colnames(sub_meths) <- paste(groups$subloc, groups$patient, sep = "_")
+
+str(sub_meths)
+str(sub_sampens)
 ```
 
-
-```{r with_limma_1, fig.width = 18, fig.height = 10}
-tt_meth <- tt_meth[rownames(med_sampens), ]
-signif_meth <- ifelse(tt_meth$adj.P.Val < 0.05, yes = 1, no = 0)
-
-table(signif_meth %in% signif_sampen)
-
-row_tt <- rowAnnotation(limma = as.matrix(data.frame(
-  PT_de_meth = signif_meth,
-  PT_de_sampen = signif_sampen
-)))
-
-Heatmap(med_sampens,
-  name = "med sampens",
-  top_annotation = column_ha,
-  right_annotation = row_ha,
-  left_annotation = row_tt,
-  show_row_names = FALSE,
-  column_labels = gsub(".det.out", "", basename(colnames(med_sampens))),
-  width = ncol(med_sampens) * unit(9, "mm")
-)
-```
-
-## sampen with methylation correction
-
-Doing 
-
-## GO
-
-add 'genes' as a layer to the window annotation and store the id for gene ontology/geneset enrichment (on limma diff entropic regions)
 
 
 ```{r}
-sessionInfo()
+row_na_frac <- \(x) mean(is.na(x)) >= 0.5
+rows_too_sparse <- apply(sub_sampens, 1, row_na_frac) |
+  apply(sub_meths, 1, row_na_frac)
+
+dim(sub_sampens)
+dim(sub_meths)
+
+sub_sampens <- sub_sampens[!rows_too_sparse, , drop = FALSE]
+sub_meths <- sub_meths[!rows_too_sparse, , drop = FALSE]
+
+dim(sub_sampens)
+dim(sub_meths)
+
+colnames(sub_meths)
+```
+
+
+
+```{r}
+c02_nc <- data.frame(y = sub_sampens[, "NC_CRC02"], x = sub_meths[, "NC_CRC02"])
+c02_nc <- na.omit(c02_nc)
+sampled_data <- c02_nc[sample(nrow(c02_nc), 5000), ]
+
+ggplot(sampled_data, aes(x = x, y = y)) +
+  geom_point(alpha = 0.6, size = 0.6) +
+  labs(
+    title = "Adjacent normal in CRC02",
+    x = "average methylation",
+    y = "Sample entropy"
+  ) +
+  theme_ng()
+```
+
+
+Window-wise sampEn vs meth with loc and patient, regardless of the annotation of the window. Mind the quadratic meth term (not sure what for).
+
+```{r}
+rowwise_lm <- function(i) {
+  df <- data.frame(
+    sampen = sub_sampens[i, ],
+    meth = sub_meths[i, ],
+    loc = factor(substr(groups$subloc, 1, 2)),
+    patient = groups$patient
+  )
+  df$loc <- relevel(df$loc, ref = "NC")
+
+  fit <- try(lm(sampen ~ meth + I(meth^2) + loc + patient, data = df), silent = T)
+  s <- summary(fit)$coefficients
+
+  if (!("locPT" %in% rownames(s))) {
+    return(rep(NA, 5))
+  }
+
+  c(
+    estimate  = s["locPT", "Estimate"],
+    std_error = s["locPT", "Std. Error"],
+    t_value   = s["locPT", "t value"],
+    p_value   = s["locPT", "Pr(>|t|)"],
+    df        = df.residual(fit)
+  )
+}
+
+coefs_list <- bplapply(seq_len(nrow(sub_sampens)), rowwise_lm, BPPARAM = param)
+head(coefs_list)
+
+coefs_df <- do.call(rbind, coefs_list)
+colnames(coefs_df) <- c("estimate", "std_error", "t_value", "p_value", "df")
+coefs_df <- as.data.frame(coefs_df)
+
+head(coefs_df)
+
+dim(coefs_df)
+
+coefs_df[] <- lapply(coefs_df, as.numeric)
+
+valid <- complete.cases(coefs_df)
+coefs_valid <- coefs_df[valid, ]
+
+dim(coefs_valid)
+
+s2 <- coefs_valid$std_error^2
+df_resid <- coefs_valid$df
+squeezed <- squeezeVar(var = s2, df = df_resid)
+
+moderated_t <- coefs_valid$estimate / sqrt(squeezed$var.post)
+moderated_p <- 2 * pt(-abs(moderated_t), df = squeezed$df.prior + df_resid)
+adj_p <- p.adjust(moderated_p, method = "BH")
+
+coefs_valid$moderated_t <- moderated_t
+coefs_valid$moderated_p <- moderated_p
+coefs_valid$adj_p <- adj_p
+
+coefs_df$moderated_t <- NA
+coefs_df$moderated_p <- NA
+coefs_df$adj_p <- NA
+coefs_df[
+  valid, c("moderated_t", "moderated_p", "adj_p")
+] <- coefs_valid[, c("moderated_t", "moderated_p", "adj_p")]
+
+dim(coefs_df)
+head(coefs_df)
+
+coefs_df$region <- rownames(sub_sampens)
+
+table(coefs_df$adj_p < 0.05)
+print(hist(coefs_df$adj_p))
+
+sorted_idx <- order(coefs_df$adj_p, na.last = NA)
+
+top_2k_idx <- sorted_idx[1:2000]
+
+top_entropy <- sub_sampens[top_2k_idx, ]
+top_meth <- sub_meths[top_2k_idx, ]
+head(top_meth)
+```
+
+
+Let's now add to the row annotation whether regions are top_meth or top_entropy
+
+```{r}
+row_ha <- rowAnnotation(tile_annotation = as.matrix(data.frame(
+
+  diff_sampen = coefs_df$adj_p < 0.05,
+  
+  genes = annot[coefs_df$region, "genes_genes"],
+  islands = annot[coefs_df$region, "cpgIslandExt_cpgIslandExt"],                     
+
+  pmd = annot[coefs_df$region, "pmds_pmd"],
+  hmd = annot[coefs_df$region, "hmds_pmd"],
+
+  scna_nc = annot[coefs_df$region, "crc01_nc_scna_scna"],
+  scna_gain = annot[coefs_df$region, "crc01_gain_scna_scna"],
+  scna_loss = annot[coefs_df$region, "crc01_lost_scna_scna"],  
+
+  H3K27me3 = annot[coefs_df$region, "H3K27me3_chip"],
+  H3K9me3 = annot[coefs_df$region, "H3K9me3_chip"],
+  H3K4me3 = annot[coefs_df$region, "H3K4me3_chip"],
+  laminb1 = annot[coefs_df$region, "laminb1_lad"],
+  
+  X0_Enhancer_hmm = annot[coefs_df$region, "0_Enhancer_hmm"],
+  X2_Enhancer_hmm = annot[coefs_df$region, "2_Enhancer_hmm"],
+  X1_Transcribed_hmm = annot[coefs_df$region, "1_Transcribed_hmm"],
+  X4_Transcribed_hmm = annot[coefs_df$region, "4_Transcribed_hmm"],
+  X5_RegPermissive_hmm = annot[coefs_df$region, "5_RegPermissive_hmm"],
+  X7_RegPermissive_hmm = annot[coefs_df$region, "7_RegPermissive_hmm"],
+  
+  X3_Quiescent = annot[coefs_df$region, "3_Quiescent_hmm"],
+  X8_Quiescent = annot[coefs_df$region, "8_Quiescent_hmm"],
+  X10_Quiescent = annot[coefs_df$region, "10_Quiescent_hmm"],
+
+  X11_Promoter = annot[coefs_df$region, "11_Promoter_hmm"],
+  X12_Promoter = annot[coefs_df$region, "12_Promoter_hmm"],
+
+  X9_ConstitutiveHet = annot[coefs_df$region, "9_ConstitutiveHet_hmm"],
+  X13_ConstitutiveHet = annot[coefs_df$region, "13_ConstitutiveHet_hmm"],
+  
+  X6_LowConfidence = annot[coefs_df$region, "6_LowConfidence_hmm"]
+)))
+```
+
+
+Caution not sure both heatmaps are clustered the same way (left and right)
+
+```{r, fig.width =20, fig.height = 10}
+
+
+column_ha <- HeatmapAnnotation(
+  loc = substr(groups$subloc, 1, 2),
+  ## subloc = groups$subloc,
+  patient = groups$patient
+)
+
+Heatmap(sub_sampens,
+  name = "sampens",
+  top_annotation = column_ha,
+  right_annotation = row_ha,
+  show_row_names = FALSE,
+  show_column_names = FALSE,
+  cluster_columns = TRUE,
+  cluster_rows = TRUE
+)  + Heatmap(sub_meths,
+    name = "meths",
+    show_row_names = FALSE,
+    show_column_names = FALSE,
+    cluster_columns = TRUE,
+    cluster_rows = TRUE)
+```
+
+
+
+
+```{r}
+
 knitr::knit_exit()
 ```
+
+
+<!-- ## Test -->
+
+<!-- Let's go back to what it matters, sampens and the row annotations -->
+
+<!-- ```{r, fig.width = 10, fig.height = 10} -->
+<!-- str(sampens) -->
+
+<!-- ``` -->
+
+
+
+<!-- # Differential (sample) entropy / limma {.tabset .tabset-pills} -->
+
+<!-- Just ~ patient + location -->
+
+<!-- ## Only sampen, no methylation correction -->
+
+<!-- ```{r, fig.width = 3, fig.height = 3} -->
+<!-- sampen_fd <- do.call(cbind, lapply(sampens, \(x) x$sampen)) -->
+
+<!-- meta <- data.frame( -->
+<!--   colname = colnames(sampen_fd), -->
+<!--   patient = sapply(strsplit(colnames(sampen_fd), "_"), function(x) x[3]), -->
+<!--   location = substr( -->
+<!--     sapply(strsplit(colnames(sampen_fd), "_"), function(x) x[4]), 1, 2 -->
+<!--   ) -->
+<!-- ) -->
+
+<!-- meta$location <- relevel(factor(meta$location), ref = "NC") -->
+
+<!-- design <- model.matrix(~ meta$patient + meta$location) -->
+<!-- fit_sampen <- lmFit(sampen_fd, design) -->
+<!-- fit_sampen <- eBayes(fit_sampen) -->
+
+<!-- hist(fit_sampen$p.value) -->
+
+<!-- tt_sampen <- topTable( -->
+<!--   fit_sampen, -->
+<!--   coef = "meta$locationPT", n = Inf, sort.by = "none" -->
+<!-- ) -->
+
+<!-- table(tt_sampen$adj.P.Val < 0.05) -->
+<!-- ``` -->
+
+
+<!-- ```{r with_limma_0, fig.width = 18, fig.height = 10} -->
+<!-- tt_sampen <- tt_sampen[rownames(med_sampens), ] -->
+<!-- signif_sampen <- ifelse(tt_sampen$adj.P.Val < 0.05, yes = 1, no = 0) -->
+
+<!-- row_tt_sampen <- rowAnnotation(PT_de_sampen = signif_sampen) -->
+
+<!-- Heatmap(med_sampens, -->
+<!--   name = "med sampens", -->
+<!--   top_annotation = column_ha, -->
+<!--   right_annotation = row_ha, -->
+<!--   left_annotation = row_tt_sampen, -->
+<!--   show_row_names = FALSE, -->
+<!--   column_labels = gsub(".det.out", "", basename(colnames(med_sampens))), -->
+<!--   width = ncol(med_sampens) * unit(9, "mm") -->
+<!-- ) -->
+<!-- ``` -->
+
+
+<!-- ## Only methylation -->
+
+<!-- correct for diffs in avg meth; or perhaps test separately and overlap the two sets -->
+
+
+<!-- ```{r} -->
+<!-- filepaths <- list.files( -->
+<!--   snakemake@params[["output_path"]], -->
+<!--   pattern = paste0( -->
+<!--     snakemake@wildcards[["win_size"]], "_(.*)\\.meth\\.out\\.gz$" -->
+<!--   ), full.names = TRUE -->
+<!-- ) -->
+
+<!-- regex <- "(.*)_(.*)_(.*).meth.out.gz" -->
+<!-- process_meth_reports <- function(filepath) { -->
+<!--   filename <- basename(filepath) -->
+<!--   patient <- gsub(regex, "\\2", filename) -->
+<!--   location <- gsub(regex, "\\3", filename) -->
+
+<!--   dt <- read_tsv( -->
+<!--     filepath, -->
+<!--     na = "-1", n_max = NROWS, -->
+<!--     show_col_types = FALSE -->
+<!--   ) -->
+
+<!--   ## meths -->
+<!--   cols <- grep("singleC", colnames(dt), value = TRUE) -->
+<!--   rows <- paste0("w", seq_len(nrow(dt))) -->
+
+<!--   se <- as(as.matrix(dt[, cols]), "dgCMatrix") -->
+
+<!--   dimnames(se) <- list(rows, cols) -->
+
+<!--   return(list(meth = list( -->
+<!--     file = filepath, -->
+<!--     patient = patient, -->
+<!--     location = location, -->
+<!--     meth = se -->
+<!--   ))) -->
+<!-- } -->
+
+<!-- meths <- bplapply(filepaths, \(x) process_meth_reports(x)$meth, BPPARAM = param) -->
+
+
+<!-- meths_fd <- do.call(cbind, lapply(meths, \(x) x$meth)) -->
+
+<!-- design <- model.matrix(~ meta$patient + meta$location) # same design as above -->
+<!-- fit_meth <- lmFit(meths_fd, design) -->
+<!-- fit_meth <- eBayes(fit_meth) -->
+<!-- ``` -->
+
+
+<!-- ```{r, fig.width = 3, fig.height = 3} -->
+<!-- hist(fit_meth$p.value) -->
+
+<!-- tt_meth <- topTable( -->
+<!--   fit_meth, -->
+<!--   coef = "meta$locationPT", n = Inf, sort.by = "none" -->
+<!-- ) -->
+
+<!-- table(tt_meth$adj.P.Val < 0.05) -->
+<!-- ``` -->
+
+
+<!-- ```{r with_limma_1, fig.width = 18, fig.height = 10} -->
+<!-- tt_meth <- tt_meth[rownames(med_sampens), ] -->
+<!-- signif_meth <- ifelse(tt_meth$adj.P.Val < 0.05, yes = 1, no = 0) -->
+
+<!-- table(signif_meth %in% signif_sampen) -->
+
+<!-- row_tt <- rowAnnotation(limma = as.matrix(data.frame( -->
+<!--   PT_de_meth = signif_meth, -->
+<!--   PT_de_sampen = signif_sampen -->
+<!-- ))) -->
+
+<!-- Heatmap(med_sampens, -->
+<!--   name = "med sampens", -->
+<!--   top_annotation = column_ha, -->
+<!--   right_annotation = row_ha, -->
+<!--   left_annotation = row_tt, -->
+<!--   show_row_names = FALSE, -->
+<!--   column_labels = gsub(".det.out", "", basename(colnames(med_sampens))), -->
+<!--   width = ncol(med_sampens) * unit(9, "mm") -->
+<!-- ) -->
+<!-- ``` -->
+
+<!-- ## sampen with methylation correction -->
+
+<!-- Doing  -->
+
+<!-- ## GO -->
+
+<!-- add 'genes' as a layer to the window annotation and store the id for gene ontology/geneset enrichment (on limma diff entropic regions) -->
+
+
+<!-- ```{r} -->
+<!-- sessionInfo() -->
+<!-- knitr::knit_exit() -->
+<!-- ``` -->

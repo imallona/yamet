@@ -248,7 +248,7 @@ rule run_yamet_on_separate_features:
          --det-out {output.det_uncomp} \
          --meth-out {output.meth_uncomp} &> {log}
         
-        gzip -f {params.path}/{wildcards.subcat}_{wildcards.cat}_{wildcards.patient}_{wildcards.location}*out  &>> {log}
+        gzip --keep -f {params.path}/{wildcards.subcat}_{wildcards.cat}_{wildcards.patient}_{wildcards.location}*out  &>> {log}
         """
 
 def list_relevant_yamet_outputs():
@@ -394,7 +394,7 @@ rule run_yamet_on_windows:
          --det-out {output.det_uncomp} \
          --meth-out {output.meth_uncomp} &> {log}
 
-        gzip -f {params.path}/{wildcards.win_size}_{wildcards.patient}_{wildcards.location}*out  &>> {log}
+        gzip --keep -f {params.path}/{wildcards.win_size}_{wildcards.patient}_{wildcards.location}*out  &>> {log}
         """
 
 def list_relevant_yamet_windows_outputs():
