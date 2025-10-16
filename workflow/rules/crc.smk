@@ -222,9 +222,12 @@ rule run_yamet_on_separate_features:
         ref=op.join(HG19_BASE, "ref.CG.gz"),
         bed=op.join(HG19_BASE, "{subcat}.{cat}.bed")
     output:
-        simple=op.join(CRC_OUTPUT, "{subcat}_{cat}_{patient}.{location}.out"),
-        det=op.join(CRC_OUTPUT, "{subcat}_{cat}_{patient}_{location}.det.out"),
-        meth=op.join(CRC_OUTPUT, "{subcat}_{cat}_{patient}_{location}.meth.out")
+        simple_uncomp = temp(op.join(CRC_OUTPUT, "{subcat}_{cat}_{patient}_{location}.out")),
+        det_uncomp = temp(op.join(CRC_OUTPUT, "{subcat}_{cat}_{patient}_{location}.det.out")),
+        meth_uncomp = temp(op.join(CRC_OUTPUT, "{subcat}_{cat}_{patient}_{location}.meth.out")),
+        simple=op.join(CRC_OUTPUT, "{subcat}_{cat}_{patient}_{location}.out.gz"),
+        det=op.join(CRC_OUTPUT, "{subcat}_{cat}_{patient}_{location}.det.out.gz"),
+        meth=op.join(CRC_OUTPUT, "{subcat}_{cat}_{patient}_{location}.meth.out.gz")
     log:
         op.join('logs', 'yamet_{subcat}_{cat}_{patient}_{location}.log')
     group:
@@ -241,9 +244,11 @@ rule run_yamet_on_separate_features:
          --intervals {input.bed} \
          --cores {threads} \
          --print-sampens F \
-         --out {output.simple} \
-         --det-out {output.det} \
-         --meth-out {output.meth} &> {log}
+         --out {output.simple_uncomp} \
+         --det-out {output.det_uncomp} \
+         --meth-out {output.meth_uncomp} &> {log}
+        
+        gzip -f {params.path}/{wildcards.subcat}_{wildcards.cat}_{wildcards.patient}_{wildcards.location}*out  &>> {log}
         """
 
 def list_relevant_yamet_outputs():
@@ -252,7 +257,7 @@ def list_relevant_yamet_outputs():
         for subannot in ANNOTATIONS[annot]:
             for patient in SAMPLES.keys():
                 for sampling in SAMPLES[patient]:
-                    res.append(f"{subannot}_{annot}_{patient}_{sampling}.det.out")
+                    res.append(f"{subannot}_{annot}_{patient}_{sampling}.det.out.gz")
     return [op.join(CRC_OUTPUT, item) for item in res]
 
 rule render_crc_report:
@@ -363,9 +368,12 @@ rule run_yamet_on_windows:
         ref=op.join(HG19_BASE, "ref.CG.gz"),
         windows=op.join(HG19_BASE, "windows_{win_size}_nt.bed")
     output:
-        simple=op.join(CRC_WINDOWS_OUTPUT, "{win_size}_{patient}_{location}.out"),
-        det=op.join(CRC_WINDOWS_OUTPUT, "{win_size}_{patient}_{location}.det.out"),
-        meth=op.join(CRC_WINDOWS_OUTPUT, "{win_size}_{patient}_{location}.meth.out")
+        simple_uncomp=temp(op.join(CRC_WINDOWS_OUTPUT, "{win_size}_{patient}_{location}.out")),
+        det_uncomp=temp(op.join(CRC_WINDOWS_OUTPUT, "{win_size}_{patient}_{location}.det.out")),
+        meth_uncomp=temp(op.join(CRC_WINDOWS_OUTPUT, "{win_size}_{patient}_{location}.meth.out")),
+        simple=op.join(CRC_WINDOWS_OUTPUT, "{win_size}_{patient}_{location}.out.gz"),
+        det=op.join(CRC_WINDOWS_OUTPUT, "{win_size}_{patient}_{location}.det.out.gz"),
+        meth=op.join(CRC_WINDOWS_OUTPUT, "{win_size}_{patient}_{location}.meth.out.gz")
     log:
         op.join('logs', 'yamet_{win_size}_{patient}_{location}.log')
     group:
@@ -382,16 +390,18 @@ rule run_yamet_on_windows:
          --intervals {input.windows} \
          --cores {threads} \
          --print-sampens F \
-         --out {output.simple} \
-         --det-out {output.det} \
-         --meth-out {output.meth} &> {log}
+         --out {output.simple_uncomp} \
+         --det-out {output.det_uncomp} \
+         --meth-out {output.meth_uncomp} &> {log}
+
+        gzip -f {params.path}/{wildcards.win_size}_{wildcards.patient}_{wildcards.location}*out  &>> {log}
         """
 
 def list_relevant_yamet_windows_outputs():
     res = []
     for patient in SAMPLES.keys():
         for location in SAMPLES[patient]:
-            res.append(f"{{win_size}}_{patient}_{location}.det.out")
+            res.append(f"{{win_size}}_{patient}_{location}.det.out.gz")
     return [op.join(CRC_WINDOWS_OUTPUT, item) for item in res]
 
 

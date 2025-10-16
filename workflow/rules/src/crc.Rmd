@@ -44,6 +44,11 @@ opts_chunk$set(
 )
 ```
 
+```{r save_snmk_object_for_debugging, include = FALSE}
+saveRDS(file = 'snmk_object_features.rds', object = snakemake)
+```
+
+
 ```{r logging, include = FALSE}
 log <- file(snakemake@log$log, open = "wt")
 sink(log)
