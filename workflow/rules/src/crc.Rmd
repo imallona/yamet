@@ -418,6 +418,14 @@ pmds$by_shannon_pt <- cut(pmds$shannon_PT, breaks = 10)
 pmds$by_shannon_nc <- cut(pmds$shannon_NC, breaks = 10)
 ```
 
+# SCNA checks, by cytoband
+
+Is this necessary? given we don't see much of a change https://github.com/imallona/yamet/blob/9156b817e04d9294024631dc25b528e191d913f4/workflow/rules/src/crc_deletions.Rmd#L96
+
+
+
+
+
 
 
 # Session

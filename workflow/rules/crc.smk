@@ -312,7 +312,7 @@ rule make_windows_hg19:
         """
 
 ## @todo make sure this ingests genes, CpGis and SCNAs!
-rule get_single_annotion_coverage_per_window:
+rule get_aggregated_annotation_coverage_per_window:
     conda:
         op.join("..", "envs", "yamet.yml")
     input:
