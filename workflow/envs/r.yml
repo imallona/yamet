@@ -19,3 +19,7 @@ dependencies:
   - bioconductor-complexheatmap
   - bioconductor-geoquery
   - bioconductor-limma
+  - conda-forge::r-uwot
+  - conda-forge::r-purrr
+  - bioconda::bioconductor-summarizedexperiment
+  - bioconda::bioconductor-singlecellexperiment

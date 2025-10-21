@@ -1,5 +1,5 @@
 ---
-title: "CRC by genomic tiles, first exploration"
+title: "CRC by genomic tiles, aggregated and unaggregated single cells"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output:
   html_document:
@@ -25,6 +25,13 @@ suppressPackageStartupMessages({
   library(limma)
   library(BiocParallel)
   library(circlize)
+
+  library(dplyr)
+  library(purrr)
+  library(uwot)  # UMAP
+
+  library(SingleCellExperiment)
+  library(SummarizedExperiment)
 })
 
 source("src/ggtheme.R")
@@ -50,7 +57,7 @@ knitr::knit_hooks$set(error = function(x, options) {
 })
 ```
 
-```{r save_snmk_object_for_debugging, include = FALSE}
+```{r save_snmk_object_for_debugging, include = FALSE, eval = TRUE}
 saveRDS(file = 'snmk_object_windows.rds', object = snakemake)
 ```
 
@@ -82,16 +89,15 @@ annot <- read_tsv(
 First, cluster the annots to make sure they make sense to start with, without any sampens
 
 ```{r, fig.width = 12, fig.height = 6}
+## rownames(annot) <- paste0("w", rownames(annot))
+## mannot <- head(annot, NROWS)
 mannot <- head(annot, NROWS)
 rownames(annot) <- paste0("w", rownames(annot))
 
 plot(hclust(dist(t(mannot))))
 ```
 
-
-# QC  {.tabset .tabset-pills}
-
-## Local reports - Shannon {.tabset .tabset-pills}
+# Reading
 
 Caution downsampled
 
@@ -160,6 +166,203 @@ rownames(shannons) <- paste(
 
 sampens <- lapply(filepaths, \(x) process_reports(x)$sampen)
 
+str(sampens)
+```
+
+
+# Single cell visualization/ UMAP and SCE generation
+
+```{r}
+
+# flatten sampens
+flatten_entry <- function(entry, filter) {
+  mat <- as.matrix(entry$sampen)   # to dense
+  df <- as.data.frame(t(mat))      # cells as rows
+  df$cell <- colnames(entry$sampen)
+  df$patient <- entry$patient
+  df$location <- entry$location
+  df
+}
+
+df_all <- map_dfr(sampens, flatten_entry)
+dim(df_all)
+df_all[1:3, 1:3]
+
+features <- df_all %>% select(starts_with("w"))
+
+# drop windows with >20% NAs
+keep_cols <- colMeans(is.na(features)) < 0.2
+features <- features[, keep_cols]
+
+# drop cells with >20% NAs
+keep_rows <- rowMeans(is.na(features)) < 0.2
+features <- features[keep_rows, ]
+df_all_filtered <- df_all[keep_rows, ]
+
+# impute remaining NAs
+
+for (j in seq_len(ncol(features))) {
+  col_mean <- mean(features[[j]], na.rm = TRUE)
+  features[[j]][is.na(features[[j]])] <- col_mean
+}
+
+dim(features)
+
+set.seed(123)
+umap_coords <- umap(features, n_neighbors = 15, min_dist = 0.3, metric = "euclidean")
+
+## plus feature rowdata
+plot_df <- cbind(as.data.frame(umap_coords),
+                 cell = df_all_filtered$cell,
+                 patient = df_all_filtered$patient,
+                 location = df_all_filtered$location)
+
+```
+
+```{r, fig.width = 10, fig.height = 10}
+ggplot(plot_df, aes(x = V1, y = V2, color = location)) +
+  geom_point(alpha = 1) +
+  theme_minimal()
+
+ggplot(plot_df, aes(x = V1, y = V2, color = patient)) +
+  geom_point(alpha = 1) +
+  theme_minimal()
+```
+
+And this is with all features; what would it happen if focusing in changing windows only?
+
+First do some violins
+
+```{r}
+cell_summary <- features %>%
+  as.data.frame() %>%
+  mutate(mean_sampen = rowMeans(., na.rm = TRUE),
+         var_sampen  = apply(., 1, var, na.rm = TRUE)) %>%
+  select(mean_sampen, var_sampen) %>%
+  bind_cols(df_all_filtered %>% select(cell, patient, location))
+
+ggplot(cell_summary, aes(x = location, y = mean_sampen, fill = location)) +
+  geom_violin(trim = FALSE, scale = "width") +
+  geom_boxplot(width = 0.1, outlier.size = 0.5, alpha = 0.5) +
+  facet_wrap(~patient) +
+  theme_minimal() +
+  labs(title = "Per-cell mean entropy by patient and location",
+       x = "Location", y = "Mean sample entropy")
+
+# Variance per cell
+ggplot(cell_summary, aes(x = location, y = var_sampen, fill = location)) +
+  geom_violin(trim = FALSE, scale = "width") +
+  geom_boxplot(width = 0.1, outlier.size = 0.5, alpha = 0.5) +
+  facet_wrap(~patient) +
+  theme_minimal() +
+  labs(title = "Per-cell entropy variance by patient and location",
+       x = "Location", y = "Variance of sample entropy")
+
+```
+
+Export a SCE (again with some filtering for NAs and some imputation)
+
+```{r}
+
+assay_list <- list(sampen = t(as.matrix(features)))
+
+head(rownames(df_all_filtered))
+head(colnames(features))
+df_all_filtered$mean_sampen <- rowMeans(features, na.rm = TRUE)
+df_all_filtered$var_sampen  <- apply(features, 1, var, na.rm = TRUE)
+
+col_data <- data.frame(df_all_filtered[,c('cell', 'patient', 'location', 'mean_sampen', 'var_sampen')])
+head(rownames(col_data))
+row_data <- data.frame(annot[colnames(features), ])
+rownames(row_data) <- colnames(features)
+
+sce <- SingleCellExperiment(
+  assays = assay_list,
+  colData = col_data,
+  rowData = row_data
+)
+
+head(colData(sce))
+```
+
+Add some DNA meth as well
+
+```{r}
+
+filepaths <- list.files(
+  snakemake@params[["output_path"]],
+  pattern = paste0(
+    snakemake@wildcards[["win_size"]], "_(.*)\\.meth\\.out\\.gz$"
+  ), full.names = TRUE
+)
+
+head(filepaths)
+
+regex <- "(.*)_(.*)_(.*).meth.out.gz"
+
+process_meth_reports <- function(filepath) {
+  filename <- basename(filepath)
+  patient <- gsub(regex, "\\2", filename)
+  location <- gsub(regex, "\\3", filename)
+
+  dt <- read_tsv(
+    filepath,
+    na = "-1", n_max = NROWS,
+    show_col_types = FALSE
+  )
+
+  ## sampens
+  cols <- grep("singleC", colnames(dt), value = TRUE)
+  rows <- paste0("w", seq_len(nrow(dt)))
+
+  se <- as(as.matrix(dt[, cols]), "dgCMatrix")
+
+  dimnames(se) <- list(rows, cols)
+
+  return(list(
+    meth = list(
+      file = filepath,
+      patient = patient,
+      location = location,
+      meth = se
+    )
+  ))
+}
+
+meths <- lapply(filepaths, \(x) process_meth_reports(x)$meth)
+
+meth_mats <- lapply(meths, function(x) x$meth)
+
+rm(meths)
+
+meth_mat <- do.call(cbind, meth_mats)
+
+rm(meth_mats)
+
+head(colnames(assay(sce, "sampen")))
+head(colnames(meth_mat))
+
+meth_mat <- meth_mat[rownames(sce), colnames(assay(sce, "sampen"))]
+
+stopifnot(identical(rownames(assay(sce, "sampen")), rownames(meth_mat)))
+stopifnot(identical(colnames(assay(sce, "sampen")), colnames(meth_mat)))
+
+assay(sce, "meth") <- meth_mat
+
+rm(meth_mat)
+
+saveRDS('sce_windows_colon.rds', object = sce)
+```
+
+
+# QC  {.tabset .tabset-pills}
+
+## Local reports - Shannon {.tabset .tabset-pills}
+
+
+Back to the SCE-free reports
+
+```{r}
 ## let's get a value per window - median
 sampens <- bplapply(sampens, \(x) {
   x$median <- apply(
@@ -171,6 +374,7 @@ sampens <- bplapply(sampens, \(x) {
   x
 }, BPPARAM = param)
 ```
+
 
 ## By location 
 
@@ -216,7 +420,7 @@ for (patient in levels(shannons$patient)) {
 
 Mind each column should be a miniheatmap instead, not depicting a median
 
-```{r, fig.width = 14, fig.height = 10}
+```{r firstheatmap, fig.width = 14, fig.height = 10}
 med_sampens <- as.matrix(do.call(cbind.data.frame, lapply(sampens, function(x) {
   return(x$median)
 })))
