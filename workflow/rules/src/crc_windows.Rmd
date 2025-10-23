@@ -36,6 +36,8 @@ suppressPackageStartupMessages({
 })
 
 source("src/ggtheme.R")
+source('src/diff_testing.R')
+
 param <- MulticoreParam(workers = snakemake@threads)
 ```
 
@@ -968,35 +970,72 @@ top_meth <- sub_meths[top_2k_idx, ]
 ```
 
 
-# Same but with a function
+# Same but with a function, PT vs NC
 
 ```{r}
-source('diff_testing.R')
 
 # with the quadratic term still
+str(groups)
 
-df2 <- data.frame(
-    sampen = sub_sampens[i, ],
-    meth = sub_meths[i, ],
-    loc = factor(substr(groups$subloc, 1, 2)),
-    patient = groups$patient
-)
-
-df2 <- df[df2$loc %in% c('PT', 'NC'), ]
-df2$loc <- relevel(df2$loc, ref = "NC")
-
-
-res <- diff_entropy_test_df(
-  df       = df2,
-  formula  = "sampen ~ meth + I(meth^2) + loc + patient",
-  param    = param,
-  out_file = "pt_vs_nc_coefs.rds",
-  top_n    = 2000,
-  contrast = "locPT"
+res <- diff_entropy_test(
+  sub_sampens = sub_sampens,
+  sub_meths   = sub_meths,
+  groups      = groups,
+  formula     = "sampen ~ meth + I(meth^2) + loc + patient",
+  loc_levels  = c("PT","NC"),
+  ref_level   = "NC",
+  contrast    = "locPT",
+  param       = param,
+  top_n       = 2000,
+  out_file    = "pt_vs_nc_coefs.rds"
 )
 
 head(res$coefs_df)
+table(res$coefs_df$adj_p < 0.05)
 ```
+
+# Same, LN vs PT
+
+
+```{r}
+res2 <- diff_entropy_test(
+  sub_sampens = sub_sampens,
+  sub_meths   = sub_meths,
+  groups      = groups,
+  formula     = "sampen ~ meth + I(meth^2) + loc + patient",
+  loc_levels  = c("PT","LN"),
+  ref_level   = "PT",
+  contrast    = "locLN",
+  param       = param,
+  top_n       = 2000,
+  out_file    = "ln_vs_pt_coefs.rds"
+)
+
+head(res2$coefs_df)
+hist(res2$coefs_df$p_val)
+table(res2$coefs_df$adj_p < 0.05)
+```
+
+# Same, LN vs NC
+
+```{r}
+res3 <- diff_entropy_test(
+  sub_sampens = sub_sampens,
+  sub_meths   = sub_meths,
+  groups      = groups,
+  formula     = "sampen ~ meth + I(meth^2) + loc + patient",
+  loc_levels  = c("NC","LN"),
+  ref_level   = "NC",
+  contrast    = "locLN",
+  param       = param,
+  top_n       = 2000,
+  out_file    = "ln_vs_nc_coefs.rds"
+)
+
+hist(res3$coefs_df$p_val)
+table(res3$coefs_df$adj_p < 0.05)
+```
+
 
 
 
