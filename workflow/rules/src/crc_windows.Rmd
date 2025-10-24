@@ -77,15 +77,22 @@ To double check annotations are ok.
 Caution downsampling
 
 ```{r, fig.width = 12, fig.height = 6}
-NROWS <- 1e4
+NROWS <- 5e4
 
 annot <- read_tsv(
   snakemake@input[["annotations"]],
   n_max = NROWS, show_col_types = FALSE
 )
 
+annot$region <- sprintf("%s:%s-%s", annot$chr, annot$start, annot$end)
+rownames(annot) <- annot$region
+
+annot <- annot[,setdiff(colnames(annot), c('chr', 'start', 'end', 'region'))]
+
+
 mannot <- head(annot, NROWS)
-rownames(annot) <- paste0("w", rownames(annot))
+## rownames(annot) <- paste0("w", rownames(annot))
+
 
 plot(hclust(dist(t(mannot))))
 ```
@@ -113,11 +120,11 @@ process_reports <- function(filepath) {
   ## shannons + avgmeth
   dtm <- dt[, c("shannon", "avg_meth")] |>
     mutate(patient = patient, location = location,
-           window = paste0("w", rownames(dt)))
+           window = sprintf("%s:%s-%s", dt$chr, dt$start, dt$end))
   
   ## sampen
   cols <- grep("singleC", colnames(dt), value = TRUE)
-  rows <- paste0("w", seq_len(nrow(dt)))
+  rows <- sprintf("%s:%s-%s", dt$chr, dt$start, dt$end)
   se <- as(as.matrix(dt[, cols]), "dgCMatrix")
   dimnames(se) <- list(rows, cols)
 
@@ -153,7 +160,7 @@ sampens <- lapply(filepaths, \(x) process_reports(x)$sampen)
 ```
 
 
-# Single cell visualization/ UMAP and SCE generation {.tabset} {.tabset-pills}
+# Single cell visualization/ UMAP and SCE generation {.tabset .tabset-pills}
 
 ```{r}
 
@@ -171,7 +178,7 @@ df_all <- map_dfr(sampens, flatten_entry)
 ## dim(df_all)
 ## df_all[1:3, 1:3]
 
-features <- df_all %>% select(starts_with("w"))
+features <- df_all %>% select(starts_with("chr"))
 
 # drop windows with >20% NAs
 keep_cols <- colMeans(is.na(features)) < 0.2
@@ -220,7 +227,7 @@ ggplot(plot_df, aes(x = V1, y = V2, color = patient)) +
 
 And this is with all features; what would it happen if focusing in changing windows only?
 
-## Violins {.tabset} {.tabset-pills}
+## Violins {.tabset .tabset-pills}
 
 ### Mean sampEn
 
@@ -304,7 +311,7 @@ process_meth_reports <- function(filepath) {
   ## sampens
   cols <- grep("singleC", colnames(dt), value = TRUE)
   se <- as(as.matrix(dt[, cols]), "dgCMatrix")
-  dimnames(se) <- list(paste0("w", seq_len(nrow(dt))), cols)
+  dimnames(se) <- list(sprintf("%s:%s-%s", dt$chr, dt$start, dt$end), cols)
 
   return(list(
     meth = list(
@@ -601,7 +608,10 @@ sampens <- do.call(cbind, lapply(all_data, \(x) x$sampen))
 meths <- do.call(cbind, lapply(all_data, \(x) x$meth))
 
 annot <- read_tsv(snakemake@input[["annotations"]], show_col_types = FALSE)
-rownames(annot) <- rownames(sampens)
+annot$region <- sprintf("%s:%s-%s", annot$chr, annot$start, annot$end)
+rownames(annot) <- annot$region
+annot <- annot[,setdiff(colnames(annot), c('chr', 'start', 'end', 'region'))]
+## rownames(annot) <- rownames(sampens)
 
 get_row_annotations <- function(regions) {
   rowAnnotation(tile_annotation = as.matrix(data.frame(
@@ -684,10 +694,6 @@ colnames(sub_meths) <- paste(groups$subloc, groups$patient, sep = "_")
 
 So these data group entropies/sampens from different biopsy:patient pairs
 
-```{r}
-str(sub_meths)
-str(sub_sampens)
-```
 
 ```{r}
 row_na_frac <- \(x) mean(is.na(x)) >= 0.5
@@ -702,8 +708,6 @@ sub_meths <- sub_meths[!rows_too_sparse, , drop = FALSE]
 
 ## dim(sub_sampens)
 ## dim(sub_meths)
-
-colnames(sub_meths)
 ```
 
 
@@ -724,7 +728,7 @@ ggplot(sampled_data, aes(x = x, y = y)) +
 ```
 
 
-Let's do a Window-wise sampEn vs meth with loc and patient, regardless of the annotation of the window. Mind the quadratic meth term (not sure what for).
+Let's do a window-wise sampEn vs meth with loc and patient, regardless of the annotation of the window. Mind the quadratic meth term (not sure what for).
 
 ```{r}
 rowwise_lm <- function(i) {
@@ -753,22 +757,16 @@ rowwise_lm <- function(i) {
 }
 
 coefs_list <- bplapply(seq_len(nrow(sub_sampens)), rowwise_lm, BPPARAM = param)
-head(coefs_list)
 
 coefs_df <- do.call(rbind, coefs_list)
 colnames(coefs_df) <- c("estimate", "std_error", "t_value", "p_value", "df")
 coefs_df <- as.data.frame(coefs_df)
 
-## head(coefs_df)
-
-## dim(coefs_df)
 
 coefs_df[] <- lapply(coefs_df, as.numeric)
 
 valid <- complete.cases(coefs_df)
 coefs_valid <- coefs_df[valid, ]
-
-## dim(coefs_valid)
 
 s2 <- coefs_valid$std_error^2
 df_resid <- coefs_valid$df
@@ -790,7 +788,7 @@ coefs_df[
 ] <- coefs_valid[, c("moderated_t", "moderated_p", "adj_p")]
 
 ## dim(coefs_df)
-head(coefs_df)
+## head(coefs_df)
 
 coefs_df$region <- rownames(sub_sampens)
 
@@ -884,8 +882,9 @@ Heatmap(sub_sampens,
               cluster_rows = row.hc)
 ```
 
+# Stats / planned comparisons {.tabset .tabset-pills}
 
-# Atreya's but only PT vs NC
+## Atreya's code but only PT vs NC
 
 
 ```{r}
@@ -917,7 +916,6 @@ rowwise_lm <- function(i) {
 }
 
 coefs_list <- bplapply(seq_len(nrow(sub_sampens)), rowwise_lm, BPPARAM = param)
-head(coefs_list)
 
 coefs_df <- do.call(rbind, coefs_list)
 colnames(coefs_df) <- c("estimate", "std_error", "t_value", "p_value", "df")
@@ -950,9 +948,6 @@ coefs_df[
   valid, c("moderated_t", "moderated_p", "adj_p")
 ] <- coefs_valid[, c("moderated_t", "moderated_p", "adj_p")]
 
-## dim(coefs_df)
-head(coefs_df)
-
 coefs_df$region <- rownames(sub_sampens)
 
 saveRDS(object = coefs_df, 'pt_vs_nc_coefs.rds')
@@ -970,14 +965,19 @@ top_meth <- sub_meths[top_2k_idx, ]
 ```
 
 
-# Same but with a function, PT vs NC
+## Same but with a function, PT vs NC
+
 
 ```{r}
+de <- list() ## diff entropic, meth-corrected, regions
+```
+
+```{r ptnc, fig.width = 5, fig.height = 5}
 
 # with the quadratic term still
-str(groups)
+## str(groups)
 
-res <- diff_entropy_test(
+de$pt_vs_nc <- diff_entropy_test(
   sub_sampens = sub_sampens,
   sub_meths   = sub_meths,
   groups      = groups,
@@ -990,15 +990,15 @@ res <- diff_entropy_test(
   out_file    = "pt_vs_nc_coefs.rds"
 )
 
-head(res$coefs_df)
-table(res$coefs_df$adj_p < 0.05)
+head(de$pt_vs_nc$coefs_df)
+table(de$pt_vs_nc$coefs_df$adj_p < 0.05)
 ```
 
-# Same, LN vs PT
+## LN vs PT
 
 
-```{r}
-res2 <- diff_entropy_test(
+```{r, fig.width = 5, fig.height = 5}
+de$ln_vs_pt <- diff_entropy_test(
   sub_sampens = sub_sampens,
   sub_meths   = sub_meths,
   groups      = groups,
@@ -1011,15 +1011,15 @@ res2 <- diff_entropy_test(
   out_file    = "ln_vs_pt_coefs.rds"
 )
 
-head(res2$coefs_df)
-hist(res2$coefs_df$p_val)
-table(res2$coefs_df$adj_p < 0.05)
+head(de$ln_vs_pt$coefs_df)
+hist(de$ln_vs_pt$coefs_df$p_val)
+table(de$ln_vs_pt$coefs_df$adj_p < 0.05)
 ```
 
-# Same, LN vs NC
+## LN vs NC
 
-```{r}
-res3 <- diff_entropy_test(
+```{r lnnc, fig.width = 5, fig.height = 5}
+de$ln_vs_nc <- diff_entropy_test(
   sub_sampens = sub_sampens,
   sub_meths   = sub_meths,
   groups      = groups,
@@ -1032,12 +1032,121 @@ res3 <- diff_entropy_test(
   out_file    = "ln_vs_nc_coefs.rds"
 )
 
-hist(res3$coefs_df$p_val)
-table(res3$coefs_df$adj_p < 0.05)
+hist(de$ln_vs_nc$coefs_df$p_val)
+table(de$ln_vs_nc$coefs_df$adj_p < 0.05)
 ```
 
+## ML vs LN
+
+```{r mlln, fig.width = 5, fig.height = 5}
+de$ml_vs_ln <- diff_entropy_test(
+  sub_sampens = sub_sampens,
+  sub_meths   = sub_meths,
+  groups      = groups,
+  formula     = "sampen ~ meth + I(meth^2) + loc + patient",
+  loc_levels  = c("ML","LN"),
+  ref_level   = "LN",
+  contrast    = "locML",
+  param       = param,
+  top_n       = 2000,
+  out_file    = "ml_vs_ln_coefs.rds"
+)
+
+hist(de$ml_vs_ln$coefs_df$p_val)
+table(de$ml_vs_ln$coefs_df$adj_p < 0.05)
+```
+
+## ML vs NC
 
 
+```{r mlnc, fig.width = 5, fig.height = 5}
+de$ml_vs_nc <- diff_entropy_test(
+  sub_sampens = sub_sampens,
+  sub_meths   = sub_meths,
+  groups      = groups,
+  formula     = "sampen ~ meth + I(meth^2) + loc + patient",
+  loc_levels  = c("ML","NC"),
+  ref_level   = "NC",
+  contrast    = "locML",
+  param       = param,
+  top_n       = 2000,
+  out_file    = "ml_vs_nc_coefs.rds"
+)
+
+hist(de$ml_vs_nc$coefs_df$p_val)
+table(de$ml_vs_nc$coefs_df$adj_p < 0.05)
+```
+
+## MP vs ML
+
+```{r mpml, fig.width = 5, fig.height = 5}
+de$mp_vs_ml <- diff_entropy_test(
+  sub_sampens = sub_sampens,
+  sub_meths   = sub_meths,
+  groups      = groups,
+  formula     = "sampen ~ meth + I(meth^2) + loc + patient",
+  loc_levels  = c("MP","ML"),
+  ref_level   = "ML",
+  contrast    = "locMP",
+  param       = param,
+  top_n       = 2000,
+  out_file    = "mp_vs_ml_coefs.rds"
+)
+
+hist(de$mp_vs_ml$coefs_df$p_val)
+table(de$mp_vs_ml$coefs_df$adj_p < 0.05)
+```
+
+## MP vs NC
+
+```{r mpnc, fig.width = 5, fig.height = 5}
+de$mp_vs_nc <- diff_entropy_test(
+  sub_sampens = sub_sampens,
+  sub_meths   = sub_meths,
+  groups      = groups,
+  formula     = "sampen ~ meth + I(meth^2) + loc + patient",
+  loc_levels  = c("MP","NC"),
+  ref_level   = "NC",
+  contrast    = "locMP",
+  param       = param,
+  top_n       = 2000,
+  out_file    = "mp_vs_nc_coefs.rds"
+)
+
+hist(de$mp_vs_nc$coefs_df$p_val)
+table(de$mp_vs_nc$coefs_df$adj_p < 0.05)
+```
+
+```{r debug}
+saveRDS(de, file = 'de_list.rds')
+```
+
+## Plotting
+
+Plot layout: per window, the annotation with all the genomic compartments plus also whether diff entropic, after correcting for diff methylated. Perhaps a sankey? set of piecharts? just a heatmap? Mind diff methylation might also be useful
+
+```{r}
+
+## de <- readRDS('de_list.rds')
+full_annot <- read_tsv(snakemake@input[["annotations"]], show_col_types = FALSE)
+
+full_annot$region <- sprintf("%s:%s-%s", full_annot$chr, full_annot$start, full_annot$end)
+rownames(full_annot) <- full_annot$region
+
+full_annot <- full_annot[,setdiff(colnames(full_annot), c('chr', 'start', 'end'))]
+
+for (contrast in names(de)) {
+  coef_tab <- de[[contrast]]$coefs_df
+  tmp <- merge(full_annot, coef_tab[, c("region","moderated_t")],
+               by = "region", all.x = TRUE)
+  full_annot[[contrast]] <- tmp$moderated_t
+  rm(coef_tab)
+}
+
+
+str(full_annot)
+summary(full_annot$ln_vs_nc)
+```
 
 
 ## rowData correlations directly, to add diff entropic and stratify per biopsy site

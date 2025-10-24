@@ -343,12 +343,17 @@ rule combine_annotated_windows:
     conda:
         op.join("..", "envs", "yamet.yml")
     input:
-        annotated_windows =  list_annotated_windows()
+        annotated_windows =  list_annotated_windows(),
+        windows =  op.join(HG19_BASE, r"windows_{win_size,\d+}_nt.bed")
     output:
-        op.join(HG19_BASE, "windows_{win_size}_nt_annotation.gz")
+        annotation = op.join(HG19_BASE, "windows_{win_size}_nt_annotation.gz"),
+        header = temp(op.join(HG19_BASE, 'header_{win_size}_chr.txt')),
+        windows_with_header = temp(op.join(HG19_BASE, 'window_{win_size}_with_header.txt'))
     shell:
         """
-        paste {input.annotated_windows} | gzip -c > {output}
+        echo -e "chr\\tstart\\tend" > {output.header}
+        cat {output.header} {input.windows} > {output.windows_with_header}
+        paste {output.windows_with_header} {input.annotated_windows} | gzip -c > {output.annotation}
         """
 
 """
