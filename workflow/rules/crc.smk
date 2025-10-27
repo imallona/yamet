@@ -24,7 +24,6 @@ CRC_HARMONIZED = op.join(CRC, "harmonized")         ## ingestable by yamet
 CRC_OUTPUT = op.join(CRC, "output")                 ## output for features (genes, promoters etc)
 CRC_WINDOWS_OUTPUT = op.join(CRC, 'windows_output') ## output for tiles/genomic windows
 
-## bedfiles
 ANNOTATIONS = {
     "pmd": ["pmds", "hmds"],
     "hmm": [
@@ -45,6 +44,9 @@ ANNOTATIONS = {
     ],
     "chip": ["H3K27me3", "H3K9me3", "H3K4me3"],
     "lad": ["laminb1"],
+    "genes": ["genes"],
+    "cpgIslandExt": ['cpgIslandExt'],
+    "scna": ["crc01_nc_scna", "crc01_gain_scna", "crc01_lost_scna"]
 }
 
 ## patient -> biopsy sites mapping
@@ -151,8 +153,9 @@ checkpoint download_crc_bismarks:
            fi
           
         done < {input.gsm}
-        
-        cp {output.urls} {output.download_flag}
+
+        touch {output.urls} # in case files were already there
+        touch {output.download_flag}
         """
 
 
@@ -219,9 +222,12 @@ rule run_yamet_on_separate_features:
         ref=op.join(HG19_BASE, "ref.CG.gz"),
         bed=op.join(HG19_BASE, "{subcat}.{cat}.bed")
     output:
-        simple=op.join(CRC_OUTPUT, "{subcat}_{cat}_{patient}.{location}.out"),
-        det=op.join(CRC_OUTPUT, "{subcat}_{cat}_{patient}_{location}.det.out"),
-        meth=op.join(CRC_OUTPUT, "{subcat}_{cat}_{patient}_{location}.meth.out")
+        simple_uncomp = temp(op.join(CRC_OUTPUT, "{subcat}_{cat}_{patient}_{location}.out")),
+        det_uncomp = temp(op.join(CRC_OUTPUT, "{subcat}_{cat}_{patient}_{location}.det.out")),
+        meth_uncomp = temp(op.join(CRC_OUTPUT, "{subcat}_{cat}_{patient}_{location}.meth.out")),
+        simple=op.join(CRC_OUTPUT, "{subcat}_{cat}_{patient}_{location}.out.gz"),
+        det=op.join(CRC_OUTPUT, "{subcat}_{cat}_{patient}_{location}.det.out.gz"),
+        meth=op.join(CRC_OUTPUT, "{subcat}_{cat}_{patient}_{location}.meth.out.gz")
     log:
         op.join('logs', 'yamet_{subcat}_{cat}_{patient}_{location}.log')
     group:
@@ -238,9 +244,11 @@ rule run_yamet_on_separate_features:
          --intervals {input.bed} \
          --cores {threads} \
          --print-sampens F \
-         --out {output.simple} \
-         --det-out {output.det} \
-         --meth-out {output.meth} &> {log}
+         --out {output.simple_uncomp} \
+         --det-out {output.det_uncomp} \
+         --meth-out {output.meth_uncomp} &> {log}
+        
+        gzip --keep -f {params.path}/{wildcards.subcat}_{wildcards.cat}_{wildcards.patient}_{wildcards.location}*out  &>> {log}
         """
 
 def list_relevant_yamet_outputs():
@@ -249,7 +257,7 @@ def list_relevant_yamet_outputs():
         for subannot in ANNOTATIONS[annot]:
             for patient in SAMPLES.keys():
                 for sampling in SAMPLES[patient]:
-                    res.append(f"{subannot}_{annot}_{patient}_{sampling}.det.out")
+                    res.append(f"{subannot}_{annot}_{patient}_{sampling}.det.out.gz")
     return [op.join(CRC_OUTPUT, item) for item in res]
 
 rule render_crc_report:
@@ -303,7 +311,8 @@ rule make_windows_hg19:
            -w {wildcards.win_size} | sort -k1,1 -k2,2n -k3,3n > {output.windows}
         """
 
-rule get_single_annotion_coverage_per_window:
+## @todo make sure this ingests genes, CpGis and SCNAs!
+rule get_aggregated_annotation_coverage_per_window:
     conda:
         op.join("..", "envs", "yamet.yml")
     input:
@@ -334,12 +343,17 @@ rule combine_annotated_windows:
     conda:
         op.join("..", "envs", "yamet.yml")
     input:
-        annotated_windows =  list_annotated_windows()
+        annotated_windows =  list_annotated_windows(),
+        windows =  op.join(HG19_BASE, r"windows_{win_size,\d+}_nt.bed")
     output:
-        op.join(HG19_BASE, "windows_{win_size}_nt_annotation.gz")
+        annotation = op.join(HG19_BASE, "windows_{win_size}_nt_annotation.gz"),
+        header = temp(op.join(HG19_BASE, 'header_{win_size}_chr.txt')),
+        windows_with_header = temp(op.join(HG19_BASE, 'window_{win_size}_with_header.txt'))
     shell:
         """
-        paste {input.annotated_windows} | gzip -c> {output}
+        echo -e "chr\\tstart\\tend" > {output.header}
+        cat {output.header} {input.windows} > {output.windows_with_header}
+        paste {output.windows_with_header} {input.annotated_windows} | gzip -c > {output.annotation}
         """
 
 """
@@ -359,9 +373,12 @@ rule run_yamet_on_windows:
         ref=op.join(HG19_BASE, "ref.CG.gz"),
         windows=op.join(HG19_BASE, "windows_{win_size}_nt.bed")
     output:
-        simple=op.join(CRC_WINDOWS_OUTPUT, "{win_size}_{patient}_{location}.out"),
-        det=op.join(CRC_WINDOWS_OUTPUT, "{win_size}_{patient}_{location}.det.out"),
-        meth=op.join(CRC_WINDOWS_OUTPUT, "{win_size}_{patient}_{location}.meth.out")
+        simple_uncomp=temp(op.join(CRC_WINDOWS_OUTPUT, "{win_size}_{patient}_{location}.out")),
+        det_uncomp=temp(op.join(CRC_WINDOWS_OUTPUT, "{win_size}_{patient}_{location}.det.out")),
+        meth_uncomp=temp(op.join(CRC_WINDOWS_OUTPUT, "{win_size}_{patient}_{location}.meth.out")),
+        simple=op.join(CRC_WINDOWS_OUTPUT, "{win_size}_{patient}_{location}.out.gz"),
+        det=op.join(CRC_WINDOWS_OUTPUT, "{win_size}_{patient}_{location}.det.out.gz"),
+        meth=op.join(CRC_WINDOWS_OUTPUT, "{win_size}_{patient}_{location}.meth.out.gz")
     log:
         op.join('logs', 'yamet_{win_size}_{patient}_{location}.log')
     group:
@@ -378,18 +395,52 @@ rule run_yamet_on_windows:
          --intervals {input.windows} \
          --cores {threads} \
          --print-sampens F \
-         --out {output.simple} \
-         --det-out {output.det} \
-         --meth-out {output.meth} &> {log}
+         --out {output.simple_uncomp} \
+         --det-out {output.det_uncomp} \
+         --meth-out {output.meth_uncomp} &> {log}
+
+        gzip --keep -f {params.path}/{wildcards.win_size}_{wildcards.patient}_{wildcards.location}*out  &>> {log}
         """
 
 def list_relevant_yamet_windows_outputs():
     res = []
     for patient in SAMPLES.keys():
         for location in SAMPLES[patient]:
-            res.append(f"{{win_size}}_{patient}_{location}.det.out")
+            res.append(f"{{win_size}}_{patient}_{location}.det.out.gz")
     return [op.join(CRC_WINDOWS_OUTPUT, item) for item in res]
 
+
+## other reports from Atreya to be re-categorized / placed somewhere - caution not sure where the SCNA bedfile is used during the annotation phase @todo
+
+rule get_scna_patient1_from_supplementary_data:
+    conda:
+        op.join("..", "envs", "r.yml")
+    input:
+        op.join("src", "scna_hg19.xlsx"),
+    output:
+        scna_bed = op.join(HG19_BASE, "patient_crc01_scna.scna.bed.gz")
+    script:
+        "src/parse_scna.R"
+
+rule split_patient1_crc_in_kept_lost_gained:
+    conda:
+        op.join("..", "envs", "r.yml")
+    input:
+        scna_bed = op.join(HG19_BASE, "patient_crc01_scna.scna.bed.gz"),
+        genome_sizes = op.join(HG19_BASE, "genome.sizes"),
+    output:
+        uncomp = temp(op.join(HG19_BASE, "crc01_scna.bed")),
+        gained = op.join(HG19_BASE, "crc01_gain_scna.scna.bed"),
+        lost = op.join(HG19_BASE, "crc01_lost_scna.scna.bed"),
+        kept = op.join(HG19_BASE, "crc01_nc_scna.scna.bed"),        
+    shell:
+        """
+           gzip -d -c {input.scna_bed} > {output.uncomp}
+           grep "deleted" {output.uncomp} | bedtools sort > {output.lost}
+           grep "amplified" {output.uncomp} | bedtools sort > {output.gained}
+           bedtools complement -i {output.uncomp} -g {input.genome_sizes} > {output.kept}
+        """
+        
 rule render_crc_windows_report:
     conda:
         op.join("..", "envs", "r.yml")
@@ -404,3 +455,37 @@ rule render_crc_windows_report:
         log = op.join("logs", "render_crc_windows_{win_size}.log")
     script:
         "src/crc_windows.Rmd"
+
+# rule run_crc_stats_report:
+#     conda:
+#         op.join("..", "envs", "r.yml")
+#     input:
+#         list_relevant_yamet_windows_outputs(),
+#         annotation=op.join(HG19_BASE, "windows_{win_size}_nt_annotation.gz")
+#     output:
+#         op.join("results", "crc_stats_{win_size}.html"),
+#     params:
+#         output_path=CRC_WINDOWS_OUTPUT,
+#     log:
+#         log=op.join("logs", "render_crc_stats_{win_size}.log"),
+#     threads: 16
+#     script:
+#         "src/crc_stats.Rmd"
+
+# rule run_crc_deletions_report:
+#     conda:
+#         op.join("..", "envs", "r.yml")
+#     input:
+#         scna_bed =  op.join(HG19_BASE, "patient_crc01_scna.scna.bed.gz"),
+#         yamet_dets=expand(
+#             op.join(CRC_WINDOWS_OUTPUT, "{{win_size}}_CRC01_{location}.det.out.gz"),
+#             location=SAMPLES["CRC01"],
+#         ),
+#         annotation=op.join(HG19_BASE, "windows_{win_size}_nt_annotation.gz"), ## but we want this on scnas themselves, not only on windows
+#     output:
+#         op.join("results", "crc_deletions_{win_size}.html"),
+#     log:
+#         log=op.join("logs", "render_crc_deletions_{win_size}.log"),
+#     threads: 16
+#     script:
+#         "src/crc_deletions.Rmd"

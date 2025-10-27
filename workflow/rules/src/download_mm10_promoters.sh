@@ -1,6 +1,6 @@
 #!/bin/bash
 ##
-## Retrieves the mm10 ensGene promoters, as defined by their TSSs, and sends them to stdout
+## Retrieves the mm10 gencode 25 promoters, as defined by their leftmost TSSs, and sends them to stdout
 ##
 ## Izaskun Mallona
 ## 2nd Dec 2024

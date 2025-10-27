@@ -18,10 +18,11 @@ rule all:
     input:
         "output/02_coverage_plots.html",
         "output/03_yamet_plots.html",
+        "output/figure2.html",
         "output/04_feat_diff.html",
         "output/05_within_cell.html",
         "output/06_between_cell.html"
-        # "output/figures/simulations_emanuel.html"
+        #"output/figures/simulations_emanuel.html"
 
 
 # every row in the parameter file is a parameterization of one simulation
@@ -101,6 +102,8 @@ rule visualize_coverage:
         flag = "output/sim_data/sim_cell_9_50_50_rand_medium_lmr.tsv"
     output:
         html_output_path="output/02_coverage_plots.html",
+        coverage_data="output/sim_data_coverage/overall_coverage.rds",
+        stretches_length="output/sim_data_coverage/covered_stretches_length.rds"
     conda:
         "envs/r_plot.yaml"
     shell:
@@ -145,8 +148,7 @@ rule install_yamet:
           bash ../method/build.sh
         """
 
-
-def write_sim_interval_bed(file_path, chrom="chrSim", start=1, end=100000):
+def write_sim_interval_bed(parameters_path, file_path, chrom="chrSim", start=1):
     """
     Writes a tab-separated file with a single line: chrom<tab>start<tab>end.
 
@@ -159,21 +161,26 @@ def write_sim_interval_bed(file_path, chrom="chrSim", start=1, end=100000):
     start : int, optional
         Start coordinate (default 1).
     end : int, optional
-        End coordinate (default 100000).
+        End coordinate
     """
+    
+    df = pd.read_table(parameters_path, delimiter='\t', header=0)
+    end = df["n_cpgs"].max()
+    
     with open(file_path, "w", newline="") as fh:
         writer = csv.writer(fh, delimiter="\t")
         writer.writerow([chrom, str(start), str(end)])
 
 rule write_reference_file_for_emanuel:
     input:
+        parameters_file="input/parameters.tsv",
         sim_data=op.join("output", "sim_data"),
         sim_data_file="output/01_sim_data.html"
     output:
         bed='emanuel_intervals.bed'
     threads: 1
     run:
-        write_sim_interval_bed(file_path = output.bed)
+        write_sim_interval_bed(parameters_path=input.parameters_file, file_path = output.bed)
         
 rule run_yamet:
     conda:
@@ -222,6 +229,26 @@ rule visualize_yamet_results:
                                         output_file="../{output.html}",
                                         params=list(yamet_dir="{input.yamet_dir}"))'
         """
+        
+rule compile_figure_2:
+  conda:
+    "envs/r_plot.yaml"
+  input:
+    yamet_dir="output/yamet/out",
+    yamet_plots="output/03_yamet_plots.html",
+    coverage_data="output/sim_data_coverage/overall_coverage.rds",
+    stretches_length="output/sim_data_coverage/covered_stretches_length.rds"
+  output:
+    fig_pdf="schemes/Figure2.pdf",
+    fig_svg="schemes/Figure2.svg",
+    html="output/figure2.html",
+  shell:
+    """
+      Rscript -e 'rmarkdown::render("src/figure2.Rmd", "html_document", 
+                                    output_file="../{output.html}",
+                                    params=list(yamet_dir="{input.yamet_dir}"))'
+    """
+    
 
 
 rule feat_diff_template:

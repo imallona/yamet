@@ -2,6 +2,7 @@ name: analysis-and-plotting
 channels:
   - conda-forge
   - bioconda
+channel_priority: strict
 dependencies:
   - r-base=4.4
   - r-readxl
@@ -11,8 +12,18 @@ dependencies:
   - r-lmertest
   - r-readr
   - r-viridis
+  - r-effects
+  - r-ggstance
+  - r-dplyr
   - bioconductor-biocparallel
   - bioconductor-complexheatmap
   - bioconductor-geoquery
   - bioconductor-limma
-  - conda-forge::r-effects
+  - conda-forge::r-uwot
+  - conda-forge::r-purrr
+  - conda-forge::r-upsetr
+  - conda-forge::r-pheatmap
+  - conda-forge::r-ggraph 
+  - conda-forge::r-igraph
+  - bioconda::bioconductor-summarizedexperiment
+  - bioconda::bioconductor-singlecellexperiment

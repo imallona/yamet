@@ -1,5 +1,9 @@
 library(viridis)
 
+# Taken from: https://ghurault.github.io/HuraultMisc/reference/cbbPalette.html
+cbbPalette <- c("#000000", "#E69F00", "#56B4E9", "#009E73", 
+                "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+
 theme_ng <- function(base_size = 12, base_family = "sans") {
   theme_bw(base_size = base_size, base_family = base_family) +
     theme(
@@ -35,7 +39,7 @@ theme_ng <- function(base_size = 12, base_family = "sans") {
 theme_ng_discrete <- function(base_size = 12, base_family = "sans") {
   list(
     theme_ng(base_size = base_size, base_family = base_family),
-    scale_color_viridis_d()
+    scale_color_manual(values=cbbPalette)
   )
 }
 
