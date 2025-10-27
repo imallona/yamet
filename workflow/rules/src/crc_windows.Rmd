@@ -51,7 +51,7 @@ opts_chunk$set(
   fig.width = 7.5,
   fig.height = 7.5,
   cache = TRUE,
-  error = FALSE,
+  error = TRUE,
   include = TRUE,
   fig.path = "crc_windows_plots/",
   dev = c("png", "svg"),
@@ -1353,7 +1353,7 @@ for (col in modt_cols) {
   down_idx <- which(full_annot[[col]] < 0 & !is.na(full_annot[[col]]))
   
   for (dir in c("up","down")) {
-    cat('#### ', col, up, '\n\n')
+    cat('#### ', col, dir, '\n\n')
       
     idx <- if (dir=="up") up_idx else down_idx
     if (length(idx) == 0) next
