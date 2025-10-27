@@ -1,13 +1,14 @@
 #!/bin/bash
 ##
-## Retrieves assembly for one chromosome
+## Generates a C (perhaps CG) reference coordinate file by parsing a single-chromosome fasta
+##   file; these are later aggregated by another script, `make_ref.chf` (perhaps to be renamed)
 ##
 ## Atreya Choudhury
 ## Started 26th Feb 2025
 
 curl "${snakemake_params[base]}${snakemake_params[fa]}".gz --output ${snakemake_params[fa]}.gz
 
-gunzip ${snakemake_params[fa]}.gz
+gunzip -f ${snakemake_params[fa]}.gz
 
 faSize ${snakemake_params[fa]} -detailed >${snakemake_params[fa]}.sizes
 

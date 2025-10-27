@@ -78,7 +78,7 @@ for (unique.type in unique.types) {
       title = paste("Sample Entropy in different TR settings for type", unique.type),
       x = "avg. methylation", y = "sample entropy", color = "TR"
     ) +
-      theme_ng()+ scale_color_viridis_d()
+      theme_ng_discrete()
   plots.list[[unique.type]] <- p
 }
 print(plots.list)

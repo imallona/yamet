@@ -1,6 +1,6 @@
 #!/bin/bash
 ##
-# Combines different reference files, from different chromosomes, into a genome reference file
+# Combines different C loci coordinate/reference files, from different chromosomes, into a genome reference file
 ##
 ## Atreya Choudhury
 ## Started 26th Feb 2025

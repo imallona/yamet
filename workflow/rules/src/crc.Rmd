@@ -1,7 +1,7 @@
 ---
 title: "CRC by feature (no windows)"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
-author: 'Izaskun Mallona'
+author: "Izaskun Mallona"
 output:
   html_document:
     toc: true
@@ -11,44 +11,48 @@ output:
     number_sections: true
     df_print: default # kable
     theme: lumen
-
 ---
-
 
 ```{r, setup}
 suppressPackageStartupMessages({
-  ## library(readr)
+  library(readr)
   library(lmerTest)
   library(ggplot2)
   library(knitr)
-  library('effects')
+  library(effects)
   library(ComplexHeatmap)
   library(viridis)
-  ## library(showtext)
+  library(BiocParallel)
+  library(ggplot2)
+  library(ggstance)  # for horizontal error bars
+  library(dplyr)
 })
 
-
-## options(bitmapType="cairo")
-## showtext_auto()
-
 source("src/ggtheme.R")
-
+param <- MulticoreParam(workers = snakemake@threads)
 ```
 
 ```{r}
-opts_chunk$set(fig.width = 7.5,
-               fig.height = 7.5,
-               cache = FALSE,
-               include = TRUE,
-               fig.path = "crc_plots/",
-               dev = c("png", "svg"),
-               dpi=500,
-               cache.lazy = FALSE,
-               warning = TRUE,
-               message = TRUE)
+opts_chunk$set(
+  fig.width = 7.5,
+  fig.height = 7.5,
+  cache = FALSE,
+  include = TRUE,
+  fig.path = "crc_plots/",
+  dev = c("png", "svg"),
+  dpi = 500,
+  cache.lazy = FALSE,
+  warning = TRUE,
+  message = TRUE
+)
 ```
 
-```{R logging, include = FALSE}
+```{r save_snmk_object_for_debugging, include = FALSE}
+saveRDS(file = 'snmk_object_features.rds', object = snakemake)
+```
+
+
+```{r logging, include = FALSE}
 log <- file(snakemake@log$log, open = "wt")
 sink(log)
 sink(log, type = "message")
@@ -61,37 +65,37 @@ sink(log, type = "message")
 Firstly, we read in the yamet output files and create a table storing the biopsy location, patient id and genomic segmentation.
 
 ```{r, import_short_reports}
-filepaths <- list.files( snakemake@params[["output_path"]], pattern = "\\.out$", full.names = TRUE)
+filepaths <- list.files(
+  snakemake@params[["output_path"]],
+  pattern = "\\.out\\.gz$", full.names = TRUE
+)
 
-filepaths <- filepaths[!grepl("\\.det\\.out$", filepaths)]
-filepaths <- filepaths[!grepl("\\.meth\\.out$", filepaths)]
+filepaths <- filepaths[!grepl("\\.det\\.out\\.gz$", filepaths)]
+filepaths <- filepaths[!grepl("\\.norm\\.out\\.gz$", filepaths)]
+filepaths <- filepaths[!grepl("\\.meth\\.out\\.gz$", filepaths)]
 
-regex <- "(.*)_(.*)_(.*)\\.(.*).out"
+regex <- "(.*)_(.*)_(.*)_(.*).out.gz"
 process_file <- function(filepath) {
-  filename <- gsub('.hmm.', '_hmm_', basename(filepath), fixed = TRUE) # dirty fix for an upstream problem
+  filename <- basename(filepath)
 
-  annotation <- gsub(regex, "\\1", filename)
-  patient <- gsub(regex, "\\3", filename)
-  location <- gsub(regex, "\\4", filename)
-   
-  dt <- read.table(filepath, sep = "\t", na.strings = "-1", header = TRUE)
+  dt <- read_tsv(filepath, na = "-1", show_col_types = FALSE)
   dt <- dt[, c("sampen", "avg_meth")]
 
-  dt$annotation <- annotation
-  dt$patient <- patient
-  dt$location <- location
+  dt$annotation <- gsub(regex, "\\1", filename)
+  dt$patient <- gsub(regex, "\\3", filename)
+  dt$location <- gsub(regex, "\\4", filename)
 
   return(dt)
 }
 
-files <- do.call(rbind, lapply(filepaths, process_file))
+files <- do.call(rbind, bplapply(filepaths, process_file, BPPARAM = param))
 
 files$annotation <- as.factor(files$annotation)
 files$patient <- as.factor(files$patient)
-files$location <- factor(files$location, levels = c('NC', 'PT', 'LN', 'ML', 'MP', 'MO'))
-## print(unique(files$patient))
-## print(unique(files$location))
-
+files$location <- factor(
+  files$location,
+  levels = c("NC", "PT", "LN", "ML", "MP", "MO")
+)
 ```
 
 Patient as random effect
@@ -109,59 +113,59 @@ anova(lmer.files, type = 3)
  
 ```{r}
 ggplot(
-    ## subset(files, patient == "CRC01"),
-    files,
+  ## subset(files, patient == "CRC01"),
+  files,
   aes(y = sampen, x = avg_meth, color = location, shape = patient)
 ) +
-    geom_point(size = 0.9, alpha = 0.2) +
-    scale_color_brewer(palette = "Set1") +
-    scale_shape_manual(values=1:nlevels(files$patient)) +
+  geom_point(size = 0.9, alpha = 0.2) +
+  scale_color_brewer(palette = "Set1") +
+  scale_shape_manual(values = 1:nlevels(files$patient)) +
   facet_wrap(~annotation) +
   labs(
     x = "average methylation",
     y = "sample entropy"
   ) +
-    guides(color = guide_legend(override.aes = list(size = 2))) +
-    theme_ng()
+  guides(color = guide_legend(override.aes = list(size = 2))) +
+  theme_ng()
 ```
 
 ## Scatters by location and annotation and patient
  
 ```{r, fig.height = 15}
 ggplot(
-    ## subset(files, patient == "CRC01"),
-    files,
-    aes(y = sampen, x = avg_meth, color = location)
+  ## subset(files, patient == "CRC01"),
+  files,
+  aes(y = sampen, x = avg_meth, color = location)
 ) +
-    geom_point(size = 0.9, alpha = 0.2) +
-    scale_color_brewer(palette = "Set1") +
-  facet_grid(annotation~patient) +
+  geom_point(size = 0.9, alpha = 0.2) +
+  scale_color_brewer(palette = "Set1") +
+  facet_grid(annotation ~ patient) +
   labs(
     x = "average methylation",
     y = "sample entropy"
   ) +
-    guides(color = guide_legend(override.aes = list(size = 2))) +
-    theme_ng() +
-    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+  guides(color = guide_legend(override.aes = list(size = 2))) +
+  theme_ng() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
 ```
 
 ## Scatters by location and annotation and patient (shorter)
  
 ```{r, fig.height = 3.2}
 ggplot(
-    subset(files, annotation %in% c('laminb1', 'H3K27me3', 'H3K9me3')),
-    aes(y = sampen, x = avg_meth, color = location)
+  subset(files, annotation %in% c("laminb1", "H3K27me3", "H3K9me3")),
+  aes(y = sampen, x = avg_meth, color = location)
 ) +
-    geom_point(size = 0.9, alpha = 0.2) +
-    scale_color_brewer(palette = "Set1") +
-  facet_grid(annotation~patient) +
+  geom_point(size = 0.9, alpha = 0.2) +
+  scale_color_brewer(palette = "Set1") +
+  facet_grid(annotation ~ patient) +
   labs(
     x = "average methylation",
     y = "sample entropy"
   ) +
-    guides(color = guide_legend(override.aes = list(size = 2))) +
-    theme_ng() +
-    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+  guides(color = guide_legend(override.aes = list(size = 2))) +
+  theme_ng() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
 ```
 
 ## sampEn boxes by location and annotation - crc01
@@ -181,8 +185,8 @@ ggplot(
     size = 0.6, alpha = 0.3
   ) +
   scale_color_brewer(palette = "Dark2") +
-    theme_ng() +
-    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+  theme_ng() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
 ```
 
 ## meth boxes by location and annotation - crc01
@@ -201,9 +205,80 @@ ggplot(
     position = position_dodge(width = 0.75),
     size = 0.6, alpha = 0.3
   ) +
-    scale_color_brewer(palette = "Dark2") +
-    theme_ng() +
-    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+  scale_color_brewer(palette = "Dark2") +
+  theme_ng() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+```
+
+## Range plots - by compartment
+
+```{r, fig.height = 10, fig.width = 10}
+
+
+ranges <- as.data.frame(files %>%
+   filter(patient == "CRC01") %>%
+   group_by(compartment = annotation, location) %>%
+   summarise(
+     sampen_mean = mean(sampen, na.rm = TRUE),
+     sampen_min  = min(sampen, na.rm = TRUE),
+     sampen_max  = max(sampen, na.rm = TRUE),
+     meth_mean   = mean(avg_meth, na.rm = TRUE),
+     meth_min    = min(avg_meth, na.rm = TRUE),
+     meth_max    = max(avg_meth, na.rm = TRUE)))
+
+## ggplot(ranges, aes(x = meth_mean, y = sampen_mean, color = location)) +
+##   geom_point(shape = 3, size = 1.2) +  # "+" symbol
+##   geom_errorbar(aes(ymin = sampen_min, ymax = sampen_max), width = 0.3, alpha = 1, size = 1) +
+##   geom_errorbarh(aes(xmin = meth_min, xmax = meth_max), height = 0.3, alpha = 1, size = 0) +
+##   scale_color_brewer(palette = "Dark2") +
+##   labs(
+##     x = "DNA methylation",
+##     y = "Sample entropy"
+##   ) +
+##   facet_wrap(~ compartment) +
+##   theme_ng()
+
+# I think this is the correct one
+ggplot(ranges, aes(color = location)) +
+  ## horizontal segment: range of methylations for that location/compartment
+  geom_segment(
+    aes(x = meth_min, xend = meth_max, y = sampen_mean, yend = sampen_mean),
+    size = 0.6, alpha = 1
+  ) +
+  # vertical segment: range of sampens for that location/compartment
+  geom_segment(
+    aes(x = meth_mean, xend = meth_mean, y = sampen_min, yend = sampen_max),
+    size = 0.6, alpha = 1
+  ) +
+  # center point
+  geom_point(
+    aes(x = meth_mean, y = sampen_mean),
+    shape = 3, size = 1.2
+  ) +
+  scale_color_brewer(palette = "Dark2") +
+  labs(x = "DNA methylation", y = "Sample entropy") +
+  facet_wrap(~ compartment) +
+  theme_ng()
+
+```
+
+## Others
+
+```{r, fig.height = 10, fig.width = 10}
+
+ggplot(ranges, aes(x = compartment, y = location, fill = sampen_mean)) +
+  geom_tile(color = "white") +
+  scale_fill_viridis_c() +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90))
+
+
+ggplot(ranges, aes(x = compartment, y = location, fill = meth_mean)) +
+  geom_tile(color = "white") +
+  scale_fill_viridis_c() +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90))
+
 ```
 
 # Full (local) reports for **downsampled** PMDs and CRC01
@@ -211,71 +286,69 @@ ggplot(
 Caution downsampled to some rows only.
 
 ```{r, import_log_reports}
-
 DOWNSAMPLING <- 5e4
 
-process_det_report <- function(filepath) {
-  filename <- basename(filepath)
-
-  dt <- read.table(filepath, sep = "\t", na.strings = "-1", header = TRUE, nrows = DOWNSAMPLING)
-  colnames(dt) <- basename(colnames(dt))
-  return(dt)
-}
-
-
-annotation <- 'pmds'
-patient <- 'CRC01'
+annotation <- "pmds"
+patient <- "CRC01"
 
 local <- list()
-for (location in c('NC', 'PT', 'LN', 'ML', 'MP')) {
-    filepaths <- list.files( snakemake@params[["output_path"]], pattern = "\\.det\\.out$", full.names = TRUE)
-    filepaths <- grep(location, filepaths, value = TRUE)
-    filepaths <- grep(annotation, filepaths, value = TRUE)
-    filepaths <- grep(patient, filepaths, value = TRUE)
-    
-    d <- lapply(filepaths, function(x) {
-        tmp <- process_det_report(x)
-        ## tmp$avg_sampen <- apply(tmp[,grep(location, colnames(tmp))], 1, function(y) mean(y, na.rm = TRUE))
-        ## tmp$median_sampen <- apply(tmp[,grep(location, colnames(tmp))], 1, function(y) median(y, na.rm = TRUE))
-    })
+for (location in c("NC", "PT", "LN", "ML", "MP")) {
+  filepaths <- list.files(
+    snakemake@params[["output_path"]],
+    pattern = "\\.det\\.out\\.gz$", full.names = TRUE
+  )
+  filepaths <- grep(location, filepaths, value = TRUE)
+  filepaths <- grep(annotation, filepaths, value = TRUE)
+  filepaths <- grep(patient, filepaths, value = TRUE)
 
-    d2 <- lapply(d, function(x) {
-        avg_sampen <- apply(x[,grep(location, colnames(x))], 1, function(y) mean(y, na.rm = TRUE))
-        median_sampen <- apply(x[,grep(location, colnames(x))], 1, function(y) median(y, na.rm = TRUE))
-        q25_sampen <- apply(x[,grep(location, colnames(x))], 1, function(y) quantile(y, 0.25, na.rm = TRUE))
-        q75_sampen <- apply(x[,grep(location, colnames(x))], 1, function(y) quantile(y, 0.75, na.rm = TRUE))
-        return(cbind(x, data.frame(avg_sampen = avg_sampen, median_sampen = median_sampen,
-                                   q25_sampen = q25_sampen, q75_sampen = q75_sampen,
-                                   location = location,
-                                   patient = patient,
-                                   annotation = annotation)))
-    })
-    
-    local[[location]] <- d2[[1]]
-    rm(d, d2)
+  d <- bplapply(filepaths, \(filepath) {
+    dt <- read_tsv(
+      filepath,
+      na = "-1", n_max = DOWNSAMPLING, show_col_types = FALSE
+    )
+    colnames(dt) <- basename(colnames(dt))
+    dt
+  }, BPPARAM = param)
+
+  d2 <- bplapply(d, \(x) {
+    avg_sampen <- apply(
+      x[, grep(location, colnames(x))], 1, \(y) mean(y, na.rm = TRUE)
+    )
+    median_sampen <- apply(
+      x[, grep(location, colnames(x))], 1, \(y) median(y, na.rm = TRUE)
+    )
+    q25_sampen <- apply(
+      x[, grep(location, colnames(x))], 1, \(y) quantile(y, 0.25, na.rm = TRUE)
+    )
+    q75_sampen <- apply(
+      x[, grep(location, colnames(x))], 1, \(y) quantile(y, 0.75, na.rm = TRUE)
+    )
+    cbind(x, data.frame(
+      avg_sampen = avg_sampen, median_sampen = median_sampen,
+      q25_sampen = q25_sampen, q75_sampen = q75_sampen,
+      location = location,
+      patient = patient,
+      annotation = annotation
+    ))
+  }, BPPARAM = param)
+
+  local[[location]] <- d2[[1]]
+  rm(d, d2)
 }
-
-
-
 ```
 
 ## Scatters {.tabset .tabset-pills}
 
 ### By meth NC
 
-
 ```{r, fig.width = 10, fig.height = 10}
-
-saveRDS(local, file = 'local_debug.rds')
-
 pal <- viridis(10, alpha = 0.8)
 
-beta2m <- function (betas, epsilon = 1e-05) 
-{
+beta2m <- function(betas, epsilon = 1e-05) {
   if (!is.numeric(betas)) {
     stop("Non-numeric betas")
   }
-  if (!(is.numeric(epsilon)  && (!is.na(epsilon)))) {
+  if (!(is.numeric(epsilon) && (!is.na(epsilon)))) {
     stop("Epison not valid")
   }
   if (epsilon < 0 || epsilon >= 0.5) {
@@ -283,53 +356,57 @@ beta2m <- function (betas, epsilon = 1e-05)
   }
   betas[betas < epsilon] <- epsilon
   betas[betas > (1 - epsilon)] <- 1 - epsilon
-  return(log2(betas/(1 - betas)))
+  return(log2(betas / (1 - betas)))
 }
 
-pmds <- data.frame(shannon_NC = local$NC$shannon,
-                   ## meth_NC_m = beta2m(local$NC$avg_meth),
-                   meth_NC = local$NC$avg_meth,                   
-                   med_sampen_NC = local$NC$median_sampen,
-                   shannon_PT = local$PT$shannon,
-                   ## meth_PT_m = beta2m(local$PT$avg_meth),
-                   meth_PT = local$PT$avg_meth,
-                   med_sampen_PT = local$PT$median_sampen)
+pmds <- data.frame(
+  shannon_NC = local$NC$shannon,
+  meth_NC = local$NC$avg_meth,
+  med_sampen_NC = local$NC$median_sampen,
+  shannon_PT = local$PT$shannon,
+  meth_PT = local$PT$avg_meth,
+  med_sampen_PT = local$PT$median_sampen
+)
 pmds$meth_change <- pmds$meth_PT - pmds$meth_NC
 pmds <- na.omit(pmds)
 
 pmds$by_meth_nc <- cut(pmds$meth_NC, breaks = 10)
 pmds$by_meth_pt <- cut(pmds$meth_PT, breaks = 10)
 
-plot(pmds[,grep('by', colnames(pmds), invert = TRUE)],
-     pch = ".", col = pal[as.numeric(pmds$by_meth_nc)], main = 'by_meth_nc')
+plot(pmds[, grep("by", colnames(pmds), invert = TRUE)],
+  pch = ".", col = pal[as.numeric(pmds$by_meth_nc)], main = "by_meth_nc"
+)
 ```
 
 ### By median sampen PT
 
 
 ```{r, fig.width = 10, fig.height = 10}
-
 pmds$by_med_sampen_pt <- cut(pmds$med_sampen_PT, breaks = 10)
-plot(pmds[,grep('by', colnames(pmds), invert = TRUE)],
-     pch = ".", col = pal[as.numeric(pmds$by_med_sampen_pt)], main = "by_med_sampen_PT")
-
+plot(pmds[, grep("by", colnames(pmds), invert = TRUE)],
+  pch = ".", col = pal[as.numeric(pmds$by_med_sampen_pt)],
+  main = "by_med_sampen_PT"
+)
 ```
 
 ### By median sampen NC
 
 ```{r, fig.width = 10, fig.height = 10, results = 'asis'}
 pmds$by_med_sampen_nc <- cut(pmds$med_sampen_NC, breaks = 10)
-plot(pmds[,grep('by', colnames(pmds), invert = TRUE)],
-     pch = ".", col = pal[as.numeric(pmds$by_med_sampen_nc)], main = "by_med_sampen_nc")
-
+plot(pmds[, grep("by", colnames(pmds), invert = TRUE)],
+  pch = ".", col = pal[as.numeric(pmds$by_med_sampen_nc)],
+  main = "by_med_sampen_nc"
+)
 ```
 
 ### By methylation change
 
 ```{r, fig.width = 10, fig.height = 10, results = 'asis'}
 pmds$by_meth_change <- cut(pmds$meth_change, breaks = 10)
-plot(pmds[,grep('by', colnames(pmds), invert = TRUE)],
-     pch = ".", col = pal[as.numeric(pmds$by_meth_change)], main = "by_meth_change")
+plot(pmds[, grep("by", colnames(pmds), invert = TRUE)],
+  pch = ".", col = pal[as.numeric(pmds$by_meth_change)],
+  main = "by_meth_change"
+)
 ```
 
 Add extra discretization.
@@ -340,6 +417,15 @@ pmds$by_sampen_nc <- cut(pmds$med_sampen_NC, breaks = 10)
 pmds$by_shannon_pt <- cut(pmds$shannon_PT, breaks = 10)
 pmds$by_shannon_nc <- cut(pmds$shannon_NC, breaks = 10)
 ```
+
+# SCNA checks, by cytoband
+
+Is this necessary? given we don't see much of a change https://github.com/imallona/yamet/blob/9156b817e04d9294024631dc25b528e191d913f4/workflow/rules/src/crc_deletions.Rmd#L96
+
+
+
+
+
 
 
 # Session

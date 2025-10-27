@@ -225,12 +225,12 @@
     set.seed(cellSeed, kind = "L'Ecuyer-CMRG")
     seq <- lapply(str, markovchainSequence, markovChain)
     seq
-  },lenCovSamp, cellSeeds)
-
+  },lenCovSamp, cellSeeds, SIMPLIFY=FALSE)
+  
   metPattern <- lapply(metPattern, function(str){
     seq <- lapply(str, as.numeric)
     seq})
-
+  
   return(metPattern)
 }
 
@@ -324,10 +324,7 @@ simMetPattern <- function(nCpGs, nCells,
                        states=states,
                        seed=seed)
 
-  # metTable$pos <- seq(1,nCpGs,1)
-  # --- patch: recycle pos/chr to exactly .N rows ---
-  ## metTable[, pos := rep(seq_len(nCpGs), length.out = .N)]
-  metTable[, pos := seq_len(.N)]
+  metTable$pos <- seq(1,nCpGs,1)
   metTable$chr <- "chrSim"
 
   return(metTable)

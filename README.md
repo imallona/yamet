@@ -29,7 +29,7 @@ brew install yamet
 brew install --HEAD yamet
 ```
 
-### Compiled Binaries
+### Compiled binaries
 
 Compiled binaries can be downloaded from the [releases](https://github.com/imallona/yamet/releases) page.
 
@@ -96,6 +96,23 @@ Miscellaneous:
 
 You might want to browse the issues and PRs to explore current developments.
 
+
+## Running the analysis / reproducible figures
+
+For simulations:
+
+```bash
+cd simulations
+snakemake --use-conda --cores NUM_CORES
+```
+
+For other analysis (mind the slow data download):
+
+```bash
+cd workflow
+snakemake --use-conda --cores NUM_CORES
+```
+
 ## License
 
 GPLv3
@@ -106,7 +123,8 @@ izaskun.mallona at gmail.com
 
 ## Acknowledgements
 
-We thank [Mark D. Robinson at UZH](https://robinsonlabuzh.github.io/) for his support.
+We thank [Mark D. Robinson at UZH](https://robinsonlabuzh.github.io/) for partly funding this project.
+
+We thank the [Swiss National Science Foundation](https://data.snf.ch/grants/grant/190824) and the [Graduate Campus at the University of Zurich](https://www.grc.uzh.ch/en/funding) for their support.
 
 `yamet` builds on great FOSS components, including [snakemake](https://snakemake.readthedocs.io/en/stable/), and uses public data from epigenomic atlases and scientific publications. Thank you!
-

@@ -47,9 +47,12 @@ rule all:
         ## to get a random background features
         # op.join("feature_simulations", "output", "yamet_detailed.out"),  ## feature simulations,
         # op.join('scnmt_gastrulation_data', 'output', 'yamet_summarized.out') ## an scNMT example
+        # op.join(HG19_BASE, "patient_crc01_scna.scna.bed.gz"),
+        # op.join(HG19_BASE, "crc01_nc_scna.scna.bed"),
         # op.join('hg19', "windows_10000_nt_annotation.gz"),
         op.join(CRC, "results", "crc_windows_10000_nt.html"),
-        op.join(CRC, "results", "crc.html")
+        op.join(CRC, "results", "crc.html"),
+        # op.join(CRC_OUTPUT, "patient_crc01_scna.bed.gz")
 
 rule install_yamet:
     """
@@ -86,31 +89,6 @@ rule shuffle_annotations:
             bedtools shuffle -i - -g {input.genome} -seed {wildcards.seed} | \
             gzip -c > {output}
         """
-
-
-# ## inputs from ecker.smk
-# ## how do we run yamet? in batches of cells? how to automate this so the shuffled backgrounds
-# ##   are coupled as well?
-# ##  we can use `slice_eckers_metadata(column, value)` to generate the cell inputs
-# rule run_yamet_on_ecker:
-#     conda:
-#         op.join("envs", "yamet.yml")
-#     input:
-#         bed = op.join('annotation', 'mm10', '{annotation}.bed.gz'),
-#         genome = op.join('annotation', 'mm10','genome.sizes')
-#     output:
-#         detailed = op.join('yamet', '{annotation}', '{cells}')
-#     message:
-#         """
-#         echo running yamet on {input.bed} and {input.annotation}
-#         """
-#     shell:
-#         """
-#         echo 'not implemented but slice_eckers_metadata(column, value) is key'
-#         """
-
-
-# ## data download - pending stuff
 
 
 ## inputs from feature_simulations.smk
