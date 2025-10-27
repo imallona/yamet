@@ -1,3 +1,5 @@
+# Coverage / NA simulations
+
 Every row in the parameter file is the parameterization of one simulated datasets. See `./input/parameters.tsv` for an example.    
 The following parameters can be set:    
 
@@ -26,3 +28,7 @@ for example:
 
 Further look-up tables with the CpG-positions of the simulated files are generated named:
 `cpgPositions_<n_cpgs>.tsv`
+
+# Other simulations (across and within cells)
+
+See the respective `src/between_cell` (across) and `src/within_cell`.
