@@ -33,6 +33,11 @@ suppressPackageStartupMessages({
 
   library(SingleCellExperiment)
   library(SummarizedExperiment)
+  
+  library(UpSetR) ## all for extra plotting attempts
+  library(pheatmap)
+  library(igraph)
+  library(ggraph)
 })
 
 source("src/ggtheme.R")
@@ -46,6 +51,7 @@ opts_chunk$set(
   fig.width = 7.5,
   fig.height = 7.5,
   cache = TRUE,
+  error = FALSE,
   include = TRUE,
   fig.path = "crc_windows_plots/",
   dev = c("png", "svg"),
@@ -62,6 +68,7 @@ knitr::knit_hooks$set(error = function(x, options) {
 
 ```{r save_snmk_object_for_debugging, include = FALSE, eval = TRUE}
 saveRDS(file = 'snmk_object_windows.rds', object = snakemake)
+## snakemake <- readRDS('snmk_object_windows.rds')
 ```
 
 ```{r logging, include = FALSE}
@@ -562,7 +569,9 @@ for (patient in levels(shannons$patient)) {
 <!-- ) -->
 <!-- ``` -->
 
-# Atreya's stats
+# Stats
+
+## Original by Atreya
 
 As in  https://github.com/imallona/yamet/blob/857bc788d711b26cd64b8ca4586ca2c3927900c4/workflow/rules/src/crc_stats.Rmd etc.
 
@@ -607,10 +616,11 @@ all_data <- bplapply(filepaths, process_reports, BPPARAM = param)
 sampens <- do.call(cbind, lapply(all_data, \(x) x$sampen))
 meths <- do.call(cbind, lapply(all_data, \(x) x$meth))
 
-annot <- read_tsv(snakemake@input[["annotations"]], show_col_types = FALSE)
+annot <- as.data.frame(read_tsv(snakemake@input[["annotations"]], show_col_types = FALSE))
 annot$region <- sprintf("%s:%s-%s", annot$chr, annot$start, annot$end)
 rownames(annot) <- annot$region
 annot <- annot[,setdiff(colnames(annot), c('chr', 'start', 'end', 'region'))]
+annot[1:3,1:3]
 ## rownames(annot) <- rownames(sampens)
 
 get_row_annotations <- function(regions) {
@@ -712,7 +722,7 @@ sub_meths <- sub_meths[!rows_too_sparse, , drop = FALSE]
 
 
 
-```{r}
+```{r, fig.width = 4, fig.height = 4}
 c02_nc <- data.frame(y = sub_sampens[, "NC_CRC02"], x = sub_meths[, "NC_CRC02"])
 c02_nc <- na.omit(c02_nc)
 sampled_data <- c02_nc[sample(nrow(c02_nc), 5000), ]
@@ -730,7 +740,7 @@ ggplot(sampled_data, aes(x = x, y = y)) +
 
 Let's do a window-wise sampEn vs meth with loc and patient, regardless of the annotation of the window. Mind the quadratic meth term (not sure what for).
 
-```{r}
+```{r,  fig.width = 4, fig.height = 4}
 rowwise_lm <- function(i) {
   df <- data.frame(
     sampen = sub_sampens[i, ],
@@ -850,7 +860,7 @@ row_ha <- rowAnnotation(tile_annotation = as.matrix(data.frame(
 )))
 ```
 
-# Heatmap including diff entropic
+## Heatmap including diff entropic (Atreya's)
 
 ```{r, fig.width =20, fig.height = 10}
 ## euclidean distance directly
@@ -884,88 +894,88 @@ Heatmap(sub_sampens,
 
 # Stats / planned comparisons {.tabset .tabset-pills}
 
-## Atreya's code but only PT vs NC
+<!-- ## Atreya's code but only PT vs NC -->
 
 
-```{r}
-rowwise_lm <- function(i) {
-  df <- data.frame(
-    sampen = sub_sampens[i, ],
-    meth = sub_meths[i, ],
-    loc = factor(substr(groups$subloc, 1, 2)),
-    patient = groups$patient
-  )
+<!-- ```{r} -->
+<!-- rowwise_lm <- function(i) { -->
+<!--   df <- data.frame( -->
+<!--     sampen = sub_sampens[i, ], -->
+<!--     meth = sub_meths[i, ], -->
+<!--     loc = factor(substr(groups$subloc, 1, 2)), -->
+<!--     patient = groups$patient -->
+<!--   ) -->
 
-  df <- df[df$loc %in% c('PT', 'NC'), ]
-  df$loc <- relevel(df$loc, ref = "NC")
+<!--   df <- df[df$loc %in% c('PT', 'NC'), ] -->
+<!--   df$loc <- relevel(df$loc, ref = "NC") -->
 
-  fit <- try(lm(sampen ~ meth + I(meth^2) + loc + patient, data = df), silent = T)
-  s <- summary(fit)$coefficients
+<!--   fit <- try(lm(sampen ~ meth + I(meth^2) + loc + patient, data = df), silent = T) -->
+<!--   s <- summary(fit)$coefficients -->
 
-  if (!("locPT" %in% rownames(s))) {
-    return(rep(NA, 5))
-  }
+<!--   if (!("locPT" %in% rownames(s))) { -->
+<!--     return(rep(NA, 5)) -->
+<!--   } -->
 
-  c(
-    estimate  = s["locPT", "Estimate"],
-    std_error = s["locPT", "Std. Error"],
-    t_value   = s["locPT", "t value"],
-    p_value   = s["locPT", "Pr(>|t|)"],
-    df        = df.residual(fit)
-  )
-}
+<!--   c( -->
+<!--     estimate  = s["locPT", "Estimate"], -->
+<!--     std_error = s["locPT", "Std. Error"], -->
+<!--     t_value   = s["locPT", "t value"], -->
+<!--     p_value   = s["locPT", "Pr(>|t|)"], -->
+<!--     df        = df.residual(fit) -->
+<!--   ) -->
+<!-- } -->
 
-coefs_list <- bplapply(seq_len(nrow(sub_sampens)), rowwise_lm, BPPARAM = param)
+<!-- coefs_list <- bplapply(seq_len(nrow(sub_sampens)), rowwise_lm, BPPARAM = param) -->
 
-coefs_df <- do.call(rbind, coefs_list)
-colnames(coefs_df) <- c("estimate", "std_error", "t_value", "p_value", "df")
-coefs_df <- as.data.frame(coefs_df)
-
-
-coefs_df[] <- lapply(coefs_df, as.numeric)
-
-valid <- complete.cases(coefs_df)
-coefs_valid <- coefs_df[valid, ]
-
-## dim(coefs_valid)
-
-s2 <- coefs_valid$std_error^2
-df_resid <- coefs_valid$df
-squeezed <- squeezeVar(var = s2, df = df_resid)
-
-moderated_t <- coefs_valid$estimate / sqrt(squeezed$var.post)
-moderated_p <- 2 * pt(-abs(moderated_t), df = squeezed$df.prior + df_resid)
-adj_p <- p.adjust(moderated_p, method = "BH")
-
-coefs_valid$moderated_t <- moderated_t
-coefs_valid$moderated_p <- moderated_p
-coefs_valid$adj_p <- adj_p
-
-coefs_df$moderated_t <- NA
-coefs_df$moderated_p <- NA
-coefs_df$adj_p <- NA
-coefs_df[
-  valid, c("moderated_t", "moderated_p", "adj_p")
-] <- coefs_valid[, c("moderated_t", "moderated_p", "adj_p")]
-
-coefs_df$region <- rownames(sub_sampens)
-
-saveRDS(object = coefs_df, 'pt_vs_nc_coefs.rds')
-
-table(coefs_df$adj_p < 0.05)
-hist(coefs_df$adj_p)
-
-sorted_idx <- order(coefs_df$adj_p, na.last = NA)
-
-top_2k_idx <- sorted_idx[1:2000]
-
-top_entropy <- sub_sampens[top_2k_idx, ]
-top_meth <- sub_meths[top_2k_idx, ]
-## head(top_meth)
-```
+<!-- coefs_df <- do.call(rbind, coefs_list) -->
+<!-- colnames(coefs_df) <- c("estimate", "std_error", "t_value", "p_value", "df") -->
+<!-- coefs_df <- as.data.frame(coefs_df) -->
 
 
-## Same but with a function, PT vs NC
+<!-- coefs_df[] <- lapply(coefs_df, as.numeric) -->
+
+<!-- valid <- complete.cases(coefs_df) -->
+<!-- coefs_valid <- coefs_df[valid, ] -->
+
+<!-- ## dim(coefs_valid) -->
+
+<!-- s2 <- coefs_valid$std_error^2 -->
+<!-- df_resid <- coefs_valid$df -->
+<!-- squeezed <- squeezeVar(var = s2, df = df_resid) -->
+
+<!-- moderated_t <- coefs_valid$estimate / sqrt(squeezed$var.post) -->
+<!-- moderated_p <- 2 * pt(-abs(moderated_t), df = squeezed$df.prior + df_resid) -->
+<!-- adj_p <- p.adjust(moderated_p, method = "BH") -->
+
+<!-- coefs_valid$moderated_t <- moderated_t -->
+<!-- coefs_valid$moderated_p <- moderated_p -->
+<!-- coefs_valid$adj_p <- adj_p -->
+
+<!-- coefs_df$moderated_t <- NA -->
+<!-- coefs_df$moderated_p <- NA -->
+<!-- coefs_df$adj_p <- NA -->
+<!-- coefs_df[ -->
+<!--   valid, c("moderated_t", "moderated_p", "adj_p") -->
+<!-- ] <- coefs_valid[, c("moderated_t", "moderated_p", "adj_p")] -->
+
+<!-- coefs_df$region <- rownames(sub_sampens) -->
+
+<!-- saveRDS(object = coefs_df, 'pt_vs_nc_coefs.rds') -->
+
+<!-- table(coefs_df$adj_p < 0.05) -->
+<!-- hist(coefs_df$adj_p) -->
+
+<!-- sorted_idx <- order(coefs_df$adj_p, na.last = NA) -->
+
+<!-- top_2k_idx <- sorted_idx[1:2000] -->
+
+<!-- top_entropy <- sub_sampens[top_2k_idx, ] -->
+<!-- top_meth <- sub_meths[top_2k_idx, ] -->
+<!-- ## head(top_meth) -->
+<!-- ``` -->
+
+
+## PT vs NC
 
 
 ```{r}
@@ -991,6 +1001,7 @@ de$pt_vs_nc <- diff_entropy_test(
 )
 
 head(de$pt_vs_nc$coefs_df)
+hist(coefs_df$adj_p)
 table(de$pt_vs_nc$coefs_df$adj_p < 0.05)
 ```
 
@@ -1119,71 +1130,295 @@ table(de$mp_vs_nc$coefs_df$adj_p < 0.05)
 
 ```{r debug}
 saveRDS(de, file = 'de_list.rds')
+##de <- readRDS('de_list.rds')
 ```
 
-## Plotting
+# Plotting {.tabset .tabset-pills}
+
+## Gains and losses of entropy  {.tabset .tabset-pills}
 
 Plot layout: per window, the annotation with all the genomic compartments plus also whether diff entropic, after correcting for diff methylated. Perhaps a sankey? set of piecharts? just a heatmap? Mind diff methylation might also be useful
 
-```{r}
 
+We remove the "conserved/no change" SCNA from this, as well as the 'region'
+
+```{r}
 ## de <- readRDS('de_list.rds')
-full_annot <- read_tsv(snakemake@input[["annotations"]], show_col_types = FALSE)
+full_annot <- as.data.frame(read_tsv(snakemake@input[["annotations"]], show_col_types = FALSE))
 
 full_annot$region <- sprintf("%s:%s-%s", full_annot$chr, full_annot$start, full_annot$end)
 rownames(full_annot) <- full_annot$region
 
-full_annot <- full_annot[,setdiff(colnames(full_annot), c('chr', 'start', 'end'))]
+full_annot <- full_annot[,setdiff(colnames(full_annot), c('chr', 'start', 'end',
+                                                          'crc01_nc_scna_scna'))]
 
 for (contrast in names(de)) {
   coef_tab <- de[[contrast]]$coefs_df
-  tmp <- merge(full_annot, coef_tab[, c("region","moderated_t")],
+  tmp <- merge(full_annot, coef_tab[, c("region","moderated_t", "adj_p")],
                by = "region", all.x = TRUE)
-  full_annot[[contrast]] <- tmp$moderated_t
+  full_annot[[paste0(contrast, "__mod_t")]] <- tmp$moderated_t
+  full_annot[[paste0(contrast, "__signif")]] <- tmp$adj_p < 0.05
+
   rm(coef_tab)
 }
 
 
-str(full_annot)
-summary(full_annot$ln_vs_nc)
+full_annot$pt_vs_nc__signif[is.na(full_annot$pt_vs_nc__signif)] <- FALSE
+
+## summary(full_annot$pt_vs_nc__signif)
+## summary(full_annot$pt_vs_nc__mod_t)
+
+full_annot <- full_annot[,setdiff(colnames(full_annot), c('region'))]
 ```
 
 
-## rowData correlations directly, to add diff entropic and stratify per biopsy site
+### UpSetR
 
-<!-- ```{r, fig.width = 10, fig.height = 10} -->
-<!-- ## sce <- readRDS('../../sce_windows_colon.rds') -->
-<!-- dim(rowData(sce)) -->
-<!-- colnames(rowData(sce)) -->
+Upsetplots for windows/regions with at least diff entropy in a contrast
 
-<!-- rowData(sce)$mean_sampen <- rowMeans(assay(sce, "sampen"), na.rm = TRUE) -->
-<!-- rowData(sce)$mean_meth   <- rowMeans(assay(sce, "meth"), na.rm = TRUE) -->
+```{r, fig.width = 20, fig.height = 10}
+mat <- full_annot
+mat <- mat[, !names(mat) %in% c("region", grep("mod_t", colnames(mat), value = TRUE))]
 
-<!-- rowData(sce)$var_sampen <- apply(assay(sce, "sampen"), 1, var, na.rm = TRUE) -->
-<!-- rowData(sce)$var_meth   <- apply(assay(sce, "meth"), 1, var, na.rm = TRUE) -->
-                                 
-<!-- rd <- as.data.frame(rowData(sce)) -->
+signif_cols <- grep("__signif$", names(mat), value = TRUE)
+annot_cols  <- setdiff(names(mat), signif_cols)
 
-<!-- cor_mat <- cor(rd, use = "pairwise.complete.obs", method = "spearman") -->
+mat[sapply(mat, is.logical)] <- lapply(mat[sapply(mat, is.logical)], as.integer)
 
-<!-- dist_mat <- as.dist(1 - cor_mat) -->
-<!-- hc <- hclust(dist_mat, method = "ward.D2") -->
+## only keep these regions that are significant in one comparison
+rows_with_signif_de <- rownames(mat[rowSums(mat[, signif_cols], na.rm = TRUE) > 0, ])
+mat <- mat[rows_with_signif_de,]
+dim(mat)
 
-<!-- col_fun <- colorRamp2(c(-1, 0, 1), c("blue", "white", "red")) -->
+## binarize if needed
+mat_bin <- as.data.frame((mat > 0) * 1)
 
-<!-- Heatmap(cor_mat, -->
-<!--         name = "Window annotation correlation", -->
-<!--         col = col_fun, -->
-<!--         cluster_rows = TRUE, -->
-<!--         cluster_columns = TRUE, -->
-<!--         show_row_names = TRUE, -->
-<!--         show_column_names = TRUE) -->
+upset(mat_bin,
+      nsets = ncol(mat_bin),
+      nintersects = 30,
+      order.by = "freq")
 
-<!-- ``` -->
+## queries <- lapply(annot_cols, function(col) {
+##   list(query = intersects, 
+##        params = list(col), 
+##        color = "steelblue", 
+##        active = TRUE)
+## })
+
+## upset(mat_bin,
+##       ## sets = c(signif_cols, annot_cols),
+##       ## nsets = length(c(signif_cols, annot_cols)),
+##       ## nintersects = 30,
+##       order.by = "freq",
+##       queries = queries)
+```
+
+### Graph Jaccards
+
+Switch to Jaccard similarities.
+
+
+```{r}
+jaccard <- function(x, y) sum(x & y) / sum(x | y)
+assoc <- outer(names(mat_bin), names(mat_bin),
+               Vectorize(function(a, b) jaccard(mat_bin[[a]], mat_bin[[b]])))
+dimnames(assoc) <- list(names(mat_bin), names(mat_bin))
+
+assoc[is.na(assoc)] <- 0
+g <- graph_from_adjacency_matrix(assoc, mode = "undirected", weighted = TRUE, diag = FALSE)
+
+V(g)$is_signif <- grepl("__signif$", V(g)$name)
+V(g)$color <- ifelse(V(g)$is_signif, "tomato", "skyblue")
+
+coords <- layout_with_fr(g, niter = 10e3)
+
+edge_cols <- colorRampPalette(c("lightgrey","darkblue"))(100)
+
+## transparency for edges with low weight
+w <- E(g)$weight
+a <- (w - min(w))/(max(w)-min(w))
+edge_cols_alpha <- paste0(edge_cols[cut(w, breaks=100)], sprintf("%02X", as.integer(a*255)))
+
+plot(g, vertex.size = 7, vertex.label.cex = 0.8, vertex.color = V(g)$color,
+     layout = coords, edge.width = E(g)$weight*10,
+     edge.color = edge_cols_alpha[cut(E(g)$weight, breaks = 100)])
+```
+
+Star layout instead
+
+```{r}
+idx <- which(V(g)$name == "pt_vs_nc__signif")
+
+coords <- layout_as_star(g, center = idx)
+
+plot(g,
+     layout = coords,
+     vertex.color = V(g)$color,
+     vertex.size = 10,
+     vertex.label.color = "black",
+     vertex.label.cex = 1,
+     edge.width = E(g)$weight*10,
+     edge.color = edge_cols_alpha[cut(E(g)$weight, breaks = 100)])
+
+## E(g)$weight[is.na(E(g)$weight)] <- 0
+## E(g)$weight <- as.numeric(E(g)$weight)
+V(g)$group_color <- V(g)$color
+
+ggraph(g, layout = coords) +
+  geom_edge_link(aes(width = weight, color = weight, alpha = weight), alpha = 0.6) +
+  geom_node_point(aes(color = group_color), size = 5) +
+  geom_node_label(aes(label = name), repel = TRUE, fill = "white") +
+  scale_edge_width(range = c(0.2, 2)) +
+  theme_void()
+
+```
+
+### Pheatmap Jaccards
+
+
+```{r, fig.width = 8, fig.height = 8}
+
+assoc[!is.finite(assoc)] <- 0
+pheatmap(assoc, clustering_distance_rows = "euclidean",
+         clustering_distance_cols = "euclidean",
+         legend_title = "Jaccard index",
+         main = "Feature co-annotation (jaccard)")
+```
+
+non symmetrical: caution averages jaccards
+
+
+```{r, fig.height = 4, fig.width = 7}
+## these are tests, Atreya'style
+signif_cols <- grep("__signif$", names(mat), value = TRUE)
+
+## these are genomic annotations
+feature_cols <- setdiff(names(mat), signif_cols)
+
+res <- matrix(NA, nrow = length(signif_cols), ncol = length(feature_cols),
+              dimnames = list(signif_cols, feature_cols))
+
+# 3. For each signif flag, compute mean of each feature across rows where flag == 1
+for (s in signif_cols) {
+  idx <- which(mat[[s]] == 1)   # rows where this test is significant
+  if (length(idx) > 0) {
+    res[s, ] <- colMeans(mat[idx, feature_cols, drop = FALSE], na.rm = TRUE)
+  }
+}
+
+res <- res[rowSums(is.na(res)) < ncol(res), , drop = FALSE]
+summary(as.numeric(res))
+
+## pal <- colorRampPalette(c("white", "skyblue", "navy"))(100)
+pal <- colorRampPalette(c("white", "lightblue", "blue", "navy"))(200)
+# pal_breaks <- seq(0, 1, length.out = 101)
+pal_breaks <- c(seq(0, 0.5, length.out = 100),
+               seq(0.5+1e-9, 1, length.out = 100))
+
+pheatmap(res,
+         cluster_rows = TRUE,
+         cluster_cols = TRUE,
+         color = pal,
+         breaks = pal_breaks,
+         legend_title = "Average Jaccard index",
+         main = "Feature co-annotation score")
+
+```
+
+## Up and down-entropic separately {.tabset .tabset-pills}
+
+
+Some windows gain entropy, and others lose it. Split.
+
+
+### One graph per category (contrast plus direction of change)  {.tabset .tabset-pills}
+
+```{r, results = 'asis'}
+## str(full_annot)
+
+signif_cols <- grep("__signif$", names(full_annot), value = TRUE)
+modt_cols   <- gsub("__signif$", "__mod_t", signif_cols)
+feature_cols <- setdiff(names(full_annot), c(signif_cols, modt_cols, "region"))
+
+jaccard <- function(x, y) sum(x & y) / sum(x | y)
+
+# Identify moderated_t columns
+modt_cols <- grep("__mod_t$", names(full_annot), value = TRUE)
+
+graphs <- list()
+
+for (col in modt_cols) {
+  # Split features into up and down sets
+  up_idx   <- which(full_annot[[col]] > 0 & !is.na(full_annot[[col]]))
+  down_idx <- which(full_annot[[col]] < 0 & !is.na(full_annot[[col]]))
+  
+  for (dir in c("up","down")) {
+    cat('#### ', col, up, '\n\n')
+      
+    idx <- if (dir=="up") up_idx else down_idx
+    if (length(idx) == 0) next
+    
+    # binarize for this subset
+    mat_bin <- full_annot[idx, setdiff(names(full_annot), modt_cols)]
+    mat_bin <- as.data.frame((mat_bin > 0) * 1)
+    
+    # Jaccard
+    assoc <- outer(names(mat_bin), names(mat_bin),
+                   Vectorize(function(a,b) jaccard(mat_bin[[a]], mat_bin[[b]])))
+    dimnames(assoc) <- list(names(mat_bin), names(mat_bin))
+    assoc[is.na(assoc)] <- 0
+    
+    # Graph on jacard
+    g <- graph_from_adjacency_matrix(assoc, mode="undirected", weighted=TRUE, diag=FALSE)
+    V(g)$color <- "skyblue"
+    
+    # layout (FR)
+    ## coords <- layout_with_fr(g, niter=1e4)
+    (idx <- which(V(g)$name == paste0(strsplit(col, '__')[[1]][1], "__signif")))
+
+    coords  <- layout_as_star(g, center = idx)
+    edge_cols <- colorRampPalette(c("lightgrey","darkblue"))(100)
+    w <- E(g)$weight
+    a <- (w - min(w))/(max(w)-min(w))
+    edge_cols_alpha <- paste0(edge_cols[cut(w, breaks=100)], sprintf("%02X", as.integer(a*255)))
+    
+    # plot but also keep for further usage
+    plot(g,
+         layout = coords,
+         vertex.color = V(g)$color,
+         vertex.size = 10,
+         vertex.label.color = "black",
+         vertex.label.cex = 1,
+         edge.width = E(g)$weight*10,
+         edge.color = edge_cols_alpha[cut(E(g)$weight, breaks = 100)],
+         main = paste(col, dir))
+
+    ## ggraph(g, layout = coords) +
+    ##     geom_edge_link(aes(width = weight, color = weight, alpha = weight), alpha = 0.6) +
+    ##     geom_node_point(aes(color = group_color), size = 5) +
+    ##     geom_node_label(aes(label = name), repel = TRUE, fill = "white") +
+    ##     scale_edge_width(range = c(0.2, 2)) +
+    ##     theme_void()
+
+    ## same, as a pheatmap
+
+    pheatmap(assoc, clustering_distance_rows = "euclidean",
+         clustering_distance_cols = "euclidean",
+         legend_title = "Jaccard index",
+         main = paste("Feature co-annotation (jaccard)", col, dir))
+    
+    
+    graphs[[paste(col,dir)]] <- g
+    cat('\n\n')
+  }
+}
+
+```
+
 
 ## GO
 
-add 'genes' as a layer to the window annotation and store the id for gene ontology/geneset enrichment (on limma diff entropic regions)
+add 'genes' as a layer to the window annotation and store the id for gene ontology/geneset enrichment (on limma diff entropic regions)?
 
 
 ```{r}
