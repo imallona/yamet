@@ -1,0 +1,234 @@
+---
+title: "CRC by genomic tiles, SCE-based"
+author: "Izaskun Mallona"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: hide
+    code_download: true
+    number_sections: true
+    df_print: default # kable
+    theme: lumen
+---
+
+```{r, setup}
+suppressPackageStartupMessages({
+  library(readr)
+  library(lmerTest)
+  library(ggplot2)
+  library(knitr)
+  library(ComplexHeatmap)
+  library(viridis)
+  library(tidyr)
+  library(Matrix)
+  library(limma)
+  library(BiocParallel)
+  library(circlize)
+
+  library(dplyr)
+  library(purrr)
+  library(uwot)  # UMAP
+
+  library(SingleCellExperiment)
+  library(SummarizedExperiment)
+  
+  library(UpSetR) ## all for extra plotting attempts
+  library(pheatmap)
+  library(igraph)
+  library(ggraph)
+})
+
+source("src/ggtheme.R")
+source('src/diff_testing.R')
+
+## param <- MulticoreParam(workers = snakemake@threads)
+```
+
+```{r}
+opts_chunk$set(
+  fig.width = 7.5,
+  fig.height = 7.5,
+  cache = TRUE,
+  error = TRUE,
+  include = TRUE,
+  fig.path = "crc_windows_plots/",
+  dev = c("png", "svg"),
+  cache.lazy = FALSE,
+  warning = TRUE,
+  message = TRUE
+)
+
+## render on error hook
+knitr::knit_hooks$set(error = function(x, options) {
+  knitr::knit_exit()
+})
+```
+
+
+```{r logging, include = FALSE}
+log <- file(snakemake@log$log, open = "wt")
+sink(log)
+sink(log, type = "message")
+```
+
+
+```{r}
+
+NTHREADS = 50
+
+sce <- readRDS('sce_windows_colon.rds')
+de <- readRDS('de_list.rds')
+```
+
+Let's append the DE metadata
+
+```{r}
+str(de)
+```
+
+These lack the residuals. For plotting, I can anyway fit a model on sampen vs avg meth and use the residuals, without patient or location covars.
+
+```{r}
+formula <- "sampen ~ meth + I(meth^2)"
+
+str(assay(sce, 'sampen'))
+
+rowwise_lm_residuals <- function(i) {
+    df <- data.frame(
+        sampen  = assay(sce, 'sampen')[i, ],
+        meth    = assay(sce, 'meth')[i, ])
+    
+    fit <- try(lm(formula, data = df), silent = TRUE)
+    if (inherits(fit, "try-error")) return(rep(NA, nrow(df)))
+    res <- residuals(fit)
+    return(res)
+}
+
+res_mat <- do.call(rbind, bplapply(seq_len(nrow(sce)), rowwise_lm_residuals,
+                                   BPPARAM = MulticoreParam(workers = NTHREADS)))
+
+rownames(res_mat) <- rownames(sce)
+colnames(res_mat) <- colnames(sce)
+
+## these are the meth-independent sampen values for plotting
+assay(sce, "sampen_corrected") <- res_mat
+
+colData(sce)$location <- factor(
+  colData(sce)$location,
+  levels = c("NC", "PT", "LN", "ML", "MP", "MO"))
+```
+
+
+```{r}
+df <- reshape2::melt(as.matrix(assay(sce, "sampen_corrected")[,1:100])) # subset for plotting
+ggplot(df, aes(value)) + geom_density(fill="steelblue", alpha=0.5) +
+  labs(title="Distribution of corrected sampen values")
+
+
+library(scater)
+sce <- runPCA(sce, exprs_values="sampen_corrected")
+plotReducedDim(sce, "PCA", colour_by="location")
+
+ve <- getVarianceExplained(sce,
+                           exprs_values = "sampen_corrected",
+                           variables = c('location', 'patient'))
+
+summary(ve)
+
+plotExplanatoryVariables(ve) 
+
+```
+
+
+```{r}
+
+df_violin <- data.frame(
+  value = colMeans(assay(sce, "sampen_corrected")),
+  location = colData(sce)$location,
+  patient  = colData(sce)$patient
+)
+
+ggplot(df_violin, aes(x = location, y = value, fill = patient)) +
+  geom_violin(trim = FALSE, scale = "width") +
+  geom_boxplot(width = 0.1, outlier.size = 0.5) +
+  theme_bw() +
+  labs(y = "Mean sampen_corrected", title = "Distribution per location and patient")
+```
+
+```{r}
+df_cells <- data.frame(
+  mean_sampen = colMeans(assay(sce, "sampen")),
+  mean_sampen_corrected = colMeans(assay(sce, "sampen_corrected")),
+  location = colData(sce)$location
+)
+
+ggplot(df_cells, aes(x = mean_sampen, y = mean_sampen_corrected, color = location)) +
+  geom_point(alpha = 1) +
+  theme_bw() +
+  labs(x = "Mean sampen", y = "Mean sampen_corrected",
+       title = "Per-cell comparison of sampen vs sampen_corrected")
+
+```
+
+Rowdata aspects - they're not correct, full of NAs, @todo fix upstream
+
+
+```{r}
+str(rowData(sce))
+table(rowData(sce)$`11_Promoter_hmm`, useNA="ifany")
+
+annot_fn <- 'hg19/windows_10000_nt_annotation.gz'
+
+annot <- as.data.frame(read_tsv(
+    annot_fn,
+    show_col_types = FALSE))
+
+annot$region <- sprintf("%s:%s-%s", annot$chr, annot$start, annot$end)
+rownames(annot) <- annot$region
+
+annot <- annot[,setdiff(colnames(annot), c('chr', 'start', 'end', 'region'))]
+
+rowData(sce) <- annot[rownames(sce),]
+saveRDS(sce, 'sce_windows_colon_corrected.rds')
+
+summary(rowData(sce)$`X11_Promoter_hmm`, useNA="ifany")
+```
+
+Fixed, binarize the annotations
+
+
+```{r}
+rd <- as.data.frame(rowData(sce))
+
+rd_bin <- as.data.frame(lapply(rd, function(x) {
+  if (is.numeric(x)) {
+    as.numeric(ifelse(x > 0, 1, 0))
+  } else {
+    x
+  }
+}))
+
+colnames(rd_bin) <- paste0(colnames(rd_bin), '_bin')
+
+rownames(rd_bin) <- rownames(rowData(sce))
+rowData(sce) <- cbind(rowData(sce), rd_bin)
+
+summary(rowData(sce)$`X11_Promoter_hmm`, useNA="ifany")
+table(rowData(sce)$`X11_Promoter_hmm_bin`, useNA="ifany")
+
+```
+
+Ok, let's plot accordingly, perhaps in terms of diff expressed genes (rowdata to be added)
+
+
+```{r}
+print('todo')
+```
+
+
+```{r}
+sessionInfo()
+knitr::knit_exit()
+```
