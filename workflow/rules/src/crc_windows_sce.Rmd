@@ -38,8 +38,14 @@ suppressPackageStartupMessages({
   library(pheatmap)
   library(igraph)
   library(ggraph)
-})
 
+  library(scater)
+})
+```
+
+
+```{r}
+## setwd('../..')
 source("src/ggtheme.R")
 source('src/diff_testing.R')
 
@@ -127,7 +133,7 @@ ggplot(df, aes(value)) + geom_density(fill="steelblue", alpha=0.5) +
   labs(title="Distribution of corrected sampen values")
 
 
-library(scater)
+
 sce <- runPCA(sce, exprs_values="sampen_corrected")
 plotReducedDim(sce, "PCA", colour_by="location")
 
@@ -224,9 +230,378 @@ Ok, let's plot accordingly, perhaps in terms of diff expressed genes (rowdata to
 
 
 ```{r}
-print('todo')
+for (contrast in names(de)) {
+    up <- de[[contrast]]$coefs_df$region[de[[contrast]]$coefs_df$moderated_t >= 0 & de[[contrast]]$coefs_df$adj_p < 0.05]
+    down <- de[[contrast]]$coefs_df$region[de[[contrast]]$coefs_df$moderated_t < 0 & de[[contrast]]$coefs_df$adj_p < 0.05]
+
+    rowData(sce)[,paste0(contrast, '_up_bin')] <- rownames(sce) %in% up
+    rowData(sce)[,paste0(contrast, '_down_bin')] <- rownames(sce) %in% down
+}
 ```
 
+```{r}
+str(rowData(sce))
+str(colData(sce))
+sce
+```
+
+Caution downsampled
+
+```{r}
+
+print('caution downsampled')
+
+## binarized features
+bin_features <- grep("_bin$", colnames(rowData(sce)), value = TRUE)
+
+# corrected sampens only
+assay_mat <- assay(sce, "sampen_corrected")
+
+set.seed(1)
+rows_keep <- sample(seq_len(nrow(sce)), 5e3 ) ## caution downsampling
+assay_mat <- assay_mat[rows_keep, ]
+rowdata_sub <- rowData(sce)[rows_keep, bin_features, drop = FALSE]
+
+
+df_list <- lapply(bin_features, function(bf) {
+  bin <- rowdata_sub[[bf]]
+  # compute mean sampen_corrected per cell for bin=0 vs bin=1
+  mat0 <- colMeans(assay_mat[bin == 0, , drop = FALSE])
+  mat1 <- colMeans(assay_mat[bin == 1, , drop = FALSE])
+  data.frame(
+    cell = rep(colnames(sce), 2),
+    bin = rep(c(0,1), each = ncol(sce)),
+    mean_sampen_corrected = c(mat0, mat1),
+    feature = bf
+  )
+})
+
+## adding the colData as well
+df <- bind_rows(df_list) %>%
+  left_join(as.data.frame(colData(sce)), by = "cell")
+
+head(df)
+
+
+ggplot(df, aes(x = factor(bin), y = mean_sampen_corrected, fill = factor(bin))) +
+  geom_boxplot(outlier.size = 0.3) +
+  facet_wrap(~ feature, scales = "free_y") +
+  labs(x = "Binary state", y = "Mean sampen_corrected") +
+  theme_bw(base_size = 9)
+
+```
+
+Let's do it for patient CRC01 only, so the SCNA makes sense
+
+
+```{r}
+
+print('downsampled, patient crc01 only')
+
+
+crc01 <- sce[sce$patient == 'CRC01',]
+assay_mat <- assay(crc01, "sampen_corrected")
+
+set.seed(20)
+rows_keep <- sample(seq_len(nrow(crc01)), 1e3 ) ## caution downsampling
+assay_mat <- assay_mat[rows_keep, ]
+## bin_features <- grep("_bin$", colnames(rowData(crc01)), value = TRUE)
+
+bin_features <- c('pmds_pmd_bin',
+                  "hmds_pmd_bin",                 
+                  "H3K27me3_chip_bin",
+                  "H3K9me3_chip_bin",
+                  "H3K4me3_chip_bin",
+                  "laminb1_lad_bin",
+                  "genes_genes_bin",
+                  "cpgIslandExt_cpgIslandExt_bin",
+                  "crc01_gain_scna_scna_bin",
+                  "crc01_lost_scna_scna_bin")
+
+rowdata_sub <- rowData(crc01)[rows_keep, bin_features, drop = FALSE]
+
+## so, per cell, average corrected sampen by whether the feature is flagged as present or not (gene/not gene etc)
+df_list <- lapply(bin_features, function(bf) {
+  bin <- rowdata_sub[[bf]]
+  tmp <- data.frame(
+    cell = colnames(crc01),
+    mean_bin0 = colMeans(assay_mat[bin == 0, , drop = FALSE]),
+    mean_bin1 = colMeans(assay_mat[bin == 1, , drop = FALSE])
+  ) %>%
+    tidyr::pivot_longer(cols = starts_with("mean_bin"),
+                        names_to = "bin", values_to = "mean_sampen_corrected") %>%
+    dplyr::mutate(bin = ifelse(bin == "mean_bin0", 0, 1),
+                  feature = bf)
+  tmp
+})
+
+
+df_crc01 <- dplyr::bind_rows(df_list) %>%
+  dplyr::left_join(as.data.frame(colData(crc01)), by = "cell")
+
+
+head(df_crc01)
+
+ggplot(df_crc01, aes(x = location, y = mean_sampen_corrected, fill = factor(bin))) +
+  geom_boxplot(outlier.size = 0.3, position = position_dodge(width = 0.8)) +
+  facet_grid( ~ feature) +
+  labs(x = "Feature present", y = "corrected sampen (avg per cell)") +
+  theme_bw(base_size = 8)
+
+```
+
+```{r, fig.width = 8, fig.height = 4}
+ggplot(df_crc01, aes(x = location,
+                     y = mean_sampen_corrected,
+                     fill = factor(bin))) +
+  geom_violin(trim = FALSE, position = position_dodge(width = 0.8), alpha = 0.6) +
+    geom_jitter(aes(color = factor(bin)),
+                position = position_jitterdodge(jitter.width = 0.3,
+                                                dodge.width = 0.8),
+                size = 0.5, alpha = 0.5) +
+  facet_grid(~ feature) +
+  labs(x = "Feature present",
+       y = "Corrected sampen (avg per cell)",
+       fill = "Bin", color = "Bin") +
+  theme_bw(base_size = 8)
+```
+
+Repeat for the diff entropic features
+
+
+```{r}
+
+bin_features <- grep('vs', colnames(rowData(crc01)), value = TRUE)
+
+rowdata_sub <- rowData(crc01)[rows_keep, bin_features, drop = FALSE]
+
+## so, per cell, average corrected sampen by whether the feature is flagged as present or not (gene/not gene etc)
+df_list <- lapply(bin_features, function(bf) {
+  bin <- rowdata_sub[[bf]]
+  tmp <- data.frame(
+    cell = colnames(crc01),
+    mean_bin0 = colMeans(assay_mat[bin == 0, , drop = FALSE]),
+    mean_bin1 = colMeans(assay_mat[bin == 1, , drop = FALSE])
+  ) %>%
+    tidyr::pivot_longer(cols = starts_with("mean_bin"),
+                        names_to = "bin", values_to = "mean_sampen_corrected") %>%
+    dplyr::mutate(bin = ifelse(bin == "mean_bin0", 0, 1),
+                  feature = bf)
+  tmp
+})
+
+
+df_crc01 <- dplyr::bind_rows(df_list) %>%
+  dplyr::left_join(as.data.frame(colData(crc01)), by = "cell")
+
+
+head(df_crc01)
+
+
+ggplot(df_crc01, aes(x = location,
+                     y = mean_sampen_corrected,
+                     fill = factor(bin))) +
+  geom_violin(trim = FALSE, position = position_dodge(width = 0.8), alpha = 0.6) +
+    geom_jitter(aes(color = factor(bin)),
+                position = position_jitterdodge(jitter.width = 0.3,
+                                                dodge.width = 0.8),
+                size = 0.5, alpha = 0.5) +
+  facet_grid(~ feature) +
+  labs(x = "Feature present",
+       y = "Corrected sampen (avg per cell)",
+       fill = "Bin", color = "Bin") +
+  theme_bw(base_size = 8)
+```
+
+
+Plus plot the association of diff entropic features
+
+```{r}
+str(rowData(crc01))
+
+rd <- as.data.frame(rowData(crc01))
+
+# diff entropic / contrast results
+contrast_features <- grep("_(up|down)_bin$", colnames(rd), value = TRUE)
+# pick annotation columns of interest
+#(annot_features <- setdiff(grep("bin$", colnames(rd), value = TRUE), contrast_features))
+(annot_features <- c('pmds_pmd_bin',
+                  "hmds_pmd_bin",                 
+                  "H3K27me3_chip_bin",
+                  "H3K9me3_chip_bin",
+                  "H3K4me3_chip_bin",
+                  "laminb1_lad_bin",
+                  "genes_genes_bin",
+                  "cpgIslandExt_cpgIslandExt_bin",
+                  "crc01_gain_scna_scna_bin",
+                  "crc01_lost_scna_scna_bin"))
+
+prop_df <- expand.grid(annotation = annot_features,
+                       contrast = contrast_features,
+                       stringsAsFactors = FALSE) %>%
+  rowwise() %>%
+  mutate(
+    overlap = sum(rd[[annotation]] == 1 & rd[[contrast]] == TRUE, na.rm = TRUE),
+    total   = sum(rd[[contrast]] == TRUE, na.rm = TRUE),
+    proportion = ifelse(total > 0, overlap / total, NA_real_)
+  ) %>%
+  ungroup()
+
+## prop_df <- expand.grid(annotation = annot_features,
+##                        contrast = contrast_features,
+##                        stringsAsFactors = FALSE) %>%
+##   rowwise() %>%
+##   mutate(
+##     overlap     = sum(rd[[annotation]] == 1 & rd[[contrast]] == TRUE, na.rm = TRUE),
+##     unannotated = sum(is.na(rd[[annotation]]) & rd[[contrast]] == TRUE),
+##     total       = sum(rd[[contrast]] == TRUE, na.rm = TRUE),
+##     proportion  = ifelse(total > 0, overlap / total, NA_real_),
+##     prop_na     = ifelse(total > 0, unannotated / total, NA_real_)
+##   ) %>%
+##   ungroup()
+
+
+## oof, not good, given the features that overlap multiple things.Also, remove the no change.
+prop_df[order(prop_df$proportion, decreasing = TRUE),]
+
+prop_df$proportion[is.na(prop_df$proportion)] <- 0
+
+## pff not good
+ggplot(prop_df, aes(x = contrast, y = proportion, fill = annotation)) +
+  ## geom_col(position = position_dodge()) +
+  geom_col(position = "stack") + 
+  labs(x = "Annotation feature",
+       y = "Proportion of contrast windows overlapping",
+       fill = "Contrast") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+ggplot(prop_df, aes(x = contrast, y = annotation)) +
+  geom_point(aes(size = proportion, color = proportion)) +
+  scale_size(range = c(1,6)) +
+  scale_color_gradient(low = "grey80", high = "red") +
+  labs(x = "Contrast", y = "Annotation", size = "Proportion", color = "Proportion") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+## why are some contrasts empty? and, btw, do we want to plot all contrasts and directions? and hmm and manual segmentations combined?
+
+## in any case, simplify plotting by showing the effect size direction, for each contrast, separately / side by side
+prop_df <- prop_df %>%
+  mutate(direction = ifelse(grepl("_up_", contrast), "Up", "Down"))
+
+prop_df <- prop_df %>%
+  mutate(contrast_clean = gsub("_(up|down)_bin", "", contrast))
+
+## this might work
+ggplot(prop_df, aes(x = contrast_clean, y = annotation)) +
+  geom_point(aes(size = proportion, color = direction),
+             position = position_dodge(width = 0.6)) +
+  scale_size(range = c(1,6)) +
+  scale_color_manual(values = c("Up" = "red", "Down" = "blue")) +
+  labs(x = "Contrast", y = "Annotation",
+       size = "Proportion", color = "Direction") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+Similarly for HMMs, where the amount of "not present" shouldn't be so high
+
+```{r}
+
+rd <- as.data.frame(rowData(crc01))
+
+# diff entropic / contrast results
+contrast_features <- grep("_(up|down)_bin$", colnames(rd), value = TRUE)
+# pick annotation columns of interest
+#(annot_features <- setdiff(grep("bin$", colnames(rd), value = TRUE), contrast_features))
+(annot_features <- grep('hmm', colnames(rd), value = TRUE))
+
+prop_df <- expand.grid(annotation = annot_features,
+                       contrast = contrast_features,
+                       stringsAsFactors = FALSE) %>%
+  rowwise() %>%
+  mutate(
+    overlap = sum(rd[[annotation]] == 1 & rd[[contrast]] == TRUE, na.rm = TRUE),
+    total   = sum(rd[[contrast]] == TRUE, na.rm = TRUE),
+    proportion = ifelse(total > 0, overlap / total, NA_real_)
+  ) %>%
+  ungroup()
+
+
+
+## in any case, simplify plotting by showing the effect size direction, for each contrast, separately / side by side
+prop_df <- prop_df %>%
+  mutate(direction = ifelse(grepl("_up_", contrast), "Up", "Down"))
+
+prop_df <- prop_df %>%
+  mutate(contrast_clean = gsub("_(up|down)_bin", "", contrast))
+
+## this might work
+ggplot(prop_df, aes(x = contrast_clean, y = annotation)) +
+  geom_point(aes(size = proportion, color = direction),
+             position = position_dodge(width = 0.6)) +
+  scale_size(range = c(1,6)) +
+  scale_color_manual(values = c("Up" = "red", "Down" = "blue")) +
+  labs(x = "Contrast", y = "Annotation",
+       size = "Proportion", color = "Direction") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+ggplot(prop_df, aes(x = contrast_clean, y = annotation)) +
+  geom_point(aes(size = proportion, color = proportion)) +
+  scale_size(range = c(1,6)) +
+  scale_color_gradient(low = "grey80", high = "red") +
+  facet_wrap(~ direction, ncol = 2) +
+  labs(x = "Contrast", y = "Annotation",
+       size = "Proportion", color = "Proportion") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+prop_df$contrast_dir <- paste0(prop_df$contrast_clean, "_", prop_df$direction)
+
+ggplot(prop_df, aes(x = contrast_dir, y = annotation)) +
+  geom_point(aes(size = proportion, color = direction)) +
+  scale_size(range = c(1,6)) +
+  scale_color_manual(values = c("Up" = "red", "Down" = "blue")) +
+  labs(x = "Contrast", y = "Annotation",
+       size = "Proportion", color = "Direction") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+Again why are some contrasts fully missing any point? shall we skip them from plotting? Let's get some basic stats about numbers of up/down, per comparison
+
+```{r}
+str(de)
+
+summarize_contrast <- function(df, alpha = 0.05) {
+  sig <- df %>% filter(adj_p < alpha)
+  tibble(
+    total_significant = nrow(sig),
+    upregulated   = sum(sig$moderated_t >= 0, na.rm = TRUE),
+    downregulated = sum(sig$moderated_t < 0, na.rm = TRUE)
+  )
+}
+
+# apply to all contrasts in the list
+summary_table <- lapply(names(de), function(name) {
+  out <- summarize_contrast(de[[name]]$coefs_df)
+  cbind(contrast = name, out)
+}) %>% bind_rows()
+
+summary_table
+
+```
+
+
+
+
+Plus plot the association between corrected entropy, entropy, avg meth, and shannon to facilitate storytelling (4x4 pairs, points colored by location)
 
 ```{r}
 sessionInfo()
