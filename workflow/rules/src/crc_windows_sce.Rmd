@@ -39,6 +39,7 @@ suppressPackageStartupMessages({
   ## library(igraph)
   ## library(ggraph)
 
+  library(reshape2)
   library(scater)
 })
 ```
@@ -57,8 +58,8 @@ getwd()
 
 ```{r}
 opts_chunk$set(
-  fig.width = 7.5,
-  fig.height = 7.5,
+  fig.width = 5,
+  fig.height = 5,
   cache = TRUE,
   ## error = TRUE,
   include = TRUE,
@@ -92,13 +93,39 @@ sce <- readRDS(snakemake@input[['sce']])
 de <- readRDS(snakemake@input[['de']])
 ```
 
-Let's append the DE metadata
+Let's get some basic stats about numbers of up/down, per comparison
 
 ```{r}
-str(de)
+## str(de)
+
+summarize_contrast <- function(df, alpha = 0.05) {
+  sig <- df %>% filter(adj_p < alpha)
+  tibble(
+    total_significant = nrow(sig),
+    upregulated   = sum(sig$moderated_t >= 0, na.rm = TRUE),
+    downregulated = sum(sig$moderated_t < 0, na.rm = TRUE)
+  )
+}
+
+# apply to all contrasts in the list
+summary_table <- lapply(names(de), function(name) {
+  out <- summarize_contrast(de[[name]]$coefs_df)
+  cbind(contrast = name, out)
+}) %>% bind_rows()
+
+summary_table
+
 ```
 
-These lack the residuals. For plotting, I can anyway fit a model on sampen vs avg meth and use the residuals, without patient or location covars.
+Filter DE contrasts to those having NC as baseline.
+
+```{r}
+de <- de[c('pt_vs_nc', 'ln_vs_nc', 'ml_vs_nc', 'mp_vs_nc')]
+```
+
+
+
+For plotting entropies: I cannot use the residuals of the fits above. But  I can anyway fit a model on sampen vs avg meth and use the residuals, without patient or location covars, to do general plots. Sort of poor woman's corrected sampen.
 
 ```{r}
 formula <- "sampen ~ meth + I(meth^2)"
@@ -134,7 +161,8 @@ colData(sce)$location <- factor(
 ```{r}
 df <- reshape2::melt(as.matrix(assay(sce, "sampen_corrected")[,1:100])) # subset for plotting
 ggplot(df, aes(value)) + geom_density(fill="steelblue", alpha=0.5) +
-  labs(title="Distribution of corrected sampen values")
+  labs(title="Distribution of corrected sampen values") +
+    theme_ng()
 
 
 
@@ -147,7 +175,8 @@ ve <- getVarianceExplained(sce,
 
 summary(ve)
 
-plotExplanatoryVariables(ve) 
+plotExplanatoryVariables(ve)  +
+    theme_ng()
 
 ```
 
@@ -163,7 +192,7 @@ df_violin <- data.frame(
 ggplot(df_violin, aes(x = location, y = value, fill = patient)) +
   geom_violin(trim = FALSE, scale = "width") +
   geom_boxplot(width = 0.1, outlier.size = 0.5) +
-  theme_bw() +
+  theme_ng() +
   labs(y = "Mean sampen_corrected", title = "Distribution per location and patient")
 ```
 
@@ -175,18 +204,18 @@ df_cells <- data.frame(
 )
 
 ggplot(df_cells, aes(x = mean_sampen, y = mean_sampen_corrected, color = location)) +
-  geom_point(alpha = 1) +
-  theme_bw() +
-  labs(x = "Mean sampen", y = "Mean sampen_corrected",
-       title = "Per-cell comparison of sampen vs sampen_corrected")
+  geom_point(alpha = 0.8) +
+  theme_ng() +
+  labs(x = "mean sampen", y = "mean sampen_corrected",
+       title = "sampen vs sampen_corrected, per cell")
 
 ```
 
-Rowdata aspects - they're not correct, full of NAs, @todo fix upstream
+Rowdata aspects - they're not correct, full of NAs, @todo fix upstream, now fixing downstream
 
 
 ```{r}
-str(rowData(sce))
+## str(rowData(sce))
 table(rowData(sce)$`11_Promoter_hmm`, useNA="ifany")
 
 annot_fn <- 'hg19/windows_10000_nt_annotation.gz'
@@ -201,7 +230,7 @@ rownames(annot) <- annot$region
 annot <- annot[,setdiff(colnames(annot), c('chr', 'start', 'end', 'region'))]
 
 rowData(sce) <- annot[rownames(sce),]
-saveRDS(sce, 'sce_windows_colon_corrected.rds')
+saveRDS(sce, snakemake@params[['corrected_sce']])
 
 summary(rowData(sce)$`X11_Promoter_hmm`, useNA="ifany")
 ```
@@ -244,8 +273,8 @@ for (contrast in names(de)) {
 ```
 
 ```{r}
-str(rowData(sce))
-str(colData(sce))
+## str(rowData(sce))
+## str(colData(sce))
 sce
 ```
 
@@ -344,17 +373,19 @@ df_crc01 <- dplyr::bind_rows(df_list) %>%
   dplyr::left_join(as.data.frame(colData(crc01)), by = "cell")
 
 
-head(df_crc01)
+## head(df_crc01)
+```
 
+```{r, fig.width = 15, fig.height = 5}
 ggplot(df_crc01, aes(x = location, y = mean_sampen_corrected, fill = factor(bin))) +
   geom_boxplot(outlier.size = 0.3, position = position_dodge(width = 0.8)) +
-  facet_grid( ~ feature) +
+  facet_wrap( ~ feature, nrow = 2) +
   labs(x = "biopsy location", y = "corrected sampen (avg per cell)") +
-  theme_bw(base_size = 20)
+  theme_ng(base_size = 16)
 
 ```
 
-```{r, fig.width = 8, fig.height = 4}
+```{r, fig.width = 15, fig.height = 5}
 ggplot(df_crc01, aes(x = location,
                      y = mean_sampen_corrected,
                      fill = factor(bin))) +
@@ -363,11 +394,11 @@ ggplot(df_crc01, aes(x = location,
                 position = position_jitterdodge(jitter.width = 0.3,
                                                 dodge.width = 0.8),
                 size = 0.5, alpha = 0.5) +
-  facet_grid(~ feature) +
+  facet_wrap(~ feature, nrow = 2) +
   labs(x = "biopsy location",
        y = "corrected sampen (avg per cell)",
        fill = "Bin", color = "Bin") +
-  theme_bw(base_size = 20)
+  theme_ng(base_size = 16)
 ```
 
 Repeat for the diff entropic features, do results make sense at all?
@@ -397,11 +428,10 @@ df_list <- lapply(bin_features, function(bf) {
 
 df_crc01 <- dplyr::bind_rows(df_list) %>%
   dplyr::left_join(as.data.frame(colData(crc01)), by = "cell")
+```
 
 
-head(df_crc01)
-
-
+```{r, fig.width = 12, fig.height = 5}
 ggplot(df_crc01, aes(x = location,
                      y = mean_sampen_corrected,
                      fill = factor(bin))) +
@@ -410,11 +440,11 @@ ggplot(df_crc01, aes(x = location,
                 position = position_jitterdodge(jitter.width = 0.3,
                                                 dodge.width = 0.8),
                 size = 0.5, alpha = 0.5) +
-  facet_grid(~ feature) +
+  facet_wrap(~ feature, nrow = 2) +
   labs(x = "biopsy location",
        y = "corrected sampen (avg per cell)",
        fill = "Bin", color = "Bin") +
-  theme_bw(base_size = 14)
+  theme_ng(base_size = 14)
 ```
 
 
@@ -468,7 +498,11 @@ prop_df <- expand.grid(annotation = annot_features,
 ## oof, not good, given the features that overlap multiple things.Also, remove the no change.
 prop_df[order(prop_df$proportion, decreasing = TRUE),]
 
-prop_df$proportion[is.na(prop_df$proportion)] <- 0
+
+## bring this back if odd
+## prop_df$proportion[is.na(prop_df$proportion)] <- 0
+prop_df <- prop_df %>% 
+  dplyr::filter(!is.na(proportion))
 
 ## pff not good
 ggplot(prop_df, aes(x = contrast, y = proportion, fill = annotation)) +
@@ -499,15 +533,15 @@ prop_df <- prop_df %>%
   mutate(contrast_clean = gsub("_(up|down)_bin", "", contrast))
 
 ## this might work
-ggplot(prop_df, aes(x = contrast_clean, y = annotation)) +
-  geom_point(aes(size = proportion, color = direction),
-             position = position_dodge(width = 0.6)) +
-  scale_size(range = c(1,6)) +
-  scale_color_manual(values = c("Up" = "red", "Down" = "blue")) +
-  labs(x = "Contrast", y = "Annotation",
-       size = "Proportion", color = "Direction") +
-  theme_bw() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+## ggplot(prop_df, aes(x = contrast_clean, y = annotation)) +
+##   geom_point(aes(size = proportion, color = direction),
+##              position = position_dodge(width = 0.6)) +
+##   scale_size(range = c(1,6)) +
+##   scale_color_manual(values = c("Up" = "red", "Down" = "blue")) +
+##   labs(x = "Contrast", y = "Annotation",
+##        size = "Proportion", color = "Direction") +
+##   theme_bw() +
+##   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 ```
 
@@ -575,30 +609,6 @@ ggplot(prop_df, aes(x = contrast_dir, y = annotation)) +
        size = "Proportion", color = "Direction") +
   theme_bw() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
-
-```
-
-Again why are some contrasts fully missing any point? shall we skip them from plotting? Let's get some basic stats about numbers of up/down, per comparison
-
-```{r}
-str(de)
-
-summarize_contrast <- function(df, alpha = 0.05) {
-  sig <- df %>% filter(adj_p < alpha)
-  tibble(
-    total_significant = nrow(sig),
-    upregulated   = sum(sig$moderated_t >= 0, na.rm = TRUE),
-    downregulated = sum(sig$moderated_t < 0, na.rm = TRUE)
-  )
-}
-
-# apply to all contrasts in the list
-summary_table <- lapply(names(de), function(name) {
-  out <- summarize_contrast(de[[name]]$coefs_df)
-  cbind(contrast = name, out)
-}) %>% bind_rows()
-
-summary_table
 
 ```
 

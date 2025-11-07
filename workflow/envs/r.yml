@@ -15,6 +15,7 @@ dependencies:
   - r-effects
   - r-ggstance
   - r-dplyr
+  - r-reshape2
   - bioconductor-biocparallel
   - bioconductor-complexheatmap
   - bioconductor-geoquery

@@ -473,7 +473,7 @@ rule lazy_move_things_around:
         cp de_list.rds {output.de}
         """
         
-    
+## params$corrected_sce is an output, but Rmd scripts only allow one
 rule render_crc_sce_report:
     conda:
         op.join("..", "envs", "r.yml")
@@ -481,7 +481,8 @@ rule render_crc_sce_report:
         sce = op.join(CRC, 'results', 'sce_windows_{win_size}_colon.rds'),
         de =  op.join(CRC, 'results', 'de_list_{win_size}.rds')
     params:
-        output_path=CRC_WINDOWS_OUTPUT
+        output_path=CRC_WINDOWS_OUTPUT,
+        corrected_sce = op.join(CRC, 'results', 'sce_windows_colon_corrected_{win_size}.rds')
     output:
         op.join(CRC, "results", "crc_windows_sce_{win_size}.html")
     log:
