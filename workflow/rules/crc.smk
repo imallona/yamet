@@ -456,6 +456,39 @@ rule render_crc_windows_report:
     script:
         "src/crc_windows.Rmd"
 
+## from crc_windows.Rmd, to crc_windows_sce.Rmd
+rule lazy_move_things_around:
+    conda:
+        op.join("..", "envs", "r.yml")
+    params:
+        output_path=CRC_WINDOWS_OUTPUT
+    input:
+        op.join(CRC, "results", "crc_windows_{win_size}_nt.html")
+    output:
+        sce = op.join(CRC, 'results', 'sce_windows_{win_size}_colon.rds'),
+        de =  op.join(CRC, 'results', 'de_list_{win_size}.rds')
+    shell:
+        """
+        cp sce_windows_colon.rds {output.sce}
+        cp de_list.rds {output.de}
+        """
+        
+    
+rule render_crc_sce_report:
+    conda:
+        op.join("..", "envs", "r.yml")
+    input:
+        sce = op.join(CRC, 'results', 'sce_windows_{win_size}_colon.rds'),
+        de =  op.join(CRC, 'results', 'de_list_{win_size}.rds')
+    params:
+        output_path=CRC_WINDOWS_OUTPUT
+    output:
+        op.join(CRC, "results", "crc_windows_sce_{win_size}.html")
+    log:
+        log = op.join("logs", "render_crc_windows_sce_{win_size}.log")
+    script:
+        "src/crc_windows_sce.Rmd"
+
 # rule run_crc_stats_report:
 #     conda:
 #         op.join("..", "envs", "r.yml")

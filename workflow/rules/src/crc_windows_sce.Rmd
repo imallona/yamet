@@ -16,40 +16,43 @@ output:
 ```{r, setup}
 suppressPackageStartupMessages({
   library(readr)
-  library(lmerTest)
+  ## library(lmerTest)
   library(ggplot2)
   library(knitr)
-  library(ComplexHeatmap)
+  ## library(ComplexHeatmap)
   library(viridis)
   library(tidyr)
   library(Matrix)
   library(limma)
   library(BiocParallel)
-  library(circlize)
+  ## library(circlize)
 
   library(dplyr)
-  library(purrr)
-  library(uwot)  # UMAP
+  ## library(purrr)
+  ## library(uwot)  # UMAP
 
   library(SingleCellExperiment)
   library(SummarizedExperiment)
   
-  library(UpSetR) ## all for extra plotting attempts
+  ## library(UpSetR) ## all for extra plotting attempts
   library(pheatmap)
-  library(igraph)
-  library(ggraph)
+  ## library(igraph)
+  ## library(ggraph)
 
   library(scater)
 })
 ```
 
+This is supposed to be knitted from 'workflow'
 
 ```{r}
-## setwd('../..')
+if (FALSE)
+    setwd('../..')
 source("src/ggtheme.R")
 source('src/diff_testing.R')
 
-## param <- MulticoreParam(workers = snakemake@threads)
+param <- MulticoreParam(workers = snakemake@threads)
+getwd()
 ```
 
 ```{r}
@@ -57,9 +60,9 @@ opts_chunk$set(
   fig.width = 7.5,
   fig.height = 7.5,
   cache = TRUE,
-  error = TRUE,
+  ## error = TRUE,
   include = TRUE,
-  fig.path = "crc_windows_plots/",
+  fig.path = "crc_windows_plots_sce/",
   dev = c("png", "svg"),
   cache.lazy = FALSE,
   warning = TRUE,
@@ -67,9 +70,10 @@ opts_chunk$set(
 )
 
 ## render on error hook
-knitr::knit_hooks$set(error = function(x, options) {
-  knitr::knit_exit()
-})
+# knitr::knit_hooks$set(error = function(x, options) {
+#  knitr::knit_exit()
+# })
+
 ```
 
 
@@ -82,10 +86,10 @@ sink(log, type = "message")
 
 ```{r}
 
-NTHREADS = 50
+# NTHREADS = 50
 
-sce <- readRDS('sce_windows_colon.rds')
-de <- readRDS('de_list.rds')
+sce <- readRDS(snakemake@input[['sce']])
+de <- readRDS(snakemake@input[['de']])
 ```
 
 Let's append the DE metadata
@@ -113,7 +117,7 @@ rowwise_lm_residuals <- function(i) {
 }
 
 res_mat <- do.call(rbind, bplapply(seq_len(nrow(sce)), rowwise_lm_residuals,
-                                   BPPARAM = MulticoreParam(workers = NTHREADS)))
+                                   BPPARAM = MulticoreParam(workers = snakemake@threads)))
 
 rownames(res_mat) <- rownames(sce)
 colnames(res_mat) <- colnames(sce)
@@ -247,49 +251,49 @@ sce
 
 Caution downsampled
 
-```{r}
+<!-- ```{r} -->
 
-print('caution downsampled')
+<!-- print('caution downsampled') -->
 
-## binarized features
-bin_features <- grep("_bin$", colnames(rowData(sce)), value = TRUE)
+<!-- ## binarized features -->
+<!-- bin_features <- grep("_bin$", colnames(rowData(sce)), value = TRUE) -->
 
-# corrected sampens only
-assay_mat <- assay(sce, "sampen_corrected")
+<!-- # corrected sampens only -->
+<!-- assay_mat <- assay(sce, "sampen_corrected") -->
 
-set.seed(1)
-rows_keep <- sample(seq_len(nrow(sce)), 5e3 ) ## caution downsampling
-assay_mat <- assay_mat[rows_keep, ]
-rowdata_sub <- rowData(sce)[rows_keep, bin_features, drop = FALSE]
-
-
-df_list <- lapply(bin_features, function(bf) {
-  bin <- rowdata_sub[[bf]]
-  # compute mean sampen_corrected per cell for bin=0 vs bin=1
-  mat0 <- colMeans(assay_mat[bin == 0, , drop = FALSE])
-  mat1 <- colMeans(assay_mat[bin == 1, , drop = FALSE])
-  data.frame(
-    cell = rep(colnames(sce), 2),
-    bin = rep(c(0,1), each = ncol(sce)),
-    mean_sampen_corrected = c(mat0, mat1),
-    feature = bf
-  )
-})
-
-## adding the colData as well
-df <- bind_rows(df_list) %>%
-  left_join(as.data.frame(colData(sce)), by = "cell")
-
-head(df)
+<!-- set.seed(1) -->
+<!-- rows_keep <- sample(seq_len(nrow(sce)), 5e3 ) ## caution downsampling -->
+<!-- assay_mat <- assay_mat[rows_keep, ] -->
+<!-- rowdata_sub <- rowData(sce)[rows_keep, bin_features, drop = FALSE] -->
 
 
-ggplot(df, aes(x = factor(bin), y = mean_sampen_corrected, fill = factor(bin))) +
-  geom_boxplot(outlier.size = 0.3) +
-  facet_wrap(~ feature, scales = "free_y") +
-  labs(x = "Binary state", y = "Mean sampen_corrected") +
-  theme_bw(base_size = 9)
+<!-- df_list <- lapply(bin_features, function(bf) { -->
+<!--   bin <- rowdata_sub[[bf]] -->
+<!--   # compute mean sampen_corrected per cell for bin=0 vs bin=1 -->
+<!--   mat0 <- colMeans(assay_mat[bin == 0, , drop = FALSE]) -->
+<!--   mat1 <- colMeans(assay_mat[bin == 1, , drop = FALSE]) -->
+<!--   data.frame( -->
+<!--     cell = rep(colnames(sce), 2), -->
+<!--     bin = rep(c(0,1), each = ncol(sce)), -->
+<!--     mean_sampen_corrected = c(mat0, mat1), -->
+<!--     feature = bf -->
+<!--   ) -->
+<!-- }) -->
 
-```
+<!-- ## adding the colData as well -->
+<!-- df <- bind_rows(df_list) %>% -->
+<!--   left_join(as.data.frame(colData(sce)), by = "cell") -->
+
+<!-- head(df) -->
+
+
+<!-- ggplot(df, aes(x = factor(bin), y = mean_sampen_corrected, fill = factor(bin))) + -->
+<!--   geom_boxplot(outlier.size = 0.3) + -->
+<!--   facet_wrap(~ feature, scales = "free_y") + -->
+<!--   labs(x = "Binary state", y = "Mean sampen_corrected") + -->
+<!--   theme_bw(base_size = 9) -->
+
+<!-- ``` -->
 
 Let's do it for patient CRC01 only, so the SCNA makes sense
 
@@ -345,8 +349,8 @@ head(df_crc01)
 ggplot(df_crc01, aes(x = location, y = mean_sampen_corrected, fill = factor(bin))) +
   geom_boxplot(outlier.size = 0.3, position = position_dodge(width = 0.8)) +
   facet_grid( ~ feature) +
-  labs(x = "Feature present", y = "corrected sampen (avg per cell)") +
-  theme_bw(base_size = 8)
+  labs(x = "biopsy location", y = "corrected sampen (avg per cell)") +
+  theme_bw(base_size = 20)
 
 ```
 
@@ -360,13 +364,13 @@ ggplot(df_crc01, aes(x = location,
                                                 dodge.width = 0.8),
                 size = 0.5, alpha = 0.5) +
   facet_grid(~ feature) +
-  labs(x = "Feature present",
-       y = "Corrected sampen (avg per cell)",
+  labs(x = "biopsy location",
+       y = "corrected sampen (avg per cell)",
        fill = "Bin", color = "Bin") +
-  theme_bw(base_size = 8)
+  theme_bw(base_size = 20)
 ```
 
-Repeat for the diff entropic features
+Repeat for the diff entropic features, do results make sense at all?
 
 
 ```{r}
@@ -407,10 +411,10 @@ ggplot(df_crc01, aes(x = location,
                                                 dodge.width = 0.8),
                 size = 0.5, alpha = 0.5) +
   facet_grid(~ feature) +
-  labs(x = "Feature present",
-       y = "Corrected sampen (avg per cell)",
+  labs(x = "biopsy location",
+       y = "corrected sampen (avg per cell)",
        fill = "Bin", color = "Bin") +
-  theme_bw(base_size = 8)
+  theme_bw(base_size = 14)
 ```
 
 

@@ -27,3 +27,4 @@ dependencies:
   - conda-forge::r-igraph
   - bioconda::bioconductor-summarizedexperiment
   - bioconda::bioconductor-singlecellexperiment
+  - bioconda::bioconductor-scater

@@ -52,6 +52,8 @@ rule all:
         # op.join('hg19', "windows_10000_nt_annotation.gz"),
         op.join(CRC, "results", "crc_windows_10000_nt.html"),
         op.join(CRC, "results", "crc.html"),
+        op.join(CRC, "results", "crc_windows_sce_10000.html")
+
         # op.join(CRC_OUTPUT, "patient_crc01_scna.bed.gz")
 
 rule install_yamet:
