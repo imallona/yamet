@@ -618,6 +618,125 @@ ggplot(prop_df, aes(x = contrast_dir, y = annotation)) +
 
 Plus plot the association between corrected entropy, entropy, avg meth, and shannon to facilitate storytelling (4x4 pairs, points colored by location)
 
+
+
+## Aggregate by rowdata categories
+
+```{r}
+
+library(scater)
+
+expr <- assay(sce, "sampen_corrected")
+
+rd <- as.data.frame(rowData(sce))[,grep('_bin$', colnames(rowData(sce)))]
+str(rd)
+
+rd <- as.data.frame(rowData(sce))[, grep("_bin$", colnames(rowData(sce)))]
+rd_mat <- as.matrix(rd)
+
+# preallocate result matrices (median norm sampen per genomic category)
+cell_ann_median <- matrix(NA, nrow = ncol(expr), ncol = ncol(rd_mat))
+
+# compute per-category summaries
+for (j in seq_len(ncol(rd_mat))) {
+    idx <- rd_mat[, j] == 1                # features annotated with category j
+    subexpr <- expr[idx, , drop = FALSE]   # subset expression matrix
+
+    cell_ann_median[, j] <- apply(subexpr, 2, median)  # median
+}
+
+rownames(cell_ann_median) <- colnames(expr)
+colnames(cell_ann_median) <- paste0(colnames(rd_mat), "_median")
+
+# add to colData
+colData(sce) <- cbind(
+    colData(sce),
+    as.data.frame(cell_ann_median)
+)
+
+
+# now recompute variance explained
+vars <- c(
+    "location",
+    "patient",
+    grep("_bin_median$", colnames(colData(sce)), value = TRUE)
+)
+
+
+ve <- getVarianceExplained(
+    sce,
+    exprs_values = "sampen_corrected",
+    variables = vars
+)
+
+## print(summary(ve))
+class(ve)
+str(ve)
+
+ve_vec <- colMeans(ve)
+
+ve_table <- data.frame(
+    variable = names(ve_vec),
+    variance_explained = as.numeric(ve_vec),
+    stringsAsFactors = FALSE
+)
+
+ve_table <- ve_table[order(ve_table$variance_explained, decreasing = TRUE), ]
+
+## print(ve_table)
+```
+
+```{r, fig.height = 15, fig.width = 10}
+ggplot(ve_table, aes(x = reorder(variable, variance_explained),
+                     y = variance_explained)) +
+    geom_col() +
+    coord_flip() +
+    labs(x = "Variable", y = "Mean variance explained") +
+    theme_ng()
+
+
+
+plotExplanatoryVariables(ve)  +
+    theme_ng()
+```
+
+```{r, fig.height = 9, fig.width = 9}
+
+sce <- runPCA(sce, exprs_values="sampen_corrected")
+
+plotReducedDim(sce, "PCA", colour_by="location")
+
+```
+
+
+```{r, fig.width = 9, fig.height = 9}
+df <- as.data.frame(colData(sce))
+
+ann <- grep("_bin_median$", colnames(df), value = TRUE)
+
+plot_df <- data.frame(
+    value = unlist(df[ann]),
+    annotation = rep(ann, each = nrow(df)),
+    location = rep(df$location, times = length(ann)),
+    stringsAsFactors = FALSE
+)
+
+ggplot(plot_df, aes(x = location, y = value)) +
+    geom_boxplot(outlier.size = 0.5) +
+    facet_wrap(~ annotation, scales = "free_y") +
+    labs(
+        x = "Tissue type",
+        y = "Entropy (median per annotation)",
+        title = "Per-cell entropy across genomic annotations and biopsy location"
+    ) +
+    theme_bw() +
+    theme(
+        strip.text = element_text(size = 7),
+        axis.text.x = element_text(angle = 45, hjust = 1)
+    )
+
+```
+
 ```{r}
 sessionInfo()
 knitr::knit_exit()
