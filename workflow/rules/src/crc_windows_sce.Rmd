@@ -218,7 +218,8 @@ Rowdata aspects - they're not correct, full of NAs, @todo fix upstream, now fixi
 ## str(rowData(sce))
 table(rowData(sce)$`11_Promoter_hmm`, useNA="ifany")
 
-annot_fn <- 'hg19/windows_10000_nt_annotation.gz'
+# annot_fn <- 'hg19/windows_10000_nt_annotation.gz'
+annot_fn <- snakemake@input[['windows_annotation']]
 
 annot <- as.data.frame(read_tsv(
     annot_fn,
@@ -332,7 +333,7 @@ Let's do it for patient CRC01 only, so the SCNA makes sense
 print('downsampled, patient crc01 only')
 
 
-crc01 <- sce[sce$patient == 'CRC01',]
+crc01 <- sce[,sce$patient == 'CRC01']
 assay_mat <- assay(crc01, "sampen_corrected")
 
 set.seed(20)

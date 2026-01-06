@@ -457,7 +457,7 @@ rule render_crc_windows_report:
         "src/crc_windows.Rmd"
 
 ## from crc_windows.Rmd, to crc_windows_sce.Rmd
-rule lazy_move_things_around:
+rule lazy_move_rds_objects:
     conda:
         op.join("..", "envs", "r.yml")
     params:
@@ -467,6 +467,7 @@ rule lazy_move_things_around:
     output:
         sce = op.join(CRC, 'results', 'sce_windows_{win_size}_colon.rds'),
         de =  op.join(CRC, 'results', 'de_list_{win_size}.rds')
+    threads: 1
     shell:
         """
         cp sce_windows_colon.rds {output.sce}
@@ -479,7 +480,8 @@ rule render_crc_sce_report:
         op.join("..", "envs", "r.yml")
     input:
         sce = op.join(CRC, 'results', 'sce_windows_{win_size}_colon.rds'),
-        de =  op.join(CRC, 'results', 'de_list_{win_size}.rds')
+        de =  op.join(CRC, 'results', 'de_list_{win_size}.rds'),
+        windows_annotation = op.join(HG19_BASE, "windows_{win_size}_nt_annotation.gz")
     params:
         output_path=CRC_WINDOWS_OUTPUT,
         corrected_sce = op.join(CRC, 'results', 'sce_windows_colon_corrected_{win_size}.rds')
