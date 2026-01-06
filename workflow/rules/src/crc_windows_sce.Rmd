@@ -737,6 +737,141 @@ ggplot(plot_df, aes(x = location, y = value)) +
 
 ```
 
+
+this was absurd, they're not orthogonal, of course variance explained is low
+
+todo add the up and down diff entropy as well
+
+```{r, fig.width = 10, fig.height = 10}
+expr <- assay(sce, "sampen_corrected")
+cd   <- as.data.frame(colData(sce))
+rd   <- as.data.frame(rowData(sce))
+
+# location, but also annotations!
+predictors <- c("patient", "location",
+                grep("_bin_median$", colnames(cd), value = TRUE))
+
+updown <- grep("up|down", colnames(cd), ignore.case = TRUE, value = TRUE)
+predictors <- c(predictors, updown)
+
+## no scna, multiple patients here
+predictors <- grep("scna", predictors, invert = TRUE, value = TRUE)
+
+cd_pred <- cd[, predictors, drop = FALSE]
+
+## no predictors with a single level
+keep <- sapply(cd_pred, function(x) length(unique(x)) > 1)
+cd_pred <- cd_pred[, keep, drop = FALSE]
+
+X <- model.matrix(~ ., data = cd_pred)
+
+residuals_mat <- matrix(NA, nrow = nrow(expr), ncol = ncol(expr),
+                        dimnames = dimnames(expr))
+
+for (i in seq_len(nrow(expr))) {
+    y <- expr[i, ]
+    fit <- lm(y ~ X - 1)   # X already includes intercept
+    residuals_mat[i, ] <- residuals(fit)
+}
+
+## per cell residuals
+cell_unexpected <- colMeans(residuals_mat)
+hist(cell_unexpected)
+
+## per annotation residuals
+ann_cols <- grep("_bin$", colnames(rd), value = TRUE)
+
+ann_unexpected <- sapply(ann_cols, function(a) {
+    idx <- rd[[a]] == 1
+    colMeans(residuals_mat[idx, , drop = FALSE])
+})
+
+ann_unexpected[1:5,1:5]
+
+## correlation of predictors / to look for synergies
+pred_mat <- cd[, predictors]
+pred_mat_num <- pred_mat[, sapply(pred_mat, is.numeric), drop = FALSE]
+cor_mat <- cor(pred_mat_num, use = "pairwise.complete.obs")
+## cor_mat <- cor(pred_mat_num)
+
+## par(mfrow = c(2, 2), mar = c(4,4,2,1))
+
+## predictor synergy heatmap
+## image(cor_mat, main = "Predictor synergy (correlation)", axes = FALSE)
+## axis(1, at = seq(0,1,length.out=ncol(cor_mat)), labels = colnames(cor_mat), las=2, cex.axis=0.5)
+## axis(2, at = seq(0,1,length.out=nrow(cor_mat)), labels = rownames(cor_mat), las=2, cex.axis=0.5)
+library(ComplexHeatmap)
+
+cor_mat_clean <- cor_mat
+cor_mat_clean[is.na(cor_mat_clean)] <- 0
+
+## col_fun <- colorRamp2(
+##     c(-1, -0.5, 0, 0.5, 1),
+##     c("#2166AC", "#67A9CF", "white", "#F4A582", "#B2182B")
+## )
+
+Heatmap(
+    cor_mat_clean,
+    name = "correlation",
+    ## col = col_fun,
+    cluster_rows = TRUE,
+    cluster_columns = TRUE,
+    show_row_names = TRUE,
+    show_column_names = TRUE,
+    row_names_gp = gpar(fontsize = 10),
+    column_names_gp = gpar(fontsize = 10),
+    heatmap_legend_param = list(
+        title = "Correlation",
+        at = c(-1, -0.5, 0, 0.5, 1)
+    )
+)
+
+
+## unexpected entropy per location
+boxplot(cell_unexpected ~ cd$location,
+        main = "Unexpected entropy per location",
+        ylab = "Residual SampEn")
+
+matplot(ann_unexpected, type = "l", lty = 1,
+        main = "Unexpected entropy per annotation",
+        ylab = "Residual SampEn")
+legend("topright", legend = colnames(ann_unexpected),
+       col = 1:ncol(ann_unexpected), lty = 1, cex = 0.5)
+
+```
+
+```{r, fig.width = 9, fig.height = 9}
+ann_cols <- grep("_bin$", colnames(rd), value = TRUE)
+
+ann_unexpected <- sapply(ann_cols, function(a) {
+    idx <- rd[[a]] == 1
+    colMeans(residuals_mat[idx, , drop = FALSE])
+})
+
+plot_df <- data.frame(
+    unexpected = as.numeric(ann_unexpected),
+    annotation = rep(colnames(ann_unexpected), each = nrow(ann_unexpected)),
+    location = rep(cd$location, times = ncol(ann_unexpected)),
+    stringsAsFactors = FALSE
+)
+
+
+ggplot(plot_df, aes(x = location, y = unexpected)) +
+    geom_boxplot(outlier.size = 0.5) +
+    facet_wrap(~ annotation, scales = "free_y") +
+    labs(
+        title = "Unexpected entropy per annotation and location",
+        x = "Tissue type",
+        y = "Residual SampEn (unexpected entropy)"
+    ) +
+    theme_bw() +
+    theme(
+        strip.text = element_text(size = 7),
+        axis.text.x = element_text(angle = 45, hjust = 1)
+    )
+
+```
+
 ```{r}
 sessionInfo()
 knitr::knit_exit()
