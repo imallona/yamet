@@ -449,12 +449,50 @@ rule render_crc_windows_report:
         annotations = op.join(HG19_BASE, r"windows_{win_size,\d+}_nt_annotation.gz")
     params:
         output_path=CRC_WINDOWS_OUTPUT
+    threads: workflow.cores        
     output:
         op.join(CRC, "results", "crc_windows_{win_size}_nt.html")
     log:
         log = op.join("logs", "render_crc_windows_{win_size}.log")
     script:
         "src/crc_windows.Rmd"
+
+## from crc_windows.Rmd, to crc_windows_sce.Rmd
+rule lazy_move_rds_objects:
+    conda:
+        op.join("..", "envs", "r.yml")
+    params:
+        output_path=CRC_WINDOWS_OUTPUT
+    input:
+        op.join(CRC, "results", "crc_windows_{win_size}_nt.html")
+    output:
+        sce = op.join(CRC, 'results', 'sce_windows_{win_size}_colon.rds'),
+        de =  op.join(CRC, 'results', 'de_list_{win_size}.rds')
+    threads: 1
+    shell:
+        """
+        cp sce_windows_colon.rds {output.sce}
+        cp de_list.rds {output.de}
+        """
+        
+## params$corrected_sce is an output, but Rmd scripts only allow one
+rule render_crc_sce_report:
+    conda:
+        op.join("..", "envs", "r.yml")
+    input:
+        sce = op.join(CRC, 'results', 'sce_windows_{win_size}_colon.rds'),
+        de =  op.join(CRC, 'results', 'de_list_{win_size}.rds'),
+        windows_annotation = op.join(HG19_BASE, "windows_{win_size}_nt_annotation.gz")
+    threads: workflow.cores
+    params:
+        output_path=CRC_WINDOWS_OUTPUT,
+        corrected_sce = op.join(CRC, 'results', 'sce_windows_colon_corrected_{win_size}.rds')
+    output:
+        op.join(CRC, "results", "crc_windows_sce_{win_size}.html")
+    log:
+        log = op.join("logs", "render_crc_windows_sce_{win_size}.log")
+    script:
+        "src/crc_windows_sce.Rmd"
 
 # rule run_crc_stats_report:
 #     conda:
