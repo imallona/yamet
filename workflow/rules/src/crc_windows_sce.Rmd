@@ -47,13 +47,16 @@ suppressPackageStartupMessages({
 This is supposed to be knitted from 'workflow'
 
 ```{r}
-if (FALSE)
+if (FALSE) {
     setwd('../..')
+    de <- readRDS('/home/imallona/src/yamet/workflow/data/crc/results/de_list_10000.rds')
+    sce <- readRDS('/home/imallona/src/yamet/workflow/data/crc/results/sce_windows_10000_colon.rds')
+}
+
 source("src/ggtheme.R")
 source('src/diff_testing.R')
 
 param <- MulticoreParam(workers = snakemake@threads)
-getwd()
 ```
 
 ```{r}
@@ -86,9 +89,6 @@ sink(log, type = "message")
 
 
 ```{r}
-
-# NTHREADS = 50
-
 sce <- readRDS(snakemake@input[['sce']])
 de <- readRDS(snakemake@input[['de']])
 ```
@@ -115,12 +115,64 @@ summary_table <- lapply(names(de), function(name) {
 
 summary_table
 
+df_long <- melt(
+  summary_table,
+  id.vars = "contrast",
+  measure.vars = c("upregulated", "downregulated"),
+  variable.name = "direction",
+  value.name = "count"
+)
+
+ggplot(df_long, aes(x = contrast, y = count, fill = direction)) +
+  geom_col(position = position_dodge(width = 0.8)) +
+  geom_text(aes(label = count),
+            position = position_dodge(width = 0.8),
+            vjust = -0.3, size = 3) +
+  scale_y_log10() +
+  scale_fill_manual(values = c("upregulated" = "#1b9e77",
+                               "downregulated" = "#d95f02")) +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(title = "Differentially entropy windows per contrast",
+       y = "Number of genes (log scale)",
+       x = "Contrast")
+
 ```
 
 Filter DE contrasts to those having NC as baseline.
 
 ```{r}
 de <- de[c('pt_vs_nc', 'ln_vs_nc', 'ml_vs_nc', 'mp_vs_nc')]
+
+
+summary_table <- lapply(names(de), function(name) {
+  out <- summarize_contrast(de[[name]]$coefs_df)
+  cbind(contrast = name, out)
+}) %>% bind_rows()
+
+summary_table
+
+df_long <- melt(
+  summary_table,
+  id.vars = "contrast",
+  measure.vars = c("upregulated", "downregulated"),
+  variable.name = "direction",
+  value.name = "count"
+)
+
+ggplot(df_long, aes(x = contrast, y = count, fill = direction)) +
+  geom_col(position = position_dodge(width = 0.8)) +
+  geom_text(aes(label = count),
+            position = position_dodge(width = 0.8),
+            vjust = -0.3, size = 3) +
+  scale_y_log10() +
+  scale_fill_manual(values = c("upregulated" = "#1b9e77",
+                               "downregulated" = "#d95f02")) +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(title = "Differentially entropy windows per contrast",
+       y = "Number of genes (log scale)",
+       x = "Contrast")
 ```
 
 
@@ -158,30 +210,33 @@ colData(sce)$location <- factor(
 ```
 
 
+
+
 ```{r}
-df <- reshape2::melt(as.matrix(assay(sce, "sampen_corrected")[,1:100])) # subset for plotting
+
+df <- reshape2::melt(as.matrix(assay(sce, "sampen_corrected")[,1:200])) # subset for plotting
 ggplot(df, aes(value)) + geom_density(fill="steelblue", alpha=0.5) +
-  labs(title="Distribution of corrected sampen values") +
+  labs(title="Distribution of corrected sampen values (downsampled)") +
     theme_ng()
 
 
 
-sce <- runPCA(sce, exprs_values="sampen_corrected")
-plotReducedDim(sce, "PCA", colour_by="location")
+## sce <- runPCA(sce, exprs_values="sampen_corrected")
+## plotReducedDim(sce, "PCA", colour_by="location")
 
-ve <- getVarianceExplained(sce,
-                           exprs_values = "sampen_corrected",
-                           variables = c('location', 'patient'))
+## ve <- getVarianceExplained(sce,
+##                            exprs_values = "sampen_corrected",
+##                            variables = c('location', 'patient'))
 
-summary(ve)
+## summary(ve)
 
-plotExplanatoryVariables(ve)  +
-    theme_ng()
+## plotExplanatoryVariables(ve)  +
+##     theme_ng()
 
 ```
 
 
-```{r}
+```{r, fig.width = 10, fig.height = 5}
 
 df_violin <- data.frame(
   value = colMeans(assay(sce, "sampen_corrected")),
@@ -189,25 +244,28 @@ df_violin <- data.frame(
   patient  = colData(sce)$patient
 )
 
-ggplot(df_violin, aes(x = location, y = value, fill = patient)) +
+ggplot(df_violin, aes(x = location, y = value)) +
   geom_violin(trim = FALSE, scale = "width") +
   geom_boxplot(width = 0.1, outlier.size = 0.5) +
+    facet_wrap(~patient) +
   theme_ng() +
   labs(y = "Mean sampen_corrected", title = "Distribution per location and patient")
 ```
 
-```{r}
+```{r, fig.width = 10, fig.height = 10}
 df_cells <- data.frame(
   mean_sampen = colMeans(assay(sce, "sampen")),
   mean_sampen_corrected = colMeans(assay(sce, "sampen_corrected")),
-  location = colData(sce)$location
+  location = colData(sce)$location,
+  patient = colData(sce)$patient
 )
 
 ggplot(df_cells, aes(x = mean_sampen, y = mean_sampen_corrected, color = location)) +
   geom_point(alpha = 0.8) +
   theme_ng() +
+    facet_wrap(~patient) +
   labs(x = "mean sampen", y = "mean sampen_corrected",
-       title = "sampen vs sampen_corrected, per cell")
+       title = "mean sampen vs mean sampen_corrected, per cell")
 
 ```
 
@@ -273,73 +331,17 @@ for (contrast in names(de)) {
 }
 ```
 
-```{r}
-## str(rowData(sce))
-## str(colData(sce))
-sce
-```
-
-Caution downsampled
-
-<!-- ```{r} -->
-
-<!-- print('caution downsampled') -->
-
-<!-- ## binarized features -->
-<!-- bin_features <- grep("_bin$", colnames(rowData(sce)), value = TRUE) -->
-
-<!-- # corrected sampens only -->
-<!-- assay_mat <- assay(sce, "sampen_corrected") -->
-
-<!-- set.seed(1) -->
-<!-- rows_keep <- sample(seq_len(nrow(sce)), 5e3 ) ## caution downsampling -->
-<!-- assay_mat <- assay_mat[rows_keep, ] -->
-<!-- rowdata_sub <- rowData(sce)[rows_keep, bin_features, drop = FALSE] -->
-
-
-<!-- df_list <- lapply(bin_features, function(bf) { -->
-<!--   bin <- rowdata_sub[[bf]] -->
-<!--   # compute mean sampen_corrected per cell for bin=0 vs bin=1 -->
-<!--   mat0 <- colMeans(assay_mat[bin == 0, , drop = FALSE]) -->
-<!--   mat1 <- colMeans(assay_mat[bin == 1, , drop = FALSE]) -->
-<!--   data.frame( -->
-<!--     cell = rep(colnames(sce), 2), -->
-<!--     bin = rep(c(0,1), each = ncol(sce)), -->
-<!--     mean_sampen_corrected = c(mat0, mat1), -->
-<!--     feature = bf -->
-<!--   ) -->
-<!-- }) -->
-
-<!-- ## adding the colData as well -->
-<!-- df <- bind_rows(df_list) %>% -->
-<!--   left_join(as.data.frame(colData(sce)), by = "cell") -->
-
-<!-- head(df) -->
-
-
-<!-- ggplot(df, aes(x = factor(bin), y = mean_sampen_corrected, fill = factor(bin))) + -->
-<!--   geom_boxplot(outlier.size = 0.3) + -->
-<!--   facet_wrap(~ feature, scales = "free_y") + -->
-<!--   labs(x = "Binary state", y = "Mean sampen_corrected") + -->
-<!--   theme_bw(base_size = 9) -->
-
-<!-- ``` -->
-
 Let's do it for patient CRC01 only, so the SCNA makes sense
 
 
 ```{r}
 
-print('downsampled, patient crc01 only')
-
-
 crc01 <- sce[,sce$patient == 'CRC01']
 assay_mat <- assay(crc01, "sampen_corrected")
 
-set.seed(20)
-rows_keep <- sample(seq_len(nrow(crc01)), 1e3 ) ## caution downsampling
-assay_mat <- assay_mat[rows_keep, ]
-## bin_features <- grep("_bin$", colnames(rowData(crc01)), value = TRUE)
+## set.seed(20)
+## rows_keep <- sample(seq_len(nrow(crc01)), 1e3 ) ## caution downsampling
+## assay_mat <- assay_mat[rows_keep, ]
 
 bin_features <- c('pmds_pmd_bin',
                   "hmds_pmd_bin",                 
@@ -352,29 +354,52 @@ bin_features <- c('pmds_pmd_bin',
                   "crc01_gain_scna_scna_bin",
                   "crc01_lost_scna_scna_bin")
 
-rowdata_sub <- rowData(crc01)[rows_keep, bin_features, drop = FALSE]
+# rowdata_sub <- rowData(crc01)[rows_keep, bin_features, drop = FALSE]
+rowdata_sub <- rowData(crc01)[, bin_features, drop = FALSE]
 
+sce
+str(rowdata_sub)
 ## so, per cell, average corrected sampen by whether the feature is flagged as present or not (gene/not gene etc)
+
+## df_list <- lapply(bin_features, function(bf) {
+##   bin <- rowdata_sub[[bf]]
+##   tmp <- data.frame(
+##     cell = colnames(crc01),
+##     mean_bin0 = colMeans(assay_mat[bin == 0, , drop = FALSE]),
+##     mean_bin1 = colMeans(assay_mat[bin == 1, , drop = FALSE])
+##   ) %>%
+##     tidyr::pivot_longer(cols = starts_with("mean_bin"),
+##                         names_to = "bin", values_to = "mean_sampen_corrected") %>%
+##     dplyr::mutate(bin = ifelse(bin == "mean_bin0", 0, 1),
+##                   feature = bf)
+##   tmp
+## })
+
+## df_crc01 <- dplyr::bind_rows(df_list) %>%
+##   dplyr::left_join(as.data.frame(colData(crc01)), by = "cell")
+
+cells <- colnames(crc01)
+
 df_list <- lapply(bin_features, function(bf) {
   bin <- rowdata_sub[[bf]]
-  tmp <- data.frame(
-    cell = colnames(crc01),
-    mean_bin0 = colMeans(assay_mat[bin == 0, , drop = FALSE]),
-    mean_bin1 = colMeans(assay_mat[bin == 1, , drop = FALSE])
-  ) %>%
-    tidyr::pivot_longer(cols = starts_with("mean_bin"),
-                        names_to = "bin", values_to = "mean_sampen_corrected") %>%
-    dplyr::mutate(bin = ifelse(bin == "mean_bin0", 0, 1),
-                  feature = bf)
-  tmp
+
+  m0 <- colMeans(assay_mat[bin == 0, , drop = FALSE])
+  m1 <- colMeans(assay_mat[bin == 1, , drop = FALSE])
+
+  data.frame(
+    cell = rep(cells, 2),
+    bin  = rep(c(0, 1), each = length(cells)),
+    mean_sampen_corrected = c(m0, m1),
+    feature = bf,
+    stringsAsFactors = FALSE
+  )
 })
 
+df_crc01 <- bind_rows(df_list) %>%
+  left_join(as.data.frame(colData(crc01)), by = "cell")
 
-df_crc01 <- dplyr::bind_rows(df_list) %>%
-  dplyr::left_join(as.data.frame(colData(crc01)), by = "cell")
-
-
-## head(df_crc01)
+df_crc01$bin <- factor(df_crc01$bin, levels = c(0, 1))
+head(df_crc01)
 ```
 
 ```{r, fig.width = 15, fig.height = 5}
@@ -397,38 +422,42 @@ ggplot(df_crc01, aes(x = location,
                 size = 0.5, alpha = 0.5) +
   facet_wrap(~ feature, nrow = 2) +
   labs(x = "biopsy location",
-       y = "corrected sampen (avg per cell)",
-       fill = "Bin", color = "Bin") +
+       y = "corrected sampen (avg per cell)") +
+  scale_fill_discrete(name = "genomic context", labels = c("0" = "false", "1" = "true")) +
+  scale_color_discrete(name = "genomic context", labels = c("0" = "false", "1" = "true")) +
   theme_ng(base_size = 16)
 ```
 
-Repeat for the diff entropic features, do results make sense at all?
+Repeat for the diff entropic features (as compared to NC), do results make sense at all?
 
 
 ```{r}
 
-bin_features <- grep('vs', colnames(rowData(crc01)), value = TRUE)
+(bin_features <- grep('vs_nc', colnames(rowData(crc01)), value = TRUE))
 
-rowdata_sub <- rowData(crc01)[rows_keep, bin_features, drop = FALSE]
+rowdata_sub <- rowData(crc01)[, bin_features, drop = FALSE]
 
 ## so, per cell, average corrected sampen by whether the feature is flagged as present or not (gene/not gene etc)
+
 df_list <- lapply(bin_features, function(bf) {
   bin <- rowdata_sub[[bf]]
-  tmp <- data.frame(
-    cell = colnames(crc01),
-    mean_bin0 = colMeans(assay_mat[bin == 0, , drop = FALSE]),
-    mean_bin1 = colMeans(assay_mat[bin == 1, , drop = FALSE])
-  ) %>%
-    tidyr::pivot_longer(cols = starts_with("mean_bin"),
-                        names_to = "bin", values_to = "mean_sampen_corrected") %>%
-    dplyr::mutate(bin = ifelse(bin == "mean_bin0", 0, 1),
-                  feature = bf)
-  tmp
+
+  m0 <- colMeans(assay_mat[bin == 0, , drop = FALSE])
+  m1 <- colMeans(assay_mat[bin == 1, , drop = FALSE])
+
+  data.frame(
+    cell = rep(cells, 2),
+    bin  = rep(c(0, 1), each = length(cells)),
+    mean_sampen_corrected = c(m0, m1),
+    feature = bf,
+    stringsAsFactors = FALSE
+  )
 })
 
+df_crc01 <- bind_rows(df_list) %>%
+  left_join(as.data.frame(colData(crc01)), by = "cell")
 
-df_crc01 <- dplyr::bind_rows(df_list) %>%
-  dplyr::left_join(as.data.frame(colData(crc01)), by = "cell")
+head(df_crc01)
 ```
 
 
@@ -448,6 +477,7 @@ ggplot(df_crc01, aes(x = location,
   theme_ng(base_size = 14)
 ```
 
+It does not, was the diff entropic tests originally not been applied to CRC01? what's going on?
 
 Plus plot the association of diff entropic features
 
@@ -556,7 +586,7 @@ rd <- as.data.frame(rowData(crc01))
 contrast_features <- grep("_(up|down)_bin$", colnames(rd), value = TRUE)
 # pick annotation columns of interest
 #(annot_features <- setdiff(grep("bin$", colnames(rd), value = TRUE), contrast_features))
-(annot_features <- grep('hmm', colnames(rd), value = TRUE))
+(annot_features <- grep('hmm_bin', colnames(rd), value = TRUE))
 
 prop_df <- expand.grid(annotation = annot_features,
                        contrast = contrast_features,
@@ -578,28 +608,6 @@ prop_df <- prop_df %>%
 prop_df <- prop_df %>%
   mutate(contrast_clean = gsub("_(up|down)_bin", "", contrast))
 
-## this might work
-ggplot(prop_df, aes(x = contrast_clean, y = annotation)) +
-  geom_point(aes(size = proportion, color = direction),
-             position = position_dodge(width = 0.6)) +
-  scale_size(range = c(1,6)) +
-  scale_color_manual(values = c("Up" = "red", "Down" = "blue")) +
-  labs(x = "Contrast", y = "Annotation",
-       size = "Proportion", color = "Direction") +
-  theme_bw() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-
-
-ggplot(prop_df, aes(x = contrast_clean, y = annotation)) +
-  geom_point(aes(size = proportion, color = proportion)) +
-  scale_size(range = c(1,6)) +
-  scale_color_gradient(low = "grey80", high = "red") +
-  facet_wrap(~ direction, ncol = 2) +
-  labs(x = "Contrast", y = "Annotation",
-       size = "Proportion", color = "Proportion") +
-  theme_bw() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-
 prop_df$contrast_dir <- paste0(prop_df$contrast_clean, "_", prop_df$direction)
 
 ggplot(prop_df, aes(x = contrast_dir, y = annotation)) +
@@ -615,16 +623,13 @@ ggplot(prop_df, aes(x = contrast_dir, y = annotation)) +
 
 
 
-
 Plus plot the association between corrected entropy, entropy, avg meth, and shannon to facilitate storytelling (4x4 pairs, points colored by location)
 
 
 
-## Aggregate by rowdata categories
+# Aggregate by rowdata categories
 
 ```{r}
-
-library(scater)
 
 expr <- assay(sce, "sampen_corrected")
 
@@ -653,61 +658,7 @@ colData(sce) <- cbind(
     colData(sce),
     as.data.frame(cell_ann_median)
 )
-
-
-# now recompute variance explained
-vars <- c(
-    "location",
-    "patient",
-    grep("_bin_median$", colnames(colData(sce)), value = TRUE)
-)
-
-
-ve <- getVarianceExplained(
-    sce,
-    exprs_values = "sampen_corrected",
-    variables = vars
-)
-
-## print(summary(ve))
-class(ve)
-str(ve)
-
-ve_vec <- colMeans(ve)
-
-ve_table <- data.frame(
-    variable = names(ve_vec),
-    variance_explained = as.numeric(ve_vec),
-    stringsAsFactors = FALSE
-)
-
-ve_table <- ve_table[order(ve_table$variance_explained, decreasing = TRUE), ]
-
-## print(ve_table)
 ```
-
-```{r, fig.height = 15, fig.width = 10}
-ggplot(ve_table, aes(x = reorder(variable, variance_explained),
-                     y = variance_explained)) +
-    geom_col() +
-    coord_flip() +
-    labs(x = "Variable", y = "Mean variance explained") +
-    theme_ng()
-
-
-
-plotExplanatoryVariables(ve)  +
-    theme_ng()
-```
-
-```{r, fig.height = 9, fig.width = 9}
-
-sce <- runPCA(sce, exprs_values="sampen_corrected")
-
-plotReducedDim(sce, "PCA", colour_by="location")
-
-```
-
 
 ```{r, fig.width = 9, fig.height = 9}
 df <- as.data.frame(colData(sce))
@@ -737,25 +688,24 @@ ggplot(plot_df, aes(x = location, y = value)) +
 
 ```
 
+This below is not working because it's trying to find association with genomic locations _and_ also locations, so it makes no sense. Also including the residuals of yet another sampen vs meth evaluation. So not correct.
 
-this was absurd, they're not orthogonal, of course variance explained is low
-
-todo add the up and down diff entropy as well
+Let's do this on crc01 only.
 
 ```{r, fig.width = 10, fig.height = 10}
-expr <- assay(sce, "sampen_corrected")
-cd   <- as.data.frame(colData(sce))
-rd   <- as.data.frame(rowData(sce))
+crc01 <- sce[,sce$patient == 'CRC01']
+expr <- assay(crc01, "sampen_corrected")
+cd   <- as.data.frame(colData(crc01))
+rd   <- as.data.frame(rowData(crc01))
 
-# location, but also annotations!
-predictors <- c("patient", "location",
-                grep("_bin_median$", colnames(cd), value = TRUE))
+# not location, but median normalized entropy per annotation instead
+predictors <- c(grep("_bin_median$", colnames(cd), value = TRUE))
 
-updown <- grep("up|down", colnames(cd), ignore.case = TRUE, value = TRUE)
-predictors <- c(predictors, updown)
 
-## no scna, multiple patients here
-predictors <- grep("scna", predictors, invert = TRUE, value = TRUE)
+updown <- grep("vs_nc_(up|down)_bin", colnames(cd), ignore.case = TRUE, value = TRUE)
+predictors <- unique(c(predictors, updown))
+
+## predictors <- grep("scna", predictors, invert = TRUE, value = TRUE)
 
 cd_pred <- cd[, predictors, drop = FALSE]
 
@@ -832,9 +782,6 @@ boxplot(cell_unexpected ~ cd$location,
         main = "Unexpected entropy per location",
         ylab = "Residual SampEn")
 
-matplot(ann_unexpected, type = "l", lty = 1,
-        main = "Unexpected entropy per annotation",
-        ylab = "Residual SampEn")
 legend("topright", legend = colnames(ann_unexpected),
        col = 1:ncol(ann_unexpected), lty = 1, cex = 0.5)
 
@@ -874,5 +821,4 @@ ggplot(plot_df, aes(x = location, y = unexpected)) +
 
 ```{r}
 sessionInfo()
-knitr::knit_exit()
 ```
