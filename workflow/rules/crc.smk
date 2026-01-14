@@ -416,9 +416,9 @@ rule get_scna_patient1_from_supplementary_data:
     conda:
         op.join("..", "envs", "r.yml")
     input:
-        op.join("src", "scna_hg19.xlsx"),
+        op.join(".", "src", "scna_hg19.xlsx"),
     output:
-        scna_bed = op.join(HG19_BASE, "patient_crc01_scna.scna.bed.gz")
+        scna_bed = op.join(HG19_BASE, "patient_crc01_scna.scna.bed.gz.pre")
     script:
         "src/parse_scna.R"
 
@@ -426,7 +426,7 @@ rule split_patient1_crc_in_kept_lost_gained:
     conda:
         op.join("..", "envs", "r.yml")
     input:
-        scna_bed = op.join(HG19_BASE, "patient_crc01_scna.scna.bed.gz"),
+        scna_bed = op.join(HG19_BASE, "patient_crc01_scna.scna.bed.gz.pre"),
         genome_sizes = op.join(HG19_BASE, "genome.sizes"),
     output:
         uncomp = temp(op.join(HG19_BASE, "crc01_scna.bed")),
