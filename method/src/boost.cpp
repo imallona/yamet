@@ -160,15 +160,15 @@ unsigned int getSkipHeaderTemplate(const po::variables_map &vm, const std::strin
 }
 
 unsigned int getSkipHeaderCell(const po::variables_map &vm) {
-  return vm["skip-header-cell"].as<unsigned int>();
+  return getSkipHeaderTemplate(vm, "skip-header-cell");
 }
 
 unsigned int getSkipHeaderReference(const po::variables_map &vm) {
-  return vm["skip-header-reference"].as<unsigned int>();
+  return getSkipHeaderTemplate(vm, "skip-header-reference");
 }
 
 unsigned int getSkipHeaderIntervals(const po::variables_map &vm) {
-  return vm["skip-header-intervals"].as<unsigned int>();
+  return getSkipHeaderTemplate(vm, "skip-header-intervals");
 }
 
 std::string getDetOut(const po::variables_map &vm) {
