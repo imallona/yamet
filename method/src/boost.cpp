@@ -43,20 +43,20 @@ po::variables_map parseCommandLine(int argc, char **argv) {
 
     ("skip-header-all,skip-header",
       po::value<unsigned int>()->implicit_value(1),
-      "Header lines to skip in all input files (default: 1). "
+      "Header lines to skip in all input files (default: 0). "
       "Synonyms: --skip-header-all, --skip-header.")
 
     ("skip-header-cytosine_report,skip-header-cell",
       po::value<unsigned int>()->implicit_value(1),
-      "Header lines to skip in cytosine_report/cell files (default: 1).")
+      "Header lines to skip in cytosine_report/cell files (default: 0).")
 
     ("skip-header-cytosine_locations,skip-header-reference",
       po::value<unsigned int>()->implicit_value(1),
-      "Header lines to skip in cytosine_locations/reference file (default: 1).")
+      "Header lines to skip in cytosine_locations/reference file (default: 0).")
 
     ("skip-header-regions,skip-header-features,skip-header-target,skip-header-intervals",
       po::value<unsigned int>()->implicit_value(1),
-      "Header lines to skip in regions/features/target/intervals file (default: 1).");
+      "Header lines to skip in regions/features/target/intervals file (default: 0).");
   // clang-format on
 
   po::options_description out("output");
@@ -150,39 +150,25 @@ std::string getIntervals(const po::variables_map &vm) {
 }
 
 unsigned int getSkipHeaderTemplate(const po::variables_map &vm, const std::string &file_type) {
-  if (vm.count(file_type))
+  if (vm.count(file_type)) {
     return vm[file_type].as<unsigned int>();
-  if (vm.count("skip-header-all"))
-    return vm["skip-header-all"].as<unsigned int>();
-  return 1;
+  } else if (vm.count("skip-header")) {
+    return vm["skip-header"].as<unsigned int>();
+  } else {
+    return 0;
+  }
 }
 
 unsigned int getSkipHeaderCell(const po::variables_map &vm) {
-  if (vm.count("skip-header-cell"))
-    return vm["skip-header-cell"].as<unsigned int>();
-  if (vm.count("skip-header-cytosine_report"))
-    return vm["skip-header-cytosine_report"].as<unsigned int>();
-  return getSkipHeaderTemplate(vm, "skip-header-all");
+  return vm["skip-header-cell"].as<unsigned int>();
 }
 
 unsigned int getSkipHeaderReference(const po::variables_map &vm) {
-  if (vm.count("skip-header-reference"))
-    return vm["skip-header-reference"].as<unsigned int>();
-  if (vm.count("skip-header-cytosine_locations"))
-    return vm["skip-header-cytosine_locations"].as<unsigned int>();
-  return getSkipHeaderTemplate(vm, "skip-header-all");
+  return vm["skip-header-reference"].as<unsigned int>();
 }
 
 unsigned int getSkipHeaderIntervals(const po::variables_map &vm) {
-  if (vm.count("skip-header-intervals"))
-    return vm["skip-header-intervals"].as<unsigned int>();
-  if (vm.count("skip-header-regions"))
-    return vm["skip-header-regions"].as<unsigned int>();
-  if (vm.count("skip-header-features"))
-    return vm["skip-header-features"].as<unsigned int>();
-  if (vm.count("skip-header-target"))
-    return vm["skip-header-target"].as<unsigned int>();
-  return getSkipHeaderTemplate(vm, "skip-header-all");
+  return vm["skip-header-intervals"].as<unsigned int>();
 }
 
 std::string getDetOut(const po::variables_map &vm) {
