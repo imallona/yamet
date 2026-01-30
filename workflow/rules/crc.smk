@@ -45,6 +45,8 @@ ANNOTATIONS = {
     "chip": ["H3K27me3", "H3K9me3", "H3K4me3"],
     "lad": ["laminb1"],
     "genes": ["genes"],
+    "lines": ["lines"],
+    "sines": ['sines'],
     "cpgIslandExt": ['cpgIslandExt'],
     "scna": ["crc01_nc_scna", "crc01_gain_scna", "crc01_lost_scna"]
 }

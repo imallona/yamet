@@ -43,6 +43,23 @@ rule build_genome_hg19_ref:
         "src/make_ref.sh"
 
 
+rule get_hg19_lines:
+    conda:
+        op.join("..", "envs", "processing.yml")
+    output:
+        op.join(HG19_BASE, "lines.bed.gz"),
+    script:
+        "src/download_hg19_lines.sh"
+
+        
+rule get_hg19_sines:
+    conda:
+        op.join("..", "envs", "processing.yml")
+    output:
+        op.join(HG19_BASE, "sines.bed.gz"),
+    script:
+        "src/download_hg19_sines.sh"
+        
 rule get_genes_hg19:
     conda:
         op.join("..", "envs", "processing.yml")

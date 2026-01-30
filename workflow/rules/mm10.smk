@@ -6,7 +6,7 @@ CHRS = [str(i) for i in range(1, 20)] + ["X", "Y"]
 MM10_BASE = "mm10"
 
 
-rule mm10_chr_ref:
+rule mm10_per_chr_ref:
     conda:
         op.join("..", "envs", "processing.yml")
     output:
@@ -18,7 +18,7 @@ rule mm10_chr_ref:
         "src/get_chr_ref.sh"
 
 
-rule mm10_ref:
+rule mm10_aggregate_ref:
     input:
         expand(op.join(MM10_BASE, "{chr}.{{meth_pat}}.ref"), chr=CHRS),
     params:
@@ -46,7 +46,24 @@ rule get_mm10_genes:
     script:
         "src/download_mm10_genes.sh"
 
+rule get_mm10_lines:
+    conda:
+        op.join("..", "envs", "processing.yml")
+    output:
+        op.join(MM10_BASE, "lines.bed.gz"),
+    script:
+        "src/download_hg19_lines.sh"
 
+        
+rule get_mm10_sines:
+    conda:
+        op.join("..", "envs", "processing.yml")
+    output:
+        op.join(MM10_BASE, "sines.bed.gz"),
+    script:
+        "src/download_mm10_sines.sh"
+
+        
 ENCODE_MAP = {
     "h3k4me3": "ENCFF160SCR",
     "h3k9me3": "ENCFF658QTP",
