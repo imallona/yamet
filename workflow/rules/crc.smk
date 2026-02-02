@@ -226,7 +226,7 @@ rule run_yamet_on_separate_features:
     output:
         simple_uncomp = temp(op.join(CRC_OUTPUT, "{subcat}_{cat}_{patient}_{location}.out")),
         det_uncomp = temp(op.join(CRC_OUTPUT, "{subcat}_{cat}_{patient}_{location}.det.out")),
-        norm_det_uncomp=temp(op.join(CRC_WINDOWS_OUTPUT, "{subcat}_{cat}_{patient}_{location}.norm.det.out")),
+        norm_det_uncomp=temp(op.join(CRC_OUTPUT, "{subcat}_{cat}_{patient}_{location}.norm.det.out")),
         meth_uncomp = temp(op.join(CRC_OUTPUT, "{subcat}_{cat}_{patient}_{location}.meth.out")),
         simple=op.join(CRC_OUTPUT, "{subcat}_{cat}_{patient}_{location}.out.gz"),
         det=op.join(CRC_OUTPUT, "{subcat}_{cat}_{patient}_{location}.det.out.gz"),
