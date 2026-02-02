@@ -272,6 +272,8 @@ rule render_crc_report:
         list_relevant_yamet_outputs()
     params:
         output_path=CRC_OUTPUT
+    threads:
+        round(workflow.cores/2)
     output:
         op.join(CRC, "results", "crc.html")
     log:
