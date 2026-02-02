@@ -47,7 +47,7 @@ rule get_hg19_lines:
     conda:
         op.join("..", "envs", "processing.yml")
     output:
-        op.join(HG19_BASE, "lines.bed.gz"),
+        op.join(HG19_BASE, "rmsk.lines.bed.gz"),
     script:
         "src/download_hg19_lines.sh"
 
@@ -56,7 +56,7 @@ rule get_hg19_sines:
     conda:
         op.join("..", "envs", "processing.yml")
     output:
-        op.join(HG19_BASE, "sines.bed.gz"),
+        op.join(HG19_BASE, "rmsk.sines.bed.gz"),
     script:
         "src/download_hg19_sines.sh"
         
@@ -67,6 +67,16 @@ rule get_genes_hg19:
         op.join(HG19_BASE, "genes.bed.gz"),
     script:
         "src/download_hg19_genes.sh"
+
+rule uncompress_repeats:
+    conda:
+        op.join("..", "envs", "processing.yml")
+    input:
+        op.join(HG19_BASE, "rmsk.{type}.bed.gz"),        
+    output:
+        op.join(HG19_BASE, "{type}.{type}.bed"),
+    shell:
+        "gunzip -c {input} > {output}"
 
 
 rule uncompress_hg19_genes:

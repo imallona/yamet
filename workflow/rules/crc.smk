@@ -226,10 +226,12 @@ rule run_yamet_on_separate_features:
     output:
         simple_uncomp = temp(op.join(CRC_OUTPUT, "{subcat}_{cat}_{patient}_{location}.out")),
         det_uncomp = temp(op.join(CRC_OUTPUT, "{subcat}_{cat}_{patient}_{location}.det.out")),
+        norm_det_uncomp=temp(op.join(CRC_WINDOWS_OUTPUT, "{subcat}_{cat}_{patient}_{location}.norm.det.out")),
         meth_uncomp = temp(op.join(CRC_OUTPUT, "{subcat}_{cat}_{patient}_{location}.meth.out")),
         simple=op.join(CRC_OUTPUT, "{subcat}_{cat}_{patient}_{location}.out.gz"),
         det=op.join(CRC_OUTPUT, "{subcat}_{cat}_{patient}_{location}.det.out.gz"),
-        meth=op.join(CRC_OUTPUT, "{subcat}_{cat}_{patient}_{location}.meth.out.gz")
+        meth=op.join(CRC_OUTPUT, "{subcat}_{cat}_{patient}_{location}.meth.out.gz"),
+        norm_det=op.join(CRC_OUTPUT, "{subcat}_{cat}_{patient}_{location}.norm.det.out.gz")
     log:
         op.join('logs', 'yamet_{subcat}_{cat}_{patient}_{location}.log')
     group:
@@ -248,7 +250,8 @@ rule run_yamet_on_separate_features:
          --print-sampens F \
          --out {output.simple_uncomp} \
          --det-out {output.det_uncomp} \
-         --meth-out {output.meth_uncomp} &> {log}
+         --meth-out {output.meth_uncomp} \
+         --norm-det-out {output.norm_det_uncomp} &> {log}
         
         gzip --keep -f {params.path}/{wildcards.subcat}_{wildcards.cat}_{wildcards.patient}_{wildcards.location}*out  &>> {log}
         """
@@ -378,9 +381,11 @@ rule run_yamet_on_windows:
         simple_uncomp=temp(op.join(CRC_WINDOWS_OUTPUT, "{win_size}_{patient}_{location}.out")),
         det_uncomp=temp(op.join(CRC_WINDOWS_OUTPUT, "{win_size}_{patient}_{location}.det.out")),
         meth_uncomp=temp(op.join(CRC_WINDOWS_OUTPUT, "{win_size}_{patient}_{location}.meth.out")),
+        norm_det_uncomp=temp(op.join(CRC_WINDOWS_OUTPUT, "{win_size}_{patient}_{location}.norm.det.out")),        
         simple=op.join(CRC_WINDOWS_OUTPUT, "{win_size}_{patient}_{location}.out.gz"),
         det=op.join(CRC_WINDOWS_OUTPUT, "{win_size}_{patient}_{location}.det.out.gz"),
-        meth=op.join(CRC_WINDOWS_OUTPUT, "{win_size}_{patient}_{location}.meth.out.gz")
+        meth=op.join(CRC_WINDOWS_OUTPUT, "{win_size}_{patient}_{location}.meth.out.gz"),
+        norm_det=op.join(CRC_WINDOWS_OUTPUT, "{win_size}_{patient}_{location}.norm.det.out.gz")
     log:
         op.join('logs', 'yamet_{win_size}_{patient}_{location}.log')
     group:
@@ -399,7 +404,8 @@ rule run_yamet_on_windows:
          --print-sampens F \
          --out {output.simple_uncomp} \
          --det-out {output.det_uncomp} \
-         --meth-out {output.meth_uncomp} &> {log}
+         --meth-out {output.meth_uncomp} \
+         --norm-det-out {output.norm_det_uncomp} &> {log}
 
         gzip --keep -f {params.path}/{wildcards.win_size}_{wildcards.patient}_{wildcards.location}*out  &>> {log}
         """
