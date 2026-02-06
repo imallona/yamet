@@ -8,11 +8,6 @@
 
 #define CLI11_ENABLE_EXTRA_VALIDATORS 1
 #include <CLI/CLI.hpp>
-#if (CLI11_VERSION_MAJOR >= 2 && CLI11_VERSION_MINOR >= 6)
-#define HAS_CLI_READ_PERMISSIONS 1
-#else
-#define HAS_CLI_READ_PERMISSIONS 0
-#endif
 
 #include "cli_config.h"
 #include "version.h"
@@ -53,11 +48,6 @@ CLIConfig parseCommandLine(int argc, char **argv) {
   CLI::App  app{std::string(PROJECT_NAME) + ": " + PROJECT_DESCRIPTION};
 
   // input options group
-#if HAS_CLI_READ_PERMISSIONS
-  const auto inp_validator = CLI::ExistingFile & CLI::ReadPermissions;
-#else
-  const auto inp_validator = CLI::ExistingFile;
-#endif
   app.usage("Usage: " + std::string(PROJECT_NAME) +
             " -c <cytosine report>... -r <reference> -i <interval> [OPTIONS]");
 
@@ -73,7 +63,7 @@ CLIConfig parseCommandLine(int argc, char **argv) {
                  "methylated reads, total number of reads and the rate "
                  "respectively")
       ->required()
-      ->check(inp_validator)
+      ->check(CLI::ExistingFile & CLI::ReadPermissions)
       ->group("Input");
   app.add_option("-r,--cytosine-locations,--reference", config.reference,
                  "tab separated file, sorted by chromosome and position, for "
@@ -89,7 +79,7 @@ CLIConfig parseCommandLine(int argc, char **argv) {
                  "where the columns are the chromosome and start position "
                  "respectively")
       ->required()
-      ->check(inp_validator)
+      ->check(CLI::ExistingFile & CLI::ReadPermissions)
       ->group("Input");
   app.add_option("-i,--regions,--intervals", config.intervals,
                  "bed file, sorted by chromosome and start position, for "
@@ -102,7 +92,7 @@ CLIConfig parseCommandLine(int argc, char **argv) {
                  "where the columns are the chromosome, start position "
                  "and the end position respectively")
       ->required()
-      ->check(inp_validator)
+      ->check(CLI::ExistingFile & CLI::ReadPermissions)
       ->group("Input");
 
   unsigned int skip_header = 0;
