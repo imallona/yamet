@@ -6,6 +6,9 @@
 #include <string>
 #include <thread>
 
+#define CLI11_ENABLE_EXTRA_VALIDATORS 1
+#include <CLI/CLI.hpp>
+
 #include "cli_config.h"
 #include "version.h"
 

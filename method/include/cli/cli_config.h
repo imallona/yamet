@@ -3,9 +3,6 @@
 #include <string>
 #include <vector>
 
-#define CLI11_ENABLE_EXTRA_VALIDATORS 1
-#include <CLI/CLI.hpp>
-
 struct CLIConfig {
   std::vector<std::string> cell_files;
   std::string              reference;
