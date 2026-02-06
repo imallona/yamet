@@ -47,7 +47,11 @@ CLIConfig parseCommandLine(int argc, char **argv) {
   CLIConfig config;
   CLI::App  app{std::string(PROJECT_NAME) + ": " + PROJECT_DESCRIPTION};
 
+  const bool version_check = CLI11_VERSION_MAJOR >= 2 && CLI11_VERSION_MINOR >= 6;
+
   // input options group
+  const auto inp_validator = version_check ? (CLI::ExistingFile & CLI::ReadPermissions)
+                                           : CLI::Validator(CLI::ExistingFile);
   app.usage("Usage: " + std::string(PROJECT_NAME) +
             " -c <cytosine report>... -r <reference> -i <interval> [OPTIONS]");
 
@@ -63,7 +67,7 @@ CLIConfig parseCommandLine(int argc, char **argv) {
                  "methylated reads, total number of reads and the rate "
                  "respectively")
       ->required()
-      ->check(CLI::ExistingFile & CLI::ReadPermissions)
+      ->check(inp_validator)
       ->group("Input");
   app.add_option("-r,--cytosine-locations,--reference", config.reference,
                  "tab separated file, sorted by chromosome and position, for "
@@ -79,7 +83,7 @@ CLIConfig parseCommandLine(int argc, char **argv) {
                  "where the columns are the chromosome and start position "
                  "respectively")
       ->required()
-      ->check(CLI::ExistingFile & CLI::ReadPermissions)
+      ->check(inp_validator)
       ->group("Input");
   app.add_option("-i,--regions,--intervals", config.intervals,
                  "bed file, sorted by chromosome and start position, for "
@@ -92,7 +96,7 @@ CLIConfig parseCommandLine(int argc, char **argv) {
                  "where the columns are the chromosome, start position "
                  "and the end position respectively")
       ->required()
-      ->check(CLI::ExistingFile & CLI::ReadPermissions)
+      ->check(inp_validator)
       ->group("Input");
 
   unsigned int skip_header = 0;
