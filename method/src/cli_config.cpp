@@ -8,6 +8,11 @@
 
 #define CLI11_ENABLE_EXTRA_VALIDATORS 1
 #include <CLI/CLI.hpp>
+#if (CLI11_VERSION_MAJOR >= 2 && CLI11_VERSION_MINOR >= 6)
+#define HAS_CLI_READ_PERMISSIONS 1
+#else
+#define HAS_CLI_READ_PERMISSIONS 0
+#endif
 
 #include "cli_config.h"
 #include "version.h"
@@ -47,11 +52,12 @@ CLIConfig parseCommandLine(int argc, char **argv) {
   CLIConfig config;
   CLI::App  app{std::string(PROJECT_NAME) + ": " + PROJECT_DESCRIPTION};
 
-  const bool version_check = CLI11_VERSION_MAJOR >= 2 && CLI11_VERSION_MINOR >= 6;
-
   // input options group
-  const auto inp_validator = version_check ? (CLI::ExistingFile & CLI::ReadPermissions)
-                                           : CLI::Validator(CLI::ExistingFile);
+#if HAS_CLI_READ_PERMISSIONS
+  const auto inp_validator = CLI::ExistingFile & CLI::ReadPermissions;
+#else
+  const auto inp_validator = CLI::ExistingFile;
+#endif
   app.usage("Usage: " + std::string(PROJECT_NAME) +
             " -c <cytosine report>... -r <reference> -i <interval> [OPTIONS]");
 
