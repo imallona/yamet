@@ -147,10 +147,9 @@ void ParsedInfo::aggregate() {
 
 /**
  * Writes a human-readable sample entropy report for each file to the provided stream.
- * This avoids direct console output so callers can capture or
- * redirect the report as needed.
- * Outputs detailed entropy metrics including aggregate values per file
- * and per-bin values organized by chromosome.
+ * This avoids direct console output so callers can capture or redirect the report as needed.
+ * Outputs detailed entropy metrics including aggregate values per file and per-bin values organized
+ * by chromosome.
  *
  * @param filenames Vector of filenames to print entropy data for
  * @param os Output stream that receives the formatted report

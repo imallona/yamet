@@ -1,5 +1,6 @@
 #pragma once
 
+#include <ostream>
 #include <string>
 #include <vector>
 
@@ -21,7 +22,7 @@ using IntervalsContainer = std::vector<ChrIntervals>;
 
 class Intervals : public IntervalsContainer {
 public:
-  void print();
+  void print(std::ostream &os);
 };
 
 Intervals parseSearch(const std::string &filename, const unsigned int skip_header = 0,
@@ -41,7 +42,7 @@ using ReferenceContainer = std::vector<ChrPositions>;
 
 class Reference : public ReferenceContainer {
 public:
-  void print();
+  void print(std::ostream &os);
 };
 
 Reference parseRef(const std::string &filename, const Intervals &intervals,

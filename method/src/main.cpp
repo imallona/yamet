@@ -16,13 +16,13 @@ int main(int argc, char **argv) {
     Intervals intervals =
         parseSearch(config.intervals, config.skip_header_intervals, config.chunk_size);
     if (config.print_intervals) {
-      intervals.print();
+      intervals.print(std::cout);
     }
 
     Reference ref =
         parseRef(config.reference, intervals, config.skip_header_reference, config.chunk_size);
     if (config.print_reference) {
-      ref.print();
+      ref.print(std::cout);
     }
 
     ParsedInfo parsedInfo = alignWithRef(filenames, ref, 2, config.all_meth,
