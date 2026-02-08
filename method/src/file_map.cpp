@@ -1,6 +1,7 @@
 #include <cmath>
 #include <fstream>
 #include <iostream>
+#include <stdexcept>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -145,11 +146,14 @@ void ParsedInfo::aggregate() {
 }
 
 /**
- * Prints sample entropy information for all processed files.
+ * Writes a human-readable sample entropy report for each file to the provided stream.
+ * This avoids direct console output so callers can capture or
+ * redirect the report as needed.
  * Outputs detailed entropy metrics including aggregate values per file
  * and per-bin values organized by chromosome.
  *
  * @param filenames Vector of filenames to print entropy data for
+ * @param os Output stream that receives the formatted report
  *
  * @note Output format:
  * - File-level aggregate entropy
@@ -158,21 +162,21 @@ void ParsedInfo::aggregate() {
  *
  * @warning Assumes all filenames exist in the internal fileMap
  */
-void ParsedInfo::print(const std::vector<std::string> &filenames) {
-  std::cout << "--Sample Entropies------------------" << std::endl << std::endl;
+void ParsedInfo::print(const std::vector<std::string> &filenames, std::ostream &os) {
+  os << "--Sample Entropies------------------" << std::endl << std::endl;
   for (const auto &filename : filenames) {
-    std::cout << "Filename: " << filename << std::endl;
-    std::cout << "  Aggregate: " << fileMap[filename].sampen << std::endl;
-    std::cout << "  Detailed:" << std::endl;
+    os << "Filename: " << filename << std::endl;
+    os << "  Aggregate: " << fileMap[filename].sampen << std::endl;
+    os << "  Detailed:" << std::endl;
     for (unsigned int chrIndex = 0; chrIndex < fileMap[filename].chrCounts.size(); chrIndex++) {
-      std::cout << "    Chromosome: " << fileMap[filename].chrCounts[chrIndex].chr << std::endl;
+      os << "    Chromosome: " << fileMap[filename].chrCounts[chrIndex].chr << std::endl;
       for (unsigned int binIndex = 0; binIndex < fileMap[filename].chrCounts[chrIndex].bins.size();
            binIndex++) {
-        std::cout << "      Bin " << binIndex << " -> "
-                  << fileMap[filename].chrCounts[chrIndex].bins[binIndex].sampen << std::endl;
+        os << "      Bin " << binIndex << " -> "
+           << fileMap[filename].chrCounts[chrIndex].bins[binIndex].sampen << std::endl;
       }
     }
-    std::cout << std::endl;
+    os << std::endl;
   }
 }
 
@@ -189,8 +193,7 @@ void ParsedInfo::exportDetOut(const std::string &out, const std::vector<std::str
   std::ofstream outStream(out);
 
   if (!outStream.is_open()) {
-    std::cerr << "Error: Could not open file " << out << " for writing." << std::endl;
-    return;
+    throw std::runtime_error("Could not open file " + out + " for writing.");
   }
   outStream << "chr\tstart\tend";
   for (const auto &filename : filenames) {
@@ -228,8 +231,7 @@ void ParsedInfo::exportNormDetOut(const std::string &out, const std::vector<std:
   std::ofstream outStream(out);
 
   if (!outStream.is_open()) {
-    std::cerr << "Error: Could not open file " << out << " for writing." << std::endl;
-    return;
+    throw std::runtime_error("Could not open file " + out + " for writing.");
   }
   outStream << "chr\tstart\tend";
   for (const auto &filename : filenames) {
@@ -265,8 +267,7 @@ void ParsedInfo::exportMethOut(const std::string &out, const std::vector<std::st
   std::ofstream outStream(out);
 
   if (!outStream.is_open()) {
-    std::cerr << "Error: Could not open file " << out << " for writing." << std::endl;
-    return;
+    throw std::runtime_error("Could not open file " + out + " for writing.");
   }
   outStream << "chr\tstart\tend";
   for (const auto &filename : filenames) {
@@ -299,8 +300,7 @@ void ParsedInfo::exportOut(const std::string &out, const std::vector<std::string
   std::ofstream outStream(out);
 
   if (!outStream.is_open()) {
-    std::cerr << "Error: Could not open file " << out << " for writing." << std::endl;
-    return;
+    throw std::runtime_error("Could not open file " + out + " for writing.");
   }
   outStream << "file\tsampen\tsampen_norm\tavg_meth" << std::endl;
 

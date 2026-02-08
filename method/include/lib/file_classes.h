@@ -91,7 +91,7 @@ public:
 
   void addFile(const std::string &key, std::vector<ChrCounts> &chrCounts);
   void aggregate();
-  void print(const std::vector<std::string> &filenames);
+  void print(const std::vector<std::string> &filenames, std::ostream &os);
   void exportDetOut(const std::string &out, const std::vector<std::string> &filenames,
                     const Intervals &intervals);
   void exportNormDetOut(const std::string &out, const std::vector<std::string> &filenames,

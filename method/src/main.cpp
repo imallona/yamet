@@ -32,7 +32,7 @@ int main(int argc, char **argv) {
         !config.out.empty()) {
       parsedInfo.aggregate();
       if (config.print_sampens) {
-        parsedInfo.print(filenames);
+        parsedInfo.print(filenames, std::cout);
       }
       if (!config.det_out.empty()) {
         parsedInfo.exportDetOut(config.det_out, filenames, intervals);
