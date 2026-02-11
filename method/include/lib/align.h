@@ -11,7 +11,8 @@ void alignSingleWithRef(const std::string &filename, const Reference &ref, const
                         const bool all_meth, const unsigned int skip_header,
                         const unsigned int chunk_size, std::mutex &fileMapMutex,
                         ParsedInfo &parsedInfo);
-ParsedInfo alignWithRef(const std::vector<std::string> &filenames, const Reference &ref,
-                        const unsigned int m = 2, const bool all_meth = false,
-                        const unsigned int skip_header = 0, unsigned int n_cores = 1,
-                        const unsigned int chunk_size = 64 * 1024);
+ParsedInfo alignWithRef(const FilesMeta &filesMeta, const Reference &ref, const unsigned int m = 2,
+                        const bool all_meth = false, const unsigned int skip_header = 0,
+                        unsigned int n_cores = 1, const unsigned int chunk_size = 64 * 1024);
+FilesMeta  parseMeta(const std::string &meta, const unsigned int chunk_size);
+FilesMeta  parseNestVec(const std::vector<std::vector<std::string>> &files);

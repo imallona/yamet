@@ -1,6 +1,8 @@
 #include <algorithm>
 #include <cerrno>
+#include <filesystem>
 #include <iostream>
+#include <iterator>
 #include <mutex>
 #include <sstream>
 #include <vector>
@@ -162,21 +164,21 @@ void alignSingleWithRef(const std::string &filename, const Reference &ref, const
  * - agg, where aggregated metrics across files are stored
  * (just initialised and currently empty)
  */
-ParsedInfo alignWithRef(const std::vector<std::string> &filenames, const Reference &ref,
-                        const unsigned int m, const bool all_meth, const unsigned int skip_header,
-                        unsigned int n_cores, const unsigned int chunk_size) {
-  ParsedInfo parsedInfo(ref, m, filenames.size());
+ParsedInfo alignWithRef(const FilesMeta &filesMeta, const Reference &ref, const unsigned int m,
+                        const bool all_meth, const unsigned int skip_header, unsigned int n_cores,
+                        const unsigned int chunk_size) {
+  ParsedInfo parsedInfo(ref, m, filesMeta);
 
-  unsigned int threads = std::min(n_cores, static_cast<unsigned int>(filenames.size()));
+  unsigned int threads = std::min(n_cores, static_cast<unsigned int>(filesMeta.size()));
   ThreadPool   pool(threads);
-  std::vector<std::future<void>> results(filenames.size());
+  std::vector<std::future<void>> results(filesMeta.size());
   std::mutex                     fileMapMutex;
 
-  std::transform(filenames.begin(), filenames.end(), results.begin(),
-                 [&](const std::string &filename) {
-                   return pool.enqueue([&, filename]() {
-                     alignSingleWithRef(filename, ref, m, all_meth, skip_header, chunk_size,
-                                        fileMapMutex, parsedInfo);
+  std::transform(filesMeta.begin(), filesMeta.end(), results.begin(),
+                 [&](const FileMeta &fileMeta) {
+                   return pool.enqueue([&, fileMeta]() {
+                     alignSingleWithRef(fileMeta.filepath, ref, m, all_meth, skip_header,
+                                        chunk_size, fileMapMutex, parsedInfo);
                    });
                  });
 
@@ -187,4 +189,64 @@ ParsedInfo alignWithRef(const std::vector<std::string> &filenames, const Referen
   pool.rethrow_exception(); // Check if any task threw an exception and rethrow it
 
   return parsedInfo;
+}
+
+FilesMeta parseMeta(const std::string &meta, const unsigned int chunk_size) {
+  FileStream file(meta, chunk_size);
+  if (!file.good()) {
+    throw std::system_error(errno, std::generic_category(), "Opening " + meta);
+  }
+
+  const auto meta_parent = std::filesystem::path(meta).parent_path();
+
+  std::string line;
+  FilesMeta   filesMeta{};
+  size_t      line_num = 0;
+
+  while (file.getline(line)) {
+    line_num++;
+    /// parsing a line from metadata file
+    std::istringstream iss(line);
+    std::string        filepath, id, cluster;
+    if (!(iss >> id >> cluster >> filepath)) {
+      throw std::system_error(EIO, std::generic_category(),
+                              "in line\n\n\t\033[33m" + line + "\033[0m\n\nparsing metadata file " +
+                                  meta);
+    }
+
+    std::filesystem::path filepath_path(filepath);
+    if (filepath_path.is_relative()) {
+      filepath_path = (meta_parent / filepath_path).lexically_normal();
+    }
+
+    std::error_code ec;
+    if (!std::filesystem::exists(filepath_path, ec)) {
+      throw std::system_error(
+          ENOENT, std::generic_category(),
+          "in metadata line " + std::to_string(line_num) + "\n\n\t\033[33m" + line +
+              "\033[0m\n\nreferenced file does not exist: " + filepath_path.string());
+    }
+
+    filesMeta.emplace_back(id, cluster, filepath_path.string());
+  }
+
+  file.close();
+  return filesMeta;
+}
+
+FilesMeta parseNestVec(const std::vector<std::vector<std::string>> &files) {
+  FilesMeta filesMeta{};
+
+  if (files.size() == 1) {
+    std::transform(files[0].begin(), files[0].end(), std::back_inserter(filesMeta),
+                   [](const std::string &file) { return FileMeta(file); });
+  } else {
+    for (size_t i = 0; i < files.size(); i++) {
+      std::transform(
+          files[i].begin(), files[i].end(), std::back_inserter(filesMeta),
+          [i](const std::string &file) { return FileMeta(static_cast<unsigned int>(i), file); });
+    }
+  }
+
+  return filesMeta;
 }

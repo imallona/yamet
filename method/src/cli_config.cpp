@@ -51,20 +51,33 @@ CLIConfig parseCommandLine(int argc, char **argv) {
   app.usage("Usage: " + std::string(PROJECT_NAME) +
             " -c <cytosine report>... -r <reference> -i <interval> [OPTIONS]");
 
-  app.add_option("-c,--cytosine-report,--cell", config.cell_files,
-                 "tab separated files, sorted by chromosome and position, for "
-                 "different cells in the following format\n"
-                 "\n"
-                 " chr1    5    0    2    0\n"
-                 " chr1    9    1    1    1\n"
-                 " chr2    2    3    4    1\n"
-                 "\n"
-                 "where the columns are the chromosome, position, number of "
-                 "methylated reads, total number of reads and the rate "
-                 "respectively")
-      ->required()
-      ->check(CLI::ExistingFile & CLI::ReadPermissions)
-      ->group("Input");
+  auto *opt_cyt_rep =
+      app.add_option("-c,--cytosine-report,--cell", config.cell_files,
+                     "tab separated files, sorted by chromosome and position, for "
+                     "different cells in the following format\n"
+                     "\n"
+                     " chr1    5    0    2    0\n"
+                     " chr1    9    1    1    1\n"
+                     " chr2    2    3    4    1\n"
+                     "\n"
+                     "where the columns are the chromosome, position, number of "
+                     "methylated reads, total number of reads and the rate respectively")
+          ->check(CLI::ExistingFile & CLI::ReadPermissions)
+          ->group("Input");
+  auto *opt_meta =
+      app.add_option("--metadata", config.metadata,
+                     "tab separated file, listing information for the "
+                     "different cells in the following format\n"
+                     "\n"
+                     " cell1    clusterA    path/to/cell1.tsv.gz\n"
+                     " cell2    clusterA    path/to/cell2.tsv.gz\n"
+                     " cell3    clusterB    path/to/cell2.tsv.gz\n"
+                     "\n"
+                     "where the columns are the cell identifier, the "
+                     "cluster identifier and the path to the cytosine reports respectively")
+          ->check(CLI::ExistingFile & CLI::ReadPermissions)
+          ->excludes(opt_cyt_rep)
+          ->group("Input");
   app.add_option("-r,--cytosine-locations,--reference", config.reference,
                  "tab separated file, sorted by chromosome and position, for "
                  "reference sites in the following format\n"
@@ -76,8 +89,7 @@ CLIConfig parseCommandLine(int argc, char **argv) {
                  " chr2    2\n"
                  " chr2    4\n"
                  "\n"
-                 "where the columns are the chromosome and start position "
-                 "respectively")
+                 "where the columns are the chromosome and start position respectively")
       ->required()
       ->check(CLI::ExistingFile & CLI::ReadPermissions)
       ->group("Input");
@@ -173,6 +185,11 @@ CLIConfig parseCommandLine(int argc, char **argv) {
     throw std::system_error(ECANCELED, std::generic_category(), "Version message displayed");
   } catch (const CLI::ParseError &e) {
     throw std::runtime_error(e.what());
+  }
+
+  if (opt_cyt_rep->count() == 0 && opt_meta->count() == 0) {
+    throw std::runtime_error("Either " + opt_cyt_rep->get_name() + " or " + opt_meta->get_name() +
+                             " is needed.");
   }
 
   if (opt_skip_header->count() > 0) {

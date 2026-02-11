@@ -11,8 +11,6 @@ int main(int argc, char **argv) {
   try {
     CLIConfig config = parseCommandLine(argc, argv);
 
-    std::vector<std::string> filenames = config.cell_files;
-
     Intervals intervals =
         parseSearch(config.intervals, config.skip_header_intervals, config.chunk_size);
     if (config.print_intervals) {
@@ -25,26 +23,33 @@ int main(int argc, char **argv) {
       ref.print(std::cout);
     }
 
-    ParsedInfo parsedInfo = alignWithRef(filenames, ref, 2, config.all_meth,
+    FilesMeta filesMeta;
+    if (!config.metadata.empty()) {
+      filesMeta = parseMeta(config.metadata, config.chunk_size);
+    } else if (!config.cell_files.empty()) {
+      filesMeta = parseNestVec(config.cell_files);
+    }
+
+    ParsedInfo parsedInfo = alignWithRef(filesMeta, ref, 2, config.all_meth,
                                          config.skip_header_cell, config.cores, config.chunk_size);
 
     if (config.print_sampens || !config.det_out.empty() || !config.meth_out.empty() ||
         !config.out.empty()) {
       parsedInfo.aggregate();
       if (config.print_sampens) {
-        parsedInfo.print(filenames, std::cout);
+        parsedInfo.print(std::cout);
       }
       if (!config.det_out.empty()) {
-        parsedInfo.exportDetOut(config.det_out, filenames, intervals);
+        parsedInfo.exportDetOut(config.det_out, intervals);
       }
       if (!config.norm_det_out.empty()) {
-        parsedInfo.exportNormDetOut(config.norm_det_out, filenames, intervals);
+        parsedInfo.exportNormDetOut(config.norm_det_out, intervals);
       }
       if (!config.meth_out.empty()) {
-        parsedInfo.exportMethOut(config.meth_out, filenames, intervals);
+        parsedInfo.exportMethOut(config.meth_out, intervals);
       }
       if (!config.out.empty()) {
-        parsedInfo.exportOut(config.out, filenames);
+        parsedInfo.exportOut(config.out);
       }
     }
 
