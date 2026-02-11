@@ -13,13 +13,12 @@
 
 /**
  * Constructs a ParsedInfo object for methylation data aggregation.
- * Initializes the ParsedInfo object by initialising `agg` for each
- * chromosome in the reference and reserving memory for `fileMap`.
+ * Initializes `clusters`, creates per-chromosome aggregation containers, and
+ * reserves memory for file-level parsed results.
  *
  * @param ref Reference object
  * @param m Maximum entropy parameter or window size for aggregation calculations.
- * @param num_files Number of input files to be processed. Used for memory pre-allocation to
- * optimize performance.
+ * @param filesMeta metadata entries for all input files.
  */
 ParsedInfo::ParsedInfo(const Reference &ref, unsigned int m, const FilesMeta &filesMeta)
     : filesMeta(filesMeta) {
@@ -178,15 +177,14 @@ void ParsedInfo::aggregate() {
  * Outputs detailed entropy metrics including aggregate values per file and per-bin values organized
  * by chromosome.
  *
- * @param filenames Vector of filenames to print entropy data for
- * @param os Output stream that receives the formatted report
+ * @param os Output stream that receives the formatted report.
  *
  * @note Output format:
  * - File-level aggregate entropy
  * - Per-chromosome breakdown
  * - Per-bin entropy values within each chromosome
  *
- * @warning Assumes all filenames exist in the internal fileMap
+ * @warning Assumes all file paths in filesMeta exist in the internal fileMap.
  */
 void ParsedInfo::print(std::ostream &os) {
   os << "--Sample Entropies------------------" << std::endl << std::endl;
@@ -212,7 +210,6 @@ void ParsedInfo::print(std::ostream &os) {
  * file. It also provides shannon entropies and average methylation per region across cell files.
  *
  * @param out path to tab separated file where detailed sample entropy outputs are to be stored.
- * @param filenames vector of filenames of all cell files.
  * @param intervals Intervals object with search intervals.
  */
 void ParsedInfo::exportDetOut(const std::string &out, const Intervals &intervals) {
@@ -259,7 +256,6 @@ void ParsedInfo::exportDetOut(const std::string &out, const Intervals &intervals
  * across cell files.
  *
  * @param out path to tab separated file where detailed sample entropy outputs are to be stored.
- * @param filenames vector of filenames of all cell files.
  * @param intervals Intervals object with search intervals.
  */
 void ParsedInfo::exportNormDetOut(const std::string &out, const Intervals &intervals) {
@@ -304,7 +300,6 @@ void ParsedInfo::exportNormDetOut(const std::string &out, const Intervals &inter
  * Exports a tab separated file with average methylation per region for every cell file.
  *
  * @param out path to tab separated file where detailed sample entropy outputs are to be stored.
- * @param filenames vector of filenames of all cell files.
  * @param intervals Intervals object with search intervals.
  */
 void ParsedInfo::exportMethOut(const std::string &out, const Intervals &intervals) {
@@ -338,7 +333,6 @@ void ParsedInfo::exportMethOut(const std::string &out, const Intervals &interval
  * Exports a tab separated file with sample entropies aggregated for every cell file.
  *
  * @param out path to tab separated file where sample entropy outputs are to be stored.
- * @param filenames vector of filenames of all cell files.
  */
 void ParsedInfo::exportOut(const std::string &out) {
   std::ofstream outStream(out);
@@ -357,6 +351,11 @@ void ParsedInfo::exportOut(const std::string &out) {
   outStream.close();
 }
 
+/**
+ * Extracts unique cluster labels from metadata while preserving insertion order.
+ *
+ * @param filesMeta metadata entries containing cluster labels.
+ */
 void ParsedInfo::parseClusters(const FilesMeta &filesMeta) {
   std::unordered_set<std::string> unique_clusters;
   for (const auto &fileMeta : filesMeta) {

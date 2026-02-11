@@ -26,6 +26,7 @@
  * @param m[in] size of window.
  * @param all_meth[in] flag indicating whether positions not involved in successful templates are
  * also included.
+ * @param skip_header[in] number of initial lines to skip in the input file.
  * @param chunk_size[in] size of file chunk.
  * @param fileMapMutex[in] mutex to protect fileMap while writing.
  * @param parsedInfo[out] ParsedInfo object as described in `alignWithRef`
@@ -152,11 +153,14 @@ void alignSingleWithRef(const std::string &filename, const Reference &ref, const
  * A wrapper function for alignSingleWithRef which allows multiple cell files to be parsed
  * simultaneously in a multi-threaded fashion using a ThreadPool object
  *
- * @param filenames list of tab separated files to be parsed.
+ * @param filesMeta list of metadata entries, each containing file path, cell id and cluster
+ * information.
  * @param ref Reference object with all positions of interest in the genome.
  * @param m size of window.
  * @param all_meth flag indicating whether positions not involved in successful templates are
  * also included.
+ * @param skip_header number of initial lines to skip in each cell file.
+ * @param n_cores maximum number of worker threads to use.
  * @param chunk_size size of file chunk.
  * @return ParsedInfo object containing two main sub-objects:
  * - fileMap, where parsed metrics for each file are stored in key-value format
@@ -191,6 +195,16 @@ ParsedInfo alignWithRef(const FilesMeta &filesMeta, const Reference &ref, const 
   return parsedInfo;
 }
 
+/**
+ * Parses a metadata file into FilesMeta entries.
+ * Each non-empty line must contain: file id, cluster id, and file path.
+ * Relative file paths are resolved against the directory containing the metadata file.
+ *
+ * @param meta path to metadata file.
+ * @param chunk_size size of file chunk used by FileStream.
+ * @return FilesMeta vector with validated and resolved file paths.
+ * @throws std::system_error if metadata parsing fails or a referenced file does not exist.
+ */
 FilesMeta parseMeta(const std::string &meta, const unsigned int chunk_size) {
   FileStream file(meta, chunk_size);
   if (!file.good()) {
@@ -234,6 +248,13 @@ FilesMeta parseMeta(const std::string &meta, const unsigned int chunk_size) {
   return filesMeta;
 }
 
+/**
+ * Converts a nested vector of input file paths into FilesMeta.
+ * Otherwise, each outer-group index is used as a cluster identifier.
+ *
+ * @param files nested input where each inner vector is a cluster-specific list of files.
+ * @return FilesMeta vector with id/cluster/filepath for each input file.
+ */
 FilesMeta parseNestVec(const std::vector<std::vector<std::string>> &files) {
   FilesMeta filesMeta{};
 
