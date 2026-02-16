@@ -17,7 +17,7 @@ auto cores_transform = CLI::Validator(
       size_t idx   = 0;
       int    cores = 0;
       try {
-        cores = std::stoll(input, &idx, 10);
+        cores = std::stoi(input, &idx, 10);
       } catch (const std::exception &) {
         return "Invalid value " + input + " for 'cores'. Expected an integer.";
       }
@@ -25,7 +25,7 @@ auto cores_transform = CLI::Validator(
         return "Invalid value " + input + " for 'cores'. Expected an integer.";
       }
 
-      const unsigned int max_cores = std::thread::hardware_concurrency();
+      const int max_cores = static_cast<int>(std::thread::hardware_concurrency());
       if (cores < -1 || cores > max_cores) {
         return "Invalid value " + input +
                ". Allowed values are\n  -1 : use all cores\n   0 : let the program "
@@ -71,7 +71,7 @@ CLIConfig parseCommandLine(int argc, char **argv) {
                      "\n"
                      " cell1    clusterA    path/to/cell1.tsv.gz\n"
                      " cell2    clusterA    path/to/cell2.tsv.gz\n"
-                     " cell3    clusterB    path/to/cell2.tsv.gz\n"
+                     " cell3    clusterB    path/to/cell3.tsv.gz\n"
                      "\n"
                      "where the columns are the cell identifier, the "
                      "cluster identifier and the path to the cytosine reports respectively")

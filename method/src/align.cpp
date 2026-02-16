@@ -263,9 +263,8 @@ FilesMeta parseNestVec(const std::vector<std::vector<std::string>> &files) {
                    [](const std::string &file) { return FileMeta(file); });
   } else {
     for (size_t i = 0; i < files.size(); i++) {
-      std::transform(
-          files[i].begin(), files[i].end(), std::back_inserter(filesMeta),
-          [i](const std::string &file) { return FileMeta(static_cast<unsigned int>(i), file); });
+      std::transform(files[i].begin(), files[i].end(), std::back_inserter(filesMeta),
+                     [i](const std::string &file) { return FileMeta(i, file); });
     }
   }
 
