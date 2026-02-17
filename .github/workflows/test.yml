@@ -198,10 +198,10 @@ jobs:
 
           echo 'Diff expected vs produced output'
 
-          diff test_1/out/out \
+          diff test_cluster/out/out \
               current_test_metadata.out
 
           echo 'Diff expected vs produced stdout'
 
-          diff test_1/out/stdout \
+          diff test_cluster/out/stdout \
               current_test_metadata.stdout
