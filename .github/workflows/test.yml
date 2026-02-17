@@ -180,3 +180,28 @@ jobs:
 
           diff test_normalization/out/detailed_all_meth.out \
               current_test_normalization_all_meth.norm.out
+      - name: Test metadata format
+        if: always()
+        run: |
+          cd test
+          ../method/build/yamet \
+              --metadata test_cluster/in/metadata.tsv \
+              -r test_cluster/in/reference.tsv \
+              -i test_cluster/in/annotation.tsv \
+              --det-out current_test_metadata.det.out \
+              --out current_test_metadata.out &> current_test_metadata.stdout
+
+          echo 'Diff expected vs produced detailed output'
+
+          diff test_cluster/out/det.out \
+              current_test_metadata.det.out
+
+          echo 'Diff expected vs produced output'
+
+          diff test_1/out/out \
+              current_test_metadata.out
+
+          echo 'Diff expected vs produced stdout'
+
+          diff test_1/out/stdout \
+              current_test_metadata.stdout

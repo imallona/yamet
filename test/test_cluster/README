@@ -1,0 +1,7 @@
+generated from [bruijnmeth](https://github.com/atchox/bruijnmeth) using
+
+```bash
+uv run --group analysis scripts/yamet_test_data.py
+```
+
+The contents of `gen/` are copied
