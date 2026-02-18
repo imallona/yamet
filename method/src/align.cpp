@@ -201,11 +201,13 @@ ParsedInfo alignWithRef(const FilesMeta &filesMeta, const Reference &ref, const 
  * Relative file paths are resolved against the directory containing the metadata file.
  *
  * @param meta path to metadata file.
+ * @param skip_header number of initial lines to skip in the metadata file.
  * @param chunk_size size of file chunk used by FileStream.
  * @return FilesMeta vector with validated and resolved file paths.
  * @throws std::system_error if metadata parsing fails or a referenced file does not exist.
  */
-FilesMeta parseMeta(const std::string &meta, const unsigned int chunk_size) {
+FilesMeta parseMeta(const std::string &meta, const unsigned int skip_header,
+                    const unsigned int chunk_size) {
   FileStream file(meta, chunk_size);
   if (!file.good()) {
     throw std::system_error(errno, std::generic_category(), "Opening " + meta);
@@ -217,8 +219,13 @@ FilesMeta parseMeta(const std::string &meta, const unsigned int chunk_size) {
   FilesMeta   filesMeta{};
   size_t      line_num = 0;
 
+  const size_t skip_header_lines = static_cast<size_t>(skip_header);
+
   while (file.getline(line)) {
     line_num++;
+    if (line_num <= skip_header_lines) {
+      continue;
+    }
     /// parsing a line from metadata file
     std::istringstream iss(line);
     std::string        filepath, id, cluster;

@@ -25,7 +25,7 @@ int main(int argc, char **argv) {
 
     FilesMeta filesMeta;
     if (!config.metadata.empty()) {
-      filesMeta = parseMeta(config.metadata, config.chunk_size);
+      filesMeta = parseMeta(config.metadata, config.skip_header_metadata, config.chunk_size);
     } else if (!config.cell_files.empty()) {
       filesMeta = parseNestVec(config.cell_files);
     }

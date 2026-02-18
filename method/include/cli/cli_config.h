@@ -12,6 +12,7 @@ struct CLIConfig {
   unsigned int skip_header_cell      = 0;
   unsigned int skip_header_reference = 0;
   unsigned int skip_header_intervals = 0;
+  unsigned int skip_header_metadata  = 0;
 
   std::string det_out;
   std::string norm_det_out;

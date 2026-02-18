@@ -125,6 +125,10 @@ CLIConfig parseCommandLine(int argc, char **argv) {
                "integer value indicating number of lines to skip in the intervals file")
       ->excludes(opt_skip_header)
       ->group("Input");
+  app.add_flag("--skip-header-metadata{1}", config.skip_header_metadata,
+               "integer value indicating number of lines to skip in the metadata file")
+      ->excludes(opt_skip_header)
+      ->group("Input");
 
   // output options group
   app.add_option("-d,--det-out", config.det_out, "(optional) path to detailed output file")
@@ -196,6 +200,7 @@ CLIConfig parseCommandLine(int argc, char **argv) {
     config.skip_header_cell      = skip_header;
     config.skip_header_reference = skip_header;
     config.skip_header_intervals = skip_header;
+    config.skip_header_metadata  = skip_header;
   }
   return config;
 }
