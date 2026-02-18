@@ -19,7 +19,7 @@ suppressPackageStartupMessages({
   library(lmerTest)
   library(ggplot2)
   library(knitr)
-  library(effects)
+  #library(effects)
   library(ComplexHeatmap)
   library(viridis)
   library(BiocParallel)
@@ -50,6 +50,7 @@ opts_chunk$set(
 ```{r save_snmk_object_for_debugging, include = FALSE}
 saveRDS(file = 'snmk_object_features.rds', object = snakemake)
 ## snakemake <- readRDS('../../snmk_object_features.rds')
+## setwd('../..')
 ```
 
 
@@ -89,13 +90,75 @@ process_file <- function(filepath) {
 
 files <- do.call(rbind, bplapply(filepaths, process_file, BPPARAM = param))
 
-files$annotation <- as.factor(files$annotation)
-files$patient <- as.factor(files$patient)
-files$location <- factor(
-  files$location,
-  levels = c("NC", "PT", "LN", "ML", "MP", "MO")
-)
+# mind this is per cell, not per locus. This is not something you can do for Shannon.
+# imallona@mlshainan:~/src/yamet/workflow$ zcat data/crc/output/sines_sines_CRC01_LN.out.gz | head
+#file	sampen	sampen_norm	avg_meth
+#data/crc/harmonized/GSM2697511_scTrioSeq2Met_CRC01_LN3_268.singleC.txt.gz	0.0984465	0.311104	0.838184
+#data/crc/harmonized/GSM2697889_scTrioSeq2Met_CRC01_LN1_164.singleC.txt.gz	0.0985076	0.290518	0.825905
+#data/crc/harmonized/GSM2697915_scTrioSeq2Met_CRC01_LN3_447.singleC.txt.gz	0.098421	0.307972	0.836493
+## data/crc/harmonized/GSM2697508_scTrioSeq2Met_CRC01_LN2_456.singleC.txt.gz	0.108082	0.316819	0.824773
+## data/crc/harmonized/GSM2697493_scTrioSeq2Met_CRC01_LN1_175.singleC.txt.gz	0.114474	0.312642	0.810966
+## data/crc/harmonized/GSM2697905_scTrioSeq2Met_CRC01_LN2_453.singleC.txt.gz	0.100684	0.305491	0.831078
+## data/crc/harmonized/GSM2697898_scTrioSeq2Met_CRC01_LN2_192.singleC.txt.gz	0.117015	0.359772	0.833428
+## data/crc/harmonized/GSM2697908_scTrioSeq2Met_CRC01_LN3_244.singleC.txt.gz	0.101921	0.28672	0.816892
+## data/crc/harmonized/GSM2697909_scTrioSeq2Met_CRC01_LN3_245.singleC.txt.gz	0.0962967	0.299841	0.835639
+
+
+## files$annotation <- factor(files$annotation,
+##                            levels = c("0_Enhancer",
+##                                       "1_Transcribed",
+##                                       "2_Enhancer",
+##                                       "3_Quiescent",
+##                                       "4_Transcribed",     
+##                                       "5_RegPermissive",
+##                                       "6_LowConfidence",
+##                                       "7_RegPermissive",
+##                                       "8_Quiescent",
+##                                       "9_ConstitutiveHet",
+##                                       "10_Quiescent",
+##                                       "11_Promoter",
+##                                       "12_Promoter",
+##                                       "13_ConstitutiveHet",                                                                            
+##                                       "cpgIslandExt", "H3K4me3", "genes",
+##                                       "H3K27me3", "H3K9me3", "laminb1",
+##                                       "pmds", "lines", "sines", "hmds",
+##                                       "crc01_lost_scna", "crc01_nc_scna", "crc01_gain_scna"))
+
+
+## files$patient <- as.factor(files$patient)
+## files$location <- factor(
+##   files$location,
+##   levels = c("NC", "PT", "LN", "ML", "MP", "MO")
+## )
+
+## head(files)
+
+harmonize_levels <- function(df) {
+
+  df$annotation <- factor(
+      df$annotation,
+      levels = c(
+          "0_Enhancer", "1_Transcribed", "2_Enhancer", "3_Quiescent",
+          "4_Transcribed", "5_RegPermissive", "6_LowConfidence",
+          "7_RegPermissive", "8_Quiescent", "9_ConstitutiveHet",
+          "10_Quiescent", "11_Promoter", "12_Promoter", "13_ConstitutiveHet",
+          "cpgIslandExt", "H3K4me3", "genes", "H3K27me3", "H3K9me3",
+          "laminb1", "pmds", "lines", "sines", "hmds",
+          "crc01_lost_scna", "crc01_nc_scna", "crc01_gain_scna"
+    )
+  )
+
+  df$patient <- as.factor(df$patient)
+  df$location <- factor(df$location, levels = c("NC", "PT", "LN", "ML", "MP", "MO"))
+
+  return(df)
+}
+
+files <- harmonize_levels(files)
+
 ```
+
+# Bulk unnormalized sampen  {.tabset .tabset-pills}
 
 ## Scatters by location and annotation
  
@@ -156,7 +219,52 @@ ggplot(
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
 ```
 
-## sampEn boxes by location and annotation - crc01
+## Segmentations  {.tabset .tabset-pills} 
+
+### Scatters by location and annotation
+ 
+```{r}
+ggplot(
+    subset(files, grepl("^[0-9]{1,2}", annotation)),
+  aes(y = sampen, x = avg_meth, color = location, shape = patient)
+) +
+  geom_point(size = 0.9, alpha = 0.2) +
+  scale_color_brewer(palette = "Set1") +
+  scale_shape_manual(values = 1:nlevels(files$patient)) +
+  facet_wrap(~annotation, ncol = 3, nrow = 5) +
+  labs(
+    x = "avg. methylation",
+    y = "sample entropy (S)"
+  ) +
+  guides(color = guide_legend(override.aes = list(size = 2))) +
+  theme_ng()
+```
+
+
+## Nonsegmentations  {.tabset .tabset-pills}
+
+### Scatters by location and annotation
+ 
+```{r}
+ggplot(
+    subset(files, !grepl("^[0-9]{1,2}", annotation)),
+  aes(y = sampen, x = avg_meth, color = location, shape = patient)
+) +
+  geom_point(size = 0.9, alpha = 0.2) +
+  scale_color_brewer(palette = "Set1") +
+  scale_shape_manual(values = 1:nlevels(files$patient)) +
+  facet_wrap(~annotation, ncol = 3, nrow = 5) +
+  labs(
+    x = "avg. methylation",
+    y = "sample entropy (S)"
+  ) +
+  guides(color = guide_legend(override.aes = list(size = 2))) +
+  theme_ng()
+```
+
+## Others  {.tabset .tabset-pills}
+
+### sampEn boxes by location and annotation - crc01
 
 ```{r, fig.height = 6, fig.width = 10}
 ggplot(
@@ -177,7 +285,7 @@ ggplot(
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
 ```
 
-## meth boxes by location and annotation - crc01
+### meth boxes by location and annotation - crc01
 
 ```{r, fig.height = 6, fig.width = 10}
 ggplot(
@@ -198,7 +306,7 @@ ggplot(
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
 ```
 
-## Range plots - by compartment
+### Range plots - by compartment
 
 ```{r, fig.height = 10, fig.width = 10}
 
@@ -250,7 +358,11 @@ ggplot(ranges, aes(color = location)) +
 
 ```
 
-# After normalization - same plots (the yamet-way)
+```{r}
+sampens <- files
+```
+
+# After normalization - same plots (the yamet-way) {.tabset .tabset-pills}
 
 That is, not by locus but by cell norm sampEns (that are calculated according to some regionset anyway)
 
@@ -280,16 +392,11 @@ process_file <- function(filepath) {
   return(dt)
 }
 
-head(filepaths)
 
 files <- do.call(rbind, bplapply(filepaths, process_file, BPPARAM = param))
 
-files$annotation <- as.factor(files$annotation)
-files$patient <- as.factor(files$patient)
-files$location <- factor(
-  files$location,
-  levels = c("NC", "PT", "LN", "ML", "MP", "MO")
-)
+files <- harmonize_levels(files)
+
 ```
 
 ## Scatters by location and annotation
@@ -305,8 +412,8 @@ ggplot(
   scale_shape_manual(values = 1:nlevels(files$patient)) +
   facet_wrap(~annotation) +
   labs(
-    x = "average methylation",
-    y = "norm sample entropy"
+    x = "avg. methylation",
+    y = "adj. sample entropy (adjS)"
   ) +
   guides(color = guide_legend(override.aes = list(size = 2))) +
   theme_ng()
@@ -324,8 +431,8 @@ ggplot(
   scale_color_brewer(palette = "Set1") +
   facet_grid(annotation ~ patient) +
   labs(
-    x = "average methylation",
-    y = "norm sample entropy"
+    x = "avg. methylation",
+    y = "adj. sample entropy (adjS)"
   ) +
   guides(color = guide_legend(override.aes = list(size = 2))) +
   theme_ng() +
@@ -343,15 +450,61 @@ ggplot(
   scale_color_brewer(palette = "Set1") +
   facet_grid(annotation ~ patient) +
   labs(
-    x = "average methylation",
-    y = "norm sample entropy"
+    x = "avg. methylation",
+    y = "adj. sample entropy (adjS)"
   ) +
   guides(color = guide_legend(override.aes = list(size = 2))) +
   theme_ng() +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
 ```
 
-## sampEn boxes by location and annotation - crc01
+
+## Segmentations {.tabset .tabset-pills}
+
+### Scatters by location and annotation
+ 
+```{r}
+ggplot(
+    subset(files, grepl("^[0-9]{1,2}", annotation)),
+  aes(y = sampen, x = avg_meth, color = location, shape = patient)
+) +
+  geom_point(size = 0.9, alpha = 0.2) +
+  scale_color_brewer(palette = "Set1") +
+  scale_shape_manual(values = 1:nlevels(files$patient)) +
+  facet_wrap(~annotation, ncol = 3, nrow = 5) +
+  labs(
+    x = "avg. methylation",
+    y = "adj. sample entropy (adjS)"
+  ) +
+  guides(color = guide_legend(override.aes = list(size = 2))) +
+  theme_ng()
+```
+
+
+## Nonsegmentations {.tabset .tabset-pills}
+
+### Scatters by location and annotation
+ 
+```{r}
+ggplot(
+    subset(files, !grepl("^[0-9]{1,2}", annotation)),
+  aes(y = sampen, x = avg_meth, color = location, shape = patient)
+) +
+  geom_point(size = 0.9, alpha = 0.2) +
+  scale_color_brewer(palette = "Set1") +
+  scale_shape_manual(values = 1:nlevels(files$patient)) +
+  facet_wrap(~annotation, ncol = 3, nrow = 5) +
+  labs(
+    x = "avg. methylation",
+    y = "adj. sample entropy (adjS)"
+  ) +
+  guides(color = guide_legend(override.aes = list(size = 2))) +
+  theme_ng()
+```
+
+## Others  {.tabset .tabset-pills}
+
+### sampEn boxes by location and annotation - crc01
 
 ```{r, fig.height = 6, fig.width = 10}
 ggplot(
@@ -362,7 +515,7 @@ ggplot(
     outlier.size = 0.6,
     outlier.alpha = 0.3
   ) +
-  labs(y = "norm sample entropy") +
+  labs(y = "adj sample entropy (adjS)") +
   geom_jitter(
     position = position_dodge(width = 0.75),
     size = 0.6, alpha = 0.3
@@ -372,7 +525,7 @@ ggplot(
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
 ```
 
-## meth boxes by location and annotation - crc01
+### meth boxes by location and annotation - crc01
 
 ```{r, fig.height = 6, fig.width = 10}
 ggplot(
@@ -383,7 +536,7 @@ ggplot(
     outlier.size = 0.6,
     outlier.alpha = 0.3
   ) +
-  labs(y = "average methylation") +
+  labs(y = "avg. methylation") +
   geom_jitter(
     position = position_dodge(width = 0.75),
     size = 0.6, alpha = 0.3
@@ -393,11 +546,9 @@ ggplot(
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
 ```
 
-## Range plots - by compartment
+### Range plots - by compartment
 
 ```{r, fig.height = 10, fig.width = 10}
-
-
 ranges <- as.data.frame(files %>%
    filter(patient == "CRC01") %>%
    group_by(compartment = annotation, location) %>%
@@ -439,15 +590,21 @@ ggplot(ranges, aes(color = location)) +
     shape = 3, size = 1.2
   ) +
   scale_color_brewer(palette = "Dark2") +
-  labs(x = "DNA methylation", y = "Normalized sample entropy") +
+  labs(x = "DNA methylation", y = "adj. sample entropy (adjS)") +
   facet_wrap(~ compartment) +
   theme_ng()
 
 ```
 
+```{r}
+adjsampens <- files
+```
+
 # Unnormalized Shannon's MEDIANS DOWNSAMPLED {.tabset .tabset-pills}
 
 This cannot be done on short `out.gz` files, but on detailed ones only. Median values, not all loci included!
+
+meaning, here we'll have one value per biopsy+patient (the "group") only, because the individual loci are averaged. And there are no individual cells anymore (it's Shannon).
 
 ```{r, eval = TRUE}
 filepaths <- list.files(
@@ -480,11 +637,9 @@ process_file <- function(filepath) {
 
 files <- bplapply(filepaths, process_file, BPPARAM = param) |> bind_rows()
 
-files$annotation <- factor(files$annotation)
-files$patient    <- factor(files$patient)
-files$location   <- factor(files$location,
-                           levels = c("NC", "PT", "LN", "ML", "MP", "MO"))
+files <- harmonize_levels(files)
 
+head(files)
 ```
 
 ## Scatters by location and annotation
@@ -500,32 +655,62 @@ ggplot(
   facet_wrap(~annotation) +
   labs(
     x = "median average methylation",
-    y = "median Shannon entropy"
+    y = "median Shannon entropy (H)"
   ) +
   guides(color = guide_legend(override.aes = list(size = 2))) +
   theme_ng()
 ```
 
-## Scatters by location and annotation and patient
+
+
+## Segmentations {.tabset .tabset-pills}
+
+### Scatters by location and annotation
  
-```{r, fig.height = 15}
+```{r}
 ggplot(
-  files,
-  aes(y = median_shannon, x = median_avg_meth, color = location)
+    subset(files, grepl("^[0-9]{1,2}", annotation)),
+  aes(y = median_shannon, x = median_avg_meth, color = location, shape = patient)
 ) +
   geom_point(size = 0.9, alpha = 0.2) +
-  ## scale_color_brewer(palette = "Set1") +
-  ## facet_grid(annotation ~ patient) +
+  scale_color_brewer(palette = "Set1") +
+  scale_shape_manual(values = 1:nlevels(files$patient)) +
+  facet_wrap(~annotation, ncol = 3, nrow = 5) +
   labs(
-    x = "median average methylation",
-    y = "median Shannon entropy"
+    x = "median avg. methylation",
+    y = "median Shannon entropy (H)"
   ) +
   guides(color = guide_legend(override.aes = list(size = 2))) +
-  theme_ng() +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+  theme_ng()
 ```
 
 
+## Nonsegmentations {.tabset .tabset-pills}
+
+### Scatters by location and annotation
+ 
+```{r}
+ggplot(
+    subset(files, !grepl("^[0-9]{1,2}", annotation)),
+  aes(y = median_shannon, x = median_avg_meth, color = location, shape = patient)
+) +
+  geom_point(size = 0.9, alpha = 0.2) +
+  scale_color_brewer(palette = "Set1") +
+  scale_shape_manual(values = 1:nlevels(files$patient)) +
+  facet_wrap(~annotation, ncol = 3, nrow = 5) +
+  labs(
+    x = "median avg. methylation",
+    y = "median Shannon entropy (H)"
+  ) +
+  guides(color = guide_legend(override.aes = list(size = 2))) +
+  theme_ng()
+```
+
+
+
+```{r}
+shannons <- files
+```
 
 # Meth-normalized Shannons (the yamet way) MEDIANS {.tabset .tabset-pills}
 
@@ -560,10 +745,7 @@ process_file <- function(filepath) {
 
 files <- bplapply(filepaths, process_file, BPPARAM = param) |> bind_rows()
 
-files$annotation <- factor(files$annotation)
-files$patient    <- factor(files$patient)
-files$location   <- factor(files$location,
-                           levels = c("NC", "PT", "LN", "ML", "MP", "MO"))
+files <- harmonize_levels(files)
 
 ```
 
@@ -604,6 +786,279 @@ ggplot(
   theme_ng() +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
 ```
+
+
+
+## Segmentations {.tabset .tabset-pills}
+
+### Scatters by location and annotation
+ 
+```{r}
+ggplot(
+    subset(files, grepl("^[0-9]{1,2}", annotation)),
+  aes(y = median_shannon, x = median_avg_meth, color = location, shape = patient)
+) +
+  geom_point(size = 0.9, alpha = 0.2) +
+  scale_color_brewer(palette = "Set1") +
+  scale_shape_manual(values = 1:nlevels(files$patient)) +
+  facet_wrap(~annotation, ncol = 3, nrow = 5) +
+  labs(
+    x = "median avg. methylation",
+    y = "median adj Shannon entropy (adjH)"
+  ) +
+  guides(color = guide_legend(override.aes = list(size = 2))) +
+  theme_ng()
+```
+
+
+## Nonsegmentations {.tabset .tabset-pills}
+
+### Scatters by location and annotation
+ 
+```{r}
+ggplot(
+    subset(files, !grepl("^[0-9]{1,2}", annotation)),
+  aes(y = median_shannon, x = median_avg_meth, color = location, shape = patient)
+) +
+  geom_point(size = 0.9, alpha = 0.2) +
+  scale_color_brewer(palette = "Set1") +
+  scale_shape_manual(values = 1:nlevels(files$patient)) +
+  facet_wrap(~annotation, ncol = 3, nrow = 5) +
+  labs(
+    x = "median avg. methylation",
+    y = "median adj Shannon entropy (adjH)"
+  ) +
+  guides(color = guide_legend(override.aes = list(size = 2))) +
+  theme_ng()
+```
+
+
+
+```{r}
+adjshannons <- files
+```
+
+# Attempt to assemble these all
+
+Being some medians across loci (for a group of cells), and others actually values per cell across loci (!)
+
+```{r}
+
+str(sampens)
+str(shannons)
+str(adjshannons)
+str(adjsampens)
+```
+
+
+```{r, fig.height = 10, fig.width = 5}
+
+library(dplyr)
+
+adj_df <- adjsampens %>%
+  left_join(adjshannons, 
+            by = c("annotation", "patient", "location"),
+            suffix = c("_sampen", "_shannon"))
+
+head(adj_df)
+ggplot(
+  adj_df,
+  aes(x = median_shannon, y = sampen,
+      color = location, shape = patient)
+) +
+  geom_point(size = 0.8) +
+  facet_wrap(~annotation, ncol = 4) +
+  labs(
+    x = "median adj Shannon entropy (adjH)",
+    y = "adj sample entropy (adjS)"
+  ) +
+  theme_ng()
+
+
+```
+
+
+```{r, fig.height = 10, fig.width = 5}
+df <- sampens %>%
+  left_join(shannons, 
+            by = c("annotation", "patient", "location"),
+            suffix = c("_sampen", "_shannon"))
+
+head(df)
+ggplot(
+    df,
+    aes(x = median_shannon, y = sampen,
+        color = location, shape = patient)
+) +
+    geom_point(size = 0.8) +
+    facet_wrap(~annotation, ncol = 4) +
+    labs(
+        x = "median Shannon entropy (H)",
+        y = "sample entropy (S)"
+    ) +
+    theme_ng()
+```
+
+```{r}
+variation <- adj_df %>%
+    group_by(annotation) %>%
+    summarise(
+        shannon_range = max(median_shannon, na.rm = TRUE) -
+            min(median_shannon, na.rm = TRUE),
+        sampen_range  = max(sampen, na.rm = TRUE) -
+            min(sampen, na.rm = TRUE),
+        shannon_sd = sd(median_shannon, na.rm = TRUE),
+        sampen_sd  = sd(sampen, na.rm = TRUE)
+    )
+
+ggplot(variation, aes(x = shannon_range, y = sampen_range, label = annotation)) +
+    geom_point() +
+    ggrepel::geom_text_repel() +
+    labs(
+        x = "adjH range across biopsy sites",
+        y = "adjS range across biopsy sites",
+        ) +
+  theme_ng()
+
+
+## same per location, 
+
+variation_loc <- adj_df %>%
+    group_by(annotation, location) %>%
+    summarise(
+        shannon_mean = mean(median_shannon, na.rm = TRUE),
+        sampen_mean  = mean(sampen, na.rm = TRUE)
+    ) %>%
+    ungroup()
+
+ggplot(variation_loc,
+       aes(x = shannon_mean, y = sampen_mean,
+           color = location)) +
+    geom_point() +
+    facet_wrap(~annotation) +
+    theme_ng()
+
+
+```
+
+
+```{r}
+## categorizing in shannon- or sample- driven
+
+variation <- variation %>%
+    mutate(
+        driver = case_when(
+            shannon_range >= sampen_range * 1.5 ~ "across cells heterogeneity-driven",
+            sampen_range  >= shannon_range * 1.5 ~ "within cells heterogeneity‑driven",
+            TRUE ~ "both"
+        )
+    )
+
+
+ggplot(variation, aes(x = shannon_range, y = sampen_range, color = driver, shape = driver, label = annotation)) +
+    geom_point(size = 3) +
+    ggrepel::geom_text_repel() +
+    labs(
+        x = "adjH range across biopsy sites",
+        y = "adjS range across biopsy sites",
+        ) +
+    theme_ng()
+
+
+```
+
+
+What about small changes? some of these don't change much in either adjS nor adjH, so we could label them accordingly. Why is this flaring for the SCNA things, if they were no changes?
+
+
+```{r}
+
+variation <- df %>%
+    group_by(annotation, patient) %>%
+    summarise(
+        shannon_sd = sd(median_shannon, na.rm = TRUE),
+        sampen_sd  = sd(sampen, na.rm = TRUE)
+    ) %>%
+    ungroup() %>%
+    group_by(annotation) %>%
+    summarise(
+        shannon_sd = mean(shannon_sd, na.rm = TRUE),
+        sampen_sd  = mean(sampen_sd, na.rm = TRUE)
+    )
+
+variation
+
+shannon_thr <- quantile(variation$shannon_sd, 0.3, na.rm = TRUE)
+sampen_thr  <- quantile(variation$sampen_sd, 0.3, na.rm = TRUE)
+
+variation <- variation %>%
+    mutate(
+        driver = case_when(
+            shannon_sd < shannon_thr & sampen_sd < sampen_thr ~ "not changing enough",
+            shannon_sd >= sampen_sd * 1.5 ~ "across cells heterogeneity-driven",
+            sampen_sd  >= shannon_sd * 1.5 ~ "within cells heterogeneity‑driven",
+            TRUE ~ "both"
+        )
+    )
+
+
+
+ggplot(variation,
+       aes(x = shannon_sd, y = sampen_sd,
+           color = driver, shape = driver, label = annotation)) +
+    geom_point(size = 3) +
+    ggrepel::geom_text_repel() +
+    labs(
+        x = "SD of adjH across biopsy sites (per patient, averaged)",
+        y = "SD of adjS across biopsy sites (per patient, averaged)"
+    ) +
+    theme_ng()
+
+
+```
+
+
+Hmm, this makes no sense, why the SCNA is there? would it make sense to plot the ranges instead?
+
+
+```{r}
+variation <- df %>%
+    group_by(annotation) %>%
+    summarise(
+        shannon_range = max(median_shannon, na.rm = TRUE) - min(median_shannon, na.rm = TRUE),
+        sampen_range  = max(sampen, na.rm = TRUE) - min(sampen, na.rm = TRUE)
+    )
+
+shannon_thr <- quantile(variation$shannon_range, 0.5, na.rm = TRUE)
+sampen_thr  <- quantile(variation$sampen_range, 0.5, na.rm = TRUE)
+
+variation <- variation %>%
+    mutate(
+        driver = case_when(
+            shannon_range < shannon_thr & sampen_range < sampen_thr ~ "not changing enough",
+            shannon_range >= sampen_range * 1.5 ~ "across cells heterogeneity-driven",
+            sampen_range  >= shannon_range * 1.5 ~ "within cells heterogeneity‑driven",
+            TRUE ~ "both"
+        )
+    )
+
+ggplot(variation,
+       aes(x = shannon_range, y = sampen_range,
+           color = driver, shape = driver, label = annotation)) +
+    geom_point(size = 3) +
+    ggrepel::geom_text_repel() +
+    labs(
+        x = "adjH range across biopsy sites",
+        y = "adjS range across biopsy sites"
+    ) +
+    theme_ng()
+
+
+
+```
+
+
+This might make sense, or not, but again it does more sense to do only in PT vs NC, and each metastasis vs PT separately, todo
 
 
 
