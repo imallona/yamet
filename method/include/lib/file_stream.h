@@ -31,7 +31,7 @@ private:
 
   enum class CompressionType { NONE, GZIP, ZSTD };
 
-  CompressionType detectCompression(const std::string &filename);
+  static CompressionType detectCompression(const std::string &filename);
 
 public:
   explicit FileStream(const std::string &filename, const unsigned int chunk_size);

@@ -14,7 +14,9 @@ jobs:
         uses: actions/checkout@v4
       - name: Installs
         run: |
-          sudo apt update && sudo apt install -y libboost-program-options-dev libboost-iostreams-dev
+          sudo apt update && sudo apt install -y libboost-iostreams-dev
+          wget https://launchpad.net/ubuntu/+archive/primary/+files/libcli11-dev_2.6.1+ds-1_all.deb
+          sudo dpkg -i libcli11-dev_2.6.1+ds-1_all.deb
       - name: Build
         run: |
           cd method
@@ -23,11 +25,11 @@ jobs:
         run: |
           cd test
           ../method/build/yamet \
-              test_parse/in/simulations.tsv \
+              -c test_parse/in/simulations.tsv \
               -r test_parse/in/reference.tsv \
               -i test_parse/in/regions.bed \
               --print-reference \
-              --print-sampens F &> current_test_parse.stdout
+              --no-print-sampens &> current_test_parse.stdout
 
           echo 'Diff expected vs produced stdout'
 
@@ -38,14 +40,14 @@ jobs:
         run: |
           cd test
           ../method/build/yamet \
-              test_avg/in/simulations.*.tsv \
+              -c test_avg/in/simulations.*.tsv \
               -r test_avg/in/reference.tsv \
               -i test_avg/in/regions.bed \
               --meth-out current_test_avg.out \
               --cores 1 &> current_test_avg.stdout
 
           ../method/build/yamet \
-              test_avg/in/simulations.*.tsv \
+              -c test_avg/in/simulations.*.tsv \
               -r test_avg/in/reference.tsv \
               -i test_avg/in/regions.bed \
               --meth-out current_test_avg_all_meth.out \
@@ -72,7 +74,7 @@ jobs:
         run: |
           cd test
           ../method/build/yamet \
-              test_avg/in/simulations.*.tsv \
+              -c test_avg/in/simulations.*.tsv \
               -r test_avg/in/reference.tsv \
               -i test_avg/in/regions.bed \
               --meth-out current_test_avg.out &> current_test_avg.stdout
@@ -91,17 +93,17 @@ jobs:
         run: |
           cd test
           ../method/build/yamet \
-              test_0/in/cell1.bed.gz \
+              -c test_0/in/cell1.bed.gz \
               -r test_0/in/ref.bed.gz \
               -i test_0/in/regions.bed \
-              --print-sampens F \
+              --no-print-sampens \
               --det-out current_test_0.out
 
           ../method/build/yamet \
-              test_0/in/cell1.bed.gz \
+              -c test_0/in/cell1.bed.gz \
               -r test_0/in/ref.bed.gz \
               -i test_0/in/regions.bed \
-              --print-sampens F \
+              --no-print-sampens \
               --det-out current_test_0_all_meth.out \
               --all-meth
 
@@ -117,13 +119,13 @@ jobs:
         run: |
           cd test
           ../method/build/yamet \
-              test_1/in/simulations.tsv \
+              -c test_1/in/simulations.tsv \
               -r test_1/in/reference.tsv \
               -i test_1/in/regions.bed \
               --det-out current_test_1.out &> current_test_1.stdout
 
           ../method/build/yamet \
-              test_1/in/simulations.tsv \
+              -c test_1/in/simulations.tsv \
               -r test_1/in/reference.tsv \
               -i test_1/in/regions.bed \
               --det-out current_test_1_all_meth.out \
@@ -149,14 +151,14 @@ jobs:
         run: |
           cd test
           ../method/build/yamet \
-              test_normalization/in/simulations.tsv \
+              -c test_normalization/in/simulations.tsv \
               -r test_normalization/in/reference.tsv \
               -i test_normalization/in/regions.bed \
               --out current_test_normalization.out \
               --norm-det-out current_test_normalization.norm.out
 
           ../method/build/yamet \
-              test_normalization/in/simulations.tsv \
+              -c test_normalization/in/simulations.tsv \
               -r test_normalization/in/reference.tsv \
               -i test_normalization/in/regions.bed \
               --out current_test_normalization_all_meth.out \
@@ -178,3 +180,28 @@ jobs:
 
           diff test_normalization/out/detailed_all_meth.out \
               current_test_normalization_all_meth.norm.out
+      - name: Test metadata format
+        if: always()
+        run: |
+          cd test
+          ../method/build/yamet \
+              --metadata test_cluster/in/metadata.tsv \
+              -r test_cluster/in/reference.tsv \
+              -i test_cluster/in/annotation.tsv \
+              --det-out current_test_metadata.det.out \
+              --out current_test_metadata.out &> current_test_metadata.stdout
+
+          echo 'Diff expected vs produced detailed output'
+
+          diff test_cluster/out/det.out \
+              current_test_metadata.det.out
+
+          echo 'Diff expected vs produced output'
+
+          diff test_cluster/out/out \
+              current_test_metadata.out
+
+          echo 'Diff expected vs produced stdout'
+
+          diff test_cluster/out/stdout \
+              current_test_metadata.stdout

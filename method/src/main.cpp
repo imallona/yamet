@@ -3,46 +3,53 @@
 #include <vector>
 
 #include "align.h"
-#include "boost.h"
 #include "chrData.h"
+#include "cli_config.h"
 #include "file_classes.h"
 
 int main(int argc, char **argv) {
   try {
-    auto vm = parseCommandLine(argc, argv);
-
-    std::vector<std::string> filenames = getCellFiles(vm);
+    CLIConfig config = parseCommandLine(argc, argv);
 
     Intervals intervals =
-        parseSearch(getIntervals(vm), getSkipHeaderIntervals(vm), getChunkSize(vm));
-    if (vm.count("print-intervals")) {
-      intervals.print();
+        parseSearch(config.intervals, config.skip_header_intervals, config.chunk_size);
+    if (config.print_intervals) {
+      intervals.print(std::cout);
     }
 
-    Reference ref = parseRef(getRef(vm), intervals, getSkipHeaderReference(vm), getChunkSize(vm));
-    if (vm.count("print-reference")) {
-      ref.print();
+    Reference ref =
+        parseRef(config.reference, intervals, config.skip_header_reference, config.chunk_size);
+    if (config.print_reference) {
+      ref.print(std::cout);
     }
 
-    ParsedInfo parsedInfo = alignWithRef(filenames, ref, 2, allMeth(vm), getSkipHeaderCell(vm),
-                                         getCores(vm), getChunkSize(vm));
+    FilesMeta filesMeta;
+    if (!config.metadata.empty()) {
+      filesMeta = parseMeta(config.metadata, config.skip_header_metadata, config.chunk_size);
+    } else if (!config.cell_files.empty()) {
+      filesMeta = parseNestVec(config.cell_files);
+    }
 
-    if (printSampens(vm) || vm.count("det-out") || vm.count("meth-out") || vm.count("out")) {
+    ParsedInfo parsedInfo = alignWithRef(filesMeta, ref, 2, config.all_meth,
+                                         config.skip_header_cell, config.cores, config.chunk_size);
+
+    if (config.print_sampens || !config.det_out.empty() || !config.meth_out.empty() ||
+        !config.out.empty()) {
       parsedInfo.aggregate();
-      if (printSampens(vm)) {
-        parsedInfo.print(filenames);
+      if (config.print_sampens) {
+        parsedInfo.print(std::cout);
       }
-      if (vm.count("det-out")) {
-        parsedInfo.exportDetOut(getDetOut(vm), filenames, intervals);
+      if (!config.det_out.empty()) {
+        parsedInfo.exportDetOut(config.det_out, intervals);
       }
-      if (vm.count("norm-det-out")) {
-        parsedInfo.exportNormDetOut(getNormDetOut(vm), filenames, intervals);
+      if (!config.norm_det_out.empty()) {
+        parsedInfo.exportNormDetOut(config.norm_det_out, intervals);
       }
-      if (vm.count("meth-out")) {
-        parsedInfo.exportMethOut(getMethOut(vm), filenames, intervals);
+      if (!config.meth_out.empty()) {
+        parsedInfo.exportMethOut(config.meth_out, intervals);
       }
-      if (vm.count("out")) {
-        parsedInfo.exportOut(getOut(vm), filenames);
+      if (!config.out.empty()) {
+        parsedInfo.exportOut(config.out);
       }
     }
 

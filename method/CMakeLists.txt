@@ -2,7 +2,7 @@
 cmake_minimum_required(VERSION 3.30)
 
 # Project name and version
-project(yamet VERSION 0.0.0 LANGUAGES CXX)
+project(yamet VERSION 0.0.0 DESCRIPTION "a scalable DNA methylation entropy tool" LANGUAGES CXX)
 
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 17)
@@ -35,7 +35,8 @@ else()
 endif()
 
 # Set up dependencies
-find_package(Boost REQUIRED COMPONENTS program_options iostreams)
+find_package(Boost REQUIRED COMPONENTS iostreams)
+find_package(CLI11 REQUIRED)
 find_package(Threads REQUIRED)
 
 # set RPATH for executable
@@ -51,7 +52,7 @@ endif()
 
 # Library source file paths
 file(GLOB LIB_SOURCES src/*.cpp)
-list(FILTER LIB_SOURCES EXCLUDE REGEX "src/main.cpp|src/boost.cpp")
+list(FILTER LIB_SOURCES EXCLUDE REGEX "src/main.cpp|src/cli_config.cpp")
 
 # Define the library target
 add_library(${PROJECT_NAME}_static STATIC ${LIB_SOURCES})
@@ -81,10 +82,10 @@ target_include_directories(${PROJECT_NAME}_shared PUBLIC
 # ===============================
 
 # Define the executable target
-add_executable(${PROJECT_NAME} src/main.cpp src/boost.cpp)
+add_executable(${PROJECT_NAME} src/main.cpp src/cli_config.cpp)
 
-# Link library and Boost program options to executable
-target_link_libraries(${PROJECT_NAME} PRIVATE ${PROJECT_NAME}_shared Boost::program_options)
+# Link library and CLI11 to executable
+target_link_libraries(${PROJECT_NAME} PRIVATE ${PROJECT_NAME}_shared CLI11::CLI11)
 
 # Link include directories for headers to executable target
 target_include_directories(${PROJECT_NAME} PUBLIC
@@ -165,7 +166,7 @@ set(CPACK_PACKAGE_HOMEPAGE_URL https://github.com/imallona/yamet)
 set(CPACK_PACKAGE_LICENSE GPL-3.0-only)
 
 # Debian-specific metadata
-set(CPACK_DEBIAN_PACKAGE_DEPENDS "libboost-program-options-dev (>= 1.83.0), libboost-iostreams-dev (>= 1.83.0)")
+set(CPACK_DEBIAN_PACKAGE_DEPENDS "libcli11-dev (>= 2.6.0), libboost-iostreams-dev (>= 1.83.0)")
 set(CPACK_DEBIAN_PACKAGE_SECTION "utils")
 set(CPACK_DEBIAN_ARCHITECTURE ${CMAKE_SYSTEM_PROCESSOR})
 
