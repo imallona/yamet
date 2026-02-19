@@ -53,7 +53,6 @@ saveRDS(file = 'snmk_object_features.rds', object = snakemake)
 ## setwd('../..')
 ```
 
-
 ```{r logging, include = FALSE}
 log <- file(snakemake@log$log, open = "wt")
 sink(log)
@@ -133,28 +132,82 @@ files <- do.call(rbind, bplapply(filepaths, process_file, BPPARAM = param))
 
 ## head(files)
 
-harmonize_levels <- function(df) {
+## harmonize_levels <- function(df) {
 
-  df$annotation <- factor(
-      df$annotation,
-      levels = c(
-          "0_Enhancer", "1_Transcribed", "2_Enhancer", "3_Quiescent",
-          "4_Transcribed", "5_RegPermissive", "6_LowConfidence",
-          "7_RegPermissive", "8_Quiescent", "9_ConstitutiveHet",
-          "10_Quiescent", "11_Promoter", "12_Promoter", "13_ConstitutiveHet",
-          "cpgIslandExt", "H3K4me3", "genes", "H3K27me3", "H3K9me3",
-          "laminb1", "pmds", "lines", "sines", "hmds",
-          "crc01_lost_scna", "crc01_nc_scna", "crc01_gain_scna"
+##   df$annotation <- factor(
+##       df$annotation,
+##       levels = c(
+##           "0_Enhancer", "1_Transcribed", "2_Enhancer", "3_Quiescent",
+##           "4_Transcribed", "5_RegPermissive", "6_LowConfidence",
+##           "7_RegPermissive", "8_Quiescent", "9_ConstitutiveHet",
+##           "10_Quiescent", "11_Promoter", "12_Promoter", "13_ConstitutiveHet",
+##           "cpgIslandExt", "H3K4me3", "genes", "H3K27me3", "H3K9me3",
+##           "laminb1", "pmds", "lines", "sines", "hmds",
+##           "crc01_lost_scna", "crc01_nc_scna", "crc01_gain_scna"
+##     )
+##   )
+
+##   df$patient <- as.factor(df$patient)
+##   df$location <- factor(df$location, levels = c("NC", "PT", "LN", "ML", "MP", "MO"))
+
+##   return(df)
+## }
+
+
+## prettifies and sorts categorical vars
+harmonize_levels <- function(df) { 
+    pretty_hmm <- c(
+        "0_Enhancer"        = "0 Enh.",
+        "1_Transcribed"     = "1 Transc. ",
+        "2_Enhancer"        = "2 Enh.",
+        "3_Quiescent"       = "3 Quies.",
+        "4_Transcribed"     = "4 Transc.",
+        "5_RegPermissive"   = "5 Reg. perm.",
+        "6_LowConfidence"   = "6 Low conf.",
+        "7_RegPermissive"   = "7 Reg. perm.",
+        "8_Quiescent"       = "8 Quies.",
+        "9_ConstitutiveHet" = "9 Cons. het.",
+        "10_Quiescent"      = "10 Quies.",
+        "11_Promoter"       = "11 Prom.",
+        "12_Promoter"       = "12 Prom.",
+        "13_ConstitutiveHet"= "13 Cons. het"
     )
-  )
 
-  df$patient <- as.factor(df$patient)
-  df$location <- factor(df$location, levels = c("NC", "PT", "LN", "ML", "MP", "MO"))
+    pretty_other <- c(
+        "cpgIslandExt"      = "CpGi",
+        "H3K4me3"           = "H3K4me3",
+        "genes"             = "Genes",
+        "H3K27me3"          = "H3K27me3",
+        "H3K9me3"           = "H3K9me3",
+        "laminb1"           = "Lamin B1",
+        "pmds"              = "PMDs",
+        "lines"             = "LINEs",
+        "sines"             = "SINEs",
+        "hmds"              = "HMDs",
+        "crc01_lost_scna"   = "SCNA loss",
+        "crc01_nc_scna"     = "SCNA neutral",
+        "crc01_gain_scna"   = "SCNA gain")
 
-  return(df)
+    all_levels <- c(pretty_hmm, pretty_other)
+
+    missing <- setdiff(unique(df$annotation), names(all_levels))
+    if (length(missing) > 0) {
+        stop(missing)
+    }
+    
+
+  df$annotation <- factor(df$annotation,
+                          levels = names(all_levels),
+                          labels = unname(all_levels))
+
+  df$patient  <- as.factor(df$patient)
+  df$location <- factor(df$location, levels = c("NC","PT","LN","ML","MP","MO"))
+
+  df
 }
 
 files <- harmonize_levels(files)
+table(files$annotation, useNA = 'always')
 
 ```
 
@@ -362,7 +415,7 @@ ggplot(ranges, aes(color = location)) +
 sampens <- files
 ```
 
-# After normalization - same plots (the yamet-way) {.tabset .tabset-pills}
+# With adjS meth-norm sampen {.tabset .tabset-pills}
 
 That is, not by locus but by cell norm sampEns (that are calculated according to some regionset anyway)
 
@@ -851,7 +904,7 @@ str(adjsampens)
 ```
 
 
-```{r, fig.height = 10, fig.width = 5}
+```{r, fig.height = 12, fig.width = 6}
 
 library(dplyr)
 
@@ -862,23 +915,23 @@ adj_df <- adjsampens %>%
 
 head(adj_df)
 ggplot(
-  adj_df,
-  aes(x = median_shannon, y = sampen,
-      color = location, shape = patient)
+    adj_df,
+    aes(x = median_shannon, y = sampen,
+        color = location, shape = patient)
 ) +
-  geom_point(size = 0.8) +
-  facet_wrap(~annotation, ncol = 4) +
-  labs(
-    x = "median adj Shannon entropy (adjH)",
-    y = "adj sample entropy (adjS)"
-  ) +
+    scale_shape_manual(values = 1:nlevels(adj_df$patient)) +
+    geom_point(size = 0.8) +
+    facet_wrap(~annotation, ncol = 4) +
+    labs(
+        x = "median adj Shannon entropy (adjH)",
+        y = "adj sample entropy (adjS)"
+    ) +
   theme_ng()
-
 
 ```
 
 
-```{r, fig.height = 10, fig.width = 5}
+```{r, fig.height = 12, fig.width = 6}
 df <- sampens %>%
   left_join(shannons, 
             by = c("annotation", "patient", "location"),
@@ -891,6 +944,7 @@ ggplot(
         color = location, shape = patient)
 ) +
     geom_point(size = 0.8) +
+     scale_shape_manual(values = 1:nlevels(df$patient)) +
     facet_wrap(~annotation, ncol = 4) +
     labs(
         x = "median Shannon entropy (H)",
@@ -911,36 +965,81 @@ variation <- adj_df %>%
         sampen_sd  = sd(sampen, na.rm = TRUE)
     )
 
+head(variation)
+
 ggplot(variation, aes(x = shannon_range, y = sampen_range, label = annotation)) +
     geom_point() +
     ggrepel::geom_text_repel() +
     labs(
-        x = "adjH range across biopsy sites",
-        y = "adjS range across biopsy sites",
+        x = "adjH range aggregating all biopsy sites",
+        y = "adjS range aggregating all biopsy sites",
         ) +
   theme_ng()
 
 
 ## same per location, 
 
+## variation_loc <- adj_df %>%
+##     group_by(annotation, location) %>%
+##     summarise(
+##         shannon_median = median(median_shannon, na.rm = TRUE),
+##         sampen_median  = median(sampen, na.rm = TRUE)
+##     ) %>%
+##     ungroup()
+
 variation_loc <- adj_df %>%
     group_by(annotation, location) %>%
     summarise(
-        shannon_mean = mean(median_shannon, na.rm = TRUE),
-        sampen_mean  = mean(sampen, na.rm = TRUE)
+        shannon_median = median(median_shannon, na.rm = TRUE),
+        sampen_median  = median(sampen, na.rm = TRUE),
+        shannon_sd = sd(median_shannon, na.rm = TRUE),
+        sampen_sd  = sd(sampen, na.rm = TRUE),
+        shannon_range = max(median_shannon, na.rm = TRUE) -
+            min(median_shannon, na.rm = TRUE),
+        sampen_range  = max(sampen, na.rm = TRUE) -
+            min(sampen, na.rm = TRUE)
     ) %>%
     ungroup()
 
 ggplot(variation_loc,
-       aes(x = shannon_mean, y = sampen_mean,
+       aes(x = shannon_median, y = sampen_median,
            color = location)) +
     geom_point() +
     facet_wrap(~annotation) +
-    theme_ng()
+    theme_ng() +
+    labs(
+         x = "median adjH across biopsy sites",
+         y = "median adjS across biopsy sites")
+
+ggplot(variation_loc,
+       aes(x = shannon_sd, y = sampen_sd,
+           color = location)) +
+    geom_point() +
+    facet_wrap(~annotation) +
+    theme_ng() +
+    labs(
+         x = "sd adjH across biopsy sites",
+         y = "sd adjS across biopsy sites")
+
+
+ggplot(variation_loc,
+       aes(x = shannon_range, y = sampen_range,
+           color = location)) +
+    geom_point() +
+    facet_wrap(~annotation) +
+    theme_ng() +
+    labs(
+         x = "adjH range across biopsy sites",
+         y = "adjS range across biopsy sites")
 
 
 ```
 
+
+Clustering the behaviours/drivers, according to the sample entropy vs shannon entropy ratio (can we standardize this somehow)? or shall we quantilize in low, high etc? Or, rather, quantilize and categorize by the within-het or across-het prevalence
+
+
+Categorizing the drivers - this is ongoing and not final
 
 ```{r}
 ## categorizing in shannon- or sample- driven
@@ -950,10 +1049,7 @@ variation <- variation %>%
         driver = case_when(
             shannon_range >= sampen_range * 1.5 ~ "across cells heterogeneity-driven",
             sampen_range  >= shannon_range * 1.5 ~ "within cells heterogeneity‑driven",
-            TRUE ~ "both"
-        )
-    )
-
+            TRUE ~ "both"))
 
 ggplot(variation, aes(x = shannon_range, y = sampen_range, color = driver, shape = driver, label = annotation)) +
     geom_point(size = 3) +
@@ -967,31 +1063,26 @@ ggplot(variation, aes(x = shannon_range, y = sampen_range, color = driver, shape
 
 ```
 
-
 What about small changes? some of these don't change much in either adjS nor adjH, so we could label them accordingly. Why is this flaring for the SCNA things, if they were no changes?
 
 
-```{r}
+Caution this actually makes no sense
 
-variation <- df %>%
-    group_by(annotation, patient) %>%
+```{r}
+## this actually makes no sense
+sds <- df %>%
+    group_by(annotation) %>%
     summarise(
         shannon_sd = sd(median_shannon, na.rm = TRUE),
         sampen_sd  = sd(sampen, na.rm = TRUE)
-    ) %>%
-    ungroup() %>%
-    group_by(annotation) %>%
-    summarise(
-        shannon_sd = mean(shannon_sd, na.rm = TRUE),
-        sampen_sd  = mean(sampen_sd, na.rm = TRUE)
     )
 
-variation
+sds
 
-shannon_thr <- quantile(variation$shannon_sd, 0.3, na.rm = TRUE)
-sampen_thr  <- quantile(variation$sampen_sd, 0.3, na.rm = TRUE)
+shannon_thr <- quantile(sds$shannon_sd, 0.3, na.rm = TRUE)
+sampen_thr  <- quantile(sds$sampen_sd, 0.3, na.rm = TRUE)
 
-variation <- variation %>%
+sds <- sds %>%
     mutate(
         driver = case_when(
             shannon_sd < shannon_thr & sampen_sd < sampen_thr ~ "not changing enough",
@@ -1001,16 +1092,16 @@ variation <- variation %>%
         )
     )
 
+table(sds$driver)
 
-
-ggplot(variation,
+ggplot(sds,
        aes(x = shannon_sd, y = sampen_sd,
            color = driver, shape = driver, label = annotation)) +
     geom_point(size = 3) +
     ggrepel::geom_text_repel() +
     labs(
-        x = "SD of adjH across biopsy sites (per patient, averaged)",
-        y = "SD of adjS across biopsy sites (per patient, averaged)"
+        x = "SD of adjH across biopsy sites",
+        y = "SD of adjS across biopsy sites"
     ) +
     theme_ng()
 
@@ -1022,7 +1113,7 @@ Hmm, this makes no sense, why the SCNA is there? would it make sense to plot the
 
 
 ```{r}
-variation <- df %>%
+variation <- adj_df %>%
     group_by(annotation) %>%
     summarise(
         shannon_range = max(median_shannon, na.rm = TRUE) - min(median_shannon, na.rm = TRUE),
@@ -1042,6 +1133,7 @@ variation <- variation %>%
         )
     )
 
+table(variation$driver)
 ggplot(variation,
        aes(x = shannon_range, y = sampen_range,
            color = driver, shape = driver, label = annotation)) +
