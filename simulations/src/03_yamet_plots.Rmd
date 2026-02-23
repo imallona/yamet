@@ -1,7 +1,7 @@
 ---
-title: "Yamet Plots"
-author: "Atreya Choudhury"
+title: "Normalization, Emanuel's simuls"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
+author: "Atreya, Emanuel, Izaskun"
 params: 
   yamet_dir:
 output:
@@ -36,10 +36,12 @@ knitr::opts_chunk$set(
 Firstly, we import the different yamet output files.
 
 ```{r, import}
+##data.dir <- '../output/yamet/out/'
 data.dir <- file.path("..", params$yamet_dir)
 data.paths <- list.files(data.dir, pattern = "\\.tsv$", full.names = TRUE)
 data.list <- lapply(data.paths, fread)
 data <- rbindlist(data.list)
+str(data)
 ```
 
 Then, we parse the different elements from the filenames and turn the appropriate columns into factors.
@@ -60,10 +62,10 @@ data$coverage <- factor(data$coverage, levels = c("low", "lowReal", "real", "med
     "high", "complete"))
 data$type <- factor(data$type, levels = c('nb', 'rand'))
 data$tr <- factor(data$tr, levels = c('lmr', 'imrCons', 'imrRand', 'hmr'))
-## print(head(data))
+print(head(data))
 ```
 
-Plot the data
+Unadjusted sample entropy
 
 ```{r, plots, fig.width = 7, fig.height = 7}
 unique.types <- unique(data$type)
@@ -72,14 +74,84 @@ plots.list <- list()
 for (unique.type in unique.types) {
   p <- ggplot(data[type == unique.type], aes(x = avg_meth, y = sampen, color = tr)) +
     geom_point(alpha = 0.7) +
-    facet_grid(ncpgs ~ coverage) +
+    ## facet_grid(ncpgs ~ coverage) +
+      facet_grid(
+         ncpgs ~ coverage,
+          labeller = labeller(
+              ncpgs   = function(x) paste("# CpGs:", x),
+              coverage = function(x) paste("cov.:", x))) +
     theme_minimal() +
     labs(
       title = paste("Sample Entropy in different TR settings for type", unique.type),
       x = "avg. methylation", y = "sample entropy", color = "TR"
     ) +
-      theme_ng_discrete()
+      theme_ng_discrete() +
+      theme( axis.text.x = element_text(angle = 45, hjust = 1))
+
   plots.list[[unique.type]] <- p
 }
 print(plots.list)
+```
+
+
+Adj sample entropy
+
+```{r, norm_plots, fig.width = 7, fig.height = 7}
+unique.types <- unique(data$type)
+plots.list <- list()
+
+for (unique.type in unique.types) {
+  p <- ggplot(data[type == unique.type], aes(x = avg_meth, y = sampen_norm, color = tr)) +
+    geom_point(alpha = 0.7) +
+    ## facet_grid(ncpgs ~ coverage) +
+      facet_grid(
+         ncpgs ~ coverage,
+          labeller = labeller(
+              ncpgs   = function(x) paste("# CpGs:", x),
+              coverage = function(x) paste("cov.:", x))) +
+    theme_minimal() +
+    labs(
+      title = paste("Adjusted Sample Entropy in different TR settings for type", unique.type),
+      x = "avg. methylation", y = "adj sample entropy (adjS)", color = "TR"
+    ) +
+      theme_ng_discrete() +
+      theme( axis.text.x = element_text(angle = 45, hjust = 1))
+  
+  plots.list[[unique.type]] <- p
+}
+print(plots.list)
+```
+
+Plus some pairwise plots
+
+```{r pairwise_norm, fig.width = 7, fig.height = 7}
+unique.types <- unique(data$type)
+plots.list <- list()
+
+for (unique.type in unique.types) {
+  p <- ggplot(data[type == unique.type],
+              aes(x = sampen, y = sampen_norm, color = tr)) +
+    geom_point(alpha = 0.7) +
+    ## facet_grid(ncpgs ~ coverage) +
+      facet_grid(
+         ncpgs ~ coverage,
+          labeller = labeller(
+              ncpgs   = function(x) paste("# CpGs:", x),
+              coverage = function(x) paste("cov.:", x))) +
+    labs(
+      title = paste("Sample Entropy vs Adjusted Sample Entropy for type", unique.type),
+      x = "sample entropy (S)",
+      y = "adj. sample entropy (adjS)",
+      color = "TR"
+    ) +
+    theme_ng_discrete() +
+    theme( axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+  
+  plots.list[[unique.type]] <- p
+}
+
+print(plots.list)
+
 ```

@@ -1,6 +1,6 @@
 ---
-title: "Feature Differences in different TR settings"
-author: "Atreya Choudhury"
+title: "Emanuel's simulations H vs S, and adjusted"
+author: "Atreya Choudhury, Emanuel, Izaskun"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output:
   bookdown::html_document2:
@@ -19,14 +19,15 @@ source('src/ggtheme.R')
 knitr::opts_chunk$set(
     echo = FALSE,
     message = FALSE,
-    warning = FALSE,
+    warning = TRUE,
+    cache = FALSE,
     fig.path = "../output/04_plots/",
     dev = c("png", "svg"),
     dpi=500
 )
 ```
 
-```{r}
+```{r, fig.width = 5, fig.height = 5}
 N <- snakemake@params[["N"]]
 f <- snakemake@params[["f"]]
 data_dir <- dirname(snakemake@input[["det_out"]])
@@ -77,23 +78,120 @@ ggplot(all.long, aes(x = meth, y = sampen, color = type)) +
   geom_point(alpha = 0.7) +
   theme_minimal() +
   labs(
-    title = "Sample Entropy in different TR settings",
-    x = "avg. methylation", y = "sample entropy", color = "TR"
+    ## title = "Sample Entropy in different TR settings",
+    x = "avg. methylation", y = "sample entropy (S)", color = "TR"
   ) + theme_ng() + scale_color_viridis_d()
 
 ggplot(jnt, aes(x = avg_meth, y = shannon, color = type)) +
   geom_point(alpha = 0.7) +
   theme_minimal() +
   labs(
-    title = "Shannon Entropy in different TR settings (per cell)",
-    x = "avg. methylation", y = "Shannon entropy", color = "TR"
+    ## title = "Shannon Entropy in different TR settings (per cell)",
+    x = "avg. methylation", y = "Shannon entropy (H)", color = "TR"
   ) + theme_ng() + scale_color_viridis_d()
 
 ggplot(all.long, aes(x = shannon, y = sampen, color = type)) +
   geom_point(alpha = 0.7) +
   theme_minimal() +
   labs(
-    title = "Sample Entropy in different TR settings",
-    x = "Shannon entropy", y = "sample entropy", color = "TR"
+    ## title = "Sample Entropy in different TR settings",
+    x = "Shannon entropy", y = "sample entropy (S)", color = "TR"
+  ) + theme_ng() + scale_color_viridis_d()
+```
+
+Same but for normalized entropies (make sure these are norm entropies!)
+
+
+```{r, fig.width = 5, fig.height = 5}
+N <- snakemake@params[["N"]]
+f <- snakemake@params[["f"]]
+data_dir <- dirname(snakemake@input[["norm_det_out"]])
+intervals <- read.table(
+  paste(data_dir, "/intervals.", N, ".", f, ".tsv", sep = ""),
+  col.names = c("chr2", "start2", "end2", "type", "prob.0"),
+  header = F
+)
+
+sampens <- read.table(
+  snakemake@input[["norm_det_out"]],
+  header = T
+)
+
+
+
+
+
+jnt <- cbind(sampens, intervals)
+output_cols <- grep("^output", colnames(jnt), value = TRUE)
+jnt.long <- do.call(rbind, lapply(output_cols, function(col) {
+  data.frame(
+    start = jnt$start,
+    end = jnt$end,
+    sample = col,
+    adj_sampen = jnt[[col]],
+    norm_shannon = jnt$shannon_norm,
+    avg_meth = jnt$avg_meth,
+    type = jnt$type
+  )
+}))
+
+## str(jnt.long)
+## knitr::knit_exit()
+
+
+## head(jnt.long)
+
+meth <- read.table(
+  paste(data_dir, "/yamet.", N, ".", f, ".meth.out", sep = ""),
+  header = TRUE
+)
+meth.long <- do.call(rbind, lapply(output_cols, function(col) {
+  data.frame(
+    meth = meth[[col]]
+  )
+}))
+
+## head(meth.long)
+
+
+all.long <- cbind(jnt.long, meth.long)
+
+print(str(all.long))
+
+## all.long$coverage <- factor(all.long$coverage, levels = c("low", "lowReal", "real", "medium",
+    ## "high", "complete"))
+all.long$type <- factor(all.long$type, levels = c('lmr', 'imrCons', 'imrRand', 'hmr'))
+
+## head(all.long)
+## head(jnt)
+
+
+```
+
+
+```{r, fig.width = 5, fig.height = 5}
+
+ggplot(all.long, aes(x = avg_meth, y = adj_sampen, color = type)) +
+  geom_point(alpha = 0.7) +
+  theme_minimal() +
+  labs(
+    ## title = "adj Sample Entropy in different TR settings",
+    x = "avg. methylation", y = "adj. sample entropy (adjS)", color = "TR"
+  ) + theme_ng() + scale_color_viridis_d()
+
+ggplot(jnt, aes(x = avg_meth, y = shannon_norm, color = type)) +
+  geom_point(alpha = 0.7) +
+  theme_minimal() +
+  labs(
+    ## title = "adj Shannon Entropy in different TR settings (per cell)",
+    x = "avg. methylation", y = "adj. Shannon entropy (adjH)", color = "TR"
+  ) + theme_ng() + scale_color_viridis_d()
+
+ggplot(all.long, aes(x = norm_shannon, y = adj_sampen, color = type)) +
+  geom_point(alpha = 0.7) +
+  theme_minimal() +
+  labs(
+    ## title = "Sample Entropy in different TR settings",
+    x = "adj Shannon entropy (adjH)", y = "adj. sample entropy (adjS)", color = "TR"
   ) + theme_ng() + scale_color_viridis_d()
 ```

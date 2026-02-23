@@ -207,11 +207,12 @@ rule run_yamet:
                         --reference {input.sim_data}/cpgPositions_${{ncpg}}.tsv \
                         --intervals {input.bed} \
                         --out {output.out}/${{ncpg}}.tsv \
+                        --norm-det-out {output.out}/${{ncpg}}.det_norm \
+                        --det-out {output.out}/${{ncpg}}.det \
                         --cores {threads} \
                         --print-sampens F
           done
         """
-
 
 rule visualize_yamet_results:
     conda:
@@ -282,6 +283,7 @@ rule feat_diff_yamet:
         yamet=op.join("build", "yamet"),
     output:
         det_out="output/feat_diff/yamet.{N}.{f}.det.out",
+        norm_det_out="output/feat_diff/yamet.{N}.{f}.norm.det.out",
     params:
         data="output/feat_diff",
     threads: 3
@@ -291,6 +293,7 @@ rule feat_diff_yamet:
                         --reference {params.data}/ref.{wildcards.N}.{wildcards.f}.tsv \
                         --intervals {params.data}/intervals.{wildcards.N}.{wildcards.f}.tsv \
                         --det-out {output.det_out} \
+                        --norm-det-out {output.norm_det_out} \
                         --meth-out {params.data}/yamet.{wildcards.N}.{wildcards.f}.meth.out \
                         --cores {threads} \
                         --print-sampens F
@@ -302,6 +305,7 @@ rule feat_diff_plots:
         "envs/r_plot.yaml"
     input:
         det_out="output/feat_diff/yamet.500.200.det.out",
+        norm_det_out="output/feat_diff/yamet.500.200.norm.det.out"
     params:
         N=lambda wildcards, input: input.det_out.split(".")[1],
         f=lambda wildcards, input: input.det_out.split(".")[2],

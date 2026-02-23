@@ -903,6 +903,16 @@ str(adjshannons)
 str(adjsampens)
 ```
 
+```{r save_for_emanuel}
+saveRDS( list( sampens = sampens,
+              shannons = shannons,
+              adjshannons = adjshannons,
+              adjsampens = adjsampens),
+        file = "emanuel.rds")
+
+```
+
+
 
 ```{r, fig.height = 12, fig.width = 6}
 
@@ -1151,6 +1161,7 @@ ggplot(variation,
 
 
 This might make sense, or not, but again it does more sense to do only in PT vs NC, and each metastasis vs PT separately, todo
+
 
 
 
