@@ -24,7 +24,16 @@ rule all:
         "output/06_between_cell.html"
         #"output/figures/simulations_emanuel.html"
 
-
+rule install_yamet:
+    conda:
+        "envs/yamet.yaml"
+    output:
+        op.join("build", "yamet"),
+    shell:
+        """
+          bash ../method/build.sh
+        """
+        
 # every row in the parameter file is a parameterization of one simulation
 rule check_required_data:
     input:
@@ -137,17 +146,6 @@ rule visualize_coverage:
 #                                         params=list(sim_data_dir="{input.sim_data_dir}"))'
 #         """
 
-
-rule install_yamet:
-    conda:
-        "envs/yamet.yaml"
-    output:
-        op.join("build", "yamet"),
-    shell:
-        """
-          bash ../method/build.sh
-        """
-
 def write_sim_interval_bed(parameters_path, file_path, chrom="chrSim", start=1):
     """
     Writes a tab-separated file with a single line: chrom<tab>start<tab>end.
@@ -210,7 +208,7 @@ rule run_yamet:
                         --norm-det-out {output.out}/${{ncpg}}.det_norm \
                         --det-out {output.out}/${{ncpg}}.det \
                         --cores {threads} \
-                        --print-sampens F
+                        --no-print-sampens
           done
         """
 
@@ -296,7 +294,7 @@ rule feat_diff_yamet:
                         --norm-det-out {output.norm_det_out} \
                         --meth-out {params.data}/yamet.{wildcards.N}.{wildcards.f}.meth.out \
                         --cores {threads} \
-                        --print-sampens F
+                        --no-print-sampens
         """
 
 
@@ -362,7 +360,7 @@ rule within_cell_yamet:
                         --det-out {output.det_out} \
                         --meth-out {params.data}/yamet.{wildcards.S}.{wildcards.N}.{wildcards.f}.meth.out \
                         --cores {threads} \
-                        --print-sampens F
+                        --no-print-sampens
         """
 
 
@@ -463,7 +461,7 @@ rule between_cell_yamet:
                         --det-out {output.det_out} \
                         --meth-out {params.data}/yamet.{wildcards.S}.{wildcards.N}.{wildcards.f}.meth.out \
                         --cores {threads} \
-                        --print-sampens F
+                        --no-print-sampens
         """
 
 

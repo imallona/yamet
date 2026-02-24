@@ -103,17 +103,37 @@ void ParsedInfo::aggregate() {
           agg_bin.t[cl_idx] += file_bin.t;
           file_bin.avg_meth = ((double)file_bin.m) / ((double)file_bin.t);
         }
-        /// expected sample entropy per bin per file based on average methylation
+        // /// expected sample entropy per bin per file based on average methylation
+        // if (file_bin.avg_meth != -1) {
+        //   auto &p             = file_bin.avg_meth;
+        //   file_bin.sampen_exp = -log(pow(p, 2) + pow(1 - p, 2));
+        // }
+        // /// normalized sample entropy per bin per file by the expected sample entropy
+        // if (file_bin.sampen != -1 && file_bin.sampen_exp != -1) {
+        //   file_bin.sampen_norm = (file_bin.sampen_exp == 0 && file_bin.sampen == 0)
+        //                              ? 0
+        //                              : file_bin.sampen / file_bin.sampen_exp;
+        // }
+
+        /// expected sample entropy under independence:
+        /// sampen = log(A/B) is a log-odds, so the expectation is log(Pmatch/Pmismatch)
+        /// where Pmatch = p^2 + (1-p)^2 and Pmismatch = 2*p*(1-p)
         if (file_bin.avg_meth != -1) {
-          auto &p             = file_bin.avg_meth;
-          file_bin.sampen_exp = -log(pow(p, 2) + pow(1 - p, 2));
+          const auto &p = file_bin.avg_meth;                 // average methylation
+          const double Pm = p*p + (1.0 - p)*(1.0 - p);       // match probability
+          const double Pb = 2.0 * p * (1.0 - p);             // mismatch probability
+          file_bin.sampen_exp = log(Pm / Pb);                // expected log-odds
         }
-        /// normalized sample entropy per bin per file by the expected sample entropy
+
+        /// normalized sample entropy:
+        /// Shannon uses H_obs / H_exp because both are positive.
+        /// SampEn is log-odds, whose expectation crosses 0 at p=0.5, so division is invalid.
+        /// hence divide on the odds scale and return log(observed/expected):
+        /// adjS = log(A/B) - log(Pm/Pb)
         if (file_bin.sampen != -1 && file_bin.sampen_exp != -1) {
-          file_bin.sampen_norm = (file_bin.sampen_exp == 0 && file_bin.sampen == 0)
-                                     ? 0
-                                     : file_bin.sampen / file_bin.sampen_exp;
+          file_bin.sampen_norm = file_bin.sampen - file_bin.sampen_exp;
         }
+
       }
 
       /// shannon entropy per bin across files in a cluster
@@ -151,22 +171,55 @@ void ParsedInfo::aggregate() {
       }
     }
   }
+  // for (auto &[_, file] : fileMap) {
+  //   if (file.A > 0 && file.B > 0) {
+  //     file.sampen = log(((double)file.A) / ((double)file.B));
+  //   }
+  //   if (file.t > 0) {
+  //     file.avg_meth = ((double)file.m) / ((double)file.t);
+  //   }
+  //   /// expected sample entropy per file based on average methylation
+  //   if (file.avg_meth != -1) {
+  //     const auto &p   = file.avg_meth;
+  //     file.sampen_exp = -log(pow(p, 2) + pow(1 - p, 2));
+  //   }
+  //   /// normalized sample entropy per file by the expected sample entropy
+  //   if (file.sampen != -1 && file.sampen_exp != -1) {
+  //     // file.sampen_norm =
+  //     //     (file.sampen_exp == 0 && file.sampen == 0) ? 0 : file.sampen / file.sampen_exp;
+  //     const double Pm = p*p + (1.0 - p)*(1.0 - p);
+  //     const double Pb = 2.0 * p * (1.0 - p);
+  //     file.sampen_exp = log(Pm / Pb);          // expected log-odds
+  //     file.sampen_norm = file.sampen - file.sampen_exp;   // log(observed/expected)
+      
+  //   }
+  // }
   for (auto &[_, file] : fileMap) {
     if (file.A > 0 && file.B > 0) {
       file.sampen = log(((double)file.A) / ((double)file.B));
     }
+
     if (file.t > 0) {
       file.avg_meth = ((double)file.m) / ((double)file.t);
     }
-    /// expected sample entropy per file based on average methylation
+
+    /// expected sample entropy under independence:
+    /// sampen = log(A/B) is a log-odds, so the expectation is log(Pmatch/Pmismatch)
+    /// where Pmatch = p^2 + (1-p)^2 and Pmismatch = 2*p*(1-p)
     if (file.avg_meth != -1) {
-      const auto &p   = file.avg_meth;
-      file.sampen_exp = -log(pow(p, 2) + pow(1 - p, 2));
+      const auto &p = file.avg_meth;                     // p declared here
+      const double Pm = p*p + (1.0 - p)*(1.0 - p);       // match probability
+      const double Pb = 2.0 * p * (1.0 - p);             // mismatch probability
+      file.sampen_exp = log(Pm / Pb);                    // expected log-odds
     }
-    /// normalized sample entropy per file by the expected sample entropy
+
+    /// normalized sample entropy:
+    /// Shannon uses H_obs / H_exp because both are positive.
+    /// SampEn is log-odds, whose expectation crosses 0 at p=0.5, so division is invalid.
+    /// hence divide on the odds scale and return log(observed/expected):
+    /// adjS = log(A/B) - log(Pm/Pb)
     if (file.sampen != -1 && file.sampen_exp != -1) {
-      file.sampen_norm =
-          (file.sampen_exp == 0 && file.sampen == 0) ? 0 : file.sampen / file.sampen_exp;
+      file.sampen_norm = file.sampen - file.sampen_exp;  // log(observed/expected)
     }
   }
 }
