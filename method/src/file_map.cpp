@@ -105,16 +105,30 @@ void ParsedInfo::aggregate() {
         }
         /// expected sample entropy under independence:
         /// sampen = log(A/B) estimates -log(Pmatch), so the expectation is -log(Pmatch)
-        /// where Pmatch = p^2 + (1-p)^2
-        if (file_bin.avg_meth != -1) {
-          const auto &p = file_bin.avg_meth;                 // average methylation
-          const double Pm = p*p + (1.0 - p)*(1.0 - p);       // match probability
-          file_bin.sampen_exp = -log(Pm);                    // expected sampen = -log(Pmatch)
+        /// where Pmatch = p_bin^2 + (1-p_bin)^2 and p_bin is the binary methylation
+        /// fraction derived directly from the template counts (cm array). Using p_bin
+        /// instead of avg_meth ensures that sampen_exp is calibrated to the actual
+        /// binary patterns used in the sampen computation, giving a flat adjS across
+        /// all average methylation levels regardless of data format or sparsity.
+        {
+          double total_cm_d = 0, ones_cm = 0;
+          for (size_t k = 0; k < file_bin.cm.size(); k++) {
+            total_cm_d += file_bin.cm[k];
+            ones_cm    += __builtin_popcountll(static_cast<unsigned long long>(k)) * file_bin.cm[k];
+          }
+          if (total_cm_d > 0) {
+            /// m = log2(cm.size()); cm.size() == 2^m, use count-trailing-zeros
+            const unsigned int m_len = static_cast<unsigned int>(
+                __builtin_ctzll(static_cast<unsigned long long>(file_bin.cm.size())));
+            const double p_bin = ones_cm / (m_len * total_cm_d);
+            const double Pm    = p_bin * p_bin + (1.0 - p_bin) * (1.0 - p_bin);
+            file_bin.sampen_exp = (Pm > 0.0 && Pm < 1.0) ? -log(Pm) : 0.0;
+          }
         }
 
         /// normalized sample entropy (additive correction):
-        /// adjS = sampen - sampen_exp = log(A/B) - (-log(Pm)) = log(A/B * Pm)
-        /// Under independence E[adjS] = 0; with sparsity q, E[adjS] = -log(q) (flat across p)
+        /// adjS = sampen - sampen_exp = log(A/B) - (-log(Pm_bin)) = log(A/B * Pm_bin)
+        /// Under independence E[adjS] = 0 (flat across avg_meth regardless of sparsity)
         if (file_bin.sampen != -1 && file_bin.sampen_exp != -1) {
           file_bin.sampen_norm = file_bin.sampen - file_bin.sampen_exp;
         }
@@ -166,17 +180,32 @@ void ParsedInfo::aggregate() {
     }
 
     /// expected sample entropy under independence:
-    /// sampen = log(A/B) estimates -log(Pmatch), so the expectation is -log(Pmatch)
-    /// where Pmatch = p^2 + (1-p)^2
-    if (file.avg_meth != -1) {
-      const auto &p = file.avg_meth;                     // p declared here
-      const double Pm = p*p + (1.0 - p)*(1.0 - p);       // match probability
-      file.sampen_exp = -log(Pm);                        // expected sampen = -log(Pmatch)
+    /// sampen_exp = -log(Pmatch) where Pmatch = p_bin^2 + (1-p_bin)^2, and p_bin is
+    /// the binary methylation fraction derived from the aggregated template counts.
+    {
+      double total_cm_d = 0, ones_cm = 0;
+      unsigned int m_len = 0;
+      for (const auto &chrCount : file.chrCounts) {
+        for (const auto &bin : chrCount.bins) {
+          for (size_t k = 0; k < bin.cm.size(); k++) {
+            total_cm_d += bin.cm[k];
+            ones_cm    += __builtin_popcountll(static_cast<unsigned long long>(k)) * bin.cm[k];
+          }
+          if (m_len == 0 && !bin.cm.empty()) {
+            m_len = static_cast<unsigned int>(
+                __builtin_ctzll(static_cast<unsigned long long>(bin.cm.size())));
+          }
+        }
+      }
+      if (total_cm_d > 0 && m_len > 0) {
+        const double p_bin = ones_cm / (m_len * total_cm_d);
+        const double Pm    = p_bin * p_bin + (1.0 - p_bin) * (1.0 - p_bin);
+        file.sampen_exp = (Pm > 0.0 && Pm < 1.0) ? -log(Pm) : 0.0;
+      }
     }
 
     /// normalized sample entropy (additive correction):
-    /// adjS = sampen - sampen_exp = log(A/B) - (-log(Pm)) = log(A/B * Pm)
-    /// Under independence E[adjS] = 0; with sparsity q, E[adjS] = -log(q) (flat across p)
+    /// adjS = sampen - sampen_exp = log(A/B * Pm_bin); flat under independence
     if (file.sampen != -1 && file.sampen_exp != -1) {
       file.sampen_norm = file.sampen - file.sampen_exp;  // additive correction
     }
