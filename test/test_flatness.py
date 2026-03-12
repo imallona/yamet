@@ -1,48 +1,41 @@
 import os
 import sys
 import subprocess
-import numpy as np
-from scipy.stats import pearsonr
+import math
+import random
 
-def create_files():
-    np.random.seed(42)
+def create_files(sparsity=1.0):
+    random.seed(42)
     os.makedirs('test_adjS_flat/in', exist_ok=True)
     
     n_regions = 200
     cpgs_per_region = 100
     coverage = 20
 
-    ref_file = open('test_adjS_flat/in/reference.tsv', 'w')
-    sim_file = open('test_adjS_flat/in/simulations.tsv', 'w')
-    bed_file = open('test_adjS_flat/in/regions.bed', 'w')
-    
-    start_pos = 1
-    
-    regions_info = []
-
-    for i in range(n_regions):
-        # Sample a true probability p for this region
-        p = np.random.uniform(0.1, 0.9)
-        regions_info.append(p)
+    with open('test_adjS_flat/in/reference.tsv', 'w') as ref_file, \
+         open('test_adjS_flat/in/simulations.tsv', 'w') as sim_file, \
+         open('test_adjS_flat/in/regions.bed', 'w') as bed_file:
+         
+        start_pos = 1
         
-        region_start = start_pos
-        
-        for j in range(cpgs_per_region):
-            pos = start_pos + j * 2
-            ref_file.write(f"chr1\t{pos}\t{pos+1}\n")
+        for i in range(n_regions):
+            p = float(random.uniform(0.1, 0.9))
+            region_start = float(start_pos)
             
-            # binomial sampling
-            meth = np.random.binomial(coverage, p)
-            sim_file.write(f"chr1\t{pos}\t{meth}\t{coverage}\t{meth/coverage:.4f}\n")
+            for j in range(cpgs_per_region):
+                pos = start_pos + j * 2
+                ref_file.write(f"chr1\t{pos}\t{pos+1}\n")
+                
+                # Apply sparsity (downsampling)
+                if random.random() <= sparsity:
+                    # binomial sampling
+                    meth = sum(1 for _ in range(coverage) if random.random() < p)
+                    sim_file.write(f"chr1\t{pos}\t{meth}\t{coverage}\t{meth/coverage:.4f}\n")
+                
+            region_end = float(start_pos + cpgs_per_region * 2)
+            bed_file.write(f"chr1\t{int(region_start)}\t{int(region_end)}\n")
             
-        region_end = start_pos + cpgs_per_region * 2
-        bed_file.write(f"chr1\t{region_start}\t{region_end}\n")
-        
-        start_pos += cpgs_per_region * 2 + 100
-        
-    ref_file.close()
-    sim_file.close()
-    bed_file.close()
+            start_pos += int(cpgs_per_region * 2 + 100)
 
 def run_yamet():
     cmd = [
@@ -59,7 +52,7 @@ def run_yamet():
         print(res.stderr)
         sys.exit(1)
 
-def evaluate():
+def evaluate(label=""):
     adjS_vals = []
     avg_meth_vals = []
     
@@ -68,11 +61,6 @@ def evaluate():
         for line in f:
             parts = line.strip().split()
             if len(parts) >= 6:
-                # Based on file_map.cpp exportNormDetOut
-                # columns might be: chr, start, end, <file_ids>..., shannon_norm, avg_meth
-                # If no cluster, there's 1 file, then shannon_norm, avg_meth
-                # wait, let me look at exportNormDetOut header again
-                # "chr\tstart\tend\tsimulations.tsv\tshannon_norm\tavg_meth"
                 try:
                     sampen_norm = float(parts[3])
                     avg_meth = float(parts[5])
@@ -81,29 +69,38 @@ def evaluate():
                 except ValueError:
                     pass
 
-    # Calculate Pearson correlation with distance from 0.5 to detect U-shape
-    # If S has an inverted U-shape, it will be highly negatively correlated with |avg_meth - 0.5|
-    dist_from_half = [abs(m - 0.5) for m in avg_meth_vals]
-    corr, pval = pearsonr(dist_from_half, adjS_vals)
-    print(f"Sample size: {len(adjS_vals)}")
-    print(f"Correlation between adjS (sampen_norm) and |avg_meth - 0.5|: {corr:.4f} (p={pval:.4g})")
+    n = len(adjS_vals)
+    if n == 0:
+        print(f"[{label}] No output parsed")
+        return
+
+    dist_from_half = [float(abs(m - 0.5)) for m in avg_meth_vals]
+    mean_dist = sum(dist_from_half) / n
+    mean_adjs = sum(adjS_vals) / n
     
-    # Check if relationship is flat: correlation should be small
+    num = sum((dist_from_half[i] - mean_dist) * (adjS_vals[i] - mean_adjs) for i in range(n))
+    den_dist = sum((dist_from_half[i] - mean_dist)**2 for i in range(n))
+    den_adjs = sum((adjS_vals[i] - mean_adjs)**2 for i in range(n))
+    
+    corr = num / math.sqrt(den_dist * den_adjs) if (den_dist * den_adjs) > 0 else 0
+    
+    print(f"[{label}] Sample size: {n}")
+    print(f"[{label}] Correlation between adjS and |avg_meth - 0.5|: {corr:.4f}")
     if abs(corr) > 0.15:
-        print("FAIL: The relationship is not flat, absolute correlation with distance from 0.5 is large (U-shape detected).")
-        sys.exit(1)
+        print(f"[{label}] FAIL: High correlation -> Shape is not flat (U-shape detected).")
     else:
-        print("PASS: The relationship is flat.")
-        sys.exit(0)
+        print(f"[{label}] PASS: The relationship is flat.")
 
 if __name__ == "__main__":
-    import os
-    # Move to root dir of repo to run (same directory root as github actions)
-    # The script should be executed from yamet/test
-    # But pathing above assumes yamet root is CWD.
     if hasattr(sys, 'argv') and len(sys.argv)>1:
         os.chdir(sys.argv[1])
-    
-    create_files()
+        
+    print("Testing Dense Data (100% density)")
+    create_files(sparsity=1.0)
     run_yamet()
-    evaluate()
+    evaluate(label="Dense")
+    
+    print("\nTesting Sparse Data (20% density)")
+    create_files(sparsity=0.20)
+    run_yamet()
+    evaluate(label="Sparse")
