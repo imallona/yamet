@@ -104,20 +104,25 @@ void ParsedInfo::aggregate() {
           file_bin.avg_meth = ((double)file_bin.m) / ((double)file_bin.t);
         }
         /// expected sample entropy under independence:
-        /// sampen = log(A/B) estimates -log(Pmatch), so the expectation is -log(Pmatch)
-        /// where Pmatch = p_bin^2 + (1-p_bin)^2 and p_bin is the binary methylation
-        /// fraction derived directly from the template counts (cm array). Using p_bin
-        /// instead of avg_meth ensures that sampen_exp is calibrated to the actual
-        /// binary patterns used in the sampen computation, giving a flat adjS across
-        /// all average methylation levels regardless of data format or sparsity.
+        /// Under the IID binary model with fraction p_bin of 1s, the probability that
+        /// two independently drawn positions match is Pm = p_bin^2 + (1-p_bin)^2.
+        /// Therefore the probability that two m-length templates match is Pm^m, and
+        /// that two (m+1)-length templates match is Pm^{m+1}.  Consequently
+        ///   E[sampen] = E[log(A/B)] = log(Pm^m / Pm^{m+1}) = -log(Pm).
+        /// p_bin is estimated from the observed template counts (cm array) rather than
+        /// avg_meth, because sampen is computed from the binary methValue patterns,
+        /// which may differ from fractional avg_meth.
+        /// Each template index k has popcount(k) set bits representing methylated
+        /// positions, so ones_cm sums the total methylated positions across all templates.
         {
           double total_cm_d = 0, ones_cm = 0;
           for (size_t k = 0; k < file_bin.cm.size(); k++) {
             total_cm_d += file_bin.cm[k];
+            /// popcount(k): number of methylated positions in binary template index k
             ones_cm    += __builtin_popcountll(static_cast<unsigned long long>(k)) * file_bin.cm[k];
           }
           if (total_cm_d > 0) {
-            /// m = log2(cm.size()); cm.size() == 2^m, use count-trailing-zeros
+            /// m_len = log2(cm.size()) = template length; cm.size() == 2^m_len
             const unsigned int m_len = static_cast<unsigned int>(
                 __builtin_ctzll(static_cast<unsigned long long>(file_bin.cm.size())));
             const double p_bin = ones_cm / (m_len * total_cm_d);

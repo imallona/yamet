@@ -64,6 +64,9 @@ def evaluate(label=""):
                 try:
                     sampen_norm = float(parts[3])
                     avg_meth = float(parts[5])
+                    # Skip sentinel values (-1 encodes "no valid windows" in yamet)
+                    if sampen_norm == -1:
+                        continue
                     adjS_vals.append(sampen_norm)
                     avg_meth_vals.append(avg_meth)
                 except ValueError:
