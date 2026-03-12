@@ -180,6 +180,12 @@ jobs:
 
           diff test_normalization/out/detailed_all_meth.out \
               current_test_normalization_all_meth.norm.out
+      - name: Test AdjS association to marginal entropy / flatness
+        if: always()
+        run: |
+          cd test
+          sudo apt-get install -y python3-scipy python3-numpy || echo "Skipped apt but trying pip if available"
+          python3 test_flatness.py
       - name: Test metadata format
         if: always()
         run: |
