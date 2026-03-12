@@ -104,17 +104,17 @@ void ParsedInfo::aggregate() {
           file_bin.avg_meth = ((double)file_bin.m) / ((double)file_bin.t);
         }
         /// expected sample entropy under independence:
-        /// sampen = log(A/B) estimates log(Pmatch), so the expectation is log(Pmatch)
+        /// sampen = log(A/B) estimates -log(Pmatch), so the expectation is -log(Pmatch)
         /// where Pmatch = p^2 + (1-p)^2
         if (file_bin.avg_meth != -1) {
           const auto &p = file_bin.avg_meth;                 // average methylation
           const double Pm = p*p + (1.0 - p)*(1.0 - p);       // match probability
-          file_bin.sampen_exp = log(Pm);                     // expected log match probability
+          file_bin.sampen_exp = -log(Pm);                    // expected sampen = -log(Pmatch)
         }
 
-        /// normalized sample entropy:
-        /// Return log(observed/expected), effectively:
-        /// adjS = log(A/B) - log(Pm)
+        /// normalized sample entropy (additive correction):
+        /// adjS = sampen - sampen_exp = log(A/B) - (-log(Pm)) = log(A/B * Pm)
+        /// Under independence E[adjS] = 0; with sparsity q, E[adjS] = -log(q) (flat across p)
         if (file_bin.sampen != -1 && file_bin.sampen_exp != -1) {
           file_bin.sampen_norm = file_bin.sampen - file_bin.sampen_exp;
         }
@@ -166,19 +166,19 @@ void ParsedInfo::aggregate() {
     }
 
     /// expected sample entropy under independence:
-    /// sampen = log(A/B) estimates log(Pmatch), so the expectation is log(Pmatch)
+    /// sampen = log(A/B) estimates -log(Pmatch), so the expectation is -log(Pmatch)
     /// where Pmatch = p^2 + (1-p)^2
     if (file.avg_meth != -1) {
       const auto &p = file.avg_meth;                     // p declared here
       const double Pm = p*p + (1.0 - p)*(1.0 - p);       // match probability
-      file.sampen_exp = log(Pm);                         // expected log match probability
+      file.sampen_exp = -log(Pm);                        // expected sampen = -log(Pmatch)
     }
 
-    /// normalized sample entropy:
-    /// Return log(observed/expected), effectively:
-    /// adjS = log(A/B) - log(Pm)
+    /// normalized sample entropy (additive correction):
+    /// adjS = sampen - sampen_exp = log(A/B) - (-log(Pm)) = log(A/B * Pm)
+    /// Under independence E[adjS] = 0; with sparsity q, E[adjS] = -log(q) (flat across p)
     if (file.sampen != -1 && file.sampen_exp != -1) {
-      file.sampen_norm = file.sampen - file.sampen_exp;  // log(observed/expected)
+      file.sampen_norm = file.sampen - file.sampen_exp;  // additive correction
     }
   }
 }

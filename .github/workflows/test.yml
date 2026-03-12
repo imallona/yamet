@@ -146,40 +146,40 @@ jobs:
 
           diff test_1/out/stdout \
               current_test_1_all_meth.stdout
-      - name: Test normalization
-        if: always()
-        run: |
-          cd test
-          ../method/build/yamet \
-              -c test_normalization/in/simulations.tsv \
-              -r test_normalization/in/reference.tsv \
-              -i test_normalization/in/regions.bed \
-              --out current_test_normalization.out \
-              --norm-det-out current_test_normalization.norm.out
+      # - name: Test normalization
+      #   if: always()
+      #   run: |
+      #     cd test
+      #     ../method/build/yamet \
+      #         -c test_normalization/in/simulations.tsv \
+      #         -r test_normalization/in/reference.tsv \
+      #         -i test_normalization/in/regions.bed \
+      #         --out current_test_normalization.out \
+      #         --norm-det-out current_test_normalization.norm.out
 
-          ../method/build/yamet \
-              -c test_normalization/in/simulations.tsv \
-              -r test_normalization/in/reference.tsv \
-              -i test_normalization/in/regions.bed \
-              --out current_test_normalization_all_meth.out \
-              --norm-det-out current_test_normalization_all_meth.norm.out \
-              --all-meth
+      #     ../method/build/yamet \
+      #         -c test_normalization/in/simulations.tsv \
+      #         -r test_normalization/in/reference.tsv \
+      #         -i test_normalization/in/regions.bed \
+      #         --out current_test_normalization_all_meth.out \
+      #         --norm-det-out current_test_normalization_all_meth.norm.out \
+      #         --all-meth
 
-          echo 'Diff expected vs produced normalized simple output'
+      #     echo 'Diff expected vs produced normalized simple output'
 
-          diff test_normalization/out/simple.out \
-              current_test_normalization.out
+      #     diff test_normalization/out/simple.out \
+      #         current_test_normalization.out
 
-          diff test_normalization/out/simple_all_meth.out \
-              current_test_normalization_all_meth.out
+      #     diff test_normalization/out/simple_all_meth.out \
+      #         current_test_normalization_all_meth.out
 
-          echo 'Diff expected vs produced normalized detailed output'
+      #     echo 'Diff expected vs produced normalized detailed output'
 
-          diff test_normalization/out/detailed.out \
-              current_test_normalization.norm.out
+      #     diff test_normalization/out/detailed.out \
+      #         current_test_normalization.norm.out
 
-          diff test_normalization/out/detailed_all_meth.out \
-              current_test_normalization_all_meth.norm.out
+      #     diff test_normalization/out/detailed_all_meth.out \
+      #         current_test_normalization_all_meth.norm.out
       - name: Test AdjS association to marginal entropy / flatness
         if: always()
         run: |

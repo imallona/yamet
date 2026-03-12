@@ -218,6 +218,7 @@ rule visualize_yamet_results:
     input:
         covplots="output/02_coverage_plots.html",
         yamet_dir="output/yamet/out",
+        yamet=op.join("build", "yamet"),
         flag = "output/sim_data/sim_cell_9_50_50_rand_medium_lmr.tsv",
         another_flag = 'output/yamet/out/10000.tsv'
     output:
@@ -233,6 +234,7 @@ rule compile_figure_2:
   conda:
     "envs/r_plot.yaml"
   input:
+    yamet=op.join("build", "yamet"),
     yamet_dir="output/yamet/out",
     yamet_plots="output/03_yamet_plots.html",
     coverage_data="output/sim_data_coverage/overall_coverage.rds",
