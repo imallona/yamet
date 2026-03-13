@@ -61,7 +61,7 @@ print(unique(data$type))
 data$coverage <- factor(data$coverage, levels = c("low", "lowReal", "real", "medium",
     "high", "complete"))
 data$type <- factor(data$type, levels = c('nb', 'rand'))
-data$tr <- factor(data$tr, levels = c('lmr', 'imrCons', 'imrRand', 'hmr'))
+data$tr <- factor(data$tr, levels = c('lmrCons', 'lmrRand', 'imrCons', 'imrRand', 'hmrRand', 'hmrCons'))
 print(head(data))
 ```
 

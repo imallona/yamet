@@ -147,11 +147,17 @@ for (i in 1:nrow(paramGrid)) {
     estimateCovParams <- TRUE
   }
   # get the transition probability parameters ----------------------------------
-  if (paramsSet$transMat == "hmr") {
+  if (paramsSet$transMat == "hmrRand") {
     transMat <- matrix(c(0.2, 0.2, 0.8, 0.8), nrow = 2, ncol = 2)
     estimateTransMat <- FALSE
-  } else if (paramsSet$transMat == "lmr") {
+  } else if (paramsSet$transMat == "hmrCons"){
+    transMat <- matrix(c(0.6, 0.1, 0.4, 0.9), nrow = 2, ncol = 2)
+    estimateTransMat <- FALSE
+  } else if (paramsSet$transMat == "lmrRand") {
     transMat <- matrix(c(0.8, 0.8, 0.2, 0.2), nrow = 2, ncol = 2)
+    estimateTransMat <- FALSE
+  } else if (paramsSet$transMat == "lmrCons") {
+    transMat <- matrix(c(0.9, 0.4, 0.1, 0.6), nrow = 2, ncol = 2)
     estimateTransMat <- FALSE
   } else if (paramsSet$transMat == "imrCons") {
     transMat <- matrix(c(0.8, 0.2, 0.2, 0.8), nrow = 2, ncol = 2)

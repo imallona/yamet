@@ -88,7 +88,7 @@ rule simulate_data:
         downloaded_data="data/downloaded_data.tsv",
     output:
         directory("output/sim_data"),
-        "output/sim_data/sim_cell_9_50_50_rand_medium_lmr.tsv",
+        "output/sim_data/sim_cell_9_50_50_rand_medium_lmrCons.tsv",
         html_output_path="output/01_sim_data.html",
     log:
         "logs/simulate_data_emanuel.log"
@@ -108,7 +108,7 @@ rule visualize_coverage:
     input:
         sim_data_file="output/01_sim_data.html",
         sim_data_dir="output/sim_data",
-        flag = "output/sim_data/sim_cell_9_50_50_rand_medium_lmr.tsv"
+        flag = "output/sim_data/sim_cell_9_50_50_rand_medium_lmrCons.tsv"
     output:
         html_output_path="output/02_coverage_plots.html",
         coverage_data="output/sim_data_coverage/overall_coverage.rds",
@@ -164,7 +164,7 @@ def write_sim_interval_bed(parameters_path, file_path, chrom="chrSim", start=1):
     
     df = pd.read_table(parameters_path, delimiter='\t', header=0)
     end = df["n_cpgs"].max()
-    
+
     with open(file_path, "w", newline="") as fh:
         writer = csv.writer(fh, delimiter="\t")
         writer.writerow([chrom, str(start), str(end)])
@@ -186,7 +186,7 @@ rule run_yamet:
     input:
         yamet=op.join("build", "yamet"),
         sim_data=op.join("output", "sim_data"),
-        flag = "output/sim_data/sim_cell_9_50_50_rand_medium_lmr.tsv",
+        flag = "output/sim_data/sim_cell_9_50_50_rand_medium_lmrCons.tsv",
         sim_data_file="output/01_sim_data.html",
         bed='emanuel_intervals.bed'
     output:
@@ -219,7 +219,7 @@ rule visualize_yamet_results:
         covplots="output/02_coverage_plots.html",
         yamet_dir="output/yamet/out",
         yamet=op.join("build", "yamet"),
-        flag = "output/sim_data/sim_cell_9_50_50_rand_medium_lmr.tsv",
+        flag = "output/sim_data/sim_cell_9_50_50_rand_medium_lmrCons.tsv",
         another_flag = 'output/yamet/out/10000.tsv'
     output:
         html="output/03_yamet_plots.html",
