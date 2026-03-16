@@ -1,5 +1,5 @@
 ---
-title: "Between Cell Variability"
+title: "Across Cell Variability"
 author: "Atreya Choudhury"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output:
@@ -11,7 +11,7 @@ output:
 
 ## Strategy
 
-The goal is to generate features with various heterogeneity levels for the purpose of between cell differentiation.
+The goal is to generate features with various heterogeneity levels for the purpose of across cell differentiation.
 The goal here is to focus more on  the stochastic nature of methylation.
 
 Our strategy here is to mix markov chains generated using a transition matrix of the form
@@ -25,14 +25,14 @@ with different values of $\rho$ to create more or less heterogeneity across samp
 
 We start by creating a template for a cell.
 We have a fixed number of features, the length of each feature is taken to be the same and the number of simulated CpG sites is the same as well.
-Every feature is given a **between cell Variability Index (bcVI)** between 1 and 10 and stored in the `bc_vi` column.
+Every feature is given an **across cell Variability Index (acVI)** between 1 and 10 and stored in the `bc_vi` column.
 We have a list of 10 equally spaced values of $\rho$ from $0.1$ to $0.9$.
 Now, for a feature with given variability index, say $x$, we take the first $x$ elements from our list of $\rho$ values and sample from it to generate $\rho$ values for the samples belonging to that feature.
 These sampled values of $\rho$ are then stored in the `rho` column.
 
 With the template, we now generate samples as described above.
 At every intersection of sample and feature, we have a value of $\rho$ which can be used to sample a markov chain.
-We observe that features with a lower bcVI see more homogenous samplings in `rho` which lead to lesser shannon entropy and vice-versa.
+We observe that features with a lower acVI see more homogenous samplings in `rho` which lead to lesser shannon entropy and vice-versa.
 Also observe that chains generated with higher values of $\rho$ are also more methylated.
 This leads to a relationship between average methylation and `bc_vi`, which is visible from scMET's performance.
 
@@ -123,7 +123,7 @@ samp_meth <- ggplot(all.long, aes(x = meth, y = sampen, color = bc_vi)) +
   theme_ng() +
   labs(
     ## title = "Sample Entropy in different bcVI values",
-    x = "avg. methylation", y = "sample entropy", color = "bcVI"
+    x = "avg. methylation", y = "sample entropy", color = "acVI"
   )
 
 samp_vi <- ggplot(all.long, aes(x = as.factor(bc_vi), y = sampen)) +
@@ -132,7 +132,7 @@ samp_vi <- ggplot(all.long, aes(x = as.factor(bc_vi), y = sampen)) +
   theme_ng() +
   labs(
     ## title = "Sample Entropy in different bcVI values",
-    x = "bcVI", y = "sample entropy"
+    x = "acVI", y = "sample entropy"
   )
 
 shannon_meth <- ggplot(jnt, aes(x = avg_meth, y = shannon, color = bc_vi)) +
@@ -140,7 +140,7 @@ shannon_meth <- ggplot(jnt, aes(x = avg_meth, y = shannon, color = bc_vi)) +
   theme_ng() +
   labs(
     ## title = "Shannon Entropy in different bcVI values (per feature)",
-    x = "avg. methylation", y = "Shannon entropy", color = "bcVI"
+    x = "avg. methylation", y = "Shannon entropy", color = "acVI"
   )
 
 shannon_vi <- ggplot(jnt, aes(x = as.factor(bc_vi), y = shannon, color = avg_meth)) +
@@ -148,7 +148,7 @@ shannon_vi <- ggplot(jnt, aes(x = as.factor(bc_vi), y = shannon, color = avg_met
   theme_ng() +
   labs(
     ## title = "Shannon Entropy in different bcVI values (per feature)",
-    x = "bcVI", y = "Shannon entropy", color = "avg. methylation"
+    x = "acVI", y = "Shannon entropy", color = "avg. methylation"
   )
 
 samp_shan <- ggplot(all.long, aes(x = shannon, y = sampen, color = bc_vi)) +
@@ -156,7 +156,7 @@ samp_shan <- ggplot(all.long, aes(x = shannon, y = sampen, color = bc_vi)) +
   theme_ng() +
   labs(
     ## title = "Sample Entropy in different bcVI values",
-    x = "Shannon entropy", y = "sample entropy", color = "bcVI"
+    x = "Shannon entropy", y = "sample entropy", color = "acVI"
   )
 ```
 
@@ -176,7 +176,7 @@ ggplot(jnt, aes(x = as.factor(bc_vi), y = scmet_mu, color = avg_meth)) +
   theme_ng() +
   labs(
     ## title = "scMET (mu) in different bcVI values (per feature)",
-    x = "bcVI", y = expression("scMET " ~ mu), color = "avg. methylation"
+    x = "acVI", y = expression("scMET " ~ mu), color = "avg. methylation"
   )
 
 scmet_mu_meth <- ggplot(jnt, aes(x = avg_meth, y = scmet_mu, color = bc_vi)) +
@@ -184,7 +184,7 @@ scmet_mu_meth <- ggplot(jnt, aes(x = avg_meth, y = scmet_mu, color = bc_vi)) +
   theme_ng() +
   labs(
     ## title = "scMET (mu) in different meth values (per feature)",
-    x = "avg. methylation", y = expression("scMET " ~ mu), color = "bcVI"
+    x = "avg. methylation", y = expression("scMET " ~ mu), color = "acVI"
   )
 
 scmet_gamma_meth <- ggplot(jnt, aes(x = avg_meth, y = scmet_gamma, color = bc_vi)) +
@@ -192,7 +192,7 @@ scmet_gamma_meth <- ggplot(jnt, aes(x = avg_meth, y = scmet_gamma, color = bc_vi
   theme_ng() +
   labs(
     ## title = "scMET (gamma) in different meth values (per feature)",
-    x = "avg. methylation", y = expression("scMET " ~ gamma), color = "bcVI"
+    x = "avg. methylation", y = expression("scMET " ~ gamma), color = "acVI"
   )
 
 scmet_epsilon_meth <- ggplot(jnt, aes(x = avg_meth, y = scmet_epsilon, color = bc_vi)) +
@@ -200,7 +200,7 @@ scmet_epsilon_meth <- ggplot(jnt, aes(x = avg_meth, y = scmet_epsilon, color = b
   theme_ng() +
   labs(
     ## title = "scMET (epsilon) in different meth values (per feature)",
-    x = "avg. methylation", y = expression("scMET " ~ epislon), color = "bcVI"
+    x = "avg. methylation", y = expression("scMET " ~ epislon), color = "acVI"
   )
 
 ggplot(jnt, aes(x = as.factor(bc_vi), y = sampen_avg, color = avg_meth)) +
@@ -208,7 +208,7 @@ ggplot(jnt, aes(x = as.factor(bc_vi), y = sampen_avg, color = avg_meth)) +
   theme_ng() +
   labs(
     ## title = "Sample Entropy in different bcVI values (per feature)",
-    x = "bcVI", y = "avg. sample entropy", color = "avg. methylation"
+    x = "acVI", y = "avg. sample entropy", color = "avg. methylation"
   )
 
 ggplot(jnt, aes(x = avg_meth, y = sampen_avg, color = bc_vi)) +
@@ -216,7 +216,7 @@ ggplot(jnt, aes(x = avg_meth, y = sampen_avg, color = bc_vi)) +
   theme_ng() +
   labs(
     ## title = "Sample Entropy in different meth values (per feature)",
-    x = "avg. methylation", y = "avg. sample entropy", color = "bcVI"
+    x = "avg. methylation", y = "avg. sample entropy", color = "acVI"
   )
 ```
 
@@ -279,6 +279,13 @@ scmet_epsilon_meth <- scmet_epsilon_meth + labs(title = expression(scMET~epsilon
 legend_nmi  <- get_legend(s_plots$nmi + theme(legend.position = "right"))
 legend_perf <- get_legend(s_plots$seconds + theme(legend.position = "right"))
 
+# larger axis labels for assembled figure (>=10 pt when rendered)
+big_labels <- theme(axis.title = element_text(size = 14), axis.text = element_text(size = 11))
+samp_meth          <- samp_meth + big_labels
+samp_shan          <- samp_shan + big_labels
+scmet_mu_meth      <- scmet_mu_meth + big_labels
+scmet_gamma_meth   <- scmet_gamma_meth + big_labels
+scmet_epsilon_meth <- scmet_epsilon_meth + big_labels
 
 arranged <- ggarrange(
   #  top section: entropy and scMET
@@ -290,7 +297,7 @@ arranged <- ggarrange(
       nrow   = 1,
       widths = c(2.5, 2.5)
     ),
-    
+
     # Bottom row: scMET plots
     ggarrange(
       scmet_mu_meth,
@@ -303,17 +310,17 @@ arranged <- ggarrange(
     ncol    = 1,
     heights = c(1.8, 1.2)
   ),
-  
+
   # bottom section: S-plots (row 1) and N-plots (row 2)
   ggarrange(
     # combined panels without legends
     ggarrange(
-      s_plots$nmi   + theme(legend.position = "none") + xlab('# cells') + ylab("performance (metric NMI)"),
-      s_plots$seconds  + theme(legend.position = "none") + xlab('# cells') + ylab("CPU time (s)"),
-      s_plots$mem + theme(legend.position = "none") + xlab('# cells') + ylab("memory usage (MB)"),
-      n_plots$nmi   + theme(legend.position = "none") + xlab('# features')+ ylab("performance (metric NMI)"),
-      n_plots$seconds  + theme(legend.position = "none") + xlab('# features') + ylab("CPU time (s)"),
-      n_plots$mem   + theme(legend.position = "none") + xlab('# features') + ylab("memory usage (MB)"),
+      s_plots$nmi   + theme(legend.position = "none") + xlab('# cells') + ylab("performance (metric NMI)") + big_labels,
+      s_plots$seconds  + theme(legend.position = "none") + xlab('# cells') + ylab("CPU time (s)") + big_labels,
+      s_plots$mem + theme(legend.position = "none") + xlab('# cells') + ylab("memory usage (MB)") + big_labels,
+      n_plots$nmi   + theme(legend.position = "none") + xlab('# features')+ ylab("performance (metric NMI)") + big_labels,
+      n_plots$seconds  + theme(legend.position = "none") + xlab('# features') + ylab("CPU time (s)") + big_labels,
+      n_plots$mem   + theme(legend.position = "none") + xlab('# features') + ylab("memory usage (MB)") + big_labels,
       ncol = 3,
       nrow = 2
     ),

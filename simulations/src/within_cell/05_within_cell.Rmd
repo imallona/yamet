@@ -405,6 +405,13 @@ scmet_epsilon_meth <- scmet_epsilon_meth + labs(title = expression(scMET~epsilon
 legend_nmi  <- get_legend(s_plots$nmi + theme(legend.position = "right"))
 legend_perf <- get_legend(s_plots$seconds + theme(legend.position = "right"))
 
+# larger axis labels for assembled figure (>=10 pt when rendered)
+big_labels <- theme(axis.title = element_text(size = 14), axis.text = element_text(size = 11))
+samp_meth          <- samp_meth + big_labels
+samp_shan          <- samp_shan + big_labels
+scmet_mu_meth      <- scmet_mu_meth + big_labels
+scmet_gamma_meth   <- scmet_gamma_meth + big_labels
+scmet_epsilon_meth <- scmet_epsilon_meth + big_labels
 
 arranged <- ggarrange(
   #  top section: entropy and scMET
@@ -416,7 +423,7 @@ arranged <- ggarrange(
       nrow   = 1,
       widths = c(2.5, 2.5)
     ),
-    
+
     # Bottom row: scMET plots
     ggarrange(
       scmet_mu_meth,
@@ -429,17 +436,17 @@ arranged <- ggarrange(
     ncol    = 1,
     heights = c(1.8, 1.2)
   ),
-  
+
   # bottom section: S-plots (row 1) and N-plots (row 2)
   ggarrange(
     # combined panels without legends
     ggarrange(
-        s_plots$nmi   + theme(legend.position = "none") + xlab('# cells') + ylab("performance (metric NMI)"),
-        s_plots$seconds  + theme(legend.position = "none") + xlab('# cells') + ylab("CPU time (s)"),
-        s_plots$mem + theme(legend.position = "none") + xlab('# cells') + ylab("memory usage (MB)"),
-        n_plots$nmi   + theme(legend.position = "none") + xlab('# features')+ ylab("performance (metric NMI)"),
-        n_plots$seconds  + theme(legend.position = "none") + xlab('# features') + ylab("CPU time (s)"),
-        n_plots$mem   + theme(legend.position = "none") + xlab('# features') + ylab("memory usage (MB)"),
+        s_plots$nmi   + theme(legend.position = "none") + xlab('# cells') + ylab("performance (metric NMI)") + big_labels,
+        s_plots$seconds  + theme(legend.position = "none") + xlab('# cells') + ylab("CPU time (s)") + big_labels,
+        s_plots$mem + theme(legend.position = "none") + xlab('# cells') + ylab("memory usage (MB)") + big_labels,
+        n_plots$nmi   + theme(legend.position = "none") + xlab('# features')+ ylab("performance (metric NMI)") + big_labels,
+        n_plots$seconds  + theme(legend.position = "none") + xlab('# features') + ylab("CPU time (s)") + big_labels,
+        n_plots$mem   + theme(legend.position = "none") + xlab('# features') + ylab("memory usage (MB)") + big_labels,
         ncol = 3,
         nrow = 2
     ),
