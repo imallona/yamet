@@ -78,7 +78,7 @@ make_grid_plots <- function(GRID, grid_var, x, data_dir) {
       x = paste(grid_var), y = "NMI",
       color = "Metric"
     ) +
-    theme_ng() +
+    theme_ng(base_size = 18) +
     theme(
       legend.position = "right",
       plot.title = element_text(hjust = 0.5),
@@ -94,7 +94,7 @@ make_grid_plots <- function(GRID, grid_var, x, data_dir) {
       x = paste(grid_var), y = "seconds",
       color = "Method"
     ) +
-    theme_ng() +
+    theme_ng(base_size = 18) +
     theme(
       legend.position = "top",
       plot.title = element_text(hjust = 0.5),
@@ -110,7 +110,7 @@ make_grid_plots <- function(GRID, grid_var, x, data_dir) {
       x = paste(grid_var), y = "MB",
       color = "Method"
     ) +
-    theme_ng() +
+    theme_ng(base_size = 18) +
     theme(
       legend.position = "top",
       plot.title = element_text(hjust = 0.5),
