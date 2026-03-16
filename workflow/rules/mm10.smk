@@ -52,7 +52,7 @@ rule get_mm10_lines:
     output:
         op.join(MM10_BASE, "lines.bed.gz"),
     script:
-        "src/download_hg19_lines.sh"
+        "src/download_mm10_lines.sh"
 
         
 rule get_mm10_sines:
