@@ -93,3 +93,12 @@ rule get_mm10_genome_sizes:
         asm="mm10",
     script:
         "src/download_genome_sizes.sh"
+
+
+rule decompress_mm10_annotation:
+    input:
+        op.join(MM10_BASE, "{annotation}.bed.gz"),
+    output:
+        temp(op.join(MM10_BASE, "{annotation}.bed")),
+    shell:
+        "zcat {input} > {output}"

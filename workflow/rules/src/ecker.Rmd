@@ -1,0 +1,530 @@
+---
+title: "Ecker 2021 mouse brain: methylation entropy by feature (CpG context)"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+author: "Izaskun Mallona"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: hide
+    code_download: true
+    number_sections: true
+    df_print: default
+    theme: lumen
+---
+
+```{r setup}
+suppressPackageStartupMessages({
+  library(readr)
+  library(ggplot2)
+  library(dplyr)
+  library(BiocParallel)
+  library(ggstance)
+  library(ggrepel)
+})
+
+source("src/ggtheme.R")
+param <- MulticoreParam(workers = snakemake@threads)
+```
+
+```{r opts}
+opts_chunk$set(
+  fig.width  = 7.5,
+  fig.height = 7.5,
+  cache      = FALSE,
+  include    = TRUE,
+  fig.path   = "ecker_plots/",
+  dev        = c("png", "svg"),
+  dpi        = 500,
+  cache.lazy = FALSE,
+  warning    = TRUE,
+  message    = TRUE
+)
+```
+
+```{r save_snmk_debug, include = FALSE}
+saveRDS(file = "snmk_ecker_features.rds", object = snakemake)
+```
+
+```{r logging, include = FALSE}
+log <- file(snakemake@log$log, open = "wt")
+sink(log)
+sink(log, type = "message")
+```
+
+Mouse (mm10), CpG context only. chr10 only: `r snakemake@params[["chr10_only"]]`.
+
+```{r helpers}
+## filenames: {annotation}_{cell_type}.*.gz
+## cell_type is always the last underscore-delimited token
+get_annotation <- function(fn) sub("(.*)_[^_]+\\..*", "\\1", fn)
+get_cell_type  <- function(fn) sub(".*_([^_]+)\\..*", "\\1", fn)
+
+ann_labels <- c(
+  "genes"    = "Genes",
+  "promoters"= "Promoters",
+  "lines"    = "LINEs",
+  "sines"    = "SINEs",
+  "h3k4me3"  = "H3K4me3",
+  "h3k9me3"  = "H3K9me3",
+  "h3k27me3" = "H3K27me3",
+  "h3k4me1"  = "H3K4me1",
+  "h3k27ac"  = "H3K27ac"
+)
+
+cell_type_order <- c("Exc", "Inh", "ASC", "OPC", "ODC", "MGC")
+
+harmonize_levels <- function(df) {
+  missing_ann <- setdiff(unique(df$annotation), names(ann_labels))
+  if (length(missing_ann) > 0)
+    warning("unknown annotations: ", paste(missing_ann, collapse = ", "))
+
+  df$annotation <- factor(df$annotation,
+                          levels = names(ann_labels),
+                          labels = unname(ann_labels))
+  df$cell_type  <- factor(df$cell_type,
+                          levels = intersect(cell_type_order, unique(df$cell_type)))
+  df
+}
+```
+
+# Unnormalized sampEn {.tabset .tabset-pills}
+
+Per-cell sample entropy (S) from `.out.gz` files.
+
+```{r import_sampen}
+short_paths <- list.files(snakemake@params[["output_path"]],
+                          pattern = "\\.out\\.gz$", full.names = TRUE)
+short_paths <- short_paths[!grepl("\\.det\\.out\\.gz$",  short_paths)]
+short_paths <- short_paths[!grepl("\\.meth\\.out\\.gz$", short_paths)]
+
+read_short <- function(fp) {
+  fn <- basename(fp)
+  dt <- read_tsv(fp, na = "-1", show_col_types = FALSE)
+  dt <- dt[, c("sampen", "avg_meth")]
+  dt$annotation <- get_annotation(fn)
+  dt$cell_type  <- get_cell_type(fn)
+  dt
+}
+
+sampens <- do.call(rbind, bplapply(short_paths, read_short, BPPARAM = param))
+sampens <- harmonize_levels(sampens)
+head(sampens)
+```
+
+## Scatter by annotation
+
+```{r scatter_sampen}
+ggplot(sampens, aes(x = avg_meth, y = sampen, color = cell_type)) +
+  geom_point(size = 0.9, alpha = 0.2) +
+  scale_color_brewer(palette = "Set1") +
+  facet_wrap(~annotation) +
+  labs(x = "average methylation", y = "sample entropy (S)") +
+  guides(color = guide_legend(override.aes = list(size = 2))) +
+  theme_ng()
+```
+
+## Boxes by annotation
+
+```{r boxes_sampen, fig.width = 10, fig.height = 6}
+ggplot(sampens, aes(x = annotation, y = sampen, color = cell_type)) +
+  geom_boxplot(outlier.size = 0.6, outlier.alpha = 0.3) +
+  geom_jitter(position = position_dodge(width = 0.75), size = 0.5, alpha = 0.3) +
+  scale_color_brewer(palette = "Dark2") +
+  labs(y = "sample entropy (S)") +
+  theme_ng() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+```
+
+## Methylation boxes by annotation
+
+```{r boxes_meth_sampen, fig.width = 10, fig.height = 6}
+ggplot(sampens, aes(x = annotation, y = avg_meth, color = cell_type)) +
+  geom_boxplot(outlier.size = 0.6, outlier.alpha = 0.3) +
+  geom_jitter(position = position_dodge(width = 0.75), size = 0.5, alpha = 0.3) +
+  scale_color_brewer(palette = "Dark2") +
+  labs(y = "average methylation") +
+  theme_ng() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+```
+
+## Range plots by compartment
+
+```{r ranges_sampen, fig.width = 10, fig.height = 10}
+ranges_s <- sampens %>%
+  group_by(compartment = annotation, cell_type) %>%
+  summarise(
+    sampen_mean = mean(sampen,    na.rm = TRUE),
+    sampen_min  = min(sampen,     na.rm = TRUE),
+    sampen_max  = max(sampen,     na.rm = TRUE),
+    meth_mean   = mean(avg_meth,  na.rm = TRUE),
+    meth_min    = min(avg_meth,   na.rm = TRUE),
+    meth_max    = max(avg_meth,   na.rm = TRUE),
+    .groups = "drop"
+  )
+
+ggplot(ranges_s, aes(color = cell_type)) +
+  geom_segment(aes(x = meth_min,  xend = meth_max,
+                   y = sampen_mean, yend = sampen_mean),
+               linewidth = 0.6) +
+  geom_segment(aes(x = meth_mean, xend = meth_mean,
+                   y = sampen_min, yend = sampen_max),
+               linewidth = 0.6) +
+  geom_point(aes(x = meth_mean, y = sampen_mean), shape = 3, size = 1.2) +
+  scale_color_brewer(palette = "Dark2") +
+  labs(x = "DNA methylation", y = "sample entropy (S)") +
+  facet_wrap(~compartment) +
+  theme_ng()
+```
+
+# adjS (meth-normalised sampEn) {.tabset .tabset-pills}
+
+Per-cell normalised sample entropy from `.out.gz` files.
+
+```{r import_adjS}
+norm_paths <- list.files(snakemake@params[["output_path"]],
+                         pattern = "out\\.gz$", full.names = TRUE)
+norm_paths <- norm_paths[!grepl("\\.det\\.out\\.gz$",  norm_paths)]
+norm_paths <- norm_paths[!grepl("\\.norm\\.out\\.gz$", norm_paths)]
+norm_paths <- norm_paths[!grepl("\\.meth\\.out\\.gz$", norm_paths)]
+
+read_adjS <- function(fp) {
+  fn <- basename(fp)
+  dt <- read_tsv(fp, na = "-1", show_col_types = FALSE)
+  dt <- dt[, c("sampen_norm", "avg_meth")]
+  colnames(dt) <- c("sampen", "avg_meth")
+  dt$annotation <- get_annotation(fn)
+  dt$cell_type  <- get_cell_type(fn)
+  dt
+}
+
+adjsampens <- do.call(rbind, bplapply(norm_paths, read_adjS, BPPARAM = param))
+adjsampens <- harmonize_levels(adjsampens)
+head(adjsampens)
+```
+
+## Scatter by annotation
+
+```{r scatter_adjS}
+ggplot(adjsampens, aes(x = avg_meth, y = sampen, color = cell_type)) +
+  geom_point(size = 0.9, alpha = 0.2) +
+  scale_color_brewer(palette = "Set1") +
+  facet_wrap(~annotation) +
+  labs(x = "average methylation", y = "adj. sample entropy (adjS)") +
+  guides(color = guide_legend(override.aes = list(size = 2))) +
+  theme_ng()
+```
+
+## Boxes by annotation
+
+```{r boxes_adjS, fig.width = 10, fig.height = 6}
+ggplot(adjsampens, aes(x = annotation, y = sampen, color = cell_type)) +
+  geom_boxplot(outlier.size = 0.6, outlier.alpha = 0.3) +
+  geom_jitter(position = position_dodge(width = 0.75), size = 0.5, alpha = 0.3) +
+  scale_color_brewer(palette = "Dark2") +
+  labs(y = "adj. sample entropy (adjS)") +
+  theme_ng() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+```
+
+## Range plots by compartment
+
+```{r ranges_adjS, fig.width = 10, fig.height = 10}
+ranges_adjs <- adjsampens %>%
+  group_by(compartment = annotation, cell_type) %>%
+  summarise(
+    sampen_mean = mean(sampen,   na.rm = TRUE),
+    sampen_min  = min(sampen,    na.rm = TRUE),
+    sampen_max  = max(sampen,    na.rm = TRUE),
+    meth_mean   = mean(avg_meth, na.rm = TRUE),
+    meth_min    = min(avg_meth,  na.rm = TRUE),
+    meth_max    = max(avg_meth,  na.rm = TRUE),
+    .groups = "drop"
+  )
+
+ggplot(ranges_adjs, aes(color = cell_type)) +
+  geom_segment(aes(x = meth_min,  xend = meth_max,
+                   y = sampen_mean, yend = sampen_mean),
+               linewidth = 0.6) +
+  geom_segment(aes(x = meth_mean, xend = meth_mean,
+                   y = sampen_min, yend = sampen_max),
+               linewidth = 0.6) +
+  geom_point(aes(x = meth_mean, y = sampen_mean), shape = 3, size = 1.2) +
+  scale_color_brewer(palette = "Dark2") +
+  labs(x = "DNA methylation", y = "adj. sample entropy (adjS)") +
+  facet_wrap(~compartment) +
+  theme_ng()
+```
+
+# Shannon H - medians, downsampled {.tabset .tabset-pills}
+
+Per-locus Shannon entropy (H) from `.det.out.gz`. One median value per cell type per annotation; loci downsampled to 10e4 rows.
+
+```{r import_shannon}
+det_paths <- list.files(snakemake@params[["output_path"]],
+                        pattern = "det\\.out\\.gz$", full.names = TRUE)
+det_paths <- det_paths[!grepl("norm", det_paths)]
+
+read_shannon <- function(fp) {
+  fn  <- basename(fp)
+  tmp <- read_tsv(fp, na = "-1", show_col_types = FALSE, n_max = 10e4)
+  tibble(
+    file            = fn,
+    median_shannon  = median(tmp$shannon,  na.rm = TRUE),
+    median_avg_meth = median(tmp$avg_meth, na.rm = TRUE),
+    annotation      = get_annotation(fn),
+    cell_type       = get_cell_type(fn)
+  )
+}
+
+shannons <- bplapply(det_paths, read_shannon, BPPARAM = param) |> bind_rows()
+shannons <- harmonize_levels(shannons)
+head(shannons)
+```
+
+## Scatter by annotation
+
+```{r scatter_shannon}
+ggplot(shannons, aes(x = median_avg_meth, y = median_shannon, color = cell_type)) +
+  geom_point(size = 1.5, alpha = 0.8) +
+  scale_color_brewer(palette = "Set1") +
+  facet_wrap(~annotation) +
+  labs(x = "median avg. methylation", y = "median Shannon entropy (H)") +
+  guides(color = guide_legend(override.aes = list(size = 2))) +
+  theme_ng()
+```
+
+## Boxes by annotation
+
+```{r boxes_shannon, fig.width = 10, fig.height = 6}
+ggplot(shannons, aes(x = annotation, y = median_shannon, color = cell_type)) +
+  geom_point(position = position_dodge(width = 0.5), size = 2) +
+  scale_color_brewer(palette = "Dark2") +
+  labs(y = "median Shannon entropy (H)") +
+  theme_ng() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+```
+
+# adjH (meth-normalised Shannon) - medians {.tabset .tabset-pills}
+
+Per-locus normalised Shannon entropy from `.norm.det.out.gz`. Same downsampling as above.
+
+```{r import_adjH}
+norm_det_paths <- list.files(snakemake@params[["output_path"]],
+                             pattern = "norm\\.det\\.out\\.gz$", full.names = TRUE)
+
+read_adjH <- function(fp) {
+  fn  <- basename(fp)
+  tmp <- read_tsv(fp, na = "-1", show_col_types = FALSE, n_max = 10e4)
+  tibble(
+    file            = fn,
+    median_shannon  = median(tmp$shannon_norm, na.rm = TRUE),
+    median_avg_meth = median(tmp$avg_meth,     na.rm = TRUE),
+    annotation      = get_annotation(fn),
+    cell_type       = get_cell_type(fn)
+  )
+}
+
+adjshannons <- bplapply(norm_det_paths, read_adjH, BPPARAM = param) |> bind_rows()
+adjshannons <- harmonize_levels(adjshannons)
+head(adjshannons)
+```
+
+## Scatter by annotation
+
+```{r scatter_adjH}
+ggplot(adjshannons, aes(x = median_avg_meth, y = median_shannon, color = cell_type)) +
+  geom_point(size = 1.5, alpha = 0.8) +
+  scale_color_brewer(palette = "Set1") +
+  facet_wrap(~annotation) +
+  labs(x = "median avg. methylation", y = "median adj. Shannon entropy (adjH)") +
+  guides(color = guide_legend(override.aes = list(size = 2))) +
+  theme_ng()
+```
+
+## Boxes by annotation
+
+```{r boxes_adjH, fig.width = 10, fig.height = 6}
+ggplot(adjshannons, aes(x = annotation, y = median_shannon, color = cell_type)) +
+  geom_point(position = position_dodge(width = 0.5), size = 2) +
+  scale_color_brewer(palette = "Dark2") +
+  labs(y = "median adj. Shannon entropy (adjH)") +
+  theme_ng() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+```
+
+# Assembly
+
+sampEn/adjS are per-cell values; Shannon/adjH are medians across loci for each cell type group.
+
+```{r str_check}
+str(sampens)
+str(adjsampens)
+str(shannons)
+str(adjshannons)
+```
+
+```{r save_rds}
+saveRDS(
+  list(sampens    = sampens,
+       adjsampens = adjsampens,
+       shannons   = shannons,
+       adjshannons= adjshannons),
+  file = "ecker_entropy.rds"
+)
+```
+
+## adjS vs adjH by cell type
+
+```{r adjS_vs_adjH, fig.height = 10, fig.width = 8}
+adj_df <- adjsampens %>%
+  left_join(adjshannons,
+            by      = c("annotation", "cell_type"),
+            suffix  = c("_sampen", "_shannon"))
+
+ggplot(adj_df, aes(x = median_shannon, y = sampen, color = cell_type)) +
+  geom_point(size = 0.9) +
+  scale_color_brewer(palette = "Set1") +
+  facet_wrap(~annotation, ncol = 3) +
+  labs(x = "median adjH", y = "adjS") +
+  theme_ng()
+```
+
+## S vs H by cell type
+
+```{r S_vs_H, fig.height = 10, fig.width = 8}
+raw_df <- sampens %>%
+  left_join(shannons,
+            by     = c("annotation", "cell_type"),
+            suffix = c("_sampen", "_shannon"))
+
+ggplot(raw_df, aes(x = median_shannon, y = sampen, color = cell_type)) +
+  geom_point(size = 0.9) +
+  scale_color_brewer(palette = "Set1") +
+  facet_wrap(~annotation, ncol = 3) +
+  labs(x = "median H", y = "S") +
+  theme_ng()
+```
+
+# Variation across cell types {.tabset .tabset-pills}
+
+```{r variation_range}
+variation <- adj_df %>%
+  group_by(annotation) %>%
+  summarise(
+    shannon_range = max(median_shannon, na.rm = TRUE) - min(median_shannon, na.rm = TRUE),
+    sampen_range  = max(sampen,         na.rm = TRUE) - min(sampen,         na.rm = TRUE),
+    shannon_sd    = sd(median_shannon,  na.rm = TRUE),
+    sampen_sd     = sd(sampen,          na.rm = TRUE),
+    .groups = "drop"
+  )
+
+head(variation)
+
+ggplot(variation, aes(x = shannon_range, y = sampen_range, label = annotation)) +
+  geom_point() +
+  geom_text_repel() +
+  labs(x = "adjH range across cell types",
+       y = "adjS range across cell types") +
+  theme_ng()
+```
+
+## Per cell type
+
+```{r variation_per_cell_type}
+variation_ct <- adj_df %>%
+  group_by(annotation, cell_type) %>%
+  summarise(
+    shannon_median = median(median_shannon, na.rm = TRUE),
+    sampen_median  = median(sampen,         na.rm = TRUE),
+    shannon_sd     = sd(median_shannon,     na.rm = TRUE),
+    sampen_sd      = sd(sampen,             na.rm = TRUE),
+    shannon_range  = max(median_shannon, na.rm = TRUE) - min(median_shannon, na.rm = TRUE),
+    sampen_range   = max(sampen,         na.rm = TRUE) - min(sampen,         na.rm = TRUE),
+    .groups = "drop"
+  )
+
+ggplot(variation_ct, aes(x = shannon_median, y = sampen_median, color = cell_type)) +
+  geom_point() +
+  scale_color_brewer(palette = "Set1") +
+  facet_wrap(~annotation) +
+  labs(x = "median adjH", y = "median adjS") +
+  theme_ng()
+
+ggplot(variation_ct, aes(x = shannon_sd, y = sampen_sd, color = cell_type)) +
+  geom_point() +
+  scale_color_brewer(palette = "Set1") +
+  facet_wrap(~annotation) +
+  labs(x = "sd adjH", y = "sd adjS") +
+  theme_ng()
+```
+
+# Driver categorization
+
+Categorizing annotations as within-cell (adjS-driven), across-cell (adjH-driven), or both. Ongoing, not final.
+
+```{r drivers_range}
+shannon_thr <- quantile(variation$shannon_range, 0.5, na.rm = TRUE)
+sampen_thr  <- quantile(variation$sampen_range,  0.5, na.rm = TRUE)
+
+variation <- variation %>%
+  mutate(
+    driver = case_when(
+      shannon_range < shannon_thr & sampen_range < sampen_thr ~ "not changing enough",
+      shannon_range >= sampen_range * 1.5 ~ "across-cell driven",
+      sampen_range  >= shannon_range * 1.5 ~ "within-cell driven",
+      TRUE ~ "both"
+    )
+  )
+
+table(variation$driver)
+
+ggplot(variation,
+       aes(x = shannon_range, y = sampen_range,
+           color = driver, shape = driver, label = annotation)) +
+  geom_point(size = 3) +
+  geom_text_repel() +
+  labs(x = "adjH range across cell types",
+       y = "adjS range across cell types") +
+  theme_ng()
+```
+
+```{r drivers_sd}
+sds <- raw_df %>%
+  group_by(annotation) %>%
+  summarise(
+    shannon_sd = sd(median_shannon, na.rm = TRUE),
+    sampen_sd  = sd(sampen,         na.rm = TRUE),
+    .groups = "drop"
+  )
+
+shannon_sd_thr <- quantile(sds$shannon_sd, 0.3, na.rm = TRUE)
+sampen_sd_thr  <- quantile(sds$sampen_sd,  0.3, na.rm = TRUE)
+
+sds <- sds %>%
+  mutate(
+    driver = case_when(
+      shannon_sd < shannon_sd_thr & sampen_sd < sampen_sd_thr ~ "not changing enough",
+      shannon_sd >= sampen_sd * 1.5 ~ "across-cell driven",
+      sampen_sd  >= shannon_sd * 1.5 ~ "within-cell driven",
+      TRUE ~ "both"
+    )
+  )
+
+table(sds$driver)
+
+ggplot(sds,
+       aes(x = shannon_sd, y = sampen_sd,
+           color = driver, shape = driver, label = annotation)) +
+  geom_point(size = 3) +
+  geom_text_repel() +
+  labs(x = "SD of adjH across cell types",
+       y = "SD of adjS across cell types") +
+  theme_ng()
+```
+
+# Session
+
+```{r session, cache = FALSE}
+sessionInfo()
+```
