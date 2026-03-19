@@ -271,6 +271,48 @@ saveRDS(s_plots,   'rds/s_plots_within.rds')
 saveRDS(n_plots,   'rds/n_plots_within.rds')
 ```
 
+```{r adj-within}
+## ── Adjusted entropy (adjS = norm. sample entropy, adjH = norm. Shannon) ──────
+
+## Load norm.det.out for the display example
+norm_det <- read.table(
+  paste0(data_dir, paste("/yamet", S, N, f, "norm.det.out", sep = ".")),
+  header = T
+)
+rownames(norm_det) <- paste(norm_det$start, norm_det$end, sep = ":")
+norm_output_cols <- grep("^output", colnames(norm_det), value = TRUE)
+
+## Per-cell per-feature long format with adj columns
+jnt.adj.long <- do.call(rbind, lapply(output_cols, function(col) {
+  data.frame(
+    start        = jnt$start,
+    end          = jnt$end,
+    sample       = col,
+    adj_sampen   = norm_det[[col]],
+    norm_shannon = norm_det$shannon_norm,
+    avg_meth     = norm_det$avg_meth,
+    wc_vi        = jnt$wc_vi
+  )
+}))
+## Attach per-cell methylation (same as unadjusted all.long)
+all.long_adj <- cbind(jnt.adj.long, meth.long)
+
+## Add adj summary columns to jnt, then save jnt_within_adj.rds
+jnt$adj_sampen_avg <- rowMeans(norm_det[rownames(jnt), norm_output_cols])
+jnt$shannon_norm   <- norm_det[rownames(jnt), "shannon_norm"]
+
+## Adj grid performance plots
+s_plots_adj <- make_grid_plots(S_GRID, "S", "wc_vi", data_dir, adj = TRUE)
+n_plots_adj <- make_grid_plots(N_GRID, "N", "wc_vi", data_dir, adj = TRUE)
+mi_fd_adj   <- mi_table_gen(jnt, "wc_vi", table = FALSE, adj = TRUE)
+
+saveRDS(mi_fd_adj,    'rds/perf_within_adj.rds')
+saveRDS(all.long_adj, 'rds/all.long_within_adj.rds')
+saveRDS(jnt,          'rds/jnt_within_adj.rds')
+saveRDS(s_plots_adj,  'rds/s_plots_within_adj.rds')
+saveRDS(n_plots_adj,  'rds/n_plots_within_adj.rds')
+```
+
 ## Plots
 
 ```{r samp_meth}

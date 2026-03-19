@@ -22,7 +22,8 @@ rule all:
         "output/04_feat_diff.html",
         "output/05_within_cell.html",
         "output/06_between_cell.html",
-        "output/07_combined_figure.html"
+        "output/07_combined_figure.html",
+        "output/08_combined_figure_adj.html"
         #"output/figures/simulations_emanuel.html"
 
 rule install_yamet:
@@ -349,6 +350,7 @@ rule within_cell_yamet:
         yamet=op.join("build", "yamet"),
     output:
         det_out="output/within_cell/yamet.{S}.{N}.{f}.det.out",
+        norm_det_out="output/within_cell/yamet.{S}.{N}.{f}.norm.det.out",
     params:
         data="output/within_cell",
     threads: 4
@@ -361,6 +363,7 @@ rule within_cell_yamet:
                         --intervals {params.data}/intervals.{wildcards.S}.{wildcards.N}.{wildcards.f}.tsv \
                         --skip-header-intervals \
                         --det-out {output.det_out} \
+                        --norm-det-out {output.norm_det_out} \
                         --meth-out {params.data}/yamet.{wildcards.S}.{wildcards.N}.{wildcards.f}.meth.out \
                         --cores {threads} \
                         --no-print-sampens
@@ -450,6 +453,7 @@ rule between_cell_yamet:
         yamet=op.join("build", "yamet"),
     output:
         det_out="output/between_cell/yamet.{S}.{N}.{f}.det.out",
+        norm_det_out="output/between_cell/yamet.{S}.{N}.{f}.norm.det.out",
     params:
         data="output/between_cell",
     threads: 4
@@ -462,6 +466,7 @@ rule between_cell_yamet:
                         --intervals {params.data}/intervals.{wildcards.S}.{wildcards.N}.{wildcards.f}.tsv \
                         --skip-header-intervals \
                         --det-out {output.det_out} \
+                        --norm-det-out {output.norm_det_out} \
                         --meth-out {params.data}/yamet.{wildcards.S}.{wildcards.N}.{wildcards.f}.meth.out \
                         --cores {threads} \
                         --no-print-sampens
@@ -498,6 +503,18 @@ rule combined_figure:
         html    = "output/07_combined_figure.html"
     script:
         "src/07_combined_figure.Rmd"
+
+
+rule combined_figure_adj:
+    conda:
+        "envs/r_plot.yaml"
+    input:
+        within_html  = "output/05_within_cell.html",
+        across_html  = "output/06_between_cell.html"
+    output:
+        html    = "output/08_combined_figure_adj.html"
+    script:
+        "src/08_combined_figure_adj.Rmd"
     # shell:
     #     """
     #       mkdir -p output/07_plots
