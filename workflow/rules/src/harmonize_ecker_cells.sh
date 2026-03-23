@@ -64,7 +64,7 @@ if [[ ${#tar_files[@]} -eq 0 ]]; then
 fi
 
 printf '%s\n' "${tar_files[@]}" \
-    | xargs -P "${snakemake_threads}" -I{} \
+    | xargs -P "${snakemake_params[threads]}" -I{} \
         bash -c 'process_one_cell "$@"' _ {} \
             "${snakemake_params[harmonized]}" \
             "${snakemake_params[chr10_only]}"

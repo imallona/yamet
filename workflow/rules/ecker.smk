@@ -127,6 +127,7 @@ checkpoint harmonize_ecker_cells:
         raw=op.join(ECKER_BASE, "raw"),
         harmonized=ECKER_HARMONIZED,
         chr10_only=ECKER_CHR10_ONLY,
+        threads=lambda wildcards, threads: threads,
     threads: 8
     script:
         "src/harmonize_ecker_cells.sh"
