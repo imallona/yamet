@@ -9,15 +9,17 @@ set -euo pipefail
 
 mkdir -p "${snakemake_params[harmonized]}"
 
-for tar_file in "${snakemake_params[raw]}"/*.tsv.tar; do
-    [[ -f "$tar_file" ]] || { echo "No tar files in ${snakemake_params[raw]}"; break; }
+process_one_cell() {
+    tar_file="$1"
+    harmonized_dir="$2"
+    chr_filter="$3"
 
     cell_name=$(basename "$tar_file" .tar)
-    harmonized_out="${snakemake_params[harmonized]}/${cell_name}.gz"
+    harmonized_out="${harmonized_dir}/${cell_name}.gz"
 
     if [[ -f "$harmonized_out" ]]; then
         echo "Skipping $cell_name"
-        continue
+        return
     fi
 
     tmpdir=$(mktemp -d)
@@ -27,11 +29,11 @@ for tar_file in "${snakemake_params[raw]}"/*.tsv.tar; do
     if [[ -z "$allc_file" ]]; then
         echo "Warning: no tsv.gz in $tar_file, skipping"
         rm -rf "$tmpdir"
-        continue
+        return
     fi
 
     zcat "$allc_file" \
-      | awk -v chr_filter="${snakemake_params[chr10_only]}" '
+      | awk -v chr_filter="$chr_filter" '
             BEGIN { OFS="\t" }
             $7 == 1 {
                 if (chr_filter == "True" && $1 != "10") next
@@ -41,10 +43,28 @@ for tar_file in "${snakemake_params[raw]}"/*.tsv.tar; do
       | sort -k1,1 -k2,2n \
       | bedtools merge -c 7,8 -o sum \
       | awk 'BEGIN { OFS="\t" } {
-            meth_bin = ($4 > 0) ? 1 : 0
+            meth_bin = ($5 > 0 && $4 / $5 > 0) ? 1 : 0
             print $1, $2, $4, $5, meth_bin
         }' \
       | gzip -c > "$harmonized_out"
 
     rm -rf "$tmpdir"
-done
+}
+
+export -f process_one_cell
+
+# check there are tar files to process
+shopt -s nullglob
+tar_files=("${snakemake_params[raw]}"/*.tsv.tar)
+shopt -u nullglob
+
+if [[ ${#tar_files[@]} -eq 0 ]]; then
+    echo "No tar files in ${snakemake_params[raw]}"
+    exit 0
+fi
+
+printf '%s\n' "${tar_files[@]}" \
+    | xargs -P "${snakemake_threads}" -I{} \
+        bash -c 'process_one_cell "$@"' _ {} \
+            "${snakemake_params[harmonized]}" \
+            "${snakemake_params[chr10_only]}"
