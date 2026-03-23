@@ -33,15 +33,15 @@ for tar_file in "${snakemake_params[raw]}"/*.tsv.tar; do
     zcat "$allc_file" \
       | awk -v chr_filter="${snakemake_params[chr10_only]}" '
             BEGIN { OFS="\t" }
-            $4 ~ /^CG/ {
-                if (chr_filter == "True" && $1 != "chr10") next
+            $7 == 1 {
+                if (chr_filter == "True" && $1 != "10") next
                 cpg_start = ($3 == "-") ? $2 - 2 : $2 - 1
                 print $1, cpg_start, cpg_start + 1, ".", ".", $3, $5, $6
             }' \
       | sort -k1,1 -k2,2n \
       | bedtools merge -c 7,8 -o sum \
       | awk 'BEGIN { OFS="\t" } {
-            meth_bin = ($5 > 0 && $4 / $5 > 0.1) ? 1 : 0
+            meth_bin = ($4 > 0) ? 1 : 0
             print $1, $2, $4, $5, meth_bin
         }' \
       | gzip -c > "$harmonized_out"
