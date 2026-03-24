@@ -35,7 +35,7 @@ process_one_cell() {
     zcat "$allc_file" \
       | awk -v chr_filter="$chr_filter" '
             BEGIN { OFS="\t" }
-            $7 == 1 {
+            $7 == 1 && $4 ~ /^CG/ {
                 if (chr_filter == "True" && $1 != "10") next
                 cpg_start = ($3 == "-") ? $2 - 2 : $2 - 1
                 print $1, cpg_start, cpg_start + 1, ".", ".", $3, $5, $6
