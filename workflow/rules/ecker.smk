@@ -17,6 +17,9 @@ ECKER_OUTPUT = op.join(ECKER_BASE, "output")
 ## set to True to restrict to chr10 for speed; False for full genome
 ECKER_CHR10_ONLY = True
 
+## tell mm10.smk which chromosomes to include in the CG reference
+MM10_CG_CHRS = ["10"] if ECKER_CHR10_ONLY else CHRS
+
 ECKER_ANNOTATIONS = {
     "chip": ["h3k4me3", "h3k9me3", "h3k27me3", "h3k4me1", "h3k27ac"],
     "genes": ["genes"],

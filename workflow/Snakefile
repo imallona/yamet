@@ -17,6 +17,7 @@ include: op.join("rules", "mm10.smk")
 ## datasets and analysis
 include: op.join("rules", "crc.smk")
 include: op.join("rules", "ecker.smk")
+include: op.join("rules", "archive.smk")
 
 
 shell.prefix("set -o pipefail; export PATH=$HOME/.local/yamet/bin:$PATH;")
