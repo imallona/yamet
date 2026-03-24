@@ -247,7 +247,7 @@ rule run_yamet_on_separate_features:
          --reference {input.ref} \
          --intervals {input.bed} \
          --cores {threads} \
-         --print-sampens F \
+         --no-print-sampens \
          --out {output.simple_uncomp} \
          --det-out {output.det_uncomp} \
          --meth-out {output.meth_uncomp} \
@@ -403,7 +403,7 @@ rule run_yamet_on_windows:
          --reference {input.ref} \
          --intervals {input.windows} \
          --cores {threads} \
-         --print-sampens F \
+         --no-print-sampens \
          --out {output.simple_uncomp} \
          --det-out {output.det_uncomp} \
          --meth-out {output.meth_uncomp} \

@@ -175,7 +175,7 @@ rule run_yamet_on_ecker_features:
          --reference {input.ref} \
          --intervals {input.bed} \
          --cores {threads} \
-         --print-sampens F \
+         --no-print-sampens \
          --out {output.simple_uncomp} \
          --det-out {output.det_uncomp} \
          --meth-out {output.meth_uncomp} \
