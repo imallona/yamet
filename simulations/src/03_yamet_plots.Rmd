@@ -50,7 +50,8 @@ Then, we parse the different elements from the filenames and turn the appropriat
 data[, c("no", "ignore", "ncpgs", "type", "coverage", "tr") :=
   tstrsplit(file, split = "_", keep = 4:9, type.convert = TRUE)]
 data[, "tr" := sub("\\.tsv$", "", tr)]
-data[, c("file", "ignore") := NULL]
+#data[, c("file", "ignore") := NULL]
+data[,cell:=sub("\\.tsv$", "", basename(file))]
 
 factor_cols <- c("ncpgs", "type", "coverage", "tr")
 data[, (factor_cols) := lapply(.SD, as.factor), .SDcols = factor_cols]
@@ -121,6 +122,133 @@ for (unique.type in unique.types) {
 }
 print(plots.list)
 ```
+Scaled by dividing by adjS by the exp. SampEn to avoid the convex dependence of adjS. on the marginal methylation.   
+```{r, norm_plots scaled, fig.width = 9, fig.height = 7}
+# just quick test how simple scaling would perform
+data[,exp_meth:=-log(avg_meth^2+(1-avg_meth)^2)]
+data[,sampen_norm_scaled:=sampen_norm/exp_meth]
+
+unique.types <- unique(data$type)
+plots.list <- list()
+
+for (unique.type in unique.types) {
+  p <- ggplot(data[type == unique.type], aes(x = avg_meth, y = sampen_norm_scaled, color = tr)) +
+    geom_point(alpha = 0.7) +
+    ## facet_grid(ncpgs ~ coverage) +
+      facet_grid(
+         ncpgs ~ coverage,
+          labeller = labeller(
+              ncpgs   = function(x) paste("# CpGs:", x),
+              coverage = function(x) paste("cov.:", x))) +
+    theme_minimal() +
+    labs(
+      title = paste("scaled Adjusted Sample Entropy in different TR settings for type", unique.type),
+      x = "avg. methylation", y = "adj sample entropy (adjS)", color = "TR"
+    ) +
+      theme_ng_discrete() +
+      theme( axis.text.x = element_text(angle = 45, hjust = 1))
+  
+  plots.list[[unique.type]] <- p
+}
+print(plots.list)
+```
+Additive smoothing applied to the estimated marginal methylation probability $\hat p_{\text{m}}$ to avoid the "wings" occurring for sparse data.
+
+$\hat p_{m,\,smoothed}=\frac{n_{m\,cpgs}+0.5}{n_{covered\,cpgs}+1}$
+
+Currently, estimation of $\hat p_{m}$ corresponds to `--all-meth`.
+
+```{r, norm_plots smoothed+scaled, fig.width = 9, fig.height = 7}
+# quick & naive check reading the number of covered CpGs per file
+simFiles <- list.files(file.path("..", "output/sim_data"), pattern="*.tsv", 
+                       full.names=TRUE)
+simFiles <- simFiles[!grepl("cpg", simFiles)]
+simCovCpgs <- lapply(simFiles, 
+                   function(f){
+                     simDat <- fread(f)
+                     covDt <- data.table(n_cov_cpgs=nrow(simDat))
+                     if(covDt$n_cov_cpgs==0){
+                       covDt$n_meth <- 0}
+                     else{
+                       covDt$n_meth <- sum(simDat$V3)
+                     }
+                     covDt
+                   })
+names(simCovCpgs) <- basename(simFiles)
+simCovCpgs <- rbindlist(simCovCpgs, idcol="file")
+simCovCpgs[,cell:=sub("\\.tsv$", "", basename(file))]
+
+data2 <- merge(data, simCovCpgs, by=c("cell"), all.x=TRUE, all.y=FALSE)
+
+# try some smoothing in dependence of the sparsity (additive smoothing)
+data2[,p_meth_smooth:=(n_meth+0.5)/(n_cov_cpgs+1)]
+
+# would correspond to the --all-meth atm. 
+data2[,exp_meth_smooth:=-log(p_meth_smooth^2+(1-p_meth_smooth)^2)] 
+data2[,sampen_norm_scaled2:=(sampen - exp_meth_smooth)/exp_meth_smooth]
+
+unique.types <- unique(data2$type)
+plots.list <- list()
+for (unique.type in unique.types) {
+  p <- ggplot(data2[type == unique.type], 
+              aes(x = avg_meth, y = sampen_norm_scaled2, color = tr)) +
+    geom_point(alpha = 0.7) +
+    ## facet_grid(ncpgs ~ coverage) +
+      facet_grid(
+         ncpgs ~ coverage,
+          labeller = labeller(
+              ncpgs   = function(x) paste("# CpGs:", x),
+              coverage = function(x) paste("cov.:", x))) +
+    theme_minimal() +
+    labs(
+      title = paste("smoothed+scaled Adjusted Sample Entropy in different TR settings for type", unique.type),
+      x = "avg. methylation", y = "smoothed+scaled adj sample entropy (adjS)", color = "TR"
+    ) +
+      theme_ng_discrete() +
+      theme( axis.text.x = element_text(angle = 45, hjust = 1))
+  
+  plots.list[[unique.type]] <- p
+}
+print(plots.list)
+```
+
+
+```{r, norm_plots smoothed+scaled per group averages, fig.width = 9, fig.height = 7}
+data3 <- data2[,.(avg_meth=mean(avg_meth),
+                                       sampen_norm_scaled2=mean(sampen_norm_scaled2),
+                                       sd_meth=sd(avg_meth),
+                                       sd_sampen_norm_scaled2=sd(sampen_norm_scaled2)),
+                                    by=.(ncpgs, coverage, tr, type)]
+
+for (unique.type in unique.types) {
+  p <- ggplot(data3[type == unique.type],
+              aes(x = avg_meth, y = sampen_norm_scaled2, color = tr)) +
+    geom_point(alpha = 0.7) +
+    geom_errorbar(
+      aes(ymin = sampen_norm_scaled2 - sd_sampen_norm_scaled2, 
+          ymax = sampen_norm_scaled2 + sd_sampen_norm_scaled2))+
+    geom_errorbarh(
+      aes(xmin = avg_meth - sd_meth, 
+          xmax = avg_meth + sd_meth))+
+      facet_grid(
+         ncpgs ~ coverage,
+          labeller = labeller(
+              ncpgs   = function(x) paste("# CpGs:", x),
+              coverage = function(x) paste("cov.:", x))) +
+    theme_minimal() +
+    labs(
+      title = paste("smoothed+scaled Adjusted Sample Entropy in different TR settings for type", unique.type),
+      x = "Per group avg. methylation +/- SD", y = "Per group avg. smoothed+scaled adj sample entropy (adjS) +/- SD", 
+      color = "TR")+
+      theme_ng_discrete() +
+      theme( axis.text.x = element_text(angle = 45, hjust = 1))
+      #theme(axis.title.text=element_text(size=6))
+  plots.list[[unique.type]] <- p
+}
+print(plots.list)
+```
+```
+
 
 Plus some pairwise plots
 
@@ -153,5 +281,4 @@ for (unique.type in unique.types) {
 }
 
 print(plots.list)
-
 ```
