@@ -21,6 +21,7 @@ suppressPackageStartupMessages({
   library(BiocParallel)
   library(ggstance)
   library(ggrepel)
+  library(ggridges)
 })
 
 source("src/ggtheme.R")
@@ -133,6 +134,26 @@ ggplot(sampens, aes(x = annotation, y = sampen, color = sub_type)) +
   theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
 ```
 
+```{r violin_sampen_class, fig.width = 12, fig.height = 10}
+ggplot(sampens, aes(x = sub_type, y = sampen, fill = sub_type)) +
+  geom_violin(alpha = 0.5, draw_quantiles = 0.5) +
+  geom_jitter(width = 0.2, size = 0.25, alpha = 0.1) +
+  facet_wrap(~annotation, scales = "free_y") +
+  labs(y = "sample entropy (S)") +
+  theme_ng() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1),
+        legend.position = "none")
+```
+
+```{r ridges_sampen_class, fig.width = 12, fig.height = 10}
+ggplot(sampens, aes(x = sampen, y = sub_type, fill = sub_type)) +
+  geom_density_ridges(alpha = 0.6, scale = 0.85) +
+  facet_wrap(~annotation, scales = "free_x") +
+  labs(x = "sample entropy (S)") +
+  theme_ng() +
+  theme(legend.position = "none")
+```
+
 ## By major region
 
 ```{r scatter_sampen_region}
@@ -238,6 +259,26 @@ ggplot(adjsampens, aes(x = annotation, y = sampen, color = sub_type)) +
   labs(y = "adj. sample entropy (adjS)") +
   theme_ng() +
   theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+```
+
+```{r violin_adjS_class, fig.width = 12, fig.height = 10}
+ggplot(adjsampens, aes(x = sub_type, y = sampen, fill = sub_type)) +
+  geom_violin(alpha = 0.5, draw_quantiles = 0.5) +
+  geom_jitter(width = 0.2, size = 0.25, alpha = 0.1) +
+  facet_wrap(~annotation, scales = "free_y") +
+  labs(y = "adj. sample entropy (adjS)") +
+  theme_ng() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1),
+        legend.position = "none")
+```
+
+```{r ridges_adjS_class, fig.width = 12, fig.height = 10}
+ggplot(adjsampens, aes(x = sampen, y = sub_type, fill = sub_type)) +
+  geom_density_ridges(alpha = 0.6, scale = 0.85) +
+  facet_wrap(~annotation, scales = "free_x") +
+  labs(x = "adj. sample entropy (adjS)") +
+  theme_ng() +
+  theme(legend.position = "none")
 ```
 
 ## By major region
@@ -721,6 +762,146 @@ ggplot(var_all,
   geom_text_repel() +
   labs(x = "SD of adjH across all groups",
        y = "SD of adjS across all groups") +
+  theme_ng()
+```
+
+# Heatmaps of median entropy per group {.tabset .tabset-pills}
+
+Median entropy per annotation and sub-type combination. Useful for spotting which annotations show the most consistent differences across groups.
+
+## adjS
+
+```{r heatmap_adjS, fig.width = 10, fig.height = 7}
+heat_adjs <- adjsampens %>%
+  group_by(annotation, sub_type) %>%
+  summarise(median_adjS = median(sampen, na.rm = TRUE), .groups = "drop")
+
+ggplot(heat_adjs, aes(x = annotation, y = sub_type, fill = median_adjS)) +
+  geom_tile() +
+  scale_fill_viridis_c(option = "plasma") +
+  labs(x = NULL, y = NULL, fill = "median adjS") +
+  theme_ng() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1),
+        aspect.ratio = NULL)
+```
+
+## adjH
+
+```{r heatmap_adjH, fig.width = 10, fig.height = 7}
+heat_adjh <- adjshannons %>%
+  group_by(annotation, sub_type) %>%
+  summarise(median_adjH = median(median_shannon, na.rm = TRUE), .groups = "drop")
+
+ggplot(heat_adjh, aes(x = annotation, y = sub_type, fill = median_adjH)) +
+  geom_tile() +
+  scale_fill_viridis_c(option = "plasma") +
+  labs(x = NULL, y = NULL, fill = "median adjH") +
+  theme_ng() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1),
+        aspect.ratio = NULL)
+```
+
+## S
+
+```{r heatmap_S, fig.width = 10, fig.height = 7}
+heat_s <- sampens %>%
+  group_by(annotation, sub_type) %>%
+  summarise(median_S = median(sampen, na.rm = TRUE), .groups = "drop")
+
+ggplot(heat_s, aes(x = annotation, y = sub_type, fill = median_S)) +
+  geom_tile() +
+  scale_fill_viridis_c(option = "viridis") +
+  labs(x = NULL, y = NULL, fill = "median S") +
+  theme_ng() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1),
+        aspect.ratio = NULL)
+```
+
+# Locus-level H distributions {.tabset .tabset-pills}
+
+Per-locus Shannon entropy (H) distributions from `.det.out.gz` for a small fixed set of annotations. The same row indices are sampled across all groups so comparisons are on the same loci. Uses annotations `genes` and `h3k4me3`; 5000 loci sampled with seed 42.
+
+```{r locus_level_load}
+LOCUS_ANNOTATIONS <- c("genes", "h3k4me3")
+LOCUS_N           <- 5000L
+LOCUS_SEED        <- 42L
+
+det_paths_locus <- list.files(snakemake@params[["output_path"]],
+                               pattern = "det\\.out\\.gz$", full.names = TRUE)
+det_paths_locus <- det_paths_locus[!grepl("norm", det_paths_locus)]
+
+## keep only target annotations
+det_paths_locus <- det_paths_locus[
+  get_annotation(basename(det_paths_locus)) %in% LOCUS_ANNOTATIONS
+]
+
+## for each annotation, determine sampling indices from the first file found
+locus_indices <- lapply(LOCUS_ANNOTATIONS, function(ann) {
+  fps <- det_paths_locus[get_annotation(basename(det_paths_locus)) == ann]
+  if (length(fps) == 0) return(NULL)
+  nrows <- nrow(read_tsv(fps[[1]], na = "-1", show_col_types = FALSE))
+  n     <- min(LOCUS_N, nrows)
+  set.seed(LOCUS_SEED)
+  sort(sample.int(nrows, n))
+})
+names(locus_indices) <- LOCUS_ANNOTATIONS
+
+read_locus <- function(fp) {
+  fn  <- basename(fp)
+  ann <- get_annotation(fn)
+  idx <- locus_indices[[ann]]
+  if (is.null(idx)) return(NULL)
+  tmp <- read_tsv(fp, na = "-1", show_col_types = FALSE)
+  tmp <- tmp[idx, , drop = FALSE]
+  tibble(
+    shannon    = tmp$shannon,
+    avg_meth   = tmp$avg_meth,
+    annotation = ann,
+    sub_region = get_sub_region(fn),
+    sub_type   = get_sub_type(fn)
+  )
+}
+
+locus_data <- bplapply(det_paths_locus, read_locus, BPPARAM = param) |> bind_rows()
+locus_data <- harmonize_levels(locus_data)
+head(locus_data)
+```
+
+## Violin by sub-type
+
+```{r locus_violin, fig.width = 12, fig.height = 8}
+ggplot(locus_data, aes(x = sub_type, y = shannon, fill = sub_type)) +
+  geom_violin(alpha = 0.5, draw_quantiles = 0.5) +
+  geom_jitter(width = 0.2, size = 0.2, alpha = 0.05) +
+  facet_wrap(~annotation, scales = "free_y") +
+  labs(y = "per-locus Shannon entropy (H)") +
+  theme_ng() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1),
+        legend.position = "none")
+```
+
+## Ridgelines by sub-type
+
+```{r locus_ridges, fig.width = 12, fig.height = 8}
+ggplot(locus_data, aes(x = shannon, y = sub_type, fill = sub_type)) +
+  geom_density_ridges(alpha = 0.6, scale = 0.85) +
+  facet_wrap(~annotation, scales = "free_x") +
+  labs(x = "per-locus Shannon entropy (H)") +
+  theme_ng() +
+  theme(legend.position = "none")
+```
+
+## Methylation vs H
+
+```{r locus_meth_vs_H, fig.width = 12, fig.height = 8}
+locus_sub <- locus_data %>%
+  slice_sample(n = min(2000, nrow(locus_data)), replace = FALSE)
+
+ggplot(locus_sub, aes(x = avg_meth, y = shannon, color = sub_type)) +
+  geom_point(size = 0.4, alpha = 0.3) +
+  facet_wrap(~annotation) +
+  labs(x = "avg. methylation", y = "per-locus Shannon entropy (H)") +
+  guides(color = guide_legend(override.aes = list(size = 2))) +
   theme_ng()
 ```
 

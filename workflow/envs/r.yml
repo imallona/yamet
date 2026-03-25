@@ -22,6 +22,9 @@ dependencies:
   - bioconductor-limma
   - conda-forge::r-uwot
   - conda-forge::r-purrr
+  - conda-forge::r-tidyr
+  - conda-forge::r-ggrepel
+  - conda-forge::r-ggridges
   - conda-forge::r-upsetr
   - conda-forge::r-pheatmap
   - conda-forge::r-ggraph 
