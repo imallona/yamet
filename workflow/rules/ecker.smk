@@ -14,6 +14,10 @@ ECKER_BASE = "ecker"
 ECKER_HARMONIZED = op.join(ECKER_BASE, "harmonized")
 ECKER_OUTPUT = op.join(ECKER_BASE, "output")
 
+## maximum cells per (major_region, cell_class) group passed to yamet
+ECKER_MAX_CELLS = 20
+ECKER_DOWNSAMPLE_SEED = 42
+
 ## set to True to restrict to chr10 for speed; False for full genome
 ECKER_CHR10_ONLY = True
 
@@ -155,6 +159,7 @@ checkpoint harmonize_ecker_cells:
 
 
 def get_ecker_harmonized_files(major_region, cell_class):
+    import random
     checkpoints.harmonize_ecker_cells.get()
     meta = pd.read_csv(
         op.join(ECKER_BASE, "meta.tsv.gz"), sep="\t", compression="gzip"
@@ -164,11 +169,15 @@ def get_ecker_harmonized_files(major_region, cell_class):
         if col in meta.columns:
             mask &= meta[col].astype(str) == val
     cell_basenames = meta[mask]["basename"].dropna().tolist()
-    return [
+    cells = [
         op.join(ECKER_HARMONIZED, c)
         for c in cell_basenames
         if op.exists(op.join(ECKER_HARMONIZED, c))
     ]
+    if len(cells) > ECKER_MAX_CELLS:
+        rng = random.Random(ECKER_DOWNSAMPLE_SEED)
+        cells = rng.sample(cells, ECKER_MAX_CELLS)
+    return cells
 
 
 rule run_yamet_on_ecker_features:
