@@ -38,6 +38,10 @@ ECKER_ANNOTATIONS = {
 ECKER_STRATIFY_BY = ["SubRegion", "SubType"]
 
 
+def _sanitize(s):
+    return str(s).replace(" ", "-")
+
+
 def get_ecker_groups():
     meta_fn = op.join(ECKER_BASE, "meta.tsv.gz")
     if not op.exists(meta_fn):
@@ -47,7 +51,7 @@ def get_ecker_groups():
     if not available:
         return []
     combos = meta[available].dropna().drop_duplicates()
-    return [tuple(str(v) for v in row) for _, row in combos.iterrows()]
+    return [tuple(_sanitize(v) for v in row) for _, row in combos.iterrows()]
 
 
 ## list of (sub_region, sub_type) tuples
@@ -167,7 +171,7 @@ def get_ecker_harmonized_files(sub_region, sub_type):
     mask = pd.Series([True] * len(meta), index=meta.index)
     for col, val in zip(ECKER_STRATIFY_BY, [sub_region, sub_type]):
         if col in meta.columns:
-            mask &= meta[col].astype(str) == val
+            mask &= meta[col].astype(str).apply(_sanitize) == val
     cell_basenames = meta[mask]["basename"].dropna().tolist()
     cells = [
         op.join(ECKER_HARMONIZED, c)
