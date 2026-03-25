@@ -11,7 +11,9 @@ import os.path as op
 import pandas as pd
 
 
-## assemblies and annotations
+## shared annotation rules (assembly-agnostic)
+include: op.join("rules", "annotations.smk")
+## assembly-specific reference and annotation rules
 include: op.join("rules", "hg19.smk")
 include: op.join("rules", "mm10.smk")
 ## datasets and analysis

@@ -133,7 +133,7 @@ rule download_ecker:
         raw=op.join(ECKER_BASE, "raw"),
     threads: 5
     script:
-        "src/get_ecker_meth_files.sh"
+        "src/download_ecker_tars.sh"
 
 
 checkpoint harmonize_ecker_cells:
@@ -151,7 +151,7 @@ checkpoint harmonize_ecker_cells:
         threads=lambda wildcards, threads: threads,
     threads: 8
     script:
-        "src/harmonize_ecker_cells.sh"
+        "src/ecker_allc_to_yamet.sh"
 
 
 def get_ecker_harmonized_files(major_region, cell_class):

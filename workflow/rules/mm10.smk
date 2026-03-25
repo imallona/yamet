@@ -1,5 +1,5 @@
 """
-To generate a reference file from mm10 assembly and download corresponding annotation files
+Reference file generation and mm10-specific annotation downloads.
 """
 
 CHRS = [str(i) for i in range(1, 20)] + ["X", "Y"]
@@ -20,7 +20,7 @@ rule mm10_per_chr_ref:
         fa="Mus_musculus.GRCm38.dna.chromosome.{chr}.fa",
         base="https://ftp.ensembl.org/pub/release-102/fasta/mus_musculus/dna/",
     script:
-        "src/get_chr_ref.sh"
+        "src/build_chr_cpg_ref.sh"
 
 
 rule mm10_aggregate_ref:
@@ -29,12 +29,10 @@ rule mm10_aggregate_ref:
             op.join(MM10_BASE, "{chr}.{{meth_pat}}.ref"),
             chr=(MM10_CG_CHRS if wildcards.meth_pat == "CG" else CHRS),
         ),
-    params:
-        base=MM10_BASE,
     output:
         op.join(MM10_BASE, "ref.{meth_pat}.gz"),
-    script:
-        "src/make_ref.sh"
+    shell:
+        "sort -m -k1,1 -k2,2n {input} | gzip > {output}"
 
 
 rule get_mm10_promoters:
@@ -42,36 +40,18 @@ rule get_mm10_promoters:
         op.join("..", "envs", "processing.yml")
     output:
         op.join(MM10_BASE, "promoters.bed.gz"),
-    script:
-        "src/download_mm10_promoters.sh"
+    shell:
+        """
+        mysql --user=genome --host=genome-mysql.cse.ucsc.edu -N -s -e \
+              'SELECT chrom, min(txStart), max(txEnd), name2, strand
+               FROM mm10.wgEncodeGencodeBasicVM25
+               GROUP BY name2
+               ORDER by chrom, min(txStart);' |
+              awk '{{OFS=FS="\\t"; {{print $1, $2+1-2000, $2+2000, $4, ".", $5}}}}' |
+              gzip -c >{output}
+        """
 
 
-rule get_mm10_genes:
-    conda:
-        op.join("..", "envs", "processing.yml")
-    output:
-        op.join(MM10_BASE, "genes.bed.gz"),
-    script:
-        "src/download_mm10_genes.sh"
-
-rule get_mm10_lines:
-    conda:
-        op.join("..", "envs", "processing.yml")
-    output:
-        op.join(MM10_BASE, "lines.bed.gz"),
-    script:
-        "src/download_mm10_lines.sh"
-
-        
-rule get_mm10_sines:
-    conda:
-        op.join("..", "envs", "processing.yml")
-    output:
-        op.join(MM10_BASE, "sines.bed.gz"),
-    script:
-        "src/download_mm10_sines.sh"
-
-        
 ENCODE_MAP = {
     "h3k4me3": "ENCFF160SCR",
     "h3k9me3": "ENCFF658QTP",
@@ -82,25 +62,16 @@ ENCODE_MAP = {
 
 
 rule get_mm10_encode:
+    wildcard_constraints:
+        ann="|".join(ENCODE_MAP.keys()),
     output:
         op.join(MM10_BASE, "{ann}.bed.gz"),
     params:
-        accessor=lambda wildcards: f"{ENCODE_MAP[wildcards.ann]}",
+        accessor=lambda wildcards: ENCODE_MAP[wildcards.ann],
     shell:
         """
-            curl -L https://www.encodeproject.org/files/{params.accessor}/@@download/{params.accessor}.bed.gz -o {output}
+        curl -L https://www.encodeproject.org/files/{params.accessor}/@@download/{params.accessor}.bed.gz -o {output}
         """
-
-
-rule get_mm10_genome_sizes:
-    conda:
-        op.join("..", "envs", "processing.yml")
-    output:
-        op.join(MM10_BASE, "genome.sizes"),
-    params:
-        asm="mm10",
-    script:
-        "src/download_genome_sizes.sh"
 
 
 rule decompress_mm10_annotation:
