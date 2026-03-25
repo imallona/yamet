@@ -35,7 +35,7 @@ ECKER_ANNOTATIONS = {
 ## Columns to stratify cells by (intersection of all listed columns).
 ## Change this list to stratify by other metadata column combinations;
 ## update the wildcard names in run_yamet_on_ecker_features to match.
-ECKER_STRATIFY_BY = ["MajorRegion", "CellClass"]
+ECKER_STRATIFY_BY = ["SubRegion", "SubType"]
 
 
 def get_ecker_groups():
@@ -50,7 +50,7 @@ def get_ecker_groups():
     return [tuple(str(v) for v in row) for _, row in combos.iterrows()]
 
 
-## list of (major_region, cell_class) tuples
+## list of (sub_region, sub_type) tuples
 ECKER_GROUPS = get_ecker_groups()
 
 
@@ -158,14 +158,14 @@ checkpoint harmonize_ecker_cells:
         "src/ecker_allc_to_yamet.sh"
 
 
-def get_ecker_harmonized_files(major_region, cell_class):
+def get_ecker_harmonized_files(sub_region, sub_type):
     import random
     checkpoints.harmonize_ecker_cells.get()
     meta = pd.read_csv(
         op.join(ECKER_BASE, "meta.tsv.gz"), sep="\t", compression="gzip"
     )
     mask = pd.Series([True] * len(meta), index=meta.index)
-    for col, val in zip(ECKER_STRATIFY_BY, [major_region, cell_class]):
+    for col, val in zip(ECKER_STRATIFY_BY, [sub_region, sub_type]):
         if col in meta.columns:
             mask &= meta[col].astype(str) == val
     cell_basenames = meta[mask]["basename"].dropna().tolist()
@@ -184,20 +184,20 @@ rule run_yamet_on_ecker_features:
     conda:
         op.join("..", "envs", "yamet.yml")
     input:
-        cells=lambda wildcards: get_ecker_harmonized_files(wildcards.major_region, wildcards.cell_class),
+        cells=lambda wildcards: get_ecker_harmonized_files(wildcards.sub_region, wildcards.sub_type),
         ref=op.join(MM10_BASE, "ref.CG.gz"),
         bed=op.join(MM10_BASE, "{annotation}.bed"),
     output:
-        simple_uncomp=temp(op.join(ECKER_OUTPUT, "{annotation}_{major_region}_{cell_class}.out")),
-        det_uncomp=temp(op.join(ECKER_OUTPUT, "{annotation}_{major_region}_{cell_class}.det.out")),
-        norm_det_uncomp=temp(op.join(ECKER_OUTPUT, "{annotation}_{major_region}_{cell_class}.norm.det.out")),
-        meth_uncomp=temp(op.join(ECKER_OUTPUT, "{annotation}_{major_region}_{cell_class}.meth.out")),
-        simple=op.join(ECKER_OUTPUT, "{annotation}_{major_region}_{cell_class}.out.gz"),
-        det=op.join(ECKER_OUTPUT, "{annotation}_{major_region}_{cell_class}.det.out.gz"),
-        meth=op.join(ECKER_OUTPUT, "{annotation}_{major_region}_{cell_class}.meth.out.gz"),
-        norm_det=op.join(ECKER_OUTPUT, "{annotation}_{major_region}_{cell_class}.norm.det.out.gz"),
+        simple_uncomp=temp(op.join(ECKER_OUTPUT, "{annotation}_{sub_region}_{sub_type}.out")),
+        det_uncomp=temp(op.join(ECKER_OUTPUT, "{annotation}_{sub_region}_{sub_type}.det.out")),
+        norm_det_uncomp=temp(op.join(ECKER_OUTPUT, "{annotation}_{sub_region}_{sub_type}.norm.det.out")),
+        meth_uncomp=temp(op.join(ECKER_OUTPUT, "{annotation}_{sub_region}_{sub_type}.meth.out")),
+        simple=op.join(ECKER_OUTPUT, "{annotation}_{sub_region}_{sub_type}.out.gz"),
+        det=op.join(ECKER_OUTPUT, "{annotation}_{sub_region}_{sub_type}.det.out.gz"),
+        meth=op.join(ECKER_OUTPUT, "{annotation}_{sub_region}_{sub_type}.meth.out.gz"),
+        norm_det=op.join(ECKER_OUTPUT, "{annotation}_{sub_region}_{sub_type}.norm.det.out.gz"),
     log:
-        op.join("logs", "yamet_ecker_{annotation}_{major_region}_{cell_class}.log"),
+        op.join("logs", "yamet_ecker_{annotation}_{sub_region}_{sub_type}.log"),
     params:
         path=ECKER_OUTPUT,
     threads: max(8, workflow.cores // 8)
@@ -215,7 +215,7 @@ rule run_yamet_on_ecker_features:
          --meth-out {output.meth_uncomp} \
          --norm-det-out {output.norm_det_uncomp} &> {log}
 
-        gzip --keep -f {params.path}/{wildcards.annotation}_{wildcards.major_region}_{wildcards.cell_class}*out &>> {log}
+        gzip --keep -f {params.path}/{wildcards.annotation}_{wildcards.sub_region}_{wildcards.sub_type}*out &>> {log}
         """
 
 
@@ -223,8 +223,8 @@ def list_ecker_yamet_outputs():
     res = []
     for cat in ECKER_ANNOTATIONS:
         for ann in ECKER_ANNOTATIONS[cat]:
-            for major_region, cell_class in ECKER_GROUPS:
-                res.append(f"{ann}_{major_region}_{cell_class}.det.out.gz")
+            for sub_region, sub_type in ECKER_GROUPS:
+                res.append(f"{ann}_{sub_region}_{sub_type}.det.out.gz")
     return [op.join(ECKER_OUTPUT, item) for item in res]
 
 
