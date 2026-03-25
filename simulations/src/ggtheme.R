@@ -17,19 +17,19 @@ theme_ng <- function(base_size = 12, base_family = "sans") {
       # Ticks and text
       axis.ticks = element_line(color = "black", size = 0.5),
       axis.text = element_text(color = "black"),
-      axis.title = element_text(color = "black", face = "bold"),
+      axis.title = element_text(color = "black"),
 
       # Legend
       legend.key = element_blank(),
       legend.text = element_text(size = base_size - 1),
-      legend.title = element_text(face = "bold"),
+      legend.title = element_text(),
 
       # Strip text for facets
       strip.background = element_blank(),
-      strip.text = element_text(face = "bold"),
+      strip.text = element_text(),
 
       # Plot title
-      plot.title = element_text(face = "bold", hjust = 0.5),
+      plot.title = element_text(hjust = 0.5),
 
       # Square aspect ratio
       aspect.ratio = 1

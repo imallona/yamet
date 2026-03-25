@@ -47,7 +47,7 @@ rule get_mm10_promoters:
                FROM mm10.wgEncodeGencodeBasicVM25
                GROUP BY name2
                ORDER by chrom, min(txStart);' |
-              awk '{{OFS=FS="\\t"; {{print $1, $2+1-2000, $2+2000, $4, ".", $5}}}}' |
+              awk '{{OFS=FS="\\t"; {{print $1, ($2+1-2000 < 0 ? 0 : $2+1-2000), $2+2000, $4, ".", $5}}}}' |
               gzip -c >{output}
         """
 
@@ -75,9 +75,11 @@ rule get_mm10_encode:
 
 
 rule decompress_mm10_annotation:
+    conda:
+        op.join("..", "envs", "processing.yml")
     input:
         op.join(MM10_BASE, "{annotation}.bed.gz"),
     output:
         temp(op.join(MM10_BASE, "{annotation}.bed")),
     shell:
-        "zcat {input} > {output}"
+        "zcat {input} | sort -k1,1 -k2,2n | bedtools merge -i - > {output}"

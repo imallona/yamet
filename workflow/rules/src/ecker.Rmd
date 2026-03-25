@@ -28,7 +28,7 @@ param <- MulticoreParam(workers = snakemake@threads)
 ```
 
 ```{r opts}
-opts_chunk$set(
+knitr::opts_chunk$set(
   echo       = TRUE,
   fig.width  = 7.5,
   fig.height = 7.5,
@@ -530,10 +530,11 @@ ggplot(all_grp, aes(x = median_H, y = median_S,
 Range and SD of group medians for each metric, broken down by major region, cell class, and their combination.
 
 ```{r variation_helpers}
-## Summarise variation of a numeric vector: range and SD
-var_stats <- function(x) {
-  x <- x[!is.na(x)]
-  list(range = diff(range(x)), sd = sd(x))
+## diff(range()) returns -Inf when all values are NA; return NA instead.
+safe_range <- function(x) {
+  x <- x[is.finite(x)]
+  if (length(x) < 2) return(NA_real_)
+  diff(range(x))
 }
 ```
 
@@ -545,10 +546,10 @@ How much do entropies differ between cell classes within the same region?
 var_class <- all_grp %>%
   group_by(annotation, major_region) %>%
   summarise(
-    S_range    = diff(range(median_S,    na.rm = TRUE)),
-    adjS_range = diff(range(median_adjS, na.rm = TRUE)),
-    H_range    = diff(range(median_H,    na.rm = TRUE)),
-    adjH_range = diff(range(median_adjH, na.rm = TRUE)),
+    S_range    = safe_range(median_S),
+    adjS_range = safe_range(median_adjS),
+    H_range    = safe_range(median_H),
+    adjH_range = safe_range(median_adjH),
     S_sd       = sd(median_S,    na.rm = TRUE),
     adjS_sd    = sd(median_adjS, na.rm = TRUE),
     H_sd       = sd(median_H,    na.rm = TRUE),
@@ -583,10 +584,10 @@ How much do entropies differ between major regions within the same cell class?
 var_region <- all_grp %>%
   group_by(annotation, cell_class) %>%
   summarise(
-    S_range    = diff(range(median_S,    na.rm = TRUE)),
-    adjS_range = diff(range(median_adjS, na.rm = TRUE)),
-    H_range    = diff(range(median_H,    na.rm = TRUE)),
-    adjH_range = diff(range(median_adjH, na.rm = TRUE)),
+    S_range    = safe_range(median_S),
+    adjS_range = safe_range(median_adjS),
+    H_range    = safe_range(median_H),
+    adjH_range = safe_range(median_adjH),
     S_sd       = sd(median_S,    na.rm = TRUE),
     adjS_sd    = sd(median_adjS, na.rm = TRUE),
     H_sd       = sd(median_H,    na.rm = TRUE),
@@ -621,10 +622,10 @@ Overall variation collapsing region and class together.
 var_all <- all_grp %>%
   group_by(annotation) %>%
   summarise(
-    S_range    = diff(range(median_S,    na.rm = TRUE)),
-    adjS_range = diff(range(median_adjS, na.rm = TRUE)),
-    H_range    = diff(range(median_H,    na.rm = TRUE)),
-    adjH_range = diff(range(median_adjH, na.rm = TRUE)),
+    S_range    = safe_range(median_S),
+    adjS_range = safe_range(median_adjS),
+    H_range    = safe_range(median_H),
+    adjH_range = safe_range(median_adjH),
     S_sd       = sd(median_S,    na.rm = TRUE),
     adjS_sd    = sd(median_adjS, na.rm = TRUE),
     H_sd       = sd(median_H,    na.rm = TRUE),
@@ -647,9 +648,9 @@ Mean range across groups for cell class and major region, per metric.
 
 ```{r class_vs_region_comparison, fig.width = 10, fig.height = 6}
 mean_var <- bind_rows(
-  var_class  %>% summarise(across(ends_with("_range"), mean, na.rm = TRUE)) %>%
+  var_class  %>% summarise(across(ends_with("_range"), \(x) mean(x, na.rm = TRUE))) %>%
     mutate(driver = "cell class"),
-  var_region %>% summarise(across(ends_with("_range"), mean, na.rm = TRUE)) %>%
+  var_region %>% summarise(across(ends_with("_range"), \(x) mean(x, na.rm = TRUE))) %>%
     mutate(driver = "major region")
 )
 
@@ -677,10 +678,11 @@ sampen_thr  <- quantile(var_all$adjS_range, 0.5, na.rm = TRUE)
 var_all <- var_all %>%
   mutate(
     driver = case_when(
-      adjH_range < shannon_thr & adjS_range < sampen_thr ~ "not changing enough",
-      adjH_range >= adjS_range * 1.5                      ~ "across-cell driven",
-      adjS_range >= adjH_range * 1.5                      ~ "within-cell driven",
-      TRUE                                                 ~ "both"
+      is.na(adjH_range) | is.na(adjS_range)               ~ NA_character_,
+      adjH_range < shannon_thr & adjS_range < sampen_thr   ~ "not changing enough",
+      adjH_range >= adjS_range * 1.5                       ~ "across-cell driven",
+      adjS_range >= adjH_range * 1.5                       ~ "within-cell driven",
+      TRUE                                                  ~ "both"
     )
   )
 
