@@ -21,9 +21,11 @@ ECKER_DOWNSAMPLE_SEED = 42
 ## set to True to restrict to chr10 for speed; False for full genome
 ECKER_CHR10_ONLY = True
 
-## tell mm10.smk which chromosomes to include in the CG reference and BED files
+## tell mm10.smk which chromosomes to include in the CG reference
 MM10_CG_CHRS = ["10"] if ECKER_CHR10_ONLY else CHRS
-MM10_BED_CHRS = ["10"] if ECKER_CHR10_ONLY else CHRS
+
+## chromosomes to retain in annotation BED files for Ecker runs
+_ECKER_BED_CHRS = ["10"] if ECKER_CHR10_ONLY else CHRS
 
 ECKER_ANNOTATIONS = {
     "chip": ["h3k4me3", "h3k9me3", "h3k27me3", "h3k4me1", "h3k27ac"],
@@ -185,13 +187,29 @@ def get_ecker_harmonized_files(sub_region, sub_type):
     return cells
 
 
+_ECKER_BED_CHR_GREP = "|".join(f"^{c}\t" for c in _ECKER_BED_CHRS)
+
+
+rule ecker_filter_mm10_bed:
+    conda:
+        op.join("..", "envs", "processing.yml")
+    input:
+        op.join(MM10_BASE, "{annotation}.bed"),
+    output:
+        temp(op.join(ECKER_BASE, "beds", "{annotation}.bed")),
+    params:
+        pattern=_ECKER_BED_CHR_GREP,
+    shell:
+        "grep -E '{params.pattern}' {input} > {output}"
+
+
 rule run_yamet_on_ecker_features:
     conda:
         op.join("..", "envs", "yamet.yml")
     input:
         cells=lambda wildcards: get_ecker_harmonized_files(wildcards.sub_region, wildcards.sub_type),
         ref=op.join(MM10_BASE, "ref.CG.gz"),
-        bed=op.join(MM10_BASE, "{annotation}.bed"),
+        bed=op.join(ECKER_BASE, "beds", "{annotation}.bed"),
     output:
         simple_uncomp=temp(op.join(ECKER_OUTPUT, "{annotation}_{sub_region}_{sub_type}.out")),
         det_uncomp=temp(op.join(ECKER_OUTPUT, "{annotation}_{sub_region}_{sub_type}.det.out")),
