@@ -34,8 +34,8 @@ param <- MulticoreParam(workers = snakemake@threads)
 
 ```{r}
 opts_chunk$set(
-  fig.width = 7.5,
-  fig.height = 7.5,
+  fig.width = 5,
+  fig.height = 5,
   cache = FALSE,
   include = TRUE,
   fig.path = "crc_plots/",
@@ -235,7 +235,7 @@ ggplot(
 
 ## Scatters by location and annotation and patient
  
-```{r, fig.height = 15}
+```{r, fig.width = 8, fig.height = 20}
 ggplot(
   ## subset(files, patient == "CRC01"),
   files,
@@ -255,7 +255,7 @@ ggplot(
 
 ## Scatters by location and annotation and patient (shorter)
  
-```{r, fig.height = 3.2}
+```{r, fig.width = 8, fig.height = 6}
 ggplot(
   subset(files, annotation %in% c("laminb1", "H3K27me3", "H3K9me3")),
   aes(y = sampen, x = avg_meth, color = location)
@@ -319,7 +319,7 @@ ggplot(
 
 ### sampEn boxes by location and annotation - crc01
 
-```{r, fig.height = 6, fig.width = 10}
+```{r, fig.width = 9, fig.height = 5}
 ggplot(
   subset(files, patient == "CRC01"),
   aes(y = sampen, x = annotation, color = location)
@@ -340,7 +340,7 @@ ggplot(
 
 ### meth boxes by location and annotation - crc01
 
-```{r, fig.height = 6, fig.width = 10}
+```{r, fig.width = 9, fig.height = 5}
 ggplot(
   subset(files, patient == "CRC01"),
   aes(y = avg_meth, x = annotation, color = location)
@@ -361,7 +361,7 @@ ggplot(
 
 ### Range plots - by compartment
 
-```{r, fig.height = 10, fig.width = 10}
+```{r, fig.width = 8, fig.height = 8}
 
 
 ranges <- as.data.frame(files %>%
@@ -474,7 +474,7 @@ ggplot(
 
 ## Scatters by location and annotation and patient
  
-```{r, fig.height = 15}
+```{r, fig.width = 8, fig.height = 20}
 ggplot(
   ## subset(files, patient == "CRC01"),
   files,
@@ -494,7 +494,7 @@ ggplot(
 
 ## Scatters by location and annotation and patient (shorter)
  
-```{r, fig.height = 3.2}
+```{r, fig.width = 8, fig.height = 6}
 ggplot(
   subset(files, annotation %in% c("laminb1", "H3K27me3", "H3K9me3")),
   aes(y = sampen, x = avg_meth, color = location)
@@ -559,7 +559,7 @@ ggplot(
 
 ### sampEn boxes by location and annotation - crc01
 
-```{r, fig.height = 6, fig.width = 10}
+```{r, fig.width = 9, fig.height = 5}
 ggplot(
   subset(files, patient == "CRC01"),
   aes(y = sampen, x = annotation, color = location)
@@ -580,7 +580,7 @@ ggplot(
 
 ### meth boxes by location and annotation - crc01
 
-```{r, fig.height = 6, fig.width = 10}
+```{r, fig.width = 9, fig.height = 5}
 ggplot(
   subset(files, patient == "CRC01"),
   aes(y = avg_meth, x = annotation, color = location)
@@ -601,7 +601,7 @@ ggplot(
 
 ### Range plots - by compartment
 
-```{r, fig.height = 10, fig.width = 10}
+```{r, fig.width = 8, fig.height = 8}
 ranges <- as.data.frame(files %>%
    filter(patient == "CRC01") %>%
    group_by(compartment = annotation, location) %>%
@@ -823,7 +823,7 @@ ggplot(
 
 ## Scatters by location and annotation and patient
  
-```{r, fig.height = 15}
+```{r}
 ggplot(
   files,
   aes(y = median_shannon, x = median_avg_meth, color = location)
@@ -912,7 +912,7 @@ saveRDS(list(sampens    = sampens,
 ```
 
 
-```{r summary_heatmap, fig.width = 9, fig.height = 6}
+```{r summary_heatmap, fig.width = 10, fig.height = 8}
 library(ComplexHeatmap)
 library(circlize)
 
@@ -951,7 +951,7 @@ draw(
 
 
 
-```{r, fig.height = 12, fig.width = 6}
+```{r, fig.width = 9, fig.height = 12}
 
 library(dplyr)
 
@@ -978,7 +978,7 @@ ggplot(
 ```
 
 
-```{r, fig.height = 12, fig.width = 6}
+```{r, fig.width = 9, fig.height = 12}
 df <- sampens %>%
   left_join(shannons, 
             by = c("annotation", "patient", "location"),
@@ -1252,7 +1252,7 @@ r2_by_ann
 
 ## R2 scatter: adjH vs adjS {.tabset .tabset-pills}
 
-```{r r2_scatter, fig.width = 7, fig.height = 6}
+```{r r2_scatter, fig.width = 5, fig.height = 5}
 ggplot(r2_by_ann,
        aes(x = r2_adjH, y = r2_adjS,
            color = driver, shape = driver, label = annotation)) +
@@ -1275,7 +1275,7 @@ ggplot(r2_by_ann,
 
 ## R2 per annotation (bar)
 
-```{r r2_bar, fig.width = 10, fig.height = 5}
+```{r r2_bar, fig.width = 10, fig.height = 4}
 r2_long <- tidyr::pivot_longer(r2_by_ann,
                                 cols = c(r2_adjH, r2_adjS),
                                 names_to = "metric", values_to = "r2")

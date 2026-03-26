@@ -236,7 +236,7 @@ ggplot(df, aes(value)) + geom_density(fill="steelblue", alpha=0.5) +
 ```
 
 
-```{r, fig.width = 10, fig.height = 5}
+```{r, fig.width = 8, fig.height = 4}
 
 df_violin <- data.frame(
   value = colMeans(assay(sce, "sampen_corrected")),
@@ -252,7 +252,7 @@ ggplot(df_violin, aes(x = location, y = value)) +
   labs(y = "Mean sampen_corrected", title = "Distribution per location and patient")
 ```
 
-```{r, fig.width = 10, fig.height = 10}
+```{r, fig.width = 8, fig.height = 4}
 df_cells <- data.frame(
   mean_sampen = colMeans(assay(sce, "sampen")),
   mean_sampen_corrected = colMeans(assay(sce, "sampen_corrected")),
@@ -402,7 +402,7 @@ df_crc01$bin <- factor(df_crc01$bin, levels = c(0, 1))
 head(df_crc01)
 ```
 
-```{r, fig.width = 15, fig.height = 5}
+```{r, fig.width = 11, fig.height = 4}
 ggplot(df_crc01, aes(x = location, y = mean_sampen_corrected, fill = factor(bin))) +
   geom_boxplot(outlier.size = 0.3, position = position_dodge(width = 0.8)) +
   facet_wrap( ~ feature, nrow = 2) +
@@ -411,7 +411,7 @@ ggplot(df_crc01, aes(x = location, y = mean_sampen_corrected, fill = factor(bin)
 
 ```
 
-```{r, fig.width = 15, fig.height = 5}
+```{r, fig.width = 11, fig.height = 4}
 ggplot(df_crc01, aes(x = location,
                      y = mean_sampen_corrected,
                      fill = factor(bin))) +
@@ -461,7 +461,7 @@ head(df_crc01)
 ```
 
 
-```{r, fig.width = 12, fig.height = 5}
+```{r, fig.width = 11, fig.height = 4}
 ggplot(df_crc01, aes(x = location,
                      y = mean_sampen_corrected,
                      fill = factor(bin))) +
@@ -692,7 +692,7 @@ This below is not working because it's trying to find association with genomic l
 
 Let's do this on crc01 only.
 
-```{r, fig.width = 10, fig.height = 10}
+```{r, fig.width = 8, fig.height = 8}
 crc01 <- sce[,sce$patient == 'CRC01']
 expr <- assay(crc01, "sampen_corrected")
 cd   <- as.data.frame(colData(crc01))

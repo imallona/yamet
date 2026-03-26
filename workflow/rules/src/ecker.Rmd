@@ -33,8 +33,8 @@ param <- MulticoreParam(workers = snakemake@threads)
 ```{r opts}
 knitr::opts_chunk$set(
   echo       = TRUE,
-  fig.width  = 7.5,
-  fig.height = 7.5,
+  fig.width  = 5,
+  fig.height = 5,
   cache      = FALSE,
   include    = TRUE,
   fig.path   = "ecker_plots/",
@@ -154,7 +154,7 @@ head(sampens)
 
 ## Entropy vs methylation
 
-```{r scatter_sampen, fig.width = 14, fig.height = 18}
+```{r scatter_sampen, fig.width = 10, fig.height = 15}
 ggplot(sampens %>% filter(!is.na(cell_class)),
        aes(x = avg_meth, y = sampen, color = major_type)) +
   geom_point(size = 0.4, alpha = 0.15) +
@@ -167,7 +167,7 @@ ggplot(sampens %>% filter(!is.na(cell_class)),
 
 ## Distributions
 
-```{r violin_sampen, fig.width = 14, fig.height = 18}
+```{r violin_sampen, fig.width = 10, fig.height = 15}
 ggplot(sampens %>% filter(!is.na(cell_class)),
        aes(x = major_type, y = sampen, fill = major_type)) +
   geom_violin(alpha = 0.5, draw_quantiles = 0.5) +
@@ -178,7 +178,7 @@ ggplot(sampens %>% filter(!is.na(cell_class)),
   theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
 ```
 
-```{r ridges_sampen, fig.width = 14, fig.height = 18}
+```{r ridges_sampen, fig.width = 10, fig.height = 15}
 ggplot(sampens %>% filter(!is.na(cell_class)),
        aes(x = sampen, y = major_type, fill = major_type)) +
   geom_density_ridges(alpha = 0.6, scale = 0.85) +
@@ -221,7 +221,7 @@ head(adjsampens)
 
 ## Entropy vs methylation
 
-```{r scatter_adjS, fig.width = 14, fig.height = 18}
+```{r scatter_adjS, fig.width = 10, fig.height = 15}
 ggplot(adjsampens %>% filter(!is.na(cell_class)),
        aes(x = avg_meth, y = sampen, color = major_type)) +
   geom_point(size = 0.4, alpha = 0.15) +
@@ -234,7 +234,7 @@ ggplot(adjsampens %>% filter(!is.na(cell_class)),
 
 ## Distributions
 
-```{r violin_adjS, fig.width = 14, fig.height = 18}
+```{r violin_adjS, fig.width = 10, fig.height = 15}
 ggplot(adjsampens %>% filter(!is.na(cell_class)),
        aes(x = major_type, y = sampen, fill = major_type)) +
   geom_violin(alpha = 0.5, draw_quantiles = 0.5) +
@@ -245,7 +245,7 @@ ggplot(adjsampens %>% filter(!is.na(cell_class)),
   theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
 ```
 
-```{r ridges_adjS, fig.width = 14, fig.height = 18}
+```{r ridges_adjS, fig.width = 10, fig.height = 15}
 ggplot(adjsampens %>% filter(!is.na(cell_class)),
        aes(x = sampen, y = major_type, fill = major_type)) +
   geom_density_ridges(alpha = 0.6, scale = 0.85) +
@@ -288,7 +288,7 @@ head(shannons)
 
 ## Median H vs methylation
 
-```{r scatter_shannon, fig.width = 14, fig.height = 18}
+```{r scatter_shannon, fig.width = 10, fig.height = 15}
 ggplot(shannons %>% filter(!is.na(cell_class)),
        aes(x = median_avg_meth, y = median_shannon, color = major_type)) +
   geom_point(size = 2, alpha = 0.8) +
@@ -330,7 +330,7 @@ head(adjshannons)
 
 ## Median adjH vs methylation
 
-```{r scatter_adjH, fig.width = 14, fig.height = 18}
+```{r scatter_adjH, fig.width = 10, fig.height = 15}
 ggplot(adjshannons %>% filter(!is.na(cell_class)),
        aes(x = median_avg_meth, y = median_shannon, color = major_type)) +
   geom_point(size = 2, alpha = 0.8) +
@@ -410,7 +410,7 @@ cat("median_H non-NA:", sum(!is.na(all_grp_meta$median_H)), "\n")
 
 ## adjS vs adjH
 
-```{r adjS_vs_adjH, fig.width = 14, fig.height = 8}
+```{r adjS_vs_adjH, fig.width = 13, fig.height = 4}
 df_cmp <- all_grp_meta %>% filter(!is.na(cell_class))
 if (nrow(df_cmp) > 0) {
   ggplot(df_cmp, aes(x = median_adjH, y = median_adjS, color = annotation)) +
@@ -427,7 +427,7 @@ if (nrow(df_cmp) > 0) {
 
 ## S vs H
 
-```{r S_vs_H, fig.width = 14, fig.height = 8}
+```{r S_vs_H, fig.width = 13, fig.height = 4}
 if (nrow(df_cmp) > 0) {
   ggplot(df_cmp, aes(x = median_H, y = median_S, color = annotation)) +
     geom_point(size = 1.5, alpha = 0.8) +
@@ -451,7 +451,7 @@ safe_range <- function(x) {
 }
 ```
 
-```{r variation_class, fig.width = 12, fig.height = 6}
+```{r variation_class, fig.width = 13, fig.height = 4}
 var_class <- all_grp_meta %>%
   filter(!is.na(cell_class)) %>%
   group_by(annotation, cell_class) %>%
@@ -482,7 +482,7 @@ if (nrow(var_class) > 0 && any(!is.na(var_class$adjH_sd))) {
 
 Annotations labelled as within-cell (adjS-driven), across-cell (adjH-driven), or both, based on overall variation across all groups.
 
-```{r drivers_sd, fig.width = 9, fig.height = 7}
+```{r drivers_sd, fig.width = 5, fig.height = 5}
 var_all <- all_grp_meta %>%
   group_by(annotation) %>%
   summarise(
@@ -528,7 +528,7 @@ if (any(!is.na(var_all$adjH_sd))) {
 
 Variance in group-level adjH and adjS explained by cell class (R²), one point per annotation. More principled than SD comparison: points upper-left are within-cell driven, lower-right are across-cell driven.
 
-```{r drivers_r2, fig.width = 9, fig.height = 7}
+```{r drivers_r2, fig.width = 5, fig.height = 5}
 r2_by_ann <- all_grp_meta %>%
   filter(!is.na(cell_class)) %>%
   group_by(annotation) %>%
@@ -640,7 +640,7 @@ make_heatmap <- function(df, value_col, title,
 
 ## adjS
 
-```{r heatmap_adjS, fig.width = 12, fig.height = 10}
+```{r heatmap_adjS, fig.width = 10, fig.height = 8}
 heat_df_adjs <- adjsampens %>%
   group_by(annotation, sub_region, sub_type, cell_class, major_type) %>%
   summarise(median_adjS = median(sampen, na.rm = TRUE), .groups = "drop")
@@ -651,7 +651,7 @@ make_heatmap(heat_df_adjs, "median_adjS", "median adjS",
 
 ## adjH
 
-```{r heatmap_adjH, fig.width = 12, fig.height = 10}
+```{r heatmap_adjH, fig.width = 10, fig.height = 8}
 heat_df_adjh <- adjshannons %>%
   group_by(annotation, sub_region, sub_type, cell_class, major_type) %>%
   summarise(median_adjH = median(median_shannon, na.rm = TRUE), .groups = "drop")
@@ -662,7 +662,7 @@ make_heatmap(heat_df_adjh, "median_adjH", "median adjH",
 
 ## S
 
-```{r heatmap_S, fig.width = 12, fig.height = 10}
+```{r heatmap_S, fig.width = 10, fig.height = 8}
 heat_df_s <- sampens %>%
   group_by(annotation, sub_region, sub_type, cell_class, major_type) %>%
   summarise(median_S = median(sampen, na.rm = TRUE), .groups = "drop")
@@ -723,7 +723,7 @@ head(locus_data)
 
 ## Violin
 
-```{r locus_violin, fig.width = 14, fig.height = 12}
+```{r locus_violin, fig.width = 11, fig.height = 5}
 ggplot(locus_data %>% filter(!is.na(cell_class)),
        aes(x = major_type, y = shannon, fill = major_type)) +
   geom_violin(alpha = 0.5, draw_quantiles = 0.5) +
@@ -736,7 +736,7 @@ ggplot(locus_data %>% filter(!is.na(cell_class)),
 
 ## Ridgelines
 
-```{r locus_ridges, fig.width = 14, fig.height = 12}
+```{r locus_ridges, fig.width = 11, fig.height = 5}
 ggplot(locus_data %>% filter(!is.na(cell_class)),
        aes(x = shannon, y = major_type, fill = major_type)) +
   geom_density_ridges(alpha = 0.6, scale = 0.85) +
@@ -749,7 +749,7 @@ ggplot(locus_data %>% filter(!is.na(cell_class)),
 
 ## Methylation vs H
 
-```{r locus_meth_vs_H, fig.width = 14, fig.height = 12}
+```{r locus_meth_vs_H, fig.width = 11, fig.height = 5}
 locus_sub <- locus_data %>%
   filter(!is.na(cell_class)) %>%
   slice_sample(n = min(3000, nrow(.)), replace = FALSE)
@@ -879,7 +879,7 @@ cat("Cell class breakdown:\n")
 print(table(cells_adjS_wide$cell_class, useNA = "always"))
 ```
 
-```{r cell_umap_adjS, fig.width = 8, fig.height = 7}
+```{r cell_umap_adjS, fig.width = 5, fig.height = 5}
 meta_cols_cell <- c("sub_region", "sub_type", "cell_idx", "cell_class", "major_type", "major_region")
 
 umap_cell_adjS <- run_umap_wide(cells_adjS_wide, meta_cols_cell, n_neighbors = 15L)
@@ -892,7 +892,7 @@ plot_umap_class(umap_cell_adjS,
 
 ## Cell-level: avg_meth across annotations
 
-```{r cell_umap_meth, fig.width = 8, fig.height = 7}
+```{r cell_umap_meth, fig.width = 5, fig.height = 5}
 umap_cell_meth <- run_umap_wide(cells_meth_wide, meta_cols_cell, n_neighbors = 15L)
 saveRDS(umap_cell_meth, "ecker_umap_cell_meth.rds")
 
@@ -903,7 +903,7 @@ plot_umap_class(umap_cell_meth,
 
 ## Group-level: adjH across annotations
 
-```{r group_umap_adjH, fig.width = 8, fig.height = 7}
+```{r group_umap_adjH, fig.width = 5, fig.height = 5}
 adjH_wide_grp <- all_grp_meta %>%
   filter(!is.na(cell_class)) %>%
   select(sub_region, sub_type, cell_class, major_type, annotation, median_adjH) %>%
@@ -922,7 +922,7 @@ plot_umap_class(umap_grp_adjH,
 
 ## Group-level: avg_meth across annotations
 
-```{r group_umap_meth, fig.width = 8, fig.height = 7}
+```{r group_umap_meth, fig.width = 5, fig.height = 5}
 meth_wide_grp <- all_grp_meta %>%
   filter(!is.na(cell_class)) %>%
   select(sub_region, sub_type, cell_class, major_type, annotation, median_meth) %>%
@@ -979,7 +979,7 @@ saveRDS(list(gene_mat_adjH = gene_mat_adjH, gene_mat_meth = gene_mat_meth),
         "ecker_gene_matrices.rds")
 ```
 
-```{r gene_locus_umap_adjH, fig.width = 8, fig.height = 7}
+```{r gene_locus_umap_adjH, fig.width = 5, fig.height = 5}
 meta_cols_grp <- c("sub_region", "sub_type", "cell_class", "major_type", "major_region")
 
 umap_gene_adjH <- run_umap_wide(gene_mat_adjH, meta_cols_grp, n_neighbors = 5L)
@@ -990,7 +990,7 @@ plot_umap_class(umap_gene_adjH,
 
 ## Group-level: gene loci, avg_meth
 
-```{r gene_locus_umap_meth, fig.width = 8, fig.height = 7}
+```{r gene_locus_umap_meth, fig.width = 5, fig.height = 5}
 umap_gene_meth <- run_umap_wide(gene_mat_meth, meta_cols_grp, n_neighbors = 5L)
 plot_umap_class(umap_gene_meth,
                 title    = "Gene-locus UMAP - avg. methylation features",
@@ -1019,7 +1019,7 @@ cat("Non-NA median_adjH:", sum(!is.na(cells_overlay$median_adjH)), "\n")
 
 ## adjH per annotation
 
-```{r paper_umap_adjH, fig.width = 16, fig.height = 10}
+```{r paper_umap_adjH, fig.width = 14, fig.height = 6}
 df_adjH <- cells_overlay %>% filter(!is.na(median_adjH)) %>% droplevels()
 if (nrow(df_adjH) > 0) {
   ggplot(df_adjH, aes(x = umap1, y = umap2, color = median_adjH)) +
@@ -1038,7 +1038,7 @@ if (nrow(df_adjH) > 0) {
 
 ## avg_meth per annotation
 
-```{r paper_umap_meth, fig.width = 16, fig.height = 10}
+```{r paper_umap_meth, fig.width = 14, fig.height = 6}
 df_meth <- cells_overlay %>% filter(!is.na(median_meth)) %>% droplevels()
 if (nrow(df_meth) > 0) {
   ggplot(df_meth, aes(x = umap1, y = umap2, color = median_meth)) +
@@ -1086,7 +1086,7 @@ cat("Cells with UMAP coords and S values:", nrow(cells_sampen_umap), "\n")
 cat("Non-NA adjS:", sum(!is.na(cells_sampen_umap$sampen_norm)), "\n")
 ```
 
-```{r paper_umap_adjS, fig.width = 16, fig.height = 10}
+```{r paper_umap_adjS, fig.width = 14, fig.height = 6}
 df_adjS_umap <- cells_sampen_umap %>% filter(!is.na(sampen_norm)) %>% droplevels()
 if (nrow(df_adjS_umap) > 0) {
   ggplot(df_adjS_umap, aes(x = umap1, y = umap2, color = sampen_norm)) +
@@ -1103,7 +1103,7 @@ if (nrow(df_adjS_umap) > 0) {
 }
 ```
 
-```{r paper_umap_S, fig.width = 16, fig.height = 10}
+```{r paper_umap_S, fig.width = 14, fig.height = 6}
 df_S_umap <- cells_sampen_umap %>% filter(!is.na(sampen)) %>% droplevels()
 if (nrow(df_S_umap) > 0) {
   ggplot(df_S_umap, aes(x = umap1, y = umap2, color = sampen)) +
@@ -1122,7 +1122,7 @@ if (nrow(df_S_umap) > 0) {
 
 ## Cell class reference
 
-```{r paper_umap_cellclass, fig.width = 9, fig.height = 7}
+```{r paper_umap_cellclass, fig.width = 5, fig.height = 5}
 meta_cells %>%
   filter(!is.na(umap1)) %>%
   distinct(basename, .keep_all = TRUE) %>%

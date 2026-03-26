@@ -48,8 +48,8 @@ param <- MulticoreParam(workers = snakemake@threads)
 
 ```{r}
 opts_chunk$set(
-  fig.width = 7.5,
-  fig.height = 7.5,
+  fig.width = 5,
+  fig.height = 5,
   cache = TRUE,
   error = TRUE,
   include = TRUE,
@@ -83,7 +83,7 @@ To double check annotations are ok.
 
 Caution downsampling
 
-```{r, fig.width = 12, fig.height = 6}
+```{r, fig.width = 8, fig.height = 5}
 NROWS <- 5e4
 
 annot <- read_tsv(
@@ -392,7 +392,7 @@ for (patient in levels(shannons$patient)) {
 
 ## By patient and location - Shannon
 
-```{r, fig.width =8, fig.height = 11}
+```{r, fig.width = 8, fig.height = 11}
 par(mfrow = c(4, 4), pty = "s")
 for (patient in levels(shannons$patient)) {
   tmp <- shannons[shannons$patient == patient, ]
@@ -722,7 +722,7 @@ sub_meths <- sub_meths[!rows_too_sparse, , drop = FALSE]
 
 
 
-```{r, fig.width = 4, fig.height = 4}
+```{r, fig.width = 5, fig.height = 5}
 c02_nc <- data.frame(y = sub_sampens[, "NC_CRC02"], x = sub_meths[, "NC_CRC02"])
 c02_nc <- na.omit(c02_nc)
 sampled_data <- c02_nc[sample(nrow(c02_nc), 5000), ]
@@ -740,7 +740,7 @@ ggplot(sampled_data, aes(x = x, y = y)) +
 
 Let's do a window-wise sampEn vs meth with loc and patient, regardless of the annotation of the window. Mind the quadratic meth term (not sure what for).
 
-```{r,  fig.width = 4, fig.height = 4}
+```{r,  fig.width = 5, fig.height = 5}
 rowwise_lm <- function(i) {
   df <- data.frame(
     sampen = sub_sampens[i, ],
@@ -862,7 +862,7 @@ row_ha <- rowAnnotation(tile_annotation = as.matrix(data.frame(
 
 ## Heatmap including diff entropic (Atreya's)
 
-```{r, fig.width =20, fig.height = 10}
+```{r, fig.width = 16, fig.height = 10}
 ## euclidean distance directly
 row.hc <- hclust(dist(sub_sampens), method = "ward.D2")
 
@@ -1003,7 +1003,7 @@ r2_drivers_win
 
 ## R2 scatter: adjH vs adjS
 
-```{r r2_win_scatter, fig.width = 7, fig.height = 6}
+```{r r2_win_scatter, fig.width = 5, fig.height = 5}
 ggplot(r2_drivers_win,
        aes(x = r2_adjH, y = r2_adjS,
            color = driver, shape = driver, label = annotation)) +
@@ -1022,7 +1022,7 @@ ggplot(r2_drivers_win,
 
 ## adjH vs adjS median per location
 
-```{r adjH_adjS_medians, fig.width = 10, fig.height = 6}
+```{r adjH_adjS_medians, fig.width = 5, fig.height = 5}
 hm_win <- inner_join(
   adj_shannons_long %>%
     group_by(annotation = "all windows", location) %>%
@@ -1326,7 +1326,7 @@ full_annot <- full_annot[,setdiff(colnames(full_annot), c('region'))]
 
 Upsetplots for windows/regions with at least diff entropy in a contrast
 
-```{r, fig.width = 20, fig.height = 10}
+```{r, fig.width = 16, fig.height = 10}
 mat <- full_annot
 mat <- mat[, !names(mat) %in% c("region", grep("mod_t", colnames(mat), value = TRUE))]
 
@@ -1438,7 +1438,7 @@ pheatmap(assoc, clustering_distance_rows = "euclidean",
 non symmetrical: caution averages jaccards
 
 
-```{r, fig.height = 4, fig.width = 7}
+```{r, fig.width = 11, fig.height = 4}
 ## these are tests, Atreya'style
 signif_cols <- grep("__signif$", names(mat), value = TRUE)
 
