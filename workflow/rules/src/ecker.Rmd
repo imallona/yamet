@@ -96,26 +96,30 @@ harmonize_levels <- function(df) {
 meta_full <- read_tsv(snakemake@params[["meta_path"]],
                        na = "NA", show_col_types = FALSE) %>%
   mutate(
-    sub_region = gsub(" ", "-", SubRegion),
-    sub_type   = gsub(" ", "-", SubType)
+    sub_region   = gsub(" ", "-", SubRegion),
+    sub_type     = gsub(" ", "-", SubType),
+    major_region = gsub(" ", "-", MajorRegion)
   )
 
 meta_grp <- meta_full %>%
   group_by(sub_region, sub_type) %>%
   summarise(
-    cell_class = first(na.omit(CellClass)),
-    major_type = first(na.omit(MajorType)),
-    umap1      = median(L1UMAP_0, na.rm = TRUE),
-    umap2      = median(L1UMAP_1, na.rm = TRUE),
-    n_meta     = n(),
-    .groups    = "drop"
+    cell_class   = first(na.omit(CellClass)),
+    major_type   = first(na.omit(MajorType)),
+    major_region = first(na.omit(major_region)),
+    umap1        = median(L1UMAP_0, na.rm = TRUE),
+    umap2        = median(L1UMAP_1, na.rm = TRUE),
+    n_meta       = n(),
+    .groups      = "drop"
   )
 
 meta_cells <- meta_full %>%
-  select(sub_region, sub_type, cell_class = CellClass, major_type = MajorType,
+  select(sub_region, sub_type, major_region,
+         cell_class = CellClass, major_type = MajorType,
          umap1 = L1UMAP_0, umap2 = L1UMAP_1, basename)
 
 cat("meta_grp rows:", nrow(meta_grp), "\n")
+cat("major_region levels:", paste(sort(unique(meta_grp$major_region)), collapse = ", "), "\n")
 cat("cell_class levels:", paste(sort(unique(meta_grp$cell_class)), collapse = ", "), "\n")
 ```
 
@@ -142,7 +146,7 @@ read_short <- function(fp) {
 sampens <- do.call(rbind, bplapply(short_paths, read_short, BPPARAM = param))
 sampens <- harmonize_levels(sampens)
 sampens <- sampens %>%
-  left_join(meta_grp %>% select(sub_region, sub_type, cell_class, major_type),
+  left_join(meta_grp %>% select(sub_region, sub_type, cell_class, major_type, major_region),
             by = c("sub_region" = "sub_region", "sub_type" = "sub_type"))
 cat("cell_class NA:", sum(is.na(sampens$cell_class)), "/", nrow(sampens), "\n")
 head(sampens)
@@ -210,7 +214,7 @@ read_adjS <- function(fp) {
 adjsampens <- do.call(rbind, bplapply(norm_paths, read_adjS, BPPARAM = param))
 adjsampens <- harmonize_levels(adjsampens)
 adjsampens <- adjsampens %>%
-  left_join(meta_grp %>% select(sub_region, sub_type, cell_class, major_type),
+  left_join(meta_grp %>% select(sub_region, sub_type, cell_class, major_type, major_region),
             by = c("sub_region" = "sub_region", "sub_type" = "sub_type"))
 head(adjsampens)
 ```
@@ -277,7 +281,7 @@ read_shannon <- function(fp) {
 shannons <- bplapply(det_paths, read_shannon, BPPARAM = param) |> bind_rows()
 shannons <- harmonize_levels(shannons)
 shannons <- shannons %>%
-  left_join(meta_grp %>% select(sub_region, sub_type, cell_class, major_type),
+  left_join(meta_grp %>% select(sub_region, sub_type, cell_class, major_type, major_region),
             by = c("sub_region" = "sub_region", "sub_type" = "sub_type"))
 head(shannons)
 ```
@@ -319,7 +323,7 @@ read_adjH <- function(fp) {
 adjshannons <- bplapply(norm_det_paths, read_adjH, BPPARAM = param) |> bind_rows()
 adjshannons <- harmonize_levels(adjshannons)
 adjshannons <- adjshannons %>%
-  left_join(meta_grp %>% select(sub_region, sub_type, cell_class, major_type),
+  left_join(meta_grp %>% select(sub_region, sub_type, cell_class, major_type, major_region),
             by = c("sub_region" = "sub_region", "sub_type" = "sub_type"))
 head(adjshannons)
 ```
@@ -412,7 +416,7 @@ if (nrow(df_cmp) > 0) {
   ggplot(df_cmp, aes(x = median_adjH, y = median_adjS, color = annotation)) +
     geom_point(size = 1.5, alpha = 0.8) +
     scale_color_viridis_d(option = "turbo", begin = 0.05, end = 0.95) +
-    facet_grid(sub_region ~ cell_class) +
+    facet_grid(. ~ cell_class) +
     labs(x = "median adjH", y = "median adjS", color = "annotation") +
     guides(color = guide_legend(override.aes = list(size = 3))) +
     theme_ng()
@@ -428,7 +432,7 @@ if (nrow(df_cmp) > 0) {
   ggplot(df_cmp, aes(x = median_H, y = median_S, color = annotation)) +
     geom_point(size = 1.5, alpha = 0.8) +
     scale_color_viridis_d(option = "turbo", begin = 0.05, end = 0.95) +
-    facet_grid(sub_region ~ cell_class) +
+    facet_grid(. ~ cell_class) +
     labs(x = "median H", y = "median S", color = "annotation") +
     guides(color = guide_legend(override.aes = list(size = 3))) +
     theme_ng()
@@ -517,6 +521,61 @@ if (any(!is.na(var_all$adjH_sd))) {
     theme_ng()
 } else {
   message("No variation data available - check group medians and metadata join")
+}
+```
+
+## R-squared by cell class
+
+Variance in group-level adjH and adjS explained by cell class (R²), one point per annotation. More principled than SD comparison: points upper-left are within-cell driven, lower-right are across-cell driven.
+
+```{r drivers_r2, fig.width = 9, fig.height = 7}
+r2_by_ann <- all_grp_meta %>%
+  filter(!is.na(cell_class)) %>%
+  group_by(annotation) %>%
+  summarise(
+    r2_adjH = tryCatch({
+      m <- lm(median_adjH ~ cell_class, data = cur_data())
+      summary(m)$r.squared
+    }, error = function(e) NA_real_),
+    r2_adjS = tryCatch({
+      m <- lm(median_adjS ~ cell_class, data = cur_data())
+      summary(m)$r.squared
+    }, error = function(e) NA_real_),
+    .groups = "drop"
+  )
+
+if (any(!is.na(r2_by_ann$r2_adjH))) {
+  r2_thr <- 0.3
+
+  r2_by_ann <- r2_by_ann %>%
+    mutate(
+      driver_r2 = case_when(
+        is.na(r2_adjH) | is.na(r2_adjS)              ~ NA_character_,
+        r2_adjH < r2_thr & r2_adjS < r2_thr          ~ "not explained by cell class",
+        r2_adjH >= r2_adjS * 1.5 & r2_adjH >= r2_thr ~ "across-cell driven",
+        r2_adjS >= r2_adjH * 1.5 & r2_adjS >= r2_thr ~ "within-cell driven",
+        TRUE                                           ~ "both"
+      )
+    )
+
+  cat("Driver table (R2-based):\n")
+  print(table(r2_by_ann$driver_r2, useNA = "always"))
+
+  ggplot(r2_by_ann, aes(x = r2_adjH, y = r2_adjS,
+                         color = driver_r2, shape = driver_r2, label = annotation)) +
+    geom_vline(xintercept = r2_thr, linetype = "dashed", color = "grey60") +
+    geom_hline(yintercept = r2_thr, linetype = "dashed", color = "grey60") +
+    geom_point(size = 3) +
+    geom_text_repel(size = 3) +
+    scale_color_viridis_d(option = "turbo", begin = 0.05, end = 0.95, na.value = "grey60") +
+    scale_x_continuous(limits = c(0, 1)) +
+    scale_y_continuous(limits = c(0, 1)) +
+    labs(x = "R² of adjH explained by cell class",
+         y = "R² of adjS explained by cell class",
+         color = "driver", shape = "driver") +
+    theme_ng()
+} else {
+  message("No R2 data available - check group medians and metadata join")
 }
 ```
 
@@ -657,7 +716,7 @@ read_locus <- function(fp) {
 locus_data <- bplapply(det_paths_locus, read_locus, BPPARAM = param) |> bind_rows()
 locus_data <- harmonize_levels(locus_data)
 locus_data <- locus_data %>%
-  left_join(meta_grp %>% select(sub_region, sub_type, cell_class, major_type),
+  left_join(meta_grp %>% select(sub_region, sub_type, cell_class, major_type, major_region),
             by = c("sub_region" = "sub_region", "sub_type" = "sub_type"))
 head(locus_data)
 ```
@@ -800,14 +859,14 @@ cells_adjS_wide <- pivot_wider(cells_adjS_long,
                                 id_cols     = c(sub_region, sub_type, cell_idx),
                                 names_from  = annotation,
                                 values_from = value) %>%
-  left_join(meta_grp %>% select(sub_region, sub_type, cell_class, major_type),
+  left_join(meta_grp %>% select(sub_region, sub_type, cell_class, major_type, major_region),
             by = c("sub_region", "sub_type"))
 
 cells_meth_wide <- pivot_wider(cells_meth_long,
                                 id_cols     = c(sub_region, sub_type, cell_idx),
                                 names_from  = annotation,
                                 values_from = value) %>%
-  left_join(meta_grp %>% select(sub_region, sub_type, cell_class, major_type),
+  left_join(meta_grp %>% select(sub_region, sub_type, cell_class, major_type, major_region),
             by = c("sub_region", "sub_type"))
 
 saveRDS(list(cells_adjS_wide = cells_adjS_wide,
@@ -909,7 +968,7 @@ build_gene_mat <- function(col, fps, n_loci = LOCUS_N_UMAP) {
     check.names = FALSE
   )
   left_join(df,
-            meta_grp %>% select(sub_region, sub_type, cell_class, major_type),
+            meta_grp %>% select(sub_region, sub_type, cell_class, major_type, major_region),
             by = c("sub_region", "sub_type"))
 }
 
@@ -993,6 +1052,71 @@ if (nrow(df_meth) > 0) {
     theme(axis.text = element_blank(), axis.ticks = element_blank())
 } else {
   message("No methylation overlay data available - check ecker_paper_umap_overlay.rds")
+}
+```
+
+## Per-cell S and adjS per annotation
+
+Unlike H/adjH (which are group medians broadcast to all cells in a group), S and
+adjS are per-cell values. The `.out.gz` file column maps directly to cell basenames,
+so each cell is colored by its own entropy value.
+
+```{r paper_umap_sampen_load}
+read_short_with_file <- function(fp) {
+  fn <- basename(fp)
+  dt <- read_tsv(fp, na = "-1", show_col_types = FALSE)
+  dt <- dt[, c("file", "sampen", "sampen_norm", "avg_meth")]
+  dt$annotation <- get_annotation(fn)
+  dt
+}
+
+cells_sampen_long <- do.call(
+  rbind,
+  bplapply(short_paths, read_short_with_file, BPPARAM = param)
+)
+
+cells_sampen_umap <- cells_sampen_long %>%
+  mutate(basename = basename(file)) %>%
+  inner_join(meta_cells %>% select(basename, umap1, umap2),
+             by = "basename") %>%
+  filter(!is.na(umap1)) %>%
+  harmonize_levels()
+
+cat("Cells with UMAP coords and S values:", nrow(cells_sampen_umap), "\n")
+cat("Non-NA adjS:", sum(!is.na(cells_sampen_umap$sampen_norm)), "\n")
+```
+
+```{r paper_umap_adjS, fig.width = 16, fig.height = 10}
+df_adjS_umap <- cells_sampen_umap %>% filter(!is.na(sampen_norm)) %>% droplevels()
+if (nrow(df_adjS_umap) > 0) {
+  ggplot(df_adjS_umap, aes(x = umap1, y = umap2, color = sampen_norm)) +
+    geom_point(size = 0.4, alpha = 0.6) +
+    scale_color_viridis_c(option = "plasma", na.value = "grey80") +
+    facet_wrap(~annotation, nrow = 2) +
+    labs(title = "Paper UMAP coordinates - per-cell adjS",
+         x = "UMAP1 (Ecker et al.)", y = "UMAP2 (Ecker et al.)",
+         color = "adjS") +
+    theme_ng() +
+    theme(axis.text = element_blank(), axis.ticks = element_blank())
+} else {
+  message("No adjS overlay data available")
+}
+```
+
+```{r paper_umap_S, fig.width = 16, fig.height = 10}
+df_S_umap <- cells_sampen_umap %>% filter(!is.na(sampen)) %>% droplevels()
+if (nrow(df_S_umap) > 0) {
+  ggplot(df_S_umap, aes(x = umap1, y = umap2, color = sampen)) +
+    geom_point(size = 0.4, alpha = 0.6) +
+    scale_color_viridis_c(option = "magma", na.value = "grey80") +
+    facet_wrap(~annotation, nrow = 2) +
+    labs(title = "Paper UMAP coordinates - per-cell S",
+         x = "UMAP1 (Ecker et al.)", y = "UMAP2 (Ecker et al.)",
+         color = "S") +
+    theme_ng() +
+    theme(axis.text = element_blank(), axis.ticks = element_blank())
+} else {
+  message("No S overlay data available")
 }
 ```
 
