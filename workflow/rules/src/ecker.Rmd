@@ -1220,33 +1220,39 @@ cat("Rows in overlay table:", nrow(cells_overlay), "\n")
 ## adjH per annotation
 
 ```{r paper_umap_adjH, fig.width = 14, fig.height = 10}
-cells_overlay %>%
-  filter(!is.na(median_adjH)) %>%
-  ggplot(aes(x = umap1, y = umap2, color = median_adjH)) +
-  geom_point(size = 0.4, alpha = 0.6) +
-  scale_color_viridis_c(option = "plasma", na.value = "grey80") +
-  facet_wrap(~annotation) +
-  labs(title = "Paper UMAP coordinates - color = group adjH",
-       x = "UMAP1 (Ecker et al.)", y = "UMAP2 (Ecker et al.)",
-       color = "median adjH") +
-  theme_ng() +
-  theme(axis.text = element_blank(), axis.ticks = element_blank())
+df_adjH <- cells_overlay %>% filter(!is.na(median_adjH)) %>% droplevels()
+if (nrow(df_adjH) > 0) {
+  ggplot(df_adjH, aes(x = umap1, y = umap2, color = median_adjH)) +
+    geom_point(size = 0.4, alpha = 0.6) +
+    scale_color_viridis_c(option = "plasma", na.value = "grey80") +
+    facet_wrap(~annotation) +
+    labs(title = "Paper UMAP coordinates - color = group adjH",
+         x = "UMAP1 (Ecker et al.)", y = "UMAP2 (Ecker et al.)",
+         color = "median adjH") +
+    theme_ng() +
+    theme(axis.text = element_blank(), axis.ticks = element_blank())
+} else {
+  message("No adjH overlay data available - check ecker_paper_umap_overlay.rds")
+}
 ```
 
 ## avg_meth per annotation
 
 ```{r paper_umap_meth, fig.width = 14, fig.height = 10}
-cells_overlay %>%
-  filter(!is.na(median_meth)) %>%
-  ggplot(aes(x = umap1, y = umap2, color = median_meth)) +
-  geom_point(size = 0.4, alpha = 0.6) +
-  scale_color_viridis_c(option = "viridis", na.value = "grey80") +
-  facet_wrap(~annotation) +
-  labs(title = "Paper UMAP coordinates - color = group avg. methylation",
-       x = "UMAP1 (Ecker et al.)", y = "UMAP2 (Ecker et al.)",
-       color = "median meth") +
-  theme_ng() +
-  theme(axis.text = element_blank(), axis.ticks = element_blank())
+df_meth <- cells_overlay %>% filter(!is.na(median_meth)) %>% droplevels()
+if (nrow(df_meth) > 0) {
+  ggplot(df_meth, aes(x = umap1, y = umap2, color = median_meth)) +
+    geom_point(size = 0.4, alpha = 0.6) +
+    scale_color_viridis_c(option = "viridis", na.value = "grey80") +
+    facet_wrap(~annotation) +
+    labs(title = "Paper UMAP coordinates - color = group avg. methylation",
+         x = "UMAP1 (Ecker et al.)", y = "UMAP2 (Ecker et al.)",
+         color = "median meth") +
+    theme_ng() +
+    theme(axis.text = element_blank(), axis.ticks = element_blank())
+} else {
+  message("No methylation overlay data available - check ecker_paper_umap_overlay.rds")
+}
 ```
 
 ## Cell class reference
