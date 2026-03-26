@@ -543,6 +543,52 @@ all_grp <- sampen_grp %>%
 head(all_grp)
 ```
 
+```{r load_metadata}
+## Load the full cell-level metadata to get CellClass, MajorType, and the
+## paper's own UMAP coordinates (L1UMAP_0/1).
+meta_full <- read_tsv(snakemake@params[["meta_path"]],
+                       na = "NA", show_col_types = FALSE) %>%
+  mutate(
+    sub_region = gsub(" ", "-", SubRegion),
+    sub_type   = gsub(" ", "-", SubType)
+  )
+
+## Per-group summary: one row per (sub_region, sub_type)
+meta_grp <- meta_full %>%
+  group_by(sub_region, sub_type) %>%
+  summarise(
+    cell_class  = first(na.omit(CellClass)),
+    major_type  = first(na.omit(MajorType)),
+    umap1       = median(L1UMAP_0, na.rm = TRUE),
+    umap2       = median(L1UMAP_1, na.rm = TRUE),
+    n_meta      = n(),
+    .groups     = "drop"
+  )
+
+## Attach CellClass, MajorType, and UMAP coords to the group-level entropy table.
+## Convert sub_region/sub_type to character first to avoid factor-join issues.
+all_grp_meta <- all_grp %>%
+  mutate(sub_region = as.character(sub_region),
+         sub_type   = as.character(sub_type)) %>%
+  left_join(meta_grp, by = c("sub_region", "sub_type"))
+
+## Individual-cell table with paper UMAP coords, for cell-level overlay plots
+meta_cells <- meta_full %>%
+  select(sub_region, sub_type, cell_class = CellClass, major_type = MajorType,
+         umap1 = L1UMAP_0, umap2 = L1UMAP_1, basename)
+
+saveRDS(
+  list(all_grp      = all_grp,
+       meta_grp     = meta_grp,
+       all_grp_meta = all_grp_meta,
+       meta_cells   = meta_cells),
+  file = "ecker_groups_meta.rds"
+)
+
+str(all_grp_meta)
+table(all_grp_meta$cell_class, useNA = "always")
+```
+
 ## adjS vs adjH
 
 ```{r adjS_vs_adjH, fig.height = 10, fig.width = 8}
@@ -908,216 +954,316 @@ ggplot(locus_sub, aes(x = avg_meth, y = shannon, color = sub_type)) +
 
 # UMAP: cell-type separability {.tabset .tabset-pills}
 
-Each point is one (sub_region x sub_type) group. Features are median entropy
-(or methylation) across all annotations, scaled before embedding.
-The goal is to show whether entropy-based profiles separate cell types differently
-from bulk methylation profiles.
-
-```{r umap_setup}
+```{r umap_helpers}
 library(uwot)
 
-## pivot to (sub_region, sub_type) x annotation feature matrices
-adjH_wide <- all_grp %>%
-  select(sub_region, sub_type, annotation, median_adjH) %>%
-  pivot_wider(names_from = annotation, values_from = median_adjH)
+run_umap_wide <- function(wide_df, meta_cols,
+                           n_hvf       = 1000L,
+                           n_pcs       = 50L,
+                           n_neighbors = 15L,
+                           seed        = 42L) {
+  if (is.null(wide_df) || nrow(wide_df) < 4L) return(NULL)
+  meta <- wide_df %>% select(all_of(meta_cols))
+  mat  <- wide_df %>% select(-all_of(meta_cols)) %>% as.matrix()
 
-meth_wide <- all_grp %>%
-  select(sub_region, sub_type, annotation, median_meth) %>%
-  pivot_wider(names_from = annotation, values_from = median_meth)
+  mat[is.na(mat)] <- 0
 
-adjS_wide <- all_grp %>%
-  select(sub_region, sub_type, annotation, median_adjS) %>%
-  pivot_wider(names_from = annotation, values_from = median_adjS)
-
-## scale and run UMAP; returns tidy data frame with UMAP1/UMAP2 + metadata
-run_umap <- function(wide_df, seed = 42) {
-  meta   <- wide_df %>% select(sub_region, sub_type)
-  feat   <- wide_df %>% select(-sub_region, -sub_type) %>% as.matrix()
-  keep   <- complete.cases(feat)
-  feat   <- feat[keep, , drop = FALSE]
-  meta   <- meta[keep, , drop = FALSE]
-  if (nrow(feat) < 4L) {
-    message("Too few complete cases for UMAP (n = ", nrow(feat), "); skipping")
+  feat_var <- apply(mat, 2, var)
+  n_keep   <- min(as.integer(n_hvf), sum(feat_var > 0))
+  if (n_keep < 2L) {
+    message("Too few variable features (", n_keep, "); skipping")
     return(NULL)
   }
-  scaled <- scale(feat)
-  nn     <- min(5L, nrow(scaled) - 1L)
+  mat <- mat[, order(feat_var, decreasing = TRUE)[seq_len(n_keep)], drop = FALSE]
+  message("HVF: ", n_keep, " of ", length(feat_var), " features selected")
+
+  scaled <- scale(mat)
+  bad    <- apply(scaled, 2, function(x) all(is.na(x) | is.nan(x)))
+  scaled <- scaled[, !bad, drop = FALSE]
+  if (ncol(scaled) == 0L) return(NULL)
+
+  n_pcs_use <- min(as.integer(n_pcs), nrow(scaled) - 1L, ncol(scaled))
+  if (n_pcs_use < 2L) {
+    message("Too few PCs available (", n_pcs_use, "); skipping")
+    return(NULL)
+  }
+  pca <- prcomp(scaled, rank. = n_pcs_use, scale. = FALSE)
+  message("PCA: using ", n_pcs_use, " PCs")
+
+  nn <- min(as.integer(n_neighbors), nrow(pca$x) - 1L)
   set.seed(seed)
-  coords <- uwot::umap(scaled, n_neighbors = nn, min_dist = 0.3, n_epochs = 500,
-                       verbose = FALSE)
+  coords <- uwot::umap(pca$x, n_neighbors = nn, min_dist = 0.3,
+                        n_epochs = 500, verbose = FALSE)
   bind_cols(meta, setNames(as.data.frame(coords), c("UMAP1", "UMAP2")))
 }
 
-umap_adjH <- run_umap(adjH_wide)
-umap_meth <- run_umap(meth_wide)
-umap_adjS <- run_umap(adjS_wide)
-```
-
-```{r umap_plot_helper}
-plot_umap <- function(df, title, subtitle = NULL) {
-  if (is.null(df)) {
-    message("No UMAP result to plot.")
-    return(invisible(NULL))
-  }
-  ggplot(df, aes(x = UMAP1, y = UMAP2, color = sub_type, shape = sub_region)) +
-    geom_point(size = 3, alpha = 0.9) +
-    geom_text_repel(aes(label = sub_type), size = 2.5, max.overlaps = 30,
+## Standard plot: points colored by cell_class, labeled by sub_type
+plot_umap_class <- function(df, title, subtitle = NULL) {
+  if (is.null(df)) { message("No UMAP result for: ", title); return(invisible(NULL)) }
+  ggplot(df, aes(x = UMAP1, y = UMAP2, color = cell_class)) +
+    geom_point(size = 2.5, alpha = 0.85) +
+    geom_text_repel(aes(label = sub_type), size = 2, max.overlaps = 25,
                     show.legend = FALSE) +
     scale_color_viridis_d(option = "turbo") +
-    labs(title = title, subtitle = subtitle,
-         color = "sub_type", shape = "sub_region") +
+    labs(title = title, subtitle = subtitle, color = "cell class") +
+    guides(color = guide_legend(override.aes = list(size = 3))) +
     theme_ng()
 }
 ```
 
-## adjH features
+## Cell-level: adjS across annotations
 
-UMAP computed from median adjH (methylation-normalised Shannon entropy) across all
-annotations. Separability here indicates cell types differ in their per-locus
-methylation heterogeneity profiles.
+Each point is one cell. Features are per-cell adjS for each annotation (one value
+per annotation per cell). Within each (sub_region, sub_type) group the same cells
+appear in the same row order across annotation files, so rows can be matched by
+index. Color = CellClass from metadata.
 
-```{r umap_adjH, fig.width = 8, fig.height = 7}
-plot_umap(umap_adjH,
-          title    = "UMAP - adjH features",
-          subtitle = "median adjH per annotation as feature vector")
+```{r cell_umap_load}
+short_paths_umap <- list.files(snakemake@params[["output_path"]],
+                                pattern = "\\.out\\.gz$", full.names = TRUE)
+short_paths_umap <- short_paths_umap[!grepl("\\.det\\.out\\.gz$",  short_paths_umap)]
+short_paths_umap <- short_paths_umap[!grepl("\\.meth\\.out\\.gz$", short_paths_umap)]
+
+## Read one column from all .out.gz files; return long table with cell_idx
+read_cells_long <- function(fps, col) {
+  bind_rows(bplapply(fps, function(fp) {
+    fn   <- basename(fp)
+    vals <- read_tsv(fp, na = "-1", show_col_types = FALSE)[[col]]
+    data.frame(
+      sub_region = get_sub_region(fn),
+      sub_type   = get_sub_type(fn),
+      annotation = get_annotation(fn),
+      cell_idx   = seq_along(vals),
+      value      = vals,
+      stringsAsFactors = FALSE
+    )
+  }, BPPARAM = param))
+}
+
+cells_adjS_long <- read_cells_long(short_paths_umap, "sampen_norm")
+cells_meth_long <- read_cells_long(short_paths_umap, "avg_meth")
+
+## Pivot wide: rows = cells, columns = annotations
+cells_adjS_wide <- pivot_wider(cells_adjS_long,
+                                id_cols     = c(sub_region, sub_type, cell_idx),
+                                names_from  = annotation,
+                                values_from = value) %>%
+  left_join(meta_grp %>% select(sub_region, sub_type, cell_class, major_type),
+            by = c("sub_region", "sub_type"))
+
+cells_meth_wide <- pivot_wider(cells_meth_long,
+                                id_cols     = c(sub_region, sub_type, cell_idx),
+                                names_from  = annotation,
+                                values_from = value) %>%
+  left_join(meta_grp %>% select(sub_region, sub_type, cell_class, major_type),
+            by = c("sub_region", "sub_type"))
+
+saveRDS(list(cells_adjS_wide = cells_adjS_wide,
+             cells_meth_wide = cells_meth_wide),
+        "ecker_cell_matrices.rds")
+
+cat("Cells (adjS):", nrow(cells_adjS_wide),
+    "| Annotations:", ncol(cells_adjS_wide) - 5L, "\n")
+cat("Cell class breakdown:\n")
+print(table(cells_adjS_wide$cell_class, useNA = "always"))
 ```
 
-## avg_meth features
+```{r cell_umap_adjS, fig.width = 8, fig.height = 7}
+meta_cols_cell <- c("sub_region", "sub_type", "cell_idx", "cell_class", "major_type")
 
-UMAP computed from median average methylation across all annotations.
-Separability here is driven by bulk methylation differences.
+umap_cell_adjS <- run_umap_wide(cells_adjS_wide, meta_cols_cell, n_neighbors = 15L)
+saveRDS(umap_cell_adjS, "ecker_umap_cell_adjS.rds")
 
-```{r umap_meth, fig.width = 8, fig.height = 7}
-plot_umap(umap_meth,
-          title    = "UMAP - avg. methylation features",
-          subtitle = "median avg. methylation per annotation as feature vector")
+plot_umap_class(umap_cell_adjS,
+                title    = "Cell-level UMAP - adjS features",
+                subtitle = "per-cell adjS per annotation as feature vector")
 ```
 
-## adjS features
+## Cell-level: avg_meth across annotations
 
-UMAP computed from median adjS (methylation-normalised sample entropy, a
-within-cell metric) across all annotations.
+Same as above but using average methylation as features, for direct comparison.
 
-```{r umap_adjS, fig.width = 8, fig.height = 7}
-plot_umap(umap_adjS,
-          title    = "UMAP - adjS features",
-          subtitle = "median adjS per annotation as feature vector")
+```{r cell_umap_meth, fig.width = 8, fig.height = 7}
+umap_cell_meth <- run_umap_wide(cells_meth_wide, meta_cols_cell, n_neighbors = 15L)
+saveRDS(umap_cell_meth, "ecker_umap_cell_meth.rds")
+
+plot_umap_class(umap_cell_meth,
+                title    = "Cell-level UMAP - avg. methylation features",
+                subtitle = "per-cell avg. methylation per annotation as feature vector")
 ```
 
-## adjH + meth combined
+## Group-level: adjH across annotations
 
-Both adjH and avg_meth per annotation concatenated into a single feature vector.
-Highlights whether entropy adds information beyond bulk methylation.
+Each point is one (sub_region x sub_type) group. Features are median adjH per
+annotation. Fewer points than the cell-level view but each point represents the
+consensus entropy profile of a cell type.
 
-```{r umap_combined, fig.width = 8, fig.height = 7}
-combined_wide <- adjH_wide %>%
-  left_join(
-    meth_wide %>%
-      rename_with(~ paste0(.x, "_meth"), -c(sub_region, sub_type)),
-    by = c("sub_region", "sub_type")
-  )
+```{r group_umap_adjH, fig.width = 8, fig.height = 7}
+adjH_wide_grp <- all_grp_meta %>%
+  select(sub_region, sub_type, cell_class, major_type, annotation, median_adjH) %>%
+  pivot_wider(names_from = annotation, values_from = median_adjH)
 
-umap_combined <- run_umap(combined_wide)
-plot_umap(umap_combined,
-          title    = "UMAP - adjH + avg_meth features",
-          subtitle = "adjH and avg. methylation per annotation as joint feature vector")
+umap_grp_adjH <- run_umap_wide(adjH_wide_grp,
+                                meta_cols = c("sub_region", "sub_type",
+                                              "cell_class", "major_type"),
+                                n_neighbors = 5L)
+saveRDS(umap_grp_adjH, "ecker_umap_grp_adjH.rds")
+
+plot_umap_class(umap_grp_adjH,
+                title    = "Group-level UMAP - adjH features",
+                subtitle = "median adjH per annotation as feature vector")
 ```
 
-# UMAP: gene-locus embedding (adjH vs methylation)
+## Group-level: avg_meth across annotations
 
-Groups (sub_region x sub_type) embedded in the space of individual gene loci.
-Features are per-gene adjH (left) or per-gene average methylation (right),
-to show whether methylation heterogeneity separates cell types differently
-from bulk methylation.
-Up to `LOCUS_N_UMAP` genes sampled; loci with >50% NA dropped, remainder
-imputed with column median.
+```{r group_umap_meth, fig.width = 8, fig.height = 7}
+meth_wide_grp <- all_grp_meta %>%
+  select(sub_region, sub_type, cell_class, major_type, annotation, median_meth) %>%
+  pivot_wider(names_from = annotation, values_from = median_meth)
+
+umap_grp_meth <- run_umap_wide(meth_wide_grp,
+                                meta_cols = c("sub_region", "sub_type",
+                                              "cell_class", "major_type"),
+                                n_neighbors = 5L)
+plot_umap_class(umap_grp_meth,
+                title    = "Group-level UMAP - avg. methylation features",
+                subtitle = "median avg. methylation per annotation as feature vector")
+```
+
+## Group-level: gene loci, adjH
+
+Each group embedded in the space of individual gene loci (per-locus adjH from
+.norm.det.out.gz). Up to 2000 genes sampled. More features than the
+annotation-summary view, at the cost of heavier imputation.
 
 ```{r gene_locus_umap_setup}
 LOCUS_N_UMAP <- 2000L
 
-## Read all files for the "genes" annotation and return a
-## (n_groups x n_loci) data frame for the requested value column
+norm_det_paths_genes <- list.files(snakemake@params[["output_path"]],
+                                    pattern = "norm\\.det\\.out\\.gz$",
+                                    full.names = TRUE)
+det_paths_genes <- list.files(snakemake@params[["output_path"]],
+                               pattern = "det\\.out\\.gz$", full.names = TRUE)
+det_paths_genes <- det_paths_genes[!grepl("norm", det_paths_genes)]
+
 build_gene_mat <- function(col, fps, n_loci = LOCUS_N_UMAP) {
-  fps_genes <- fps[get_annotation(basename(fps)) == "genes"]
-  if (length(fps_genes) < 4L) return(NULL)
-  ref <- read_tsv(fps_genes[[1]], na = "-1", show_col_types = FALSE)
+  fps_g <- fps[get_annotation(basename(fps)) == "genes"]
+  if (length(fps_g) < 4L) return(NULL)
+  ref <- read_tsv(fps_g[[1]], na = "-1", show_col_types = FALSE)
   n   <- min(n_loci, nrow(ref))
   set.seed(LOCUS_SEED)
   idx <- sort(sample.int(nrow(ref), n))
-  rows <- bplapply(fps_genes, function(fp)
+  rows <- bplapply(fps_g, function(fp)
     read_tsv(fp, na = "-1", show_col_types = FALSE)[[col]][idx],
     BPPARAM = param)
   mat <- do.call(rbind, rows)
   colnames(mat) <- paste0("gene_", idx)
-  data.frame(
-    sub_region = get_sub_region(basename(fps_genes)),
-    sub_type   = get_sub_type(basename(fps_genes)),
+  df <- data.frame(
+    sub_region = get_sub_region(basename(fps_g)),
+    sub_type   = get_sub_type(basename(fps_g)),
     as.data.frame(mat),
     check.names = FALSE
   )
+  left_join(df,
+            meta_grp %>% select(sub_region, sub_type, cell_class, major_type),
+            by = c("sub_region", "sub_type"))
 }
-
-## Scale, impute, UMAP - same helper as before
-run_locus_umap <- function(df, seed = 42L) {
-  if (is.null(df) || nrow(df) < 4L) return(NULL)
-  meta <- df %>% select(sub_region, sub_type)
-  mat  <- df %>% select(-sub_region, -sub_type) %>% as.matrix()
-  mat  <- mat[, colMeans(is.na(mat)) <= 0.5, drop = FALSE]
-  for (j in seq_len(ncol(mat))) {
-    na_j <- is.na(mat[, j])
-    if (any(na_j)) mat[na_j, j] <- median(mat[, j], na.rm = TRUE)
-  }
-  keep <- complete.cases(mat)
-  mat  <- mat[keep, , drop = FALSE]
-  meta <- meta[keep, , drop = FALSE]
-  if (nrow(mat) < 4L) return(NULL)
-  scaled <- scale(mat)
-  scaled <- scaled[, apply(scaled, 2, function(x) !all(is.na(x) | is.nan(x))),
-                   drop = FALSE]
-  if (ncol(scaled) == 0L) return(NULL)
-  nn <- min(5L, nrow(scaled) - 1L)
-  set.seed(seed)
-  coords <- uwot::umap(scaled, n_neighbors = nn, min_dist = 0.3,
-                       n_epochs = 500, verbose = FALSE)
-  bind_cols(meta, setNames(as.data.frame(coords), c("UMAP1", "UMAP2")))
-}
-
-norm_det_paths_genes <- list.files(snakemake@params[["output_path"]],
-                                    pattern = "norm\\.det\\.out\\.gz$",
-                                    full.names = TRUE)
-det_paths_genes      <- list.files(snakemake@params[["output_path"]],
-                                    pattern = "det\\.out\\.gz$",
-                                    full.names = TRUE)
-det_paths_genes      <- det_paths_genes[!grepl("norm", det_paths_genes)]
 
 gene_mat_adjH <- build_gene_mat("shannon_norm", fps = norm_det_paths_genes)
 gene_mat_meth <- build_gene_mat("avg_meth",     fps = det_paths_genes)
 
-umap_gene_adjH <- run_locus_umap(gene_mat_adjH)
-umap_gene_meth <- run_locus_umap(gene_mat_meth)
-```
-
-```{r gene_locus_umap_helper}
-make_gene_umap_plot <- function(df, title) {
-  if (is.null(df)) { message("No result for: ", title); return(invisible(NULL)) }
-  ggplot(df, aes(x = UMAP1, y = UMAP2, color = sub_type)) +
-    geom_point(size = 3, alpha = 0.9) +
-    geom_text_repel(aes(label = sub_type), size = 2.5, max.overlaps = 30,
-                    show.legend = FALSE) +
-    scale_color_viridis_d(option = "turbo") +
-    labs(title = title,
-         subtitle = paste0(LOCUS_N_UMAP, " genes sampled"),
-         color = "cell type") +
-    theme_ng()
-}
+saveRDS(list(gene_mat_adjH = gene_mat_adjH, gene_mat_meth = gene_mat_meth),
+        "ecker_gene_matrices.rds")
 ```
 
 ```{r gene_locus_umap_adjH, fig.width = 8, fig.height = 7}
-make_gene_umap_plot(umap_gene_adjH, "Gene-locus UMAP - adjH features")
+meta_cols_grp <- c("sub_region", "sub_type", "cell_class", "major_type")
+
+umap_gene_adjH <- run_umap_wide(gene_mat_adjH, meta_cols_grp, n_neighbors = 5L)
+plot_umap_class(umap_gene_adjH,
+                title    = "Gene-locus UMAP - adjH features",
+                subtitle = paste0(LOCUS_N_UMAP, " genes sampled"))
 ```
 
+## Group-level: gene loci, avg_meth
+
 ```{r gene_locus_umap_meth, fig.width = 8, fig.height = 7}
-make_gene_umap_plot(umap_gene_meth, "Gene-locus UMAP - avg. methylation features")
+umap_gene_meth <- run_umap_wide(gene_mat_meth, meta_cols_grp, n_neighbors = 5L)
+plot_umap_class(umap_gene_meth,
+                title    = "Gene-locus UMAP - avg. methylation features",
+                subtitle = paste0(LOCUS_N_UMAP, " genes sampled"))
+```
+
+# Paper UMAP + our entropy overlay {.tabset .tabset-pills}
+
+All cells from the original Ecker et al. metadata placed at their published UMAP
+coordinates (L1UMAP), colored by the group-level entropy or methylation value
+computed here. One panel per genomic annotation, so you can assess whether
+entropy differences between cell types are annotation-specific.
+
+```{r paper_umap_data}
+## Join per-cell paper UMAP coords with group-level entropy for each annotation
+cells_overlay <- meta_cells %>%
+  left_join(
+    all_grp_meta %>%
+      select(sub_region, sub_type, annotation, median_adjH, median_meth,
+             median_adjS, cell_class, major_type),
+    by      = c("sub_region", "sub_type"),
+    relationship = "many-to-many"
+  ) %>%
+  filter(!is.na(umap1), !is.na(annotation))
+
+saveRDS(cells_overlay, "ecker_paper_umap_overlay.rds")
+cat("Rows in overlay table:", nrow(cells_overlay), "\n")
+```
+
+## adjH per annotation
+
+```{r paper_umap_adjH, fig.width = 14, fig.height = 10}
+cells_overlay %>%
+  filter(!is.na(median_adjH)) %>%
+  ggplot(aes(x = umap1, y = umap2, color = median_adjH)) +
+  geom_point(size = 0.4, alpha = 0.6) +
+  scale_color_viridis_c(option = "plasma", na.value = "grey80") +
+  facet_wrap(~annotation) +
+  labs(title = "Paper UMAP coordinates - color = group adjH",
+       x = "UMAP1 (Ecker et al.)", y = "UMAP2 (Ecker et al.)",
+       color = "median adjH") +
+  theme_ng() +
+  theme(axis.text = element_blank(), axis.ticks = element_blank())
+```
+
+## avg_meth per annotation
+
+```{r paper_umap_meth, fig.width = 14, fig.height = 10}
+cells_overlay %>%
+  filter(!is.na(median_meth)) %>%
+  ggplot(aes(x = umap1, y = umap2, color = median_meth)) +
+  geom_point(size = 0.4, alpha = 0.6) +
+  scale_color_viridis_c(option = "viridis", na.value = "grey80") +
+  facet_wrap(~annotation) +
+  labs(title = "Paper UMAP coordinates - color = group avg. methylation",
+       x = "UMAP1 (Ecker et al.)", y = "UMAP2 (Ecker et al.)",
+       color = "median meth") +
+  theme_ng() +
+  theme(axis.text = element_blank(), axis.ticks = element_blank())
+```
+
+## Cell class reference
+
+```{r paper_umap_cellclass, fig.width = 8, fig.height = 7}
+meta_cells %>%
+  filter(!is.na(umap1)) %>%
+  distinct(basename, .keep_all = TRUE) %>%
+  ggplot(aes(x = umap1, y = umap2, color = cell_class)) +
+  geom_point(size = 0.5, alpha = 0.6) +
+  scale_color_viridis_d(option = "turbo") +
+  labs(title = "Paper UMAP coordinates - cell class reference",
+       x = "UMAP1 (Ecker et al.)", y = "UMAP2 (Ecker et al.)",
+       color = "cell class") +
+  guides(color = guide_legend(override.aes = list(size = 3))) +
+  theme_ng() +
+  theme(axis.text = element_blank(), axis.ticks = element_blank())
 ```
 
 # Session

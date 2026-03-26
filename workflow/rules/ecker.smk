@@ -239,9 +239,11 @@ rule render_ecker_report:
         op.join("..", "envs", "r.yml")
     input:
         list_ecker_yamet_outputs,
+        meta=op.join(ECKER_BASE, "meta.tsv.gz"),
     params:
         output_path=ECKER_OUTPUT,
         chr10_only=ECKER_CHR10_ONLY,
+        meta_path=op.join(ECKER_BASE, "meta.tsv.gz"),
     threads:
         round(workflow.cores / 2)
     output:
