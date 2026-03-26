@@ -82,4 +82,4 @@ rule decompress_mm10_annotation:
     output:
         temp(op.join(MM10_BASE, "{annotation}.bed")),
     shell:
-        "zcat {input} | sort -k1,1 -k2,2n | bedtools merge -i - > {output}"
+        "zcat {input} | sed 's/^chr//' | sort -k1,1 -k2,2n | bedtools merge -i - > {output}"
