@@ -14,7 +14,7 @@ SNAPSHOT_DIR = config.get("snapshot_dir", "snapshots")
 rule archive_ecker_outputs:
     """Zip all ecker yamet outputs (the bare minimum to re-run the report)."""
     input:
-        list_ecker_yamet_outputs(),
+        list_ecker_yamet_outputs,
     output:
         op.join(SNAPSHOT_DIR, "ecker_output.zip"),
     shell:
