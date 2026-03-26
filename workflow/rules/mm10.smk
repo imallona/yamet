@@ -10,6 +10,10 @@ MM10_BASE = "mm10"
 ## chr10 is downloaded and aggregated, avoiding a full-genome sort.
 MM10_CG_CHRS = CHRS
 
+## Chromosomes to keep when decompressing annotation BED files.
+## ecker.smk overrides this to ["10"] when ECKER_CHR10_ONLY is True.
+MM10_BED_CHRS = CHRS
+
 
 rule mm10_per_chr_ref:
     conda:
@@ -19,6 +23,7 @@ rule mm10_per_chr_ref:
     params:
         fa="Mus_musculus.GRCm38.dna.chromosome.{chr}.fa",
         base="https://ftp.ensembl.org/pub/release-102/fasta/mus_musculus/dna/",
+        chr_prefix="",
     script:
         "src/build_chr_cpg_ref.sh"
 
@@ -81,5 +86,7 @@ rule decompress_mm10_annotation:
         op.join(MM10_BASE, "{annotation}.bed.gz"),
     output:
         temp(op.join(MM10_BASE, "{annotation}.bed")),
+    params:
+        chrs=" ".join(MM10_BED_CHRS),
     shell:
-        "zcat {input} | sed 's/^chr//' | sort -k1,1 -k2,2n | bedtools merge -i - > {output}"
+        """zcat {input} | sed 's/^chr//' | awk 'BEGIN{{n=split("{params.chrs}",a); for(i=1;i<=n;i++) k[a[i]]=1}} $1 in k' | sort -k1,1 -k2,2n | bedtools merge -i - > {output}"""
