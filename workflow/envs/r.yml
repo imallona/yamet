@@ -29,6 +29,8 @@ dependencies:
   - conda-forge::r-pheatmap
   - conda-forge::r-ggraph 
   - conda-forge::r-igraph
+  - conda-forge::r-circlize
+  - conda-forge::r-viridislite
   - bioconda::bioconductor-summarizedexperiment
   - bioconda::bioconductor-singlecellexperiment
   - bioconda::bioconductor-scater
