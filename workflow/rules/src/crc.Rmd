@@ -19,13 +19,13 @@ suppressPackageStartupMessages({
   library(lmerTest)
   library(ggplot2)
   library(knitr)
-  #library(effects)
   library(ComplexHeatmap)
   library(viridis)
   library(BiocParallel)
-  library(ggplot2)
-  library(ggstance)  # for horizontal error bars
+  library(ggstance)
   library(dplyr)
+  library(tidyr)
+  library(ggrepel)
 })
 
 source("src/ggtheme.R")
@@ -392,12 +392,12 @@ ggplot(ranges, aes(color = location)) +
   ## horizontal segment: range of methylations for that location/compartment
   geom_segment(
     aes(x = meth_min, xend = meth_max, y = sampen_mean, yend = sampen_mean),
-    size = 0.6, alpha = 1
+    linewidth = 0.6, alpha = 1
   ) +
   # vertical segment: range of sampens for that location/compartment
   geom_segment(
     aes(x = meth_mean, xend = meth_mean, y = sampen_min, yend = sampen_max),
-    size = 0.6, alpha = 1
+    linewidth = 0.6, alpha = 1
   ) +
   # center point
   geom_point(
@@ -630,12 +630,12 @@ ggplot(ranges, aes(color = location)) +
   ## horizontal segment: range of methylations for that location/compartment
   geom_segment(
     aes(x = meth_min, xend = meth_max, y = sampen_mean, yend = sampen_mean),
-    size = 0.6, alpha = 1
+    linewidth = 0.6, alpha = 1
   ) +
   # vertical segment: range of sampens for that location/compartment
   geom_segment(
     aes(x = meth_mean, xend = meth_mean, y = sampen_min, yend = sampen_max),
-    size = 0.6, alpha = 1
+    linewidth = 0.6, alpha = 1
   ) +
   # center point
   geom_point(
@@ -904,12 +904,49 @@ str(adjsampens)
 ```
 
 ```{r save_for_emanuel}
-saveRDS( list( sampens = sampens,
-              shannons = shannons,
-              adjshannons = adjshannons,
-              adjsampens = adjsampens),
-        file = "emanuel.rds")
+saveRDS(list(sampens    = sampens,
+             shannons   = shannons,
+             adjshannons = adjshannons,
+             adjsampens = adjsampens),
+        file = "crc_entropy_summaries.rds")
+```
 
+
+```{r summary_heatmap, fig.width = 9, fig.height = 6}
+library(ComplexHeatmap)
+library(circlize)
+
+make_hm_mat <- function(df, value_col) {
+  wide <- df %>%
+    group_by(annotation, location) %>%
+    summarise(v = median(.data[[value_col]], na.rm = TRUE), .groups = "drop") %>%
+    tidyr::pivot_wider(names_from = location, values_from = v)
+  mat <- as.matrix(wide[, -1])
+  rownames(mat) <- wide$annotation
+  mat
+}
+
+hm_adjS <- make_hm_mat(adjsampens, "sampen")
+hm_adjH <- make_hm_mat(adjshannons, "median_shannon")
+
+col_adjS <- colorRamp2(
+  quantile(hm_adjS, c(0.05, 0.5, 0.95), na.rm = TRUE),
+  c("#2166AC", "white", "#B2182B"))
+col_adjH <- colorRamp2(
+  quantile(hm_adjH, c(0.05, 0.5, 0.95), na.rm = TRUE),
+  c("#4DAC26", "white", "#D01C8B"))
+
+draw(
+  Heatmap(hm_adjS, name = "adjS", col = col_adjS,
+          cluster_columns = FALSE,
+          row_names_gp = gpar(fontsize = 7),
+          column_names_gp = gpar(fontsize = 7)) +
+  Heatmap(hm_adjH, name = "adjH", col = col_adjH,
+          cluster_rows = FALSE, cluster_columns = FALSE,
+          show_row_names = FALSE,
+          column_names_gp = gpar(fontsize = 7)),
+  column_title = "Median adjS and adjH per annotation x location"
+)
 ```
 
 
@@ -1160,9 +1197,97 @@ ggplot(variation,
 ```
 
 
+```{r save_driver_objects}
+saveRDS(list(variation = variation, sds = sds),
+        file = "crc_driver_sd_range.rds")
+```
+
 This might make sense, or not, but again it does more sense to do only in PT vs NC, and each metastasis vs PT separately, todo
 
 
+# R2-based driver categorization {.tabset .tabset-pills}
+
+For each annotation, fit `lm(median ~ location)` separately for adjH and adjS (grouping
+per-cell adjS to group medians first). R2 quantifies how much of the variance in that
+metric is explained by tumour location. Annotations with high R2(adjH) are driven by
+across-cell heterogeneity; high R2(adjS) means within-cell heterogeneity tracks location.
+
+```{r r2_driver}
+adj_medians <- adj_df %>%
+  group_by(annotation, location) %>%
+  summarise(
+    median_adjH = median(median_shannon, na.rm = TRUE),
+    median_adjS = median(sampen, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+r2_lm <- function(y, group) {
+  df <- data.frame(y = y, g = group)
+  df <- df[!is.na(df$y) & !is.na(df$g), ]
+  if (nrow(df) < 3 || length(unique(df$g)) < 2) return(NA_real_)
+  tryCatch(summary(lm(y ~ g, data = df))$r.squared, error = function(e) NA_real_)
+}
+
+r2_by_ann <- adj_medians %>%
+  group_by(annotation) %>%
+  summarise(
+    r2_adjH = r2_lm(median_adjH, location),
+    r2_adjS = r2_lm(median_adjS, location),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    driver = case_when(
+      r2_adjH >= 0.3 & r2_adjS <  0.3 ~ "adjH-driven",
+      r2_adjS >= 0.3 & r2_adjH <  0.3 ~ "adjS-driven",
+      r2_adjH >= 0.3 & r2_adjS >= 0.3 ~ "both",
+      TRUE                             ~ "neither"
+    )
+  )
+
+saveRDS(list(adj_df = adj_df, adj_medians = adj_medians, r2_by_ann = r2_by_ann),
+        file = "crc_driver_r2.rds")
+
+r2_by_ann
+```
+
+## R2 scatter: adjH vs adjS {.tabset .tabset-pills}
+
+```{r r2_scatter, fig.width = 7, fig.height = 6}
+ggplot(r2_by_ann,
+       aes(x = r2_adjH, y = r2_adjS,
+           color = driver, shape = driver, label = annotation)) +
+  geom_vline(xintercept = 0.3, linetype = "dashed", linewidth = 0.3,
+             colour = "grey60") +
+  geom_hline(yintercept = 0.3, linetype = "dashed", linewidth = 0.3,
+             colour = "grey60") +
+  geom_point(size = 2) +
+  ggrepel::geom_text_repel(size = 2, max.overlaps = 20) +
+  scale_x_continuous(limits = c(0, 1)) +
+  scale_y_continuous(limits = c(0, 1)) +
+  labs(
+    x = "R2: adjH ~ location",
+    y = "R2: adjS ~ location",
+    color = "driver", shape = "driver"
+  ) +
+  theme_ng() +
+  theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
+```
+
+## R2 per annotation (bar)
+
+```{r r2_bar, fig.width = 10, fig.height = 5}
+r2_long <- tidyr::pivot_longer(r2_by_ann,
+                                cols = c(r2_adjH, r2_adjS),
+                                names_to = "metric", values_to = "r2")
+
+ggplot(r2_long, aes(x = annotation, y = r2, fill = metric)) +
+  geom_col(position = position_dodge(0.8), width = 0.7) +
+  geom_hline(yintercept = 0.3, linetype = "dashed", linewidth = 0.3,
+             colour = "grey40") +
+  scale_fill_manual(values = c(r2_adjH = "#0072B2", r2_adjS = "#D55E00")) +
+  labs(y = "R2 (variance explained by location)", fill = NULL) +
+  theme_ng()
+```
 
 
 # Session

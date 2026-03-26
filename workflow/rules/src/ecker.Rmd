@@ -84,8 +84,8 @@ harmonize_levels <- function(df) {
   df$annotation <- factor(df$annotation,
                            levels = names(ann_labels),
                            labels = unname(ann_labels))
-  df$sub_region <- factor(df$sub_region)
-  df$sub_type   <- factor(df$sub_type)
+  if ("sub_region" %in% names(df)) df$sub_region <- factor(df$sub_region)
+  if ("sub_type"   %in% names(df)) df$sub_type   <- factor(df$sub_type)
   df
 }
 ```
@@ -880,7 +880,7 @@ print(table(cells_adjS_wide$cell_class, useNA = "always"))
 ```
 
 ```{r cell_umap_adjS, fig.width = 8, fig.height = 7}
-meta_cols_cell <- c("sub_region", "sub_type", "cell_idx", "cell_class", "major_type")
+meta_cols_cell <- c("sub_region", "sub_type", "cell_idx", "cell_class", "major_type", "major_region")
 
 umap_cell_adjS <- run_umap_wide(cells_adjS_wide, meta_cols_cell, n_neighbors = 15L)
 saveRDS(umap_cell_adjS, "ecker_umap_cell_adjS.rds")
@@ -980,7 +980,7 @@ saveRDS(list(gene_mat_adjH = gene_mat_adjH, gene_mat_meth = gene_mat_meth),
 ```
 
 ```{r gene_locus_umap_adjH, fig.width = 8, fig.height = 7}
-meta_cols_grp <- c("sub_region", "sub_type", "cell_class", "major_type")
+meta_cols_grp <- c("sub_region", "sub_type", "cell_class", "major_type", "major_region")
 
 umap_gene_adjH <- run_umap_wide(gene_mat_adjH, meta_cols_grp, n_neighbors = 5L)
 plot_umap_class(umap_gene_adjH,

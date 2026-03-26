@@ -131,7 +131,7 @@ ggplot(df_long, aes(x = contrast, y = count, fill = direction)) +
   scale_y_log10() +
   scale_fill_manual(values = c("upregulated" = "#1b9e77",
                                "downregulated" = "#d95f02")) +
-  theme_bw() +
+  theme_ng() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
   labs(title = "Differentially entropy windows per contrast",
        y = "Number of genes (log scale)",
@@ -168,7 +168,7 @@ ggplot(df_long, aes(x = contrast, y = count, fill = direction)) +
   scale_y_log10() +
   scale_fill_manual(values = c("upregulated" = "#1b9e77",
                                "downregulated" = "#d95f02")) +
-  theme_bw() +
+  theme_ng() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
   labs(title = "Differentially entropy windows per contrast",
        y = "Number of genes (log scale)",
@@ -542,7 +542,7 @@ ggplot(prop_df, aes(x = contrast, y = proportion, fill = annotation)) +
   labs(x = "Annotation feature",
        y = "Proportion of contrast windows overlapping",
        fill = "Contrast") +
-  theme_bw() +
+  theme_ng() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 
@@ -551,7 +551,7 @@ ggplot(prop_df, aes(x = contrast, y = annotation)) +
   scale_size(range = c(1,6)) +
   scale_color_gradient(low = "grey80", high = "red") +
   labs(x = "Contrast", y = "Annotation", size = "Proportion", color = "Proportion") +
-  theme_bw() +
+  theme_ng() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 ## why are some contrasts empty? and, btw, do we want to plot all contrasts and directions? and hmm and manual segmentations combined?
@@ -571,7 +571,7 @@ prop_df <- prop_df %>%
 ##   scale_color_manual(values = c("Up" = "red", "Down" = "blue")) +
 ##   labs(x = "Contrast", y = "Annotation",
 ##        size = "Proportion", color = "Direction") +
-##   theme_bw() +
+##   theme_ng() +
 ##   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 ```
@@ -616,7 +616,7 @@ ggplot(prop_df, aes(x = contrast_dir, y = annotation)) +
   scale_color_manual(values = c("Up" = "red", "Down" = "blue")) +
   labs(x = "Contrast", y = "Annotation",
        size = "Proportion", color = "Direction") +
-  theme_bw() +
+  theme_ng() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 ```
@@ -680,7 +680,7 @@ ggplot(plot_df, aes(x = location, y = value)) +
         y = "Entropy (median per annotation)",
         title = "Per-cell entropy across genomic annotations and biopsy location"
     ) +
-    theme_bw() +
+    theme_ng() +
     theme(
         strip.text = element_text(size = 7),
         axis.text.x = element_text(angle = 45, hjust = 1)
@@ -811,7 +811,7 @@ ggplot(plot_df, aes(x = location, y = unexpected)) +
         x = "Tissue type",
         y = "Residual SampEn (unexpected entropy)"
     ) +
-    theme_bw() +
+    theme_ng() +
     theme(
         strip.text = element_text(size = 7),
         axis.text.x = element_text(angle = 45, hjust = 1)

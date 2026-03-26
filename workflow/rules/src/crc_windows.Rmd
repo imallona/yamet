@@ -250,7 +250,7 @@ ggplot(cell_summary, aes(x = location, y = mean_sampen, fill = location)) +
   geom_violin(trim = FALSE, scale = "width") +
   geom_boxplot(width = 0.1, outlier.size = 0.5, alpha = 0.5) +
   facet_wrap(~patient) +
-  theme_minimal() +
+  theme_ng() +
   labs(title = "Per-cell mean entropy by patient and location",
        x = "Location", y = "Mean sample entropy")
 ```
@@ -262,7 +262,7 @@ ggplot(cell_summary, aes(x = location, y = var_sampen, fill = location)) +
   geom_violin(trim = FALSE, scale = "width") +
   geom_boxplot(width = 0.1, outlier.size = 0.5, alpha = 0.5) +
   facet_wrap(~patient) +
-  theme_minimal() +
+  theme_ng() +
   labs(title = "Per-cell entropy variance by patient and location",
        x = "Location", y = "Variance of sample entropy")
 
@@ -348,7 +348,7 @@ assay(sce, "meth") <- meth_mat
 
 rm(meth_mat)
 
-saveRDS('sce_windows_colon.rds', object = sce)
+saveRDS(sce, file = 'sce_windows_colon.rds')
 ```
 
 # QC  {.tabset .tabset-pills}
@@ -892,6 +892,156 @@ Heatmap(sub_sampens,
               cluster_rows = row.hc)
 ```
 
+# H vs S driver categorization {.tabset .tabset-pills}
+
+Read meth-normalized Shannon (adjH) from `.norm.det.out.gz` files. Only the summary
+column is loaded — per-cell columns are skipped — so this is memory-efficient. adjS
+medians come from the `sampens` list already in memory (computed in the QC section).
+Per-annotation R2 is then computed for both metrics with location as the predictor.
+
+```{r read_adj_shannons}
+norm_fps <- list.files(
+  snakemake@params[["output_path"]],
+  pattern = paste0(snakemake@wildcards[["win_size"]], "_(.*)\\.norm\\.det\\.out\\.gz$"),
+  full.names = TRUE
+)
+
+regex_norm <- "(.*)_(.*)_(.*)\\.norm\\.det\\.out\\.gz$"
+
+adj_shannons_long <- bplapply(norm_fps, function(fp) {
+  fn  <- basename(fp)
+  pat <- gsub(regex_norm, "\\2", fn)
+  loc <- gsub(regex_norm, "\\3", fn)
+  dt  <- read_tsv(fp,
+                  col_select = c(chr, start, end, shannon_norm),
+                  na = "-1", n_max = NROWS,
+                  show_col_types = FALSE)
+  data.frame(
+    window   = sprintf("%s:%s-%s", dt$chr, dt$start, dt$end),
+    adjH     = dt$shannon_norm,
+    patient  = pat,
+    location = loc,
+    stringsAsFactors = FALSE
+  )
+}, BPPARAM = param) %>% bind_rows()
+
+adj_shannons_long$location <- factor(adj_shannons_long$location,
+                                     levels = c("NC", "PT", "LN", "ML", "MP", "MO"))
+
+cat("adjH rows:", nrow(adj_shannons_long),
+    "| groups:", length(unique(paste(adj_shannons_long$patient,
+                                     adj_shannons_long$location))), "\n")
+```
+
+```{r build_adj_sampens_long}
+## use per-window medians already computed in the QC section
+adj_sampens_long <- lapply(sampens, function(s) {
+  data.frame(
+    window   = names(s$median),
+    adjS     = s$median,
+    patient  = s$patient,
+    location = s$location,
+    stringsAsFactors = FALSE
+  )
+}) %>% bind_rows()
+
+adj_sampens_long$location <- factor(adj_sampens_long$location,
+                                    levels = c("NC", "PT", "LN", "ML", "MP", "MO"))
+
+cat("adjS rows:", nrow(adj_sampens_long), "\n")
+```
+
+```{r r2_driver_windows}
+## annotation columns: value > 0 means window belongs to that annotation
+ann_cols_win <- colnames(annot)
+ann_cols_win <- ann_cols_win[sapply(annot, function(x)
+  is.numeric(x) && any(!is.na(x) & x > 0))]
+
+common_win <- intersect(adj_shannons_long$window, adj_sampens_long$window)
+common_win <- intersect(common_win, rownames(annot))
+
+r2_safe_win <- function(y, grp) {
+  df <- data.frame(y = y, g = grp)
+  df <- df[!is.na(df$y), ]
+  if (nrow(df) < 3 || length(unique(df$g)) < 2) return(NA_real_)
+  tryCatch(summary(lm(y ~ g, data = df))$r.squared,
+           error = function(e) NA_real_)
+}
+
+r2_drivers_win <- purrr::compact(lapply(ann_cols_win, function(a) {
+  members <- rownames(annot)[!is.na(annot[[a]]) & annot[[a]] > 0]
+  members <- intersect(members, common_win)
+  if (length(members) < 10) return(NULL)
+
+  sub_H <- adj_shannons_long[adj_shannons_long$window %in% members, ]
+  sub_S <- adj_sampens_long [adj_sampens_long$window  %in% members, ]
+
+  data.frame(
+    annotation = a,
+    r2_adjH    = r2_safe_win(sub_H$adjH, sub_H$location),
+    r2_adjS    = r2_safe_win(sub_S$adjS, sub_S$location),
+    n_windows  = length(members)
+  )
+})) %>% bind_rows()
+
+r2_drivers_win <- r2_drivers_win %>%
+  filter(!is.na(r2_adjH) | !is.na(r2_adjS)) %>%
+  mutate(driver = case_when(
+    r2_adjH >= 0.3 & r2_adjS <  0.3 ~ "adjH-driven",
+    r2_adjS >= 0.3 & r2_adjH <  0.3 ~ "adjS-driven",
+    r2_adjH >= 0.3 & r2_adjS >= 0.3 ~ "both",
+    TRUE                             ~ "neither"
+  ))
+
+saveRDS(list(adj_shannons_long = adj_shannons_long,
+             adj_sampens_long  = adj_sampens_long,
+             r2_drivers_win    = r2_drivers_win),
+        file = "crc_windows_driver_r2.rds")
+
+r2_drivers_win
+```
+
+## R2 scatter: adjH vs adjS
+
+```{r r2_win_scatter, fig.width = 7, fig.height = 6}
+ggplot(r2_drivers_win,
+       aes(x = r2_adjH, y = r2_adjS,
+           color = driver, shape = driver, label = annotation)) +
+  geom_vline(xintercept = 0.3, linetype = "dashed", linewidth = 0.3,
+             colour = "grey60") +
+  geom_hline(yintercept = 0.3, linetype = "dashed", linewidth = 0.3,
+             colour = "grey60") +
+  geom_point(size = 2) +
+  ggrepel::geom_text_repel(size = 2, max.overlaps = 20) +
+  scale_x_continuous(limits = c(0, 1)) +
+  scale_y_continuous(limits = c(0, 1)) +
+  labs(x = "R2: adjH ~ location", y = "R2: adjS ~ location") +
+  theme_ng() +
+  theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
+```
+
+## adjH vs adjS median per location
+
+```{r adjH_adjS_medians, fig.width = 10, fig.height = 6}
+hm_win <- inner_join(
+  adj_shannons_long %>%
+    group_by(annotation = "all windows", location) %>%
+    summarise(adjH = median(adjH, na.rm = TRUE), .groups = "drop"),
+  adj_sampens_long %>%
+    group_by(annotation = "all windows", location) %>%
+    summarise(adjS = median(adjS, na.rm = TRUE), .groups = "drop"),
+  by = c("annotation", "location")
+)
+
+ggplot(hm_win, aes(x = adjH, y = adjS, color = location, label = location)) +
+  geom_point(size = 3) +
+  ggrepel::geom_text_repel(size = 3) +
+  labs(x = "median adjH", y = "median adjS",
+       title = "Global adjH vs adjS per biopsy location") +
+  theme_ng() +
+  theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
+```
+
 # Stats / planned comparisons {.tabset .tabset-pills}
 
 <!-- ## Atreya's code but only PT vs NC -->
@@ -1023,7 +1173,7 @@ de$ln_vs_pt <- diff_entropy_test(
 )
 
 head(de$ln_vs_pt$coefs_df)
-hist(de$ln_vs_pt$coefs_df$p_val)
+hist(de$ln_vs_pt$coefs_df$p_value)
 table(de$ln_vs_pt$coefs_df$adj_p < 0.05)
 ```
 
@@ -1043,7 +1193,7 @@ de$ln_vs_nc <- diff_entropy_test(
   out_file    = "ln_vs_nc_coefs.rds"
 )
 
-hist(de$ln_vs_nc$coefs_df$p_val)
+hist(de$ln_vs_nc$coefs_df$p_value)
 table(de$ln_vs_nc$coefs_df$adj_p < 0.05)
 ```
 
@@ -1063,7 +1213,7 @@ de$ml_vs_ln <- diff_entropy_test(
   out_file    = "ml_vs_ln_coefs.rds"
 )
 
-hist(de$ml_vs_ln$coefs_df$p_val)
+hist(de$ml_vs_ln$coefs_df$p_value)
 table(de$ml_vs_ln$coefs_df$adj_p < 0.05)
 ```
 
@@ -1084,7 +1234,7 @@ de$ml_vs_nc <- diff_entropy_test(
   out_file    = "ml_vs_nc_coefs.rds"
 )
 
-hist(de$ml_vs_nc$coefs_df$p_val)
+hist(de$ml_vs_nc$coefs_df$p_value)
 table(de$ml_vs_nc$coefs_df$adj_p < 0.05)
 ```
 
@@ -1104,7 +1254,7 @@ de$mp_vs_ml <- diff_entropy_test(
   out_file    = "mp_vs_ml_coefs.rds"
 )
 
-hist(de$mp_vs_ml$coefs_df$p_val)
+hist(de$mp_vs_ml$coefs_df$p_value)
 table(de$mp_vs_ml$coefs_df$adj_p < 0.05)
 ```
 
@@ -1124,7 +1274,7 @@ de$mp_vs_nc <- diff_entropy_test(
   out_file    = "mp_vs_nc_coefs.rds"
 )
 
-hist(de$mp_vs_nc$coefs_df$p_val)
+hist(de$mp_vs_nc$coefs_df$p_value)
 table(de$mp_vs_nc$coefs_df$adj_p < 0.05)
 ```
 
