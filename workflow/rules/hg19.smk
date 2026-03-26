@@ -17,8 +17,8 @@ rule get_cpgislandext_hg9:
         | awk 'BEGIN{{ OFS="\\t"; }}{{ print $2, $3, $4, $5$6, $7, $8, $9, $10, $11, $12 }}' \\
         > {output}
         """
-        
-        
+
+
 rule build_hg19_chr_per_chr:
     conda:
         op.join("..", "envs", "processing.yml")
@@ -27,29 +27,31 @@ rule build_hg19_chr_per_chr:
     params:
         fa="Homo_sapiens.GRCh37.dna.chromosome.{chr}.fa",
         base="https://ftp.ensembl.org/pub/grch37/current/fasta/homo_sapiens/dna/",
+        chr_prefix="chr",
     script:
-        "src/get_chr_ref.sh"
+        "src/build_chr_cpg_ref.sh"
+
 
 rule build_genome_hg19_ref:
     conda:
         op.join("..", "envs", "processing.yml")
     input:
         expand(op.join(HG19_BASE, "{chr}.{{meth_pat}}.ref"), chr=CHRS),
-    params:
-        base=HG19_BASE,
     output:
         op.join(HG19_BASE, "ref.{meth_pat}.gz"),
-    script:
-        "src/make_ref.sh"
+    shell:
+        "sort -m -k1,1 -k2,2n {input} | gzip > {output}"
 
 
-rule get_genes_hg19:
+rule uncompress_repeats:
     conda:
         op.join("..", "envs", "processing.yml")
+    input:
+        op.join(HG19_BASE, "{type}.bed.gz"),
     output:
-        op.join(HG19_BASE, "genes.bed.gz"),
-    script:
-        "src/download_hg19_genes.sh"
+        temp(op.join(HG19_BASE, "{type}.{type}.bed")),
+    shell:
+        "gunzip -c {input} > {output}"
 
 
 rule uncompress_hg19_genes:
@@ -131,6 +133,8 @@ CHIP_MAP = {
 
 
 rule get_encode_chip_data_hg19:
+    wildcard_constraints:
+        chip="|".join(CHIP_MAP.keys()),
     output:
         op.join(HG19_BASE, "{chip}.bed.gz")
     params:
@@ -177,13 +181,3 @@ rule uncompress_lads_hg19:
         """
             gunzip -c {input} > {output}
         """
-
-rule get_hg19_genome_sizes:
-    conda:
-        op.join("..", "envs", "processing.yml")
-    output:
-        op.join(HG19_BASE, "genome.sizes")
-    params:
-        asm="hg19",
-    script:
-        "src/download_genome_sizes.sh"

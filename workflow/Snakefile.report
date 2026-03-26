@@ -1,0 +1,106 @@
+#!/usr/bin/env snakemake -s
+
+"""
+Lightweight report-only workflow. Downloads data from zenodo (DOI TBD)
+
+Starts from pre-computed yamet output zips (e.g. downloaded from Zenodo) and
+produces the HTML reports without running any upstream analysis steps.
+
+
+Usage:
+Place the zip files in a directory (default: snapshots/) then run from workflow/:
+
+    snakemake -s Snakefile.report --use-conda --cores 4
+
+To read zips from a different location:
+
+    snakemake -s Snakefile.report --use-conda --cores 4 \
+        --config snapshot_dir=/path/to/zips
+
+Expected inputs:
+    snapshots/ecker_output.zip   -- all ecker/output/*.gz files
+    snapshots/crc_output.zip     -- all data/crc/output/*.gz files
+
+Produced outputs:
+    ecker/results/ecker.html
+    data/crc/results/crc.html
+"""
+
+import os.path as op
+
+## paths must match the main Snakefile exactly so extracted files land correctly
+ECKER_BASE   = "ecker"
+ECKER_OUTPUT = op.join(ECKER_BASE, "output")
+ECKER_CHR10_ONLY = config.get("chr10_only", True)
+
+CRC        = op.join("data", "crc")
+CRC_OUTPUT = op.join(CRC, "output")
+
+SNAPSHOT_DIR = config.get("snapshot_dir", "snapshots")
+
+shell.prefix("set -o pipefail; ")
+
+
+rule all:
+    input:
+        op.join(ECKER_BASE, "results", "ecker.html"),
+        op.join(CRC, "results", "crc.html"),
+
+rule unpack_ecker:
+    """Extract ecker output zip into ecker/output/."""
+    input:
+        op.join(SNAPSHOT_DIR, "ecker_output.zip"),
+    output:
+        touch(op.join(ECKER_BASE, "unpacked.flag")),
+    shell:
+        """
+        mkdir -p ecker
+        cd ecker && unzip -n $OLDPWD/{input}
+        """
+
+rule unpack_crc:
+    """Extract CRC output zip into data/crc/output/."""
+    input:
+        op.join(SNAPSHOT_DIR, "crc_output.zip"),
+    output:
+        touch(op.join(CRC, "unpacked.flag")),
+    shell:
+        """
+        mkdir -p data/crc
+        cd data/crc && unzip -n $OLDPWD/{input}
+        """
+
+
+rule render_ecker_report:
+    conda:
+        op.join("rules", "envs", "r.yml")
+    input:
+        op.join(ECKER_BASE, "unpacked.flag"),
+    params:
+        output_path=ECKER_OUTPUT,
+        chr10_only=ECKER_CHR10_ONLY,
+    threads:
+        round(workflow.cores / 2)
+    output:
+        op.join(ECKER_BASE, "results", "ecker.html"),
+    log:
+        log=op.join("logs", "render_ecker.log"),
+    script:
+        "rules/src/ecker.Rmd"
+
+## mind the per-bin reports, @todo add
+rule render_crc_report:
+    conda:
+        op.join("rules", "envs", "r.yml")
+    input:
+        op.join(CRC, "unpacked.flag"),
+    params:
+        output_path=CRC_OUTPUT,
+    threads:
+        round(workflow.cores / 2)
+    output:
+        op.join(CRC, "results", "crc.html"),
+    log:
+        log=op.join("logs", "render_crc.log"),
+    script:
+        "rules/src/crc.Rmd"

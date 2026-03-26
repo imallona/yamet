@@ -81,6 +81,15 @@ data_dir <- dirname(snakemake@input[["disp_scmet"]])
 S_GRID <- snakemake@params[["S_GRID"]]
 N_GRID <- snakemake@params[["N_GRID"]]
 DISP <- snakemake@params[["DISP"]]
+
+## Large axis labels applied to every plot
+big_labels <- theme(
+  axis.title = element_text(size = 22, face = "bold", color = "black"),
+  axis.text  = element_text(size = 18, color = "black")
+)
+
+## Within-cell colour gradient (navy)
+wc_scale <- scale_color_gradient(low = "grey90", high = "#000080")
 ```
 
 
@@ -146,8 +155,9 @@ all.long <- cbind(jnt.long, meth.long)
 samp_meth <- ggplot(all.long, aes(x = meth, y = sampen, color = wc_vi)) +
   geom_point(alpha = 0.3) +
   theme_ng() +
+  wc_scale +
+  big_labels +
   labs(
-    ## title = "Sample Entropy in different wcVI values",
     x = "avg. methylation", y = "sample entropy", color = "wcVI"
   )
 
@@ -155,32 +165,34 @@ samp_vi <- ggplot(all.long, aes(x = as.factor(wc_vi), y = sampen)) +
   geom_point(alpha = 0.7, position = position_jitter(width = 0.2)) +
   geom_violin(alpha = 0.3, position = position_dodge(0.8)) +
   theme_ng() +
+  big_labels +
   labs(
-    title = "Sample Entropy in different wcVI values",
-    x = "wcVI", y = "Sample Entropy"
+    x = "wcVI", y = "sample entropy"
   )
 
 shannon_meth <- ggplot(jnt, aes(x = avg_meth, y = shannon, color = wc_vi)) +
   geom_point(alpha = 0.7) +
   theme_ng() +
+  wc_scale +
+  big_labels +
   labs(
-    ## title = "Shannon entropy in different wcVI values (per feature)",
     x = "avg. methylation", y = "Shannon entropy", color = "wcVI"
   )
 
 shannon_vi <- ggplot(jnt, aes(x = as.factor(wc_vi), y = shannon, color = avg_meth)) +
   geom_point(alpha = 0.7) +
   theme_ng() +
+  big_labels +
   labs(
-    title = "Shannon Entropy in different wcVI values (per feature)",
-    x = "wcVI", y = "Shannon Entropy", color = "meth"
+    x = "wcVI", y = "Shannon entropy", color = "meth"
   )
 
 samp_shan <- ggplot(all.long, aes(x = shannon, y = sampen, color = wc_vi)) +
   geom_point(alpha = 0.7) +
   theme_ng() +
+  wc_scale +
+  big_labels +
   labs(
-    ## title = "Sample Entropy in different wcVI values",
     x = "Shannon entropy", y = "sample entropy", color = "wcVI"
   )
 ```
@@ -196,111 +208,160 @@ jnt$scmet_epsilon <- tmp[match(rownames(jnt), names(tmp))]
 ```
 
 ```{r}
-ggplot(jnt, aes(x = as.factor(wc_vi), y = scmet_mu, color = avg_meth)) +
+scmet_mu_vi <- ggplot(jnt, aes(x = as.factor(wc_vi), y = scmet_mu, color = avg_meth)) +
   geom_point(alpha = 0.7) +
   theme_ng() +
+  big_labels +
   labs(
-    ## title = "scMET (mu) in different wcVI values (per feature)",
     x = "wcVI", y = expression("scMET " ~ mu), color = "meth"
   )
 
 scmet_mu_meth <- ggplot(jnt, aes(x = avg_meth, y = scmet_mu, color = wc_vi)) +
   geom_point(alpha = 0.7) +
   theme_ng() +
+  wc_scale +
+  big_labels +
   labs(
-    ## title = "scMET (mu) in different meth values (per feature)",
     x = "avg. methylation", y = expression("scMET " ~mu), color = "wcVI"
   )
 
 scmet_gamma_meth <- ggplot(jnt, aes(x = avg_meth, y = scmet_gamma, color = wc_vi)) +
   geom_point(alpha = 0.7) +
   theme_ng() +
+  wc_scale +
+  big_labels +
   labs(
-    ## title = "scMET (gamma) in different meth values (per feature)",
     x = "avg. methylation", y = expression("scMET " ~gamma), color = "wcVI"
   )
 
 scmet_epsilon_meth <- ggplot(jnt, aes(x = avg_meth, y = scmet_epsilon, color = wc_vi)) +
   geom_point(alpha = 0.7) +
   theme_ng() +
+  wc_scale +
+  big_labels +
   labs(
-    ## title = "scMET (epsilon) in different meth values (per feature)",
     x = "avg. methylation", y = expression("scMET " ~epsilon), color = "wcVI"
   )
 
-ggplot(jnt, aes(x = as.factor(wc_vi), y = sampen_avg, color = avg_meth)) +
+sampen_avg_vi <- ggplot(jnt, aes(x = as.factor(wc_vi), y = sampen_avg, color = avg_meth)) +
   geom_point(alpha = 0.7) +
   theme_ng() +
+  big_labels +
   labs(
-    title = "Sample Entropy in different wcVI values (per feature)",
     x = "wcVI", y = "sampen (average)", color = "meth"
   )
 
-ggplot(jnt, aes(x = avg_meth, y = sampen_avg, color = wc_vi)) +
+sampen_avg_meth <- ggplot(jnt, aes(x = avg_meth, y = sampen_avg, color = wc_vi)) +
   geom_point(alpha = 0.7) +
   theme_ng() +
+  wc_scale +
+  big_labels +
   labs(
-    title = "Sample Entropy in different meth values (per feature)",
-    x = "meth", y = "sampen (average)", color = "wcVI"
+    x = "avg. methylation", y = "sampen (average)", color = "wcVI"
   )
 ```
 
 ```{r}
 mi_table <- mi_table_gen(jnt, "wc_vi", table = T)
-mi_fd <- mi_table_gen(jnt, "wc_vi", table = F) ## the metrics dataframe, as a dataframe
-saveRDS(mi_fd, 'rds/perf_within.rds')
-
+mi_fd <- mi_table_gen(jnt, "wc_vi", table = F)
+saveRDS(mi_fd,     'rds/perf_within.rds')
+saveRDS(all.long,  'rds/all.long_within.rds')
+saveRDS(jnt,       'rds/jnt_within.rds')
+saveRDS(s_plots,   'rds/s_plots_within.rds')
+saveRDS(n_plots,   'rds/n_plots_within.rds')
 ```
 
-```{r fig.width=20, fig.height=15, out.width="100%"}
-ggarrange(
-  ggarrange(
-    samp_meth,
-    ggarrange(
-      ggarrange(
-        s_plots$nmi, n_plots$nmi,
-        legend = "right", common.legend = T,
-        ncol = 2, widths = c(1, 1)
-      ),
-      ggarrange(
-        s_plots$seconds, n_plots$seconds,
-        s_plots$mem, n_plots$mem,
-        legend = "top", common.legend = T,
-        ncol = 2, nrow = 2, widths = c(1, 1)
-      ),
-      ncol = 1, nrow = 2, heights = c(1, 2)
-    ),
-    nrow = 2, heights = c(2, 3)
-  ),
-  ggarrange(
-    samp_shan,
-    samp_vi,
-    shannon_meth,
-    shannon_vi,
-    nrow = 4
-  ),
-  ggarrange(
-    scmet_mu_meth,
-    scmet_gamma_meth,
-    scmet_epsilon_meth,
-    mi_table,
-    common.legend = T,
-    nrow = 3
-  ),
-  ncol = 3
+```{r adj-within}
+## ── Adjusted entropy (adjS = norm. sample entropy, adjH = norm. Shannon) ──────
+
+## Load norm.det.out for the display example
+norm_det <- read.table(
+  paste0(data_dir, paste("/yamet", S, N, f, "norm.det.out", sep = ".")),
+  header = T
 )
+rownames(norm_det) <- paste(norm_det$start, norm_det$end, sep = ":")
+norm_output_cols <- grep("^output", colnames(norm_det), value = TRUE)
+
+## Per-cell per-feature long format with adj columns
+jnt.adj.long <- do.call(rbind, lapply(output_cols, function(col) {
+  data.frame(
+    start        = jnt$start,
+    end          = jnt$end,
+    sample       = col,
+    adj_sampen   = norm_det[[col]],
+    norm_shannon = norm_det$shannon_norm,
+    avg_meth     = norm_det$avg_meth,
+    wc_vi        = jnt$wc_vi
+  )
+}))
+## Attach per-cell methylation (same as unadjusted all.long)
+all.long_adj <- cbind(jnt.adj.long, meth.long)
+
+## Add adj summary columns to jnt, then save jnt_within_adj.rds
+jnt$adj_sampen_avg <- rowMeans(norm_det[rownames(jnt), norm_output_cols])
+jnt$shannon_norm   <- norm_det[rownames(jnt), "shannon_norm"]
+
+## Adj grid performance plots
+s_plots_adj <- make_grid_plots(S_GRID, "S", "wc_vi", data_dir, adj = TRUE)
+n_plots_adj <- make_grid_plots(N_GRID, "N", "wc_vi", data_dir, adj = TRUE)
+mi_fd_adj   <- mi_table_gen(jnt, "wc_vi", table = FALSE, adj = TRUE)
+
+saveRDS(mi_fd_adj,    'rds/perf_within_adj.rds')
+saveRDS(all.long_adj, 'rds/all.long_within_adj.rds')
+saveRDS(jnt,          'rds/jnt_within_adj.rds')
+saveRDS(s_plots_adj,  'rds/s_plots_within_adj.rds')
+saveRDS(n_plots_adj,  'rds/n_plots_within_adj.rds')
 ```
 
-# Simpler figure
+## Plots
 
+```{r samp_meth}
+print(samp_meth)
+```
 
+```{r samp_vi}
+print(samp_vi)
+```
 
-Performances first
+```{r samp_shan}
+print(samp_shan)
+```
 
+```{r shannon_meth}
+print(shannon_meth)
+```
 
-```{r}
-## saveRDS(jnt, 'rds/jnt_within.rds')
+```{r shannon_vi}
+print(shannon_vi)
+```
 
+```{r scmet_mu_vi}
+print(scmet_mu_vi)
+```
+
+```{r scmet_mu_meth}
+print(scmet_mu_meth)
+```
+
+```{r scmet_gamma_meth}
+print(scmet_gamma_meth)
+```
+
+```{r scmet_epsilon_meth}
+print(scmet_epsilon_meth)
+```
+
+```{r sampen_avg_vi}
+print(sampen_avg_vi)
+```
+
+```{r sampen_avg_meth}
+print(sampen_avg_meth)
+```
+
+## Performance
+
+```{r nmi}
 metric_labels <- c(
   "Sample Entropy" = "sample entropy",
   "Shannon Entropy" = "Shannon entropy",
@@ -311,163 +372,41 @@ metric_labels <- c(
 )
 
 nmi <- ggplot(mi_fd, aes(x = reorder(Metric, -NMI), y = NMI)) +
-    geom_point(size=2) +
-    geom_text(aes(label = round(NMI, 3)), vjust = -0.5, size = 4) +
+    geom_point(size = 3) +
+    geom_text(aes(label = round(NMI, 3)), vjust = -0.5, size = 5) +
     theme_ng() +
+    big_labels +
     scale_x_discrete(labels = metric_labels) +
     labs(
-        ## title = "Normalized Mutual Information",
         x = NULL,
         y = "Normalized Mutual Information (to wcVI)"
     ) +
     scale_y_continuous(expand = expansion(mult = c(0, 0.1))) +
-    theme(axis.text.x = element_text(angle = 30, hjust = 1))
+    theme(axis.text.x = element_text(angle = 30, hjust = 1, size = 16))
 
 print(nmi)
 ```
 
-```{r assembled, fig.width=15, fig.height=15, out.width="100%"}
-ggarrange(  
-  #  top section: entropy and scMET
-  ggarrange(
-    # top row: sampen vs meth and shannon
-    ggarrange(
-      samp_meth,
-      samp_shan,
-      nrow   = 1,
-      widths = c(2.5, 2.5)
-    ),
-    
-    # Bottom row: scMET plots
-    ggarrange(
-      scmet_mu_meth,
-      scmet_gamma_meth,
-      scmet_epsilon_meth,
-      nrow          = 1,
-      widths        = c(2, 2, 2),
-      common.legend = TRUE
-    ),
-    ncol    = 1,
-    heights = c(1.8, 1.2)
-  ),
-  
-  # bottom section: S-plots (row 1) and N-plots (row 2)
-  ggarrange(
-    # S-plots row
-    ggarrange(
-      s_plots$nmi,
-      ggarrange(
-        s_plots$seconds,
-        s_plots$mem,
-        ncol          = 2,
-        widths        = c(1, 1),
-        common.legend = TRUE,
-        legend        = "right"
-      ),
-      ncol    = 2,
-      widths  = c(1, 1.5),
-      heights = c(1, 1)   
-    ),
-    
-    # N-plots row
-    ggarrange(
-      n_plots$nmi,
-      ggarrange(
-        n_plots$seconds,
-        n_plots$mem,
-        ncol          = 2,
-        widths        = c(1, 1),
-        common.legend = TRUE,
-        legend        = "right"
-      ),
-      ncol    = 2,
-      widths  = c(1, 1.5),
-      heights = c(1, 1)
-    ),
-    
-    ncol  = 1,
-    nrow  = 2,
-    heights = c(1.2, 1.2)
-  ),
-  
-  ncol  = 1,
-  nrow  = 2,
-  heights = c(2.5, 1.5)
-)
+```{r s_nmi}
+print(s_plots$nmi + big_labels + xlab("# cells") + ylab("performance (metric NMI)"))
+```
 
+```{r s_seconds}
+print(s_plots$seconds + big_labels + xlab("# cells") + ylab("CPU time (s)"))
+```
 
-# update scMET to greek
-scmet_mu_meth <- scmet_mu_meth + labs(title = expression(scMET~mu))
-scmet_gamma_meth   <- scmet_gamma_meth + labs(title = expression(scMET~gamma))
-scmet_epsilon_meth <- scmet_epsilon_meth + labs(title = expression(scMET~epsilon))
+```{r s_mem}
+print(s_plots$mem + big_labels + xlab("# cells") + ylab("memory usage (MB)"))
+```
 
-# extract legends for bottom section
-legend_nmi  <- get_legend(s_plots$nmi + theme(legend.position = "right"))
-legend_perf <- get_legend(s_plots$seconds + theme(legend.position = "right"))
+```{r n_nmi}
+print(n_plots$nmi + big_labels + xlab("# features") + ylab("performance (metric NMI)"))
+```
 
+```{r n_seconds}
+print(n_plots$seconds + big_labels + xlab("# features") + ylab("CPU time (s)"))
+```
 
-arranged <- ggarrange(
-  #  top section: entropy and scMET
-  ggarrange(
-    # top row: sampen vs meth and shannon
-    ggarrange(
-      samp_meth,
-      samp_shan,
-      nrow   = 1,
-      widths = c(2.5, 2.5)
-    ),
-    
-    # Bottom row: scMET plots
-    ggarrange(
-      scmet_mu_meth,
-      scmet_gamma_meth,
-      scmet_epsilon_meth,
-      nrow  = 1,
-      widths  = c(2, 2, 2),
-      common.legend = TRUE
-    ),
-    ncol    = 1,
-    heights = c(1.8, 1.2)
-  ),
-  
-  # bottom section: S-plots (row 1) and N-plots (row 2)
-  ggarrange(
-    # combined panels without legends
-    ggarrange(
-        s_plots$nmi   + theme(legend.position = "none") + xlab('# cells') + ylab("performance (metric NMI)"),
-        s_plots$seconds  + theme(legend.position = "none") + xlab('# cells') + ylab("CPU time (s)"),
-        s_plots$mem + theme(legend.position = "none") + xlab('# cells') + ylab("memory usage (MB)"),
-        n_plots$nmi   + theme(legend.position = "none") + xlab('# features')+ ylab("performance (metric NMI)"),
-        n_plots$seconds  + theme(legend.position = "none") + xlab('# features') + ylab("CPU time (s)"),
-        n_plots$mem   + theme(legend.position = "none") + xlab('# features') + ylab("memory usage (MB)"),
-        ncol = 3,
-        nrow = 2
-    ),
-    
-    # shared legends stacked
-    ggarrange(
-      legend_nmi,
-      legend_perf,
-      ncol = 1
-    ),
-    
-    ncol   = 2,
-    widths = c(3, 0.5)
-  ),
-  
-  ncol   = 1,
-  nrow   = 2,
-  heights = c(2.5, 1.5)
-)
-
-print(arranged)
-
-ggsave(
-  filename = "output/figure_atreya_simulations_within.svg",
-  plot   = arranged,
-  width  = 15,
-  height  = 15,
-  units   = "in"
-)
-
+```{r n_mem}
+print(n_plots$mem + big_labels + xlab("# features") + ylab("memory usage (MB)"))
 ```

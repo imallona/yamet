@@ -44,46 +44,78 @@ bash build.sh
 
 ## Usage
 
-`yamet` processes (covered CpG) DNA methylation report(s) (`-cell` argument), a reference file listing all CpG positions in a genome (`--reference`), and a bedfile specifying the genomic regions to calculate scores for (`--intervals`; e.g. promoters, genes, etc). Full CLI args:
+`yamet` processes (covered CpG) DNA methylation report(s), a reference file listing all CpG positions in a genome, and a bedfile specifying the genomic regions to calculate scores for (e.g. promoters, genes, etc). Full CLI args:
 
 ```text
-Usage:
-  yamet (-c <cell>... | <cell>...) \
-        -r <reference> \
-        -i <intervals> \
-        [OPTIONS]
+yamet
 
-Required inputs:
-  -c --cell <cell>...                 One or more tab-separated methylation files,
-                                      OR provide them directly as positional arguments.
-  <cell>...                           (Positional alternative) Cell files (same format as above).
-  -r --reference <reference>          Reference file, tab-separated and sorted by chromosome/position.
-  -i --intervals <intervals>          BED file of intervals of interest.
+input:
+  -c [ --cytosine_report ] arg          Per-cell cytosine report file(s) 
+                                        (Bismark-like for covered cytosines). 
+                                        Synonyms: --cytosine_report, --cell, 
+                                        -c.
+                                        Tab-separated, sorted by chromosome and
+                                        position:
+                                          chr   pos   meth_reads   total_reads 
+                                          rate
+  -r [ --cytosine_locations ] arg       Genomic locations of all cytosines 
+                                        (typically CpGs). Synonyms: 
+                                        --cytosine_locations, --reference, -r.
+                                        Required to reconstruct contiguous CpG 
+                                        sequences.
+                                        Columns:
+                                          chr   pos
+  -i [ --regions ] arg                  BED file defining genomic regions where
+                                        entropies will be computed. Synonyms: 
+                                        --regions, --features, --target, 
+                                        --intervals, -i.
+                                        Columns:
+                                          chr   start   end
+  --skip-header-all [=arg(=1)]          Header lines to skip in all input files
+                                        (default: 0). Synonyms: 
+                                        --skip-header-all, --skip-header.
+  --skip-header-cytosine_report [=arg(=1)]
+                                        Header lines to skip in 
+                                        cytosine_report/cell files (default: 
+                                        0).
+  --skip-header-cytosine_locations [=arg(=1)]
+                                        Header lines to skip in 
+                                        cytosine_locations/reference file 
+                                        (default: 0).
+  --skip-header-regions [=arg(=1)]      Header lines to skip in 
+                                        regions/features/target/intervals file 
+                                        (default: 0).
 
-Optional output:
-  -d --det-out <file>                 Path to detailed output file.
-  -m --meth-out <file>                Path to average methylation output file.
-  -o --out <file>                     Path to simple output file.
+output:
+  -d [ --det-out ] arg                  (optional) path to detailed output file
+  -n [ --norm-det-out ] arg             (optional) path to detailed normalized 
+                                        output file
+  -m [ --meth-out ] arg                 (optional) path to average methylation 
+                                        output file
+  --all-meth [=arg(=true)] (=false)     If true, include all CpGs in 
+                                        methylation summaries, including those 
+                                        not used for template construction 
+                                        (default: false).
+  -o [ --out ] arg                      (optional) path to simple output file
 
-Resource options:
-  --cores <n>                         Number of cores for parallel parsing
-                                      [default: 0, implying program decides].
-  --chunk-size <size>                 Buffer size per file (e.g., 64K, 128M, 2G) [default: 64K].
+resource utilisation:
+  --cores arg (=0)                      number of cores used for simultaneously
+                                        parsing methylation files
+  --chunk-size arg (=64K)               size of the buffer (per file) used for 
+                                        reading data. Can be specified as a 
+                                        positive integer (bytes) or with a 
+                                        suffix: B, K, M, G.
 
-Optional input control:
-  --skip-header[=<n>]                 Skip <n> lines in all input files [default: 1].
-  --skip-header-cell[=<n>]            Skip <n> lines in cell files (overrides --skip-header).
-  --skip-header-reference[=<n>]       Skip <n> lines in reference file (overrides --skip-header).
-  --skip-header-intervals[=<n>]       Skip <n> lines in intervals file (overrides --skip-header).
+verbose:
+  --print-intervals                     print parsed intervals file
+  --print-reference                     print parsed reference file
+  --print-sampens [=arg(=true)] (=true) print computed sample entropies
 
-Verbose/debugging:
-  --print-intervals                   Print parsed intervals file.
-  --print-reference                   Print parsed reference file.
-  --print-sampens[=<true|false>]      Print computed sample entropies [default: true].
+misc:
+  -h [ --help ]                         print help message
+  --version                             current version information
 
-Miscellaneous:
-  -h --help                           Show help message.
-  --version                           Show version information.
+
 ```
 
 ## Repository

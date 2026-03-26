@@ -45,6 +45,8 @@ ANNOTATIONS = {
     "chip": ["H3K27me3", "H3K9me3", "H3K4me3"],
     "lad": ["laminb1"],
     "genes": ["genes"],
+    "lines": ["lines"],
+    "sines": ['sines'],
     "cpgIslandExt": ['cpgIslandExt'],
     "scna": ["crc01_nc_scna", "crc01_gain_scna", "crc01_lost_scna"]
 }
@@ -224,10 +226,12 @@ rule run_yamet_on_separate_features:
     output:
         simple_uncomp = temp(op.join(CRC_OUTPUT, "{subcat}_{cat}_{patient}_{location}.out")),
         det_uncomp = temp(op.join(CRC_OUTPUT, "{subcat}_{cat}_{patient}_{location}.det.out")),
+        norm_det_uncomp=temp(op.join(CRC_OUTPUT, "{subcat}_{cat}_{patient}_{location}.norm.det.out")),
         meth_uncomp = temp(op.join(CRC_OUTPUT, "{subcat}_{cat}_{patient}_{location}.meth.out")),
         simple=op.join(CRC_OUTPUT, "{subcat}_{cat}_{patient}_{location}.out.gz"),
         det=op.join(CRC_OUTPUT, "{subcat}_{cat}_{patient}_{location}.det.out.gz"),
-        meth=op.join(CRC_OUTPUT, "{subcat}_{cat}_{patient}_{location}.meth.out.gz")
+        meth=op.join(CRC_OUTPUT, "{subcat}_{cat}_{patient}_{location}.meth.out.gz"),
+        norm_det=op.join(CRC_OUTPUT, "{subcat}_{cat}_{patient}_{location}.norm.det.out.gz")
     log:
         op.join('logs', 'yamet_{subcat}_{cat}_{patient}_{location}.log')
     group:
@@ -243,10 +247,11 @@ rule run_yamet_on_separate_features:
          --reference {input.ref} \
          --intervals {input.bed} \
          --cores {threads} \
-         --print-sampens F \
+         --no-print-sampens \
          --out {output.simple_uncomp} \
          --det-out {output.det_uncomp} \
-         --meth-out {output.meth_uncomp} &> {log}
+         --meth-out {output.meth_uncomp} \
+         --norm-det-out {output.norm_det_uncomp} &> {log}
         
         gzip --keep -f {params.path}/{wildcards.subcat}_{wildcards.cat}_{wildcards.patient}_{wildcards.location}*out  &>> {log}
         """
@@ -267,6 +272,8 @@ rule render_crc_report:
         list_relevant_yamet_outputs()
     params:
         output_path=CRC_OUTPUT
+    threads:
+        round(workflow.cores/2)
     output:
         op.join(CRC, "results", "crc.html")
     log:
@@ -376,9 +383,11 @@ rule run_yamet_on_windows:
         simple_uncomp=temp(op.join(CRC_WINDOWS_OUTPUT, "{win_size}_{patient}_{location}.out")),
         det_uncomp=temp(op.join(CRC_WINDOWS_OUTPUT, "{win_size}_{patient}_{location}.det.out")),
         meth_uncomp=temp(op.join(CRC_WINDOWS_OUTPUT, "{win_size}_{patient}_{location}.meth.out")),
+        norm_det_uncomp=temp(op.join(CRC_WINDOWS_OUTPUT, "{win_size}_{patient}_{location}.norm.det.out")),        
         simple=op.join(CRC_WINDOWS_OUTPUT, "{win_size}_{patient}_{location}.out.gz"),
         det=op.join(CRC_WINDOWS_OUTPUT, "{win_size}_{patient}_{location}.det.out.gz"),
-        meth=op.join(CRC_WINDOWS_OUTPUT, "{win_size}_{patient}_{location}.meth.out.gz")
+        meth=op.join(CRC_WINDOWS_OUTPUT, "{win_size}_{patient}_{location}.meth.out.gz"),
+        norm_det=op.join(CRC_WINDOWS_OUTPUT, "{win_size}_{patient}_{location}.norm.det.out.gz")
     log:
         op.join('logs', 'yamet_{win_size}_{patient}_{location}.log')
     group:
@@ -394,10 +403,11 @@ rule run_yamet_on_windows:
          --reference {input.ref} \
          --intervals {input.windows} \
          --cores {threads} \
-         --print-sampens F \
+         --no-print-sampens \
          --out {output.simple_uncomp} \
          --det-out {output.det_uncomp} \
-         --meth-out {output.meth_uncomp} &> {log}
+         --meth-out {output.meth_uncomp} \
+         --norm-det-out {output.norm_det_uncomp} &> {log}
 
         gzip --keep -f {params.path}/{wildcards.win_size}_{wildcards.patient}_{wildcards.location}*out  &>> {log}
         """
@@ -416,9 +426,9 @@ rule get_scna_patient1_from_supplementary_data:
     conda:
         op.join("..", "envs", "r.yml")
     input:
-        op.join("src", "scna_hg19.xlsx"),
+        op.join(".", "src", "scna_hg19.xlsx"),
     output:
-        scna_bed = op.join(HG19_BASE, "patient_crc01_scna.scna.bed.gz")
+        scna_bed = op.join(HG19_BASE, "patient_crc01_scna.scna.bed.gz.pre")
     script:
         "src/parse_scna.R"
 
@@ -426,7 +436,7 @@ rule split_patient1_crc_in_kept_lost_gained:
     conda:
         op.join("..", "envs", "r.yml")
     input:
-        scna_bed = op.join(HG19_BASE, "patient_crc01_scna.scna.bed.gz"),
+        scna_bed = op.join(HG19_BASE, "patient_crc01_scna.scna.bed.gz.pre"),
         genome_sizes = op.join(HG19_BASE, "genome.sizes"),
     output:
         uncomp = temp(op.join(HG19_BASE, "crc01_scna.bed")),

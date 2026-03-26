@@ -1,0 +1,56 @@
+--Sample Entropies------------------
+
+Filename: test_cluster/in/dist_a/cell_0001.tsv
+  Aggregate: 0.805065
+  Detailed:
+    Chromosome: chrBr
+      Bin 0 -> 0.805065
+
+Filename: test_cluster/in/dist_a/cell_0002.tsv
+  Aggregate: 0.831733
+  Detailed:
+    Chromosome: chrBr
+      Bin 0 -> 0.831733
+
+Filename: test_cluster/in/dist_a/cell_0003.tsv
+  Aggregate: 0.847298
+  Detailed:
+    Chromosome: chrBr
+      Bin 0 -> 0.847298
+
+Filename: test_cluster/in/dist_b/cell_0004.tsv
+  Aggregate: 0.514268
+  Detailed:
+    Chromosome: chrBr
+      Bin 0 -> 0.514268
+
+Filename: test_cluster/in/dist_b/cell_0005.tsv
+  Aggregate: 0.604419
+  Detailed:
+    Chromosome: chrBr
+      Bin 0 -> 0.604419
+
+Filename: test_cluster/in/dist_b/cell_0006.tsv
+  Aggregate: 0.514268
+  Detailed:
+    Chromosome: chrBr
+      Bin 0 -> 0.514268
+
+Filename: test_cluster/in/dist_c/cell_0007.tsv
+  Aggregate: 0.371564
+  Detailed:
+    Chromosome: chrBr
+      Bin 0 -> 0.371564
+
+Filename: test_cluster/in/dist_c/cell_0008.tsv
+  Aggregate: 0.229574
+  Detailed:
+    Chromosome: chrBr
+      Bin 0 -> 0.229574
+
+Filename: test_cluster/in/dist_c/cell_0009.tsv
+  Aggregate: 0.422857
+  Detailed:
+    Chromosome: chrBr
+      Bin 0 -> 0.422857
+

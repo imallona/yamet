@@ -13,16 +13,20 @@ get_combs <- function(GRID) {
   return(tuples)
 }
 
-get_mi <- function(data_dir, S, N, f, x) {
+get_mi <- function(data_dir, S, N, f, x, adj = FALSE) {
   intervals <- read.table(
     paste0(data_dir, paste("/intervals", S, N, f, "tsv", sep = ".")),
     header = T
   )
   intervals <- intervals[x]
-  sampens <- read.table(
-    paste0(data_dir, paste("/yamet", S, N, f, "det.out", sep = ".")),
-    header = T
-  )
+
+  det_file <- if (adj) {
+    paste0(data_dir, paste("/yamet", S, N, f, "norm.det.out", sep = "."))
+  } else {
+    paste0(data_dir, paste("/yamet", S, N, f, "det.out", sep = "."))
+  }
+  sampens <- read.table(det_file, header = T)
+
   jnt <- cbind(sampens, intervals)
   rownames(jnt) <- paste(jnt$start, jnt$end, sep = ":")
   output_cols <- grep("^output", colnames(jnt), value = TRUE)
@@ -35,13 +39,18 @@ get_mi <- function(data_dir, S, N, f, x) {
   tmp <- colMeans(scmet_fit$posterior$epsilon)
   jnt$scmet_epsilon <- tmp[match(rownames(jnt), names(tmp))]
 
-  jnt$sampen_avg <- rowMeans(jnt[, output_cols])
+  if (adj) {
+    jnt$adj_sampen_avg <- rowMeans(jnt[, output_cols])
+    ## shannon_norm is already in jnt via cbind with sampens (norm.det.out has shannon_norm column)
+  } else {
+    jnt$sampen_avg <- rowMeans(jnt[, output_cols])
+  }
 
-  mi_table <- mi_table_gen(jnt, x)
+  mi_table <- mi_table_gen(jnt, x, adj = adj)
   return(mi_table)
 }
 
-make_grid_plots <- function(GRID, grid_var, x, data_dir) {
+make_grid_plots <- function(GRID, grid_var, x, data_dir, adj = FALSE) {
   bm_data <- do.call(
     rbind,
     lapply(get_combs(GRID), function(row) {
@@ -62,7 +71,7 @@ make_grid_plots <- function(GRID, grid_var, x, data_dir) {
       S <- row$S
       N <- row$N
       f <- row$f
-      transform(get_mi(data_dir, S, N, f, x), S = S, N = N, f = f)
+      transform(get_mi(data_dir, S, N, f, x, adj = adj), S = S, N = N, f = f)
     })
   )
 
@@ -78,7 +87,7 @@ make_grid_plots <- function(GRID, grid_var, x, data_dir) {
       x = paste(grid_var), y = "NMI",
       color = "Metric"
     ) +
-    theme_ng() +
+    theme_ng(base_size = 18) +
     theme(
       legend.position = "right",
       plot.title = element_text(hjust = 0.5),
@@ -94,7 +103,7 @@ make_grid_plots <- function(GRID, grid_var, x, data_dir) {
       x = paste(grid_var), y = "seconds",
       color = "Method"
     ) +
-    theme_ng() +
+    theme_ng(base_size = 18) +
     theme(
       legend.position = "top",
       plot.title = element_text(hjust = 0.5),
@@ -110,7 +119,7 @@ make_grid_plots <- function(GRID, grid_var, x, data_dir) {
       x = paste(grid_var), y = "MB",
       color = "Method"
     ) +
-    theme_ng() +
+    theme_ng(base_size = 18) +
     theme(
       legend.position = "top",
       plot.title = element_text(hjust = 0.5),

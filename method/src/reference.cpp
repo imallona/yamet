@@ -111,16 +111,22 @@ Reference parseRef(const std::string &filename, const Intervals &intervals,
   return ref;
 }
 
-void Reference::print() {
-  std::cout << "--Reference CPGs------------------" << std::endl << std::endl;
+/**
+ * Writes reference CpG positions in a human-readable format to the provided stream.
+ * This avoids direct console output so callers can capture or redirect the report as needed.
+ *
+ * @param os Output stream that receives the formatted reference report.
+ */
+void Reference::print(std::ostream &os) {
+  os << "--Reference CPGs------------------" << std::endl << std::endl;
   for (const auto &[chr, positions] : *this) {
-    std::cout << "Chromosome: " << chr << std::endl;
+    os << "Chromosome: " << chr << std::endl;
     for (unsigned int binIndex = 0; binIndex < positions.size(); binIndex++) {
-      std::cout << "  Bin: " << binIndex << std::endl;
+      os << "  Bin: " << binIndex << std::endl;
       for (const auto &pos : positions[binIndex]) {
-        std::cout << "    Pos: " << pos << std::endl;
+        os << "    Pos: " << pos << std::endl;
       }
     }
   }
-  std::cout << std::endl;
+  os << std::endl;
 }

@@ -21,10 +21,21 @@ rule all:
         "output/figure2.html",
         "output/04_feat_diff.html",
         "output/05_within_cell.html",
-        "output/06_between_cell.html"
+        "output/06_between_cell.html",
+        "output/07_combined_figure.html",
+        "output/08_combined_figure_adj.html"
         #"output/figures/simulations_emanuel.html"
 
-
+rule install_yamet:
+    conda:
+        "envs/yamet.yaml"
+    output:
+        op.join("build", "yamet"),
+    shell:
+        """
+          bash ../method/build.sh
+        """
+        
 # every row in the parameter file is a parameterization of one simulation
 rule check_required_data:
     input:
@@ -137,17 +148,6 @@ rule visualize_coverage:
 #                                         params=list(sim_data_dir="{input.sim_data_dir}"))'
 #         """
 
-
-rule install_yamet:
-    conda:
-        "envs/yamet.yaml"
-    output:
-        op.join("build", "yamet"),
-    shell:
-        """
-          bash ../method/build.sh
-        """
-
 def write_sim_interval_bed(parameters_path, file_path, chrom="chrSim", start=1):
     """
     Writes a tab-separated file with a single line: chrom<tab>start<tab>end.
@@ -207,11 +207,12 @@ rule run_yamet:
                         --reference {input.sim_data}/cpgPositions_${{ncpg}}.tsv \
                         --intervals {input.bed} \
                         --out {output.out}/${{ncpg}}.tsv \
+                        --norm-det-out {output.out}/${{ncpg}}.det_norm \
+                        --det-out {output.out}/${{ncpg}}.det \
                         --cores {threads} \
-                        --print-sampens F
+                        --no-print-sampens
           done
         """
-
 
 rule visualize_yamet_results:
     conda:
@@ -219,6 +220,7 @@ rule visualize_yamet_results:
     input:
         covplots="output/02_coverage_plots.html",
         yamet_dir="output/yamet/out",
+        yamet=op.join("build", "yamet"),
         flag = "output/sim_data/sim_cell_9_50_50_rand_medium_lmr.tsv",
         another_flag = 'output/yamet/out/10000.tsv'
     output:
@@ -234,6 +236,7 @@ rule compile_figure_2:
   conda:
     "envs/r_plot.yaml"
   input:
+    yamet=op.join("build", "yamet"),
     yamet_dir="output/yamet/out",
     yamet_plots="output/03_yamet_plots.html",
     coverage_data="output/sim_data_coverage/overall_coverage.rds",
@@ -282,6 +285,7 @@ rule feat_diff_yamet:
         yamet=op.join("build", "yamet"),
     output:
         det_out="output/feat_diff/yamet.{N}.{f}.det.out",
+        norm_det_out="output/feat_diff/yamet.{N}.{f}.norm.det.out",
     params:
         data="output/feat_diff",
     threads: 3
@@ -291,9 +295,10 @@ rule feat_diff_yamet:
                         --reference {params.data}/ref.{wildcards.N}.{wildcards.f}.tsv \
                         --intervals {params.data}/intervals.{wildcards.N}.{wildcards.f}.tsv \
                         --det-out {output.det_out} \
+                        --norm-det-out {output.norm_det_out} \
                         --meth-out {params.data}/yamet.{wildcards.N}.{wildcards.f}.meth.out \
                         --cores {threads} \
-                        --print-sampens F
+                        --no-print-sampens
         """
 
 
@@ -302,6 +307,7 @@ rule feat_diff_plots:
         "envs/r_plot.yaml"
     input:
         det_out="output/feat_diff/yamet.500.200.det.out",
+        norm_det_out="output/feat_diff/yamet.500.200.norm.det.out"
     params:
         N=lambda wildcards, input: input.det_out.split(".")[1],
         f=lambda wildcards, input: input.det_out.split(".")[2],
@@ -344,6 +350,7 @@ rule within_cell_yamet:
         yamet=op.join("build", "yamet"),
     output:
         det_out="output/within_cell/yamet.{S}.{N}.{f}.det.out",
+        norm_det_out="output/within_cell/yamet.{S}.{N}.{f}.norm.det.out",
     params:
         data="output/within_cell",
     threads: 4
@@ -356,9 +363,10 @@ rule within_cell_yamet:
                         --intervals {params.data}/intervals.{wildcards.S}.{wildcards.N}.{wildcards.f}.tsv \
                         --skip-header-intervals \
                         --det-out {output.det_out} \
+                        --norm-det-out {output.norm_det_out} \
                         --meth-out {params.data}/yamet.{wildcards.S}.{wildcards.N}.{wildcards.f}.meth.out \
                         --cores {threads} \
-                        --print-sampens F
+                        --no-print-sampens
         """
 
 
@@ -445,6 +453,7 @@ rule between_cell_yamet:
         yamet=op.join("build", "yamet"),
     output:
         det_out="output/between_cell/yamet.{S}.{N}.{f}.det.out",
+        norm_det_out="output/between_cell/yamet.{S}.{N}.{f}.norm.det.out",
     params:
         data="output/between_cell",
     threads: 4
@@ -457,9 +466,10 @@ rule between_cell_yamet:
                         --intervals {params.data}/intervals.{wildcards.S}.{wildcards.N}.{wildcards.f}.tsv \
                         --skip-header-intervals \
                         --det-out {output.det_out} \
+                        --norm-det-out {output.norm_det_out} \
                         --meth-out {params.data}/yamet.{wildcards.S}.{wildcards.N}.{wildcards.f}.meth.out \
                         --cores {threads} \
-                        --print-sampens F
+                        --no-print-sampens
         """
 
 
@@ -482,8 +492,38 @@ BC_N_GRID = {"S": 30, "N": [100, 200, 300, 400, 500], "f": 100}
 BC_DISP = {"S": 20, "N": 500, "f": 200}
 
 
-# specify the input yamet file with the specifications needed in the form
-# yamet.{number of samples}.{number of features}.{length of each feature}.det.out
+## atreya's simuls
+rule combined_figure:
+    conda:
+        "envs/r_plot.yaml"
+    input:
+        within_html  = "output/05_within_cell.html",
+        across_html  = "output/06_between_cell.html"
+    output:
+        html    = "output/07_combined_figure.html"
+    script:
+        "src/07_combined_figure.Rmd"
+
+
+rule combined_figure_adj:
+    conda:
+        "envs/r_plot.yaml"
+    input:
+        within_html  = "output/05_within_cell.html",
+        across_html  = "output/06_between_cell.html"
+    output:
+        html    = "output/08_combined_figure_adj.html"
+    script:
+        "src/08_combined_figure_adj.Rmd"
+    # shell:
+    #     """
+    #       mkdir -p output/07_plots
+    #       Rscript -e 'rmarkdown::render("src/combined/07_combined_figure.Rmd",
+    #                                     "bookdown::html_document2",
+    #                                     output_file="../{output.html}")'
+    #     """
+
+
 rule between_cell_plots:
     conda:
         "envs/r_plot.yaml"

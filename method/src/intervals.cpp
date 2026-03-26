@@ -76,13 +76,19 @@ Intervals parseSearch(const std::string &filename, const unsigned int skip_heade
   return intervals;
 }
 
-void Intervals::print() {
-  std::cout << "--Search Regions------------------" << std::endl << std::endl;
+/**
+ * Writes search intervals in a human-readable format to the provided stream.
+ * This avoids direct console output so callers can capture or redirect the report as needed.
+ *
+ * @param os Output stream that receives the formatted interval report.
+ */
+void Intervals::print(std::ostream &os) {
+  os << "--Search Regions------------------" << std::endl << std::endl;
   for (const auto &[chr, chrIntervals] : *this) {
-    std::cout << "Chromosome: " << chr << std::endl;
+    os << "Chromosome: " << chr << std::endl;
     for (const auto &[start, end] : chrIntervals) {
-      std::cout << "  Start: " << start << ", End: " << end << std::endl;
+      os << "  Start: " << start << ", End: " << end << std::endl;
     }
   }
-  std::cout << std::endl;
+  os << std::endl;
 }

@@ -7,7 +7,7 @@
 library(infotheo)
 library(ggpubr)
 
-mi_table_gen <- function(jnt, index_name, table = F) {
+mi_table_gen <- function(jnt, index_name, table = F, adj = FALSE) {
   index <- jnt[[index_name]]
   te <- entropy(index)
 
@@ -18,14 +18,25 @@ mi_table_gen <- function(jnt, index_name, table = F) {
     mi / sqrt(hx * te)
   }
 
-  nmi_values <- c(
-    "Sample Entropy" = calc_nmi(jnt$sampen_avg, index, te),
-    "Shannon Entropy" = calc_nmi(jnt$shannon, index, te),
-    "Average Methylation" = calc_nmi(jnt$avg_meth, index, te),
-    "scMET (mu)" = calc_nmi(jnt$scmet_mu, index, te),
-    "scMET (gamma)" = calc_nmi(jnt$scmet_gamma, index, te),
-    "scMET (epsilon)" = calc_nmi(jnt$scmet_epsilon, index, te)
-  )
+  if (adj) {
+    nmi_values <- c(
+      "Adj. Sample Entropy" = calc_nmi(jnt$adj_sampen_avg, index, te),
+      "Adj. Shannon Entropy" = calc_nmi(jnt$shannon_norm, index, te),
+      "Average Methylation" = calc_nmi(jnt$avg_meth, index, te),
+      "scMET (mu)" = calc_nmi(jnt$scmet_mu, index, te),
+      "scMET (gamma)" = calc_nmi(jnt$scmet_gamma, index, te),
+      "scMET (epsilon)" = calc_nmi(jnt$scmet_epsilon, index, te)
+    )
+  } else {
+    nmi_values <- c(
+      "Sample Entropy" = calc_nmi(jnt$sampen_avg, index, te),
+      "Shannon Entropy" = calc_nmi(jnt$shannon, index, te),
+      "Average Methylation" = calc_nmi(jnt$avg_meth, index, te),
+      "scMET (mu)" = calc_nmi(jnt$scmet_mu, index, te),
+      "scMET (gamma)" = calc_nmi(jnt$scmet_gamma, index, te),
+      "scMET (epsilon)" = calc_nmi(jnt$scmet_epsilon, index, te)
+    )
+  }
 
   mi_results <- data.frame(
     Metric = names(nmi_values),

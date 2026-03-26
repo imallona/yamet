@@ -21,7 +21,9 @@ jobs:
 
       - name: Installs
         run: |
-          sudo apt update && sudo apt install -y libboost-program-options-dev libboost-iostreams-dev
+          sudo apt update && sudo apt install -y libboost-iostreams-dev
+          wget https://launchpad.net/ubuntu/+archive/primary/+files/libcli11-dev_2.6.1+ds-1_all.deb
+          sudo dpkg -i libcli11-dev_2.6.1+ds-1_all.deb
 
       - name: Build and test_0
         env:
@@ -33,10 +35,10 @@ jobs:
 
           cd ../test
           ../method/build/yamet \
-              test_0/in/cell1.bed.gz \
+              -c test_0/in/cell1.bed.gz \
               -r test_0/in/ref.bed.gz \
               -i test_0/in/regions.bed \
-              --det-out  current_test_0.out
+              --det-out current_test_0.out
 
           echo 'Diff expected vs produced'
 
@@ -56,7 +58,9 @@ jobs:
 
       - name: Installs
         run: |
-          sudo apt update && sudo apt install -y libboost-program-options-dev libboost-iostreams-dev
+          sudo apt update && sudo apt install -y libboost-iostreams-dev
+          wget https://launchpad.net/ubuntu/+archive/primary/+files/libcli11-dev_2.6.1+ds-1_all.deb
+          sudo dpkg -i libcli11-dev_2.6.1+ds-1_all.deb
 
       - name: Build and test_0
         env:
@@ -68,10 +72,10 @@ jobs:
 
           cd ../test
           ../method/build/yamet \
-              test_0/in/cell1.bed.gz \
+              -c test_0/in/cell1.bed.gz \
               -r test_0/in/ref.bed.gz \
               -i test_0/in/regions.bed \
-              --det-out  current_test_0.out
+              --det-out current_test_0.out
 
           echo 'Diff expected vs produced'
 

@@ -1,0 +1,2 @@
+chr	start	end	cell_0001	cell_0002	cell_0003	cell_0004	cell_0005	cell_0006	cell_0007	cell_0008	cell_0009	shannon.dist_a	avg_meth.dist_a	shannon.dist_b	avg_meth.dist_b	shannon.dist_c	avg_meth.dist_c
+chrBr	1	31	0.805065	0.831733	0.847298	0.514268	0.604419	0.514268	0.371564	0.229574	0.422857	0.998791	0.47619	0.951455	0.511905	0.874537	0.488095
