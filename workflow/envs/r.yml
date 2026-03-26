@@ -22,10 +22,15 @@ dependencies:
   - bioconductor-limma
   - conda-forge::r-uwot
   - conda-forge::r-purrr
+  - conda-forge::r-tidyr
+  - conda-forge::r-ggrepel
+  - conda-forge::r-ggridges
   - conda-forge::r-upsetr
   - conda-forge::r-pheatmap
   - conda-forge::r-ggraph 
   - conda-forge::r-igraph
+  - conda-forge::r-circlize
+  - conda-forge::r-viridislite
   - bioconda::bioconductor-summarizedexperiment
   - bioconda::bioconductor-singlecellexperiment
   - bioconda::bioconductor-scater

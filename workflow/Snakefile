@@ -11,12 +11,15 @@ import os.path as op
 import pandas as pd
 
 
-## assemblies and annotations
+## shared annotation rules (assembly-agnostic)
+include: op.join("rules", "annotations.smk")
+## assembly-specific reference and annotation rules
 include: op.join("rules", "hg19.smk")
 include: op.join("rules", "mm10.smk")
 ## datasets and analysis
 include: op.join("rules", "crc.smk")
 include: op.join("rules", "ecker.smk")
+include: op.join("rules", "archive.smk")
 
 
 shell.prefix("set -o pipefail; export PATH=$HOME/.local/yamet/bin:$PATH;")
@@ -52,7 +55,8 @@ rule all:
         # op.join('hg19', "windows_10000_nt_annotation.gz"),
         op.join(CRC, "results", "crc_windows_10000_nt.html"),
         op.join(CRC, "results", "crc.html"),
-        op.join(CRC, "results", "crc_windows_sce_10000.html")
+        op.join(CRC, "results", "crc_windows_sce_10000.html"),
+        # op.join(ECKER_BASE, "results", "ecker.html"),  ## Ecker mouse brain entropy report
 
         # op.join(CRC_OUTPUT, "patient_crc01_scna.bed.gz")
 
