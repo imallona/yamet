@@ -968,8 +968,8 @@ run_umap_wide <- function(wide_df, meta_cols,
 
   mat[is.na(mat)] <- 0
 
-  feat_var <- apply(mat, 2, var)
-  n_keep   <- min(as.integer(n_hvf), sum(feat_var > 0))
+  feat_var <- apply(mat, 2, var, na.rm = TRUE)
+  n_keep   <- min(as.integer(n_hvf), sum(feat_var > 0, na.rm = TRUE))
   if (n_keep < 2L) {
     message("Too few variable features (", n_keep, "); skipping")
     return(NULL)
