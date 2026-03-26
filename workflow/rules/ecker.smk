@@ -223,12 +223,14 @@ rule run_yamet_on_ecker_features:
         """
 
 
-def list_ecker_yamet_outputs():
+def list_ecker_yamet_outputs(wildcards):
+    checkpoints.harmonize_ecker_cells.get()
     res = []
     for cat in ECKER_ANNOTATIONS:
         for ann in ECKER_ANNOTATIONS[cat]:
             for sub_region, sub_type in ECKER_GROUPS:
-                res.append(f"{ann}_{sub_region}_{sub_type}.det.out.gz")
+                if get_ecker_harmonized_files(sub_region, sub_type):
+                    res.append(f"{ann}_{sub_region}_{sub_type}.det.out.gz")
     return [op.join(ECKER_OUTPUT, item) for item in res]
 
 
@@ -236,7 +238,7 @@ rule render_ecker_report:
     conda:
         op.join("..", "envs", "r.yml")
     input:
-        list_ecker_yamet_outputs(),
+        list_ecker_yamet_outputs,
     params:
         output_path=ECKER_OUTPUT,
         chr10_only=ECKER_CHR10_ONLY,
