@@ -1,0 +1,624 @@
+---
+title: "CRC: cell embeddings from epigenetic heterogeneity"
+author: "Izaskun Mallona"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: hide
+    code_download: true
+    number_sections: true
+    df_print: default
+    theme: lumen
+---
+
+```{r setup}
+suppressPackageStartupMessages({
+  library(readr)
+  library(ggplot2)
+  library(dplyr)
+  library(tidyr)
+  library(BiocParallel)
+  library(uwot)
+  library(matrixStats)
+  library(SingleCellExperiment)
+  library(SummarizedExperiment)
+  library(scater)
+  library(cluster)
+  library(ComplexHeatmap)
+  library(circlize)
+  library(ggrepel)
+  library(viridis)
+  library(cowplot)
+})
+
+source("src/ggtheme.R")
+param <- MulticoreParam(workers = snakemake@threads)
+```
+
+```{r opts}
+knitr::opts_chunk$set(
+  echo       = TRUE,
+  fig.width  = ng_fig_size(1, 1)$w,
+  fig.height = ng_fig_size(1, 1)$h,
+  cache      = FALSE,
+  include    = TRUE,
+  fig.path   = "crc_embeddings_plots/",
+  dev        = c("png", "svg"),
+  dpi        = 500,
+  cache.lazy = FALSE,
+  warning    = TRUE,
+  message    = TRUE
+)
+```
+
+```{r logging, include = FALSE}
+log <- file(snakemake@log$log, open = "wt")
+sink(log)
+sink(log, type = "message")
+```
+
+Two complementary feature spaces are compared for cell embedding:
+
+1. **Per-window**: cells embedded using entropy across all 10 kb genomic tiles (high-
+   dimensional, spatially resolved). HVW selection applied before PCA and UMAP.
+2. **Per-annotation**: cells embedded using mean entropy within each named genomic
+   annotation (compact, biologically interpretable). Also run with HVW -> PCA -> UMAP
+   independently for each annotation.
+
+Four metrics are tested in both spaces: S (raw sample entropy), adjS (feature-level
+methylation correction), S_cellmeth (cell-level methylation regressed out from S as
+an independent check), and DNA methylation as baseline.
+
+```{r constants}
+loc_levels <- c("NC", "PT", "LN", "ML", "MP", "MO")
+loc_colors <- setNames(cbbPalette[seq_along(loc_levels)], loc_levels)
+
+N_HVW <- 500   ## top variable windows to retain before PCA
+N_PCS <- 10    ## PCs to compute
+```
+
+# Load data
+
+```{r load_sce}
+sce <- readRDS(snakemake@input[["corrected_sce"]])
+colData(sce)$location <- factor(colData(sce)$location, levels = loc_levels)
+
+cat("Cells:", ncol(sce), "\n")
+cat("Windows:", nrow(sce), "\n")
+cat("Assays:", paste(assayNames(sce), collapse = ", "), "\n")
+cat("Locations:\n")
+print(table(colData(sce)$location, colData(sce)$patient, useNA = "ifany"))
+```
+
+```{r filter_impute}
+na_frac <- rowMeans(is.na(assay(sce, "sampen")))
+sce <- sce[na_frac < 0.3, ]
+
+impute_rowmeans <- function(mat) {
+  row_means <- rowMeans(mat, na.rm = TRUE)
+  for (i in seq_len(nrow(mat))) {
+    nas <- is.na(mat[i, ])
+    if (any(nas)) mat[i, nas] <- row_means[i]
+  }
+  mat
+}
+
+assay(sce, "sampen")           <- impute_rowmeans(as.matrix(assay(sce, "sampen")))
+assay(sce, "meth")             <- impute_rowmeans(as.matrix(assay(sce, "meth")))
+assay(sce, "sampen_corrected") <- impute_rowmeans(as.matrix(assay(sce, "sampen_corrected")))
+
+cat("Windows after NA filter:", nrow(sce), "\n")
+```
+
+```{r cell_meth_correction}
+## S_cellmeth: for each window regress out each cell's global mean methylation from
+## S. This corrects at the cell level rather than at the window level (adjS), and
+## tests whether separation survives independent of a cell-level meth gradient.
+cell_mean_meth <- colMeans(assay(sce, "meth"), na.rm = TRUE)
+
+fit_residuals <- function(i, y_mat, x) {
+  y <- y_mat[i, ]
+  fit <- try(lm(y ~ x), silent = TRUE)
+  if (inherits(fit, "try-error")) return(y)
+  residuals(fit)
+}
+
+s_mat <- as.matrix(assay(sce, "sampen"))
+s_cellmeth_mat <- do.call(rbind,
+  bplapply(seq_len(nrow(s_mat)), fit_residuals,
+           y_mat = s_mat, x = cell_mean_meth, BPPARAM = param))
+rownames(s_cellmeth_mat) <- rownames(sce)
+colnames(s_cellmeth_mat) <- colnames(sce)
+assay(sce, "sampen_cellmeth") <- s_cellmeth_mat
+rm(s_mat, s_cellmeth_mat)
+```
+
+# Shared helpers
+
+```{r helpers}
+## Select indices of the top n_hvw most variable rows (windows) by across-cell variance.
+select_hvw <- function(mat, n_hvw = N_HVW) {
+  vars <- rowVars(mat, useNames = FALSE)
+  order(vars, decreasing = TRUE)[seq_len(min(n_hvw, length(vars)))]
+}
+
+## PCA on a features x cells matrix; returns cells x n_pcs score matrix.
+run_pca_mat <- function(mat, n_pcs = N_PCS) {
+  n_pcs <- min(n_pcs, nrow(mat) - 1, ncol(mat) - 1)
+  if (n_pcs < 2) return(NULL)
+  prcomp(t(mat), center = TRUE, scale. = FALSE, rank. = n_pcs)$x
+}
+
+## UMAP on a features x cells matrix (transposes internally).
+run_umap_feat <- function(mat, seed = 123, n_neighbors = 15, min_dist = 0.3) {
+  set.seed(seed)
+  umap(t(mat), n_neighbors = min(n_neighbors, ncol(mat) - 1),
+       min_dist = min_dist, metric = "euclidean", verbose = FALSE)
+}
+
+## UMAP on an already-reduced cells x dims matrix (no transpose).
+run_umap_scores <- function(scores, seed = 123, n_neighbors = 15, min_dist = 0.3) {
+  set.seed(seed)
+  umap(scores, n_neighbors = min(n_neighbors, nrow(scores) - 1),
+       min_dist = min_dist, metric = "euclidean", verbose = FALSE)
+}
+
+## Full HVW -> PCA -> UMAP pipeline on a features x cells matrix.
+hvw_pca_umap <- function(mat, n_hvw = N_HVW, n_pcs = N_PCS) {
+  idx  <- select_hvw(mat, n_hvw)
+  pca  <- run_pca_mat(mat[idx, , drop = FALSE], n_pcs)
+  if (is.null(pca)) return(NULL)
+  list(umap = run_umap_scores(pca), pca = pca, hvw_idx = idx)
+}
+
+sil_score <- function(coords, labels) {
+  lv <- as.integer(as.factor(labels))
+  if (length(unique(lv)) < 2) return(NA_real_)
+  mean(silhouette(lv, dist(coords))[, "sil_width"])
+}
+
+plot_pair <- function(coords, sce_obj, title_prefix) {
+  df <- data.frame(
+    umap1    = coords[, 1], umap2 = coords[, 2],
+    location = colData(sce_obj)$location,
+    patient  = colData(sce_obj)$patient
+  )
+  p_loc <- ggplot(df, aes(x = umap1, y = umap2, color = location)) +
+    geom_point(size = 0.6, alpha = 0.7) +
+    scale_color_manual(values = loc_colors) +
+    labs(title = paste(title_prefix, "- location"), x = "UMAP 1", y = "UMAP 2") +
+    guides(x = guide_x_nolap(),
+           color = guide_legend(override.aes = list(size = 2.5, alpha = 1))) +
+    theme_ng()
+  p_pat <- ggplot(df, aes(x = umap1, y = umap2, color = patient)) +
+    geom_point(size = 0.6, alpha = 0.7) +
+    scale_color_viridis_d(option = "turbo", begin = 0.05, end = 0.95) +
+    labs(title = paste(title_prefix, "- patient"), x = "UMAP 1", y = "UMAP 2") +
+    guides(x = guide_x_nolap(),
+           color = guide_legend(override.aes = list(size = 2.5, alpha = 1))) +
+    theme_ng()
+  plot_grid(p_loc, p_pat, nrow = 1)
+}
+
+## Named list mapping assay names to display labels, including S_cellmeth.
+assay_map <- c(
+  "sampen"           = "S",
+  "sampen_corrected" = "adjS",
+  "sampen_cellmeth"  = "S_cellmeth",
+  "meth"             = "methylation"
+)
+```
+
+# Per-window cell embeddings (HVW -> PCA -> UMAP)
+
+Top `r N_HVW` most variable windows are selected per assay before PCA and UMAP.
+
+```{r win_hvw_pca_umap}
+win_embeds <- lapply(names(assay_map), function(akey) {
+  hvw_pca_umap(as.matrix(assay(sce, akey)))
+})
+names(win_embeds) <- assay_map
+```
+
+## By location {.tabset .tabset-pills}
+
+```{r win_loc_S, fig.width = ng_fig_size(2, 1)$w, fig.height = ng_fig_size(2, 1)$h}
+### S
+print(plot_pair(win_embeds[["S"]]$umap, sce, "S (windows)"))
+```
+
+```{r win_loc_adjS, fig.width = ng_fig_size(2, 1)$w, fig.height = ng_fig_size(2, 1)$h}
+### adjS
+print(plot_pair(win_embeds[["adjS"]]$umap, sce, "adjS (windows)"))
+```
+
+```{r win_loc_scm, fig.width = ng_fig_size(2, 1)$w, fig.height = ng_fig_size(2, 1)$h}
+### S_cellmeth
+print(plot_pair(win_embeds[["S_cellmeth"]]$umap, sce, "S_cellmeth (windows)"))
+```
+
+```{r win_loc_meth, fig.width = ng_fig_size(2, 1)$w, fig.height = ng_fig_size(2, 1)$h}
+### methylation
+print(plot_pair(win_embeds[["methylation"]]$umap, sce, "methylation (windows)"))
+```
+
+## Four-panel comparison (location)
+
+```{r win_panel, fig.width = ng_fig_size(4, 1)$w, fig.height = ng_fig_size(4, 1)$h}
+df_win_panel <- bind_rows(lapply(names(win_embeds), function(lbl) {
+  data.frame(umap1 = win_embeds[[lbl]]$umap[, 1],
+             umap2 = win_embeds[[lbl]]$umap[, 2],
+             location = colData(sce)$location,
+             assay = lbl)
+}))
+df_win_panel$assay <- factor(df_win_panel$assay, levels = assay_map)
+
+ggplot(df_win_panel, aes(x = umap1, y = umap2, color = location)) +
+  geom_point(size = 0.4, alpha = 0.6) +
+  scale_color_manual(values = loc_colors) +
+  facet_wrap(~ assay, nrow = 1) +
+  labs(x = "UMAP 1", y = "UMAP 2", title = "Per-window embeddings (HVW -> PCA -> UMAP)") +
+  guides(x = guide_x_nolap(),
+         color = guide_legend(override.aes = list(size = 2.5, alpha = 1))) +
+  theme_ng()
+```
+
+## PCA (first two PCs, per assay)
+
+```{r win_pca_plot, fig.width = ng_fig_size(4, 2)$w, fig.height = ng_fig_size(4, 2)$h}
+df_win_pca <- bind_rows(lapply(names(win_embeds), function(lbl) {
+  pca <- win_embeds[[lbl]]$pca
+  data.frame(PC1 = pca[, 1], PC2 = pca[, 2],
+             location = colData(sce)$location,
+             patient  = colData(sce)$patient,
+             assay    = lbl)
+}))
+df_win_pca$assay <- factor(df_win_pca$assay, levels = assay_map)
+
+ggplot(df_win_pca, aes(x = PC1, y = PC2, color = location)) +
+  geom_point(size = 0.5, alpha = 0.6) +
+  scale_color_manual(values = loc_colors) +
+  facet_grid(assay ~ .) +
+  labs(x = "PC 1", y = "PC 2", title = "PCA: per-window HVW") +
+  guides(x = guide_x_nolap(),
+         color = guide_legend(override.aes = list(size = 2.5, alpha = 1))) +
+  theme_ng()
+```
+
+## Variance explained
+
+```{r win_varexp, fig.width = ng_fig_size(4, 1)$w, fig.height = ng_fig_size(2, 1)$h}
+## Add HVW assays as separate SCE entries for getVarianceExplained
+hvw_sce <- SingleCellExperiment(
+  assays  = lapply(names(assay_map), function(lbl) {
+    akey <- names(assay_map)[assay_map == lbl]
+    mat  <- as.matrix(assay(sce, akey))
+    mat[win_embeds[[lbl]]$hvw_idx, , drop = FALSE]
+  }) |> setNames(assay_map),
+  colData = colData(sce)
+)
+
+ve_win <- bind_rows(lapply(assay_map, function(lbl) {
+  ve <- getVarianceExplained(hvw_sce, exprs_values = lbl,
+                             variables = c("location", "patient"))
+  data.frame(assay    = lbl,
+             location = median(ve["location", ], na.rm = TRUE),
+             patient  = median(ve["patient",  ], na.rm = TRUE))
+}))
+ve_win_long <- pivot_longer(ve_win, c("location", "patient"),
+                            names_to = "variable", values_to = "median_ve")
+ve_win_long$assay <- factor(ve_win_long$assay, levels = assay_map)
+
+ggplot(ve_win_long, aes(x = assay, y = median_ve, fill = variable)) +
+  geom_col(position = position_dodge(width = 0.8)) +
+  scale_fill_manual(values = c("location" = "#0072B2", "patient" = "#E69F00")) +
+  labs(x = NULL, y = "median % variance explained",
+       title = "Variance explained (per-window HVW)") +
+  theme_ng()
+```
+
+## Silhouette scores
+
+```{r win_sil}
+sil_win <- data.frame(
+  assay         = assay_map,
+  silhouette    = sapply(names(win_embeds), function(lbl)
+    sil_score(win_embeds[[lbl]]$umap, colData(sce)$location)),
+  feature_space = "windows"
+)
+print(sil_win)
+```
+
+# Per-annotation cell embeddings (mean entropy as features)
+
+Each cell is embedded using its mean entropy within each named genomic annotation
+derived from SCE rowData. This compresses the window space into ~10 annotation-level
+values per cell.
+
+```{r annot_cols}
+all_bin     <- grep("_bin$", colnames(rowData(sce)), value = TRUE)
+de_flags    <- grep("_vs_|_up_bin|_down_bin", all_bin, value = TRUE)
+annot_cols  <- setdiff(all_bin, de_flags)
+cat("Annotation columns:\n", paste(annot_cols, collapse = "\n"), "\n")
+```
+
+```{r build_annot_matrix}
+build_cell_x_annot <- function(assay_name, sce_obj, annot_columns) {
+  mat <- as.matrix(assay(sce_obj, assay_name))
+  rd  <- as.data.frame(rowData(sce_obj))
+  res <- vapply(annot_columns, function(col) {
+    idx <- which(rd[[col]] == 1)
+    if (length(idx) == 0) return(rep(NA_real_, ncol(sce_obj)))
+    colMeans(mat[idx, , drop = FALSE], na.rm = TRUE)
+  }, numeric(ncol(sce_obj)))
+  colnames(res) <- annot_columns
+  res
+}
+
+annot_mats <- lapply(names(assay_map), function(akey) {
+  m <- build_cell_x_annot(akey, sce, annot_cols)
+  m <- m[, colSums(!is.na(m)) > 0, drop = FALSE]
+  m
+})
+names(annot_mats) <- assay_map
+
+cat("Cell x annotation matrix:", nrow(annot_mats[[1]]), "x", ncol(annot_mats[[1]]), "\n")
+```
+
+```{r annot_umap_compute}
+## UMAP on cell x annotation matrices (small so no HVW needed; all annotations kept)
+annot_umaps <- lapply(annot_mats, function(m) run_umap_scores(m))
+```
+
+## Four-panel comparison (location)
+
+```{r annot_panel, fig.width = ng_fig_size(4, 1)$w, fig.height = ng_fig_size(4, 1)$h}
+df_annot_panel <- bind_rows(lapply(names(annot_umaps), function(lbl) {
+  data.frame(umap1 = annot_umaps[[lbl]][, 1],
+             umap2 = annot_umaps[[lbl]][, 2],
+             location = colData(sce)$location,
+             assay = lbl)
+}))
+df_annot_panel$assay <- factor(df_annot_panel$assay, levels = assay_map)
+
+ggplot(df_annot_panel, aes(x = umap1, y = umap2, color = location)) +
+  geom_point(size = 0.4, alpha = 0.6) +
+  scale_color_manual(values = loc_colors) +
+  facet_wrap(~ assay, nrow = 1) +
+  labs(x = "UMAP 1", y = "UMAP 2",
+       title = "Per-annotation embeddings (mean entropy per annotation)") +
+  guides(x = guide_x_nolap(),
+         color = guide_legend(override.aes = list(size = 2.5, alpha = 1))) +
+  theme_ng()
+```
+
+## PCA
+
+```{r annot_pca_plot, fig.width = ng_fig_size(4, 2)$w, fig.height = ng_fig_size(4, 2)$h}
+annot_pcas <- lapply(annot_mats, function(m) run_pca_mat(t(m)))
+
+df_annot_pca <- bind_rows(lapply(names(annot_pcas), function(lbl) {
+  pca <- annot_pcas[[lbl]]
+  if (is.null(pca)) return(NULL)
+  data.frame(PC1 = pca[, 1], PC2 = pca[, 2],
+             location = colData(sce)$location,
+             patient  = colData(sce)$patient,
+             assay    = lbl)
+}))
+df_annot_pca$assay <- factor(df_annot_pca$assay, levels = assay_map)
+
+ggplot(df_annot_pca, aes(x = PC1, y = PC2, color = location)) +
+  geom_point(size = 0.5, alpha = 0.6) +
+  scale_color_manual(values = loc_colors) +
+  facet_grid(assay ~ .) +
+  labs(x = "PC 1", y = "PC 2", title = "PCA: per-annotation") +
+  guides(x = guide_x_nolap(),
+         color = guide_legend(override.aes = list(size = 2.5, alpha = 1))) +
+  theme_ng()
+```
+
+## Variance explained
+
+```{r annot_varexp, fig.width = ng_fig_size(4, 1)$w, fig.height = ng_fig_size(2, 1)$h}
+annot_sce <- SingleCellExperiment(
+  assays  = lapply(annot_mats, t) |> setNames(assay_map),
+  colData = colData(sce)
+)
+
+ve_annot <- bind_rows(lapply(assay_map, function(lbl) {
+  ve <- getVarianceExplained(annot_sce, exprs_values = lbl,
+                             variables = c("location", "patient"))
+  data.frame(assay    = lbl,
+             location = median(ve["location", ], na.rm = TRUE),
+             patient  = median(ve["patient",  ], na.rm = TRUE))
+}))
+ve_annot_long <- pivot_longer(ve_annot, c("location", "patient"),
+                              names_to = "variable", values_to = "median_ve")
+ve_annot_long$assay <- factor(ve_annot_long$assay, levels = assay_map)
+
+ggplot(ve_annot_long, aes(x = assay, y = median_ve, fill = variable)) +
+  geom_col(position = position_dodge(width = 0.8)) +
+  scale_fill_manual(values = c("location" = "#0072B2", "patient" = "#E69F00")) +
+  labs(x = NULL, y = "median % variance explained",
+       title = "Variance explained (per-annotation)") +
+  theme_ng()
+```
+
+## Annotation heatmap (mean adjS per location)
+
+```{r annot_heatmap, fig.width = ng_fig_size(ncol(annot_mats[["adjS"]]), 1, panel_mm = 30)$w, fig.height = 4}
+loc_means <- do.call(rbind, lapply(loc_levels, function(l) {
+  idx <- which(colData(sce)$location == l)
+  if (length(idx) == 0) return(NULL)
+  colMeans(annot_mats[["adjS"]][idx, , drop = FALSE], na.rm = TRUE)
+}))
+present <- sapply(loc_levels, function(l) any(colData(sce)$location == l))
+loc_means <- loc_means[present, , drop = FALSE]
+rownames(loc_means) <- loc_levels[present]
+colnames(loc_means) <- gsub("_bin$", "", colnames(loc_means))
+
+col_fun <- colorRamp2(
+  quantile(loc_means, c(0.05, 0.5, 0.95), na.rm = TRUE),
+  c("navy", "white", "firebrick")
+)
+ha <- rowAnnotation(
+  location = rownames(loc_means),
+  col = list(location = loc_colors[rownames(loc_means)])
+)
+Heatmap(loc_means, name = "mean adjS", col = col_fun,
+        right_annotation = ha, show_row_names = TRUE, show_column_names = TRUE,
+        cluster_rows = TRUE, cluster_columns = TRUE,
+        row_names_gp = gpar(fontsize = 8), column_names_gp = gpar(fontsize = 7),
+        column_title = "Mean adjS per annotation per location")
+```
+
+## Silhouette scores
+
+```{r annot_sil}
+sil_annot <- data.frame(
+  assay         = assay_map,
+  silhouette    = sapply(names(annot_umaps), function(lbl)
+    sil_score(annot_umaps[[lbl]], colData(sce)$location)),
+  feature_space = "annotations"
+)
+print(sil_annot)
+```
+
+# Per-annotation HVW -> PCA -> UMAP
+
+For each annotation separately: take the subset of windows in that annotation,
+select the top `r N_HVW` highly variable windows, run PCA, then UMAP.
+This is the full single-cell pipeline per genomic context.
+
+```{r per_annot_loop, results = "asis", fig.width = ng_fig_size(2, 1)$w, fig.height = ng_fig_size(2, 1)$h}
+per_annot_sil <- list()
+
+for (col in annot_cols) {
+  idx   <- which(rowData(sce)[[col]] == 1)
+  label <- gsub("_bin$", "", col)
+
+  if (length(idx) < 50) {
+    per_annot_sil[[label]] <- data.frame(annotation = label)
+    next
+  }
+
+  cat(sprintf("\n## %s {.tabset .tabset-pills}\n\n", label))
+  cat(sprintf("Windows in annotation: %d. HVW kept: %d.\n\n",
+              length(idx), min(N_HVW, length(idx))))
+
+  sil_row <- data.frame(annotation = label)
+
+  for (akey in names(assay_map)) {
+    alabel  <- assay_map[[akey]]
+    sub_mat <- as.matrix(assay(sce, akey))[idx, , drop = FALSE]
+    res     <- hvw_pca_umap(sub_mat)
+    if (is.null(res)) next
+
+    sil_row[[paste0("sil_", alabel)]] <-
+      sil_score(res$umap, colData(sce)$location)
+
+    cat(sprintf("\n### %s\n\n", alabel))
+    print(plot_pair(res$umap, sce,
+                    sprintf("%s / %s (HVW -> PCA -> UMAP)", label, alabel)))
+    cat("\n")
+  }
+
+  per_annot_sil[[label]] <- sil_row
+}
+```
+
+## Silhouette summary {-}
+
+```{r per_annot_sil_summary, fig.width = ng_fig_size(length(annot_cols), 1, panel_mm = 35)$w, fig.height = ng_fig_size(length(annot_cols), 1, panel_mm = 35)$h}
+sil_pa_df <- bind_rows(per_annot_sil)
+
+sil_pa_long <- pivot_longer(sil_pa_df, starts_with("sil_"),
+                            names_to = "metric", values_to = "silhouette")
+sil_pa_long$metric <- sub("^sil_", "", sil_pa_long$metric)
+sil_pa_long$metric <- factor(sil_pa_long$metric, levels = assay_map)
+
+ggplot(sil_pa_long, aes(x = annotation, y = silhouette, fill = metric)) +
+  geom_col(position = position_dodge(width = 0.8)) +
+  geom_hline(yintercept = 0, linetype = "dashed", colour = "grey40") +
+  scale_fill_viridis_d(option = "turbo", begin = 0.1, end = 0.9) +
+  labs(x = "annotation", y = "mean silhouette (location clusters)",
+       title = "Location separation per annotation (HVW -> PCA -> UMAP)") +
+  theme_ng()
+```
+
+# Summary: all feature spaces and metrics
+
+```{r combined_sil, fig.width = ng_fig_size(4, 3)$w, fig.height = ng_fig_size(4, 1)$h}
+sil_all <- bind_rows(sil_win, sil_annot)
+sil_all$assay         <- factor(sil_all$assay, levels = assay_map)
+sil_all$feature_space <- factor(sil_all$feature_space,
+                                levels = c("windows", "annotations"))
+
+ggplot(sil_all, aes(x = assay, y = silhouette, fill = feature_space)) +
+  geom_col(position = position_dodge(width = 0.8)) +
+  geom_hline(yintercept = 0, linetype = "dashed", colour = "grey40") +
+  scale_fill_manual(values = c("windows" = "#0072B2", "annotations" = "#D55E00")) +
+  labs(x = NULL, y = "mean silhouette (location clusters)",
+       title = "Location separation: windows vs annotation-level features") +
+  theme_ng()
+```
+
+# Per-cell entropy summaries
+
+```{r cell_summary_df}
+cell_df <- data.frame(
+  location  = colData(sce)$location,
+  patient   = colData(sce)$patient,
+  mean_S    = colMeans(assay(sce, "sampen"),           na.rm = TRUE),
+  mean_adjS = colMeans(assay(sce, "sampen_corrected"), na.rm = TRUE),
+  mean_meth = colMeans(assay(sce, "meth"),             na.rm = TRUE)
+)
+```
+
+```{r violins, fig.width = ng_fig_size(6, 1)$w, fig.height = ng_fig_size(6, 3)$h}
+cell_long <- pivot_longer(cell_df, c("mean_S", "mean_adjS", "mean_meth"),
+                          names_to = "metric", values_to = "value")
+cell_long$metric <- factor(cell_long$metric,
+                           levels = c("mean_S", "mean_adjS", "mean_meth"))
+
+ggplot(cell_long, aes(x = location, y = value, fill = location)) +
+  geom_violin(trim = FALSE, scale = "width", alpha = 0.7) +
+  geom_boxplot(width = 0.1, outlier.size = 0.3, alpha = 0.6) +
+  scale_fill_manual(values = loc_colors) +
+  facet_grid(metric ~ patient, scales = "free_y") +
+  labs(x = "biopsy location", y = "per-cell mean") +
+  theme_ng() +
+  theme(legend.position = "none", axis.text.x = element_text(size = 6))
+```
+
+```{r scatter_S_meth, fig.width = ng_fig_size(6, 1)$w, fig.height = ng_fig_size(6, 1)$h}
+ggplot(cell_df, aes(x = mean_meth, y = mean_S, color = location)) +
+  geom_point(size = 0.5, alpha = 0.6) +
+  geom_smooth(aes(group = location), method = "lm", se = FALSE, linewidth = 0.5) +
+  scale_color_manual(values = loc_colors) +
+  facet_wrap(~ patient, nrow = 1) +
+  labs(x = "cell mean methylation", y = "cell mean S") +
+  guides(x = guide_x_nolap(),
+         color = guide_legend(override.aes = list(size = 2.5, alpha = 1))) +
+  theme_ng()
+```
+
+```{r scatter_adjS_meth, fig.width = ng_fig_size(6, 1)$w, fig.height = ng_fig_size(6, 1)$h}
+ggplot(cell_df, aes(x = mean_meth, y = mean_adjS, color = location)) +
+  geom_point(size = 0.5, alpha = 0.6) +
+  geom_smooth(aes(group = location), method = "lm", se = FALSE, linewidth = 0.5) +
+  scale_color_manual(values = loc_colors) +
+  facet_wrap(~ patient, nrow = 1) +
+  labs(x = "cell mean methylation", y = "cell mean adjS") +
+  guides(x = guide_x_nolap(),
+         color = guide_legend(override.aes = list(size = 2.5, alpha = 1))) +
+  theme_ng()
+```
+
+# Session info
+
+```{r session}
+sessionInfo()
+```

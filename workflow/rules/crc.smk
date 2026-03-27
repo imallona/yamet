@@ -504,6 +504,22 @@ rule render_crc_sce_report:
     script:
         "src/crc_windows_sce.Rmd"
 
+rule render_crc_embeddings_report:
+    conda:
+        op.join("..", "envs", "r.yml")
+    input:
+        corrected_sce = op.join(CRC, 'results', 'sce_windows_colon_corrected_{win_size}.rds'),
+        feature_outputs = list_relevant_yamet_outputs()
+    threads: workflow.cores
+    params:
+        feature_output_path = CRC_OUTPUT
+    output:
+        op.join(CRC, "results", "crc_embeddings_{win_size}.html")
+    log:
+        log = op.join("logs", "render_crc_embeddings_{win_size}.log")
+    script:
+        "src/crc_embeddings.Rmd"
+
 # rule run_crc_stats_report:
 #     conda:
 #         op.join("..", "envs", "r.yml")

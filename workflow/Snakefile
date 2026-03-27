@@ -56,6 +56,7 @@ rule all:
         op.join(CRC, "results", "crc_windows_10000_nt.html"),
         op.join(CRC, "results", "crc.html"),
         op.join(CRC, "results", "crc_windows_sce_10000.html"),
+        op.join(CRC, "results", "crc_embeddings_10000.html"),
         # op.join(ECKER_BASE, "results", "ecker.html"),  ## Ecker mouse brain entropy report
 
         # op.join(CRC_OUTPUT, "patient_crc01_scna.bed.gz")
