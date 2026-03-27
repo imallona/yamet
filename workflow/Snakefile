@@ -19,6 +19,7 @@ include: op.join("rules", "mm10.smk")
 ## datasets and analysis
 include: op.join("rules", "crc.smk")
 include: op.join("rules", "ecker.smk")
+include: op.join("rules", "argelaguet.smk")
 include: op.join("rules", "archive.smk")
 
 
@@ -57,7 +58,8 @@ rule all:
         op.join(CRC, "results", "crc.html"),
         op.join(CRC, "results", "crc_windows_sce_10000.html"),
         op.join(CRC, "results", "crc_embeddings_10000.html"),
-        # op.join(ECKER_BASE, "results", "ecker.html"),  ## Ecker mouse brain entropy report
+        # op.join(ECKER_BASE, "results", "ecker.html"),  ## Ecker mouse brain
+        # op.join(ARGELAGUET_BASE, "results", "argelaguet.html"),  ## Argelaguet gastrulation
 
         # op.join(CRC_OUTPUT, "patient_crc01_scna.bed.gz")
 
