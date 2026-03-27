@@ -34,6 +34,7 @@ suppressPackageStartupMessages({
 })
 
 source("src/ggtheme.R")
+source("src/embedding_utils.R")
 param <- MulticoreParam(workers = snakemake@threads)
 ```
 
@@ -138,45 +139,18 @@ rm(s_mat, s_cellmeth_mat)
 # Shared helpers
 
 ```{r helpers}
-## Select indices of the top n_hvw most variable rows (windows) by across-cell variance.
-select_hvw <- function(mat, n_hvw = N_HVW) {
-  vars <- rowVars(mat, useNames = FALSE)
-  order(vars, decreasing = TRUE)[seq_len(min(n_hvw, length(vars)))]
+## run_embedding() and sil_score() are provided by embedding_utils.R.
+## Local wrappers keep N_HVW/N_PCS defaults consistent with this report.
+hvw_pca_umap <- function(mat, n_hvw = N_HVW, n_pcs = N_PCS) {
+  run_embedding(mat, n_hvf = n_hvw, n_pcs = n_pcs,
+                n_neighbors = 15L, min_dist = 0.3, seed = 42L)
 }
 
-## PCA on a features x cells matrix; returns cells x n_pcs score matrix.
-run_pca_mat <- function(mat, n_pcs = N_PCS) {
-  n_pcs <- min(n_pcs, nrow(mat) - 1, ncol(mat) - 1)
-  if (n_pcs < 2) return(NULL)
-  prcomp(t(mat), center = TRUE, scale. = FALSE, rank. = n_pcs)$x
-}
-
-## UMAP on a features x cells matrix (transposes internally).
-run_umap_feat <- function(mat, seed = 123, n_neighbors = 15, min_dist = 0.3) {
-  set.seed(seed)
-  umap(t(mat), n_neighbors = min(n_neighbors, ncol(mat) - 1),
-       min_dist = min_dist, metric = "euclidean", verbose = FALSE)
-}
-
-## UMAP on an already-reduced cells x dims matrix (no transpose).
-run_umap_scores <- function(scores, seed = 123, n_neighbors = 15, min_dist = 0.3) {
+## UMAP on a small cell x dims score matrix (e.g. annotation-level).
+run_umap_scores <- function(scores, seed = 42L, n_neighbors = 15, min_dist = 0.3) {
   set.seed(seed)
   umap(scores, n_neighbors = min(n_neighbors, nrow(scores) - 1),
        min_dist = min_dist, metric = "euclidean", verbose = FALSE)
-}
-
-## Full HVW -> PCA -> UMAP pipeline on a features x cells matrix.
-hvw_pca_umap <- function(mat, n_hvw = N_HVW, n_pcs = N_PCS) {
-  idx  <- select_hvw(mat, n_hvw)
-  pca  <- run_pca_mat(mat[idx, , drop = FALSE], n_pcs)
-  if (is.null(pca)) return(NULL)
-  list(umap = run_umap_scores(pca), pca = pca, hvw_idx = idx)
-}
-
-sil_score <- function(coords, labels) {
-  lv <- as.integer(as.factor(labels))
-  if (length(unique(lv)) < 2) return(NA_real_)
-  mean(silhouette(lv, dist(coords))[, "sil_width"])
 }
 
 plot_pair <- function(coords, sce_obj, title_prefix) {

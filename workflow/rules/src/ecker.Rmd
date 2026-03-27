@@ -767,46 +767,26 @@ ggplot(locus_sub, aes(x = avg_meth, y = shannon, color = major_type)) +
 
 ```{r umap_helpers}
 library(uwot)
+source("src/embedding_utils.R")
 
+## Thin wrapper: takes a wide data.frame (cells x features + meta cols), calls
+## run_embedding() on the transposed feature matrix (features x cells), and
+## returns a data.frame of meta cols + UMAP1 + UMAP2.
 run_umap_wide <- function(wide_df, meta_cols,
-                           n_hvf       = 1000L,
-                           n_pcs       = 50L,
-                           n_neighbors = 15L,
-                           seed        = 42L) {
+                          n_hvf = 1000L,
+                          n_pcs = 50L,
+                          n_neighbors = 15L,
+                          seed = 42L) {
   if (is.null(wide_df) || nrow(wide_df) < 4L) return(NULL)
   meta <- wide_df %>% select(all_of(meta_cols))
-  mat  <- wide_df %>% select(-all_of(meta_cols)) %>% as.matrix()
-
-  mat[is.infinite(mat)] <- NA
-  mat[is.na(mat)]       <- 0
-
-  feat_var <- apply(mat, 2, var, na.rm = TRUE)
-  n_keep   <- min(as.integer(n_hvf), sum(feat_var > 0, na.rm = TRUE))
-  if (n_keep < 2L) {
-    message("Too few variable features (", n_keep, "); skipping")
-    return(NULL)
-  }
-  mat <- mat[, order(feat_var, decreasing = TRUE)[seq_len(n_keep)], drop = FALSE]
-  message("HVF: ", n_keep, " of ", length(feat_var), " features selected")
-
-  scaled <- scale(mat)
-  bad    <- apply(scaled, 2, function(x) all(is.na(x) | is.nan(x)))
-  scaled <- scaled[, !bad, drop = FALSE]
-  if (ncol(scaled) == 0L) return(NULL)
-
-  n_pcs_use <- min(as.integer(n_pcs), nrow(scaled) - 1L, ncol(scaled))
-  if (n_pcs_use < 2L) {
-    message("Too few PCs available (", n_pcs_use, "); skipping")
-    return(NULL)
-  }
-  pca <- prcomp(scaled, rank. = n_pcs_use, scale. = FALSE)
-  message("PCA: using ", n_pcs_use, " PCs")
-
-  nn <- min(as.integer(n_neighbors), nrow(pca$x) - 1L)
-  set.seed(seed)
-  coords <- uwot::umap(pca$x, n_neighbors = nn, min_dist = 0.3,
-                        n_epochs = 500, verbose = FALSE)
-  bind_cols(meta, setNames(as.data.frame(coords), c("UMAP1", "UMAP2")))
+  mat <- wide_df %>% select(-all_of(meta_cols)) %>% as.matrix()
+  res <- run_embedding(t(mat),
+                       n_hvf = n_hvf,
+                       n_pcs = n_pcs,
+                       n_neighbors = n_neighbors,
+                       seed = seed)
+  if (is.null(res)) return(NULL)
+  bind_cols(meta, setNames(as.data.frame(res$umap), c("UMAP1", "UMAP2")))
 }
 
 plot_umap_class <- function(df, title, subtitle = NULL) {
@@ -899,6 +879,61 @@ saveRDS(umap_cell_meth, "ecker_umap_cell_meth.rds")
 plot_umap_class(umap_cell_meth,
                 title    = "Cell-level UMAP - avg. methylation features",
                 subtitle = "per-cell avg. methylation per annotation as feature vector")
+```
+
+## Cell-level: S with marginal methylation regressed out
+
+Unadjusted S per cell per annotation, with the per-cell mean methylation (averaged
+across all annotations for that cell) regressed out column-wise before embedding.
+This decouples entropy from the global methylation level of each cell while keeping
+locus-level heterogeneity signal, as a check that cell-type separation is not merely
+reflecting methylation differences.
+
+```{r cell_umap_S_load}
+cells_S_long <- read_cells_long(short_paths_umap, "sampen")
+
+cells_S_wide <- pivot_wider(cells_S_long,
+                            id_cols = c(sub_region, sub_type, cell_idx),
+                            names_from = annotation,
+                            values_from = value) %>%
+  left_join(meta_grp %>% select(sub_region, sub_type, cell_class, major_type, major_region),
+            by = c("sub_region", "sub_type"))
+
+cat("Cells (S):", nrow(cells_S_wide), "\n")
+```
+
+```{r cell_umap_S_regress}
+annot_cols_S <- setdiff(colnames(cells_S_wide), meta_cols_cell)
+annot_cols_meth <- setdiff(colnames(cells_meth_wide), meta_cols_cell)
+shared_annots <- intersect(annot_cols_S, annot_cols_meth)
+
+S_mat <- as.matrix(cells_S_wide[, shared_annots, drop = FALSE])
+meth_mat <- as.matrix(cells_meth_wide[, shared_annots, drop = FALSE])
+
+cell_mean_meth <- rowMeans(meth_mat, na.rm = TRUE)
+
+S_resid <- vapply(seq_len(ncol(S_mat)), function(j) {
+  y <- S_mat[, j]
+  fit <- try(lm(y ~ cell_mean_meth), silent = TRUE)
+  if (inherits(fit, "try-error")) return(y)
+  residuals(fit)
+}, numeric(nrow(S_mat)))
+colnames(S_resid) <- shared_annots
+
+cells_S_regressed <- bind_cols(
+  cells_S_wide[, meta_cols_cell, drop = FALSE],
+  as.data.frame(S_resid)
+)
+```
+
+```{r cell_umap_S_regressed, fig.width = 5, fig.height = 5}
+umap_cell_S_regressed <- run_umap_wide(cells_S_regressed, meta_cols_cell,
+                                        n_neighbors = 15L)
+saveRDS(umap_cell_S_regressed, "ecker_umap_cell_S_regressed.rds")
+
+plot_umap_class(umap_cell_S_regressed,
+                title    = "Cell-level UMAP - S with marginal meth regressed out",
+                subtitle = "residuals of S ~ cell mean methylation per annotation")
 ```
 
 ## Group-level: adjH across annotations
