@@ -266,13 +266,16 @@ ggplot(df_win_pca, aes(x = PC1, y = PC2, color = location)) +
 ```{r win_varexp, fig.width = ng_fig_size(4, 1)$w, fig.height = ng_fig_size(2, 1)$h}
 ## Add HVW assays as separate SCE entries for getVarianceExplained
 hvw_sce <- SingleCellExperiment(
-  assays  = lapply(names(assay_map), function(lbl) {
-    akey <- names(assay_map)[assay_map == lbl]
-    mat  <- as.matrix(assay(sce, akey))
+  assays  = lapply(names(assay_map), function(akey) {
+    lbl <- assay_map[[akey]]
+    mat <- as.matrix(assay(sce, akey))
     mat[win_embeds[[lbl]]$hvw_idx, , drop = FALSE]
   }) |> setNames(assay_map),
   colData = colData(sce)
 )
+
+saveRDS(hvw_sce, "debug_hvw_sce.rds")
+saveRDS(assay_map, "debug_assay_map.rds")
 
 ve_win <- bind_rows(lapply(assay_map, function(lbl) {
   ve <- getVarianceExplained(hvw_sce, exprs_values = lbl,
