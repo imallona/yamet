@@ -48,7 +48,7 @@ rule sim_simulate_data:
         directory(op.join(SIM_OUTPUT, "sim_data")),
         op.join(SIM_OUTPUT, "sim_data",
                 "sim_cell_9_50_50_rand_medium_lmr.tsv"),
-        html=op.join(SIM_RESULTS, "01_sim_data.html"),
+        html=op.join(SIM_RESULTS, "simulation_01_sim_data.html"),
     log:
         op.join("logs", "sim_simulate_data.log"),
     conda:
@@ -65,7 +65,7 @@ rule sim_simulate_data:
         mkdir -p {SIM_OUTPUT} {SIM_RESULTS}
         Rscript -e 'rmarkdown::render("{params.rmd}",
                         "html_document",
-                        output_file=file.path("{params.results_abs}", "01_sim_data.html"),
+                        output_file=file.path("{params.results_abs}", "simulation_01_sim_data.html"),
                         params=list(
                             parameters_path="{params.parameters_abs}",
                             low_real_dir="{params.low_real_dir}",
@@ -76,12 +76,12 @@ rule sim_simulate_data:
 
 rule sim_visualize_coverage:
     input:
-        sim_data_file=op.join(SIM_RESULTS, "01_sim_data.html"),
+        sim_data_file=op.join(SIM_RESULTS, "simulation_01_sim_data.html"),
         sim_data_dir=op.join(SIM_OUTPUT, "sim_data"),
         flag=op.join(SIM_OUTPUT, "sim_data",
                      "sim_cell_9_50_50_rand_medium_lmr.tsv"),
     output:
-        html=op.join(SIM_RESULTS, "02_coverage_plots.html"),
+        html=op.join(SIM_RESULTS, "simulation_02_coverage_plots.html"),
         coverage_data=op.join(SIM_OUTPUT, "sim_data_coverage",
                               "overall_coverage.rds"),
         stretches_length=op.join(SIM_OUTPUT, "sim_data_coverage",
@@ -100,7 +100,7 @@ rule sim_visualize_coverage:
         """
         Rscript -e 'rmarkdown::render("{params.rmd}",
                         "html_document",
-                        output_file=file.path("{params.results_abs}", "02_coverage_plots.html"),
+                        output_file=file.path("{params.results_abs}", "simulation_02_coverage_plots.html"),
                         params=list(
                             sim_data_dir="{params.sim_data_dir}",
                             coverage_out_dir="{params.coverage_out_dir}",
@@ -113,7 +113,7 @@ rule sim_write_reference_file:
     input:
         parameters_file=op.join(SIM_INPUT, "parameters.tsv"),
         sim_data=op.join(SIM_OUTPUT, "sim_data"),
-        sim_data_file=op.join(SIM_RESULTS, "01_sim_data.html"),
+        sim_data_file=op.join(SIM_RESULTS, "simulation_01_sim_data.html"),
     output:
         bed=op.join(SIM_BASE, "intervals.bed"),
     log:
@@ -133,7 +133,7 @@ rule sim_run_yamet:
         sim_data=op.join(SIM_OUTPUT, "sim_data"),
         flag=op.join(SIM_OUTPUT, "sim_data",
                      "sim_cell_9_50_50_rand_medium_lmr.tsv"),
-        sim_data_file=op.join(SIM_RESULTS, "01_sim_data.html"),
+        sim_data_file=op.join(SIM_RESULTS, "simulation_01_sim_data.html"),
         bed=op.join(SIM_BASE, "intervals.bed"),
     output:
         out=directory(op.join(SIM_OUTPUT, "yamet", "out")),
@@ -165,14 +165,14 @@ rule sim_visualize_yamet_results:
     conda:
         op.join("..", "envs", "sim_r_plot.yaml")
     input:
-        covplots=op.join(SIM_RESULTS, "02_coverage_plots.html"),
+        covplots=op.join(SIM_RESULTS, "simulation_02_coverage_plots.html"),
         yamet_dir=op.join(SIM_OUTPUT, "yamet", "out"),
         yamet=_SIM_YAMET,
         flag=op.join(SIM_OUTPUT, "sim_data",
                      "sim_cell_9_50_50_rand_medium_lmr.tsv"),
         another_flag=op.join(SIM_OUTPUT, "yamet", "out", "10000.tsv"),
     output:
-        html=op.join(SIM_RESULTS, "03_yamet_plots.html"),
+        html=op.join(SIM_RESULTS, "simulation_03_yamet_plots.html"),
     log:
         op.join("logs", "sim_visualize_yamet_results.log"),
     params:
@@ -184,7 +184,7 @@ rule sim_visualize_yamet_results:
         """
         Rscript -e 'rmarkdown::render("{params.rmd}",
                         "html_document",
-                        output_file=file.path("{params.results_abs}", "03_yamet_plots.html"),
+                        output_file=file.path("{params.results_abs}", "simulation_03_yamet_plots.html"),
                         params=list(
                             yamet_dir="{params.yamet_dir}",
                             fig_path="{params.fig_path}"))' \
@@ -198,7 +198,7 @@ rule sim_compile_figure_2:
     input:
         yamet=_SIM_YAMET,
         yamet_dir=op.join(SIM_OUTPUT, "yamet", "out"),
-        yamet_plots=op.join(SIM_RESULTS, "03_yamet_plots.html"),
+        yamet_plots=op.join(SIM_RESULTS, "simulation_03_yamet_plots.html"),
         coverage_data=op.join(SIM_OUTPUT, "sim_data_coverage",
                               "overall_coverage.rds"),
         stretches_length=op.join(SIM_OUTPUT, "sim_data_coverage",
@@ -206,7 +206,7 @@ rule sim_compile_figure_2:
     output:
         fig_pdf=op.join(SIM_SCHEMES, "Figure2.pdf"),
         fig_svg=op.join(SIM_SCHEMES, "Figure2.svg"),
-        html=op.join(SIM_RESULTS, "figure2.html"),
+        html=op.join(SIM_RESULTS, "simulation_figure2.html"),
     log:
         op.join("logs", "sim_compile_figure_2.log"),
     params:
@@ -220,7 +220,7 @@ rule sim_compile_figure_2:
         mkdir -p {SIM_SCHEMES}
         Rscript -e 'rmarkdown::render("{params.rmd}",
                         "html_document",
-                        output_file=file.path("{params.results_abs}", "figure2.html"),
+                        output_file=file.path("{params.results_abs}", "simulation_figure2.html"),
                         params=list(
                             yamet_dir="{params.yamet_dir}",
                             schemes_dir="{params.schemes_dir}",
@@ -301,7 +301,7 @@ rule sim_feat_diff_plots:
         N=lambda wildcards, input: op.basename(input.det_out).split(".")[1],
         f=lambda wildcards, input: op.basename(input.det_out).split(".")[2],
     output:
-        html=op.join(SIM_RESULTS, "04_feat_diff.html"),
+        html=op.join(SIM_RESULTS, "simulation_04_feat_diff.html"),
     log:
         op.join("logs", "sim_feat_diff_plots.log"),
     script:
@@ -421,7 +421,7 @@ rule sim_within_cell_plots:
         DISP=WC_DISP,
     threads: 4
     output:
-        html=op.join(SIM_RESULTS, "05_within_cell.html"),
+        html=op.join(SIM_RESULTS, "simulation_05_within_cell.html"),
     log:
         op.join("logs", "sim_within_cell_plots.log"),
     script:
@@ -541,7 +541,7 @@ rule sim_between_cell_plots:
         DISP=BC_DISP,
     threads: 4
     output:
-        html=op.join(SIM_RESULTS, "06_between_cell.html"),
+        html=op.join(SIM_RESULTS, "simulation_06_between_cell.html"),
     log:
         op.join("logs", "sim_between_cell_plots.log"),
     script:
@@ -554,10 +554,10 @@ rule sim_combined_figure:
     conda:
         op.join("..", "envs", "sim_r_plot.yaml")
     input:
-        within_html=op.join(SIM_RESULTS, "05_within_cell.html"),
-        across_html=op.join(SIM_RESULTS, "06_between_cell.html"),
+        within_html=op.join(SIM_RESULTS, "simulation_05_within_cell.html"),
+        across_html=op.join(SIM_RESULTS, "simulation_06_between_cell.html"),
     output:
-        html=op.join(SIM_RESULTS, "07_combined_figure.html"),
+        html=op.join(SIM_RESULTS, "simulation_07_combined_figure.html"),
     log:
         op.join("logs", "sim_combined_figure.log"),
     script:
@@ -568,10 +568,10 @@ rule sim_combined_figure_adj:
     conda:
         op.join("..", "envs", "sim_r_plot.yaml")
     input:
-        within_html=op.join(SIM_RESULTS, "05_within_cell.html"),
-        across_html=op.join(SIM_RESULTS, "06_between_cell.html"),
+        within_html=op.join(SIM_RESULTS, "simulation_05_within_cell.html"),
+        across_html=op.join(SIM_RESULTS, "simulation_06_between_cell.html"),
     output:
-        html=op.join(SIM_RESULTS, "08_combined_figure_adj.html"),
+        html=op.join(SIM_RESULTS, "simulation_08_combined_figure_adj.html"),
     log:
         op.join("logs", "sim_combined_figure_adj.log"),
     script:

@@ -57,8 +57,8 @@ rule archive_argelaguet_outputs:
 rule archive_simulation_outputs:
     """Zip simulation intermediate outputs for quick report rendering from intermediate results from zenodo."""
     input:
-        op.join(SIM_RESULTS, "figure2.html"),
-        op.join(SIM_RESULTS, "08_combined_figure_adj.html"),
+        op.join(SIM_RESULTS, "simulation_figure2.html"),
+        op.join(SIM_RESULTS, "simulation_08_combined_figure_adj.html"),
     output:
         op.join(SNAPSHOT_DIR, "simulation_output.zip"),
     shell:

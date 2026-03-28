@@ -142,14 +142,14 @@ coverage simulations, for example:
 
 ```bash
 cd workflow
-snakemake --use-conda --cores NUM_CORES simulations/results/figure2.html
+snakemake --use-conda --cores NUM_CORES simulations/results/simulation_figure2.html
 ```
 
 To run the within/between cell simulations:
 
 ```bash
 cd workflow
-snakemake --use-conda --cores NUM_CORES simulations/results/08_combined_figure_adj.html
+snakemake --use-conda --cores NUM_CORES simulations/results/simulation_08_combined_figure_adj.html
 ```
 
 Simulations share the Argelaguet gastrulation download, so the gastrulation

@@ -31,35 +31,19 @@ shell.prefix("set -o pipefail; export PATH=$HOME/.local/yamet/bin:$PATH;")
 ##   multiple entropy background distributions
 rule all:
     input:
-        # op.join('ecker_data', 'downloaded_ecker.flag'), ## this is to download Ecker's cytosine reports
-        # op.join('data', 'brain', 'harmonized_ecker_metadata.tsv.gz'), ## this to download Ecker's metadata
-        # op.join("annotation", "mm10", "done.flag"),  ## this to download regions for Ecker's
-        # op.join("data", "crc", "download.flag"),  # this to download CRC cytosine reports, caution will redownload them
-        # op.join("data", "crc", "results",  "crc.html") , ## this requires the `download.flag` being present (and the cytosine reports; dependencies are not well captured)
         op.join(op.expanduser("~"), ".local", "yamet", "bin", "yamet"),
-        # op.join('scnmt_gastrulation_data', 'downloaded_data.tsv'), ## this is Argelaguet's gastrulation
-        # expand(
-        #     op.join(
-        #         "annotation", "shuffled", "{assembly}", "{seed}", "{annotation}.bed.gz"
-        #     ),
-        #     seed=[1, 2],
-        #     assembly="mm10",
-        #     annotation=["genes", "promoters"],
-        # ),
-        ## to get a random background features
-        # op.join("feature_simulations", "output", "yamet_detailed.out"),  ## feature simulations,
-        # op.join('scnmt_gastrulation_data', 'output', 'yamet_summarized.out') ## an scNMT example
-        # op.join(HG19_BASE, "patient_crc01_scna.scna.bed.gz"),
-        # op.join(HG19_BASE, "crc01_nc_scna.scna.bed"),
-        # op.join('hg19', "windows_10000_nt_annotation.gz"),
+        ## CRC
         op.join(CRC, "results", "crc_windows_10000_nt.html"),
         op.join(CRC, "results", "crc.html"),
         op.join(CRC, "results", "crc_windows_sce_10000.html"),
         op.join(CRC, "results", "crc_embeddings_10000.html"),
-        # op.join(ECKER_BASE, "results", "ecker.html"),  ## Ecker mouse brain
-        # op.join(ARGELAGUET_BASE, "results", "argelaguet.html"),  ## Argelaguet gastrulation
-        # op.join(SIM_RESULTS, "figure2.html"),  ## coverage simulations
-        # op.join(SIM_RESULTS, "08_combined_figure_adj.html"),  ## within/between cell simulations
+        ## Ecker mouse brain
+        op.join(ECKER_BASE, "results", "ecker.html"),
+        ## Argelaguet gastrulation
+        op.join(ARGELAGUET_BASE, "results", "argelaguet.html"),
+        ## simulations
+        op.join(SIM_RESULTS, "simulation_figure2.html"),
+        op.join(SIM_RESULTS, "simulation_08_combined_figure_adj.html"),
 
 rule install_yamet:
     """
