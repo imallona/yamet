@@ -914,16 +914,23 @@ cells_S_wide <- pivot_wider(cells_S_long,
                                  lineage_class),
             by = c("stage_san", "lineage_san"))
 
-annot_cols_S    <- setdiff(colnames(cells_S_wide),    meta_cols_cell)
-annot_cols_meth <- setdiff(colnames(cells_meth_wide), meta_cols_cell)
+id_cols <- c("stage_san", "lineage_san", "cell_idx")
+shared_cells <- inner_join(
+  cells_S_wide[, id_cols], cells_meth_wide[, id_cols], by = id_cols
+)
+cells_S_matched <- semi_join(cells_S_wide, shared_cells, by = id_cols)
+cells_meth_matched <- semi_join(cells_meth_wide, shared_cells, by = id_cols)
+
+annot_cols_S <- setdiff(colnames(cells_S_matched), meta_cols_cell)
+annot_cols_meth <- setdiff(colnames(cells_meth_matched), meta_cols_cell)
 
 S_resid <- regress_out_meth(
-  as.matrix(cells_S_wide[, annot_cols_S, drop = FALSE]),
-  as.matrix(cells_meth_wide[, annot_cols_meth, drop = FALSE])
+  as.matrix(cells_S_matched[, annot_cols_S, drop = FALSE]),
+  as.matrix(cells_meth_matched[, annot_cols_meth, drop = FALSE])
 )
 
 cells_S_regressed <- bind_cols(
-  cells_S_wide[, meta_cols_cell, drop = FALSE],
+  cells_S_matched[, meta_cols_cell, drop = FALSE],
   as.data.frame(S_resid)
 )
 ```

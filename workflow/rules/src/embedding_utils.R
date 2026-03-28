@@ -64,7 +64,8 @@ run_pca_mat <- function(mat, n_pcs = 10L) {
     nas <- is.na(mat[i, ])
     if (any(nas)) mat[i, nas] <- row_means[i]
   }
-  bad <- apply(mat, 1, function(x) sd(x, na.rm = TRUE) == 0 | all(is.na(x)))
+  row_sd <- apply(mat, 1, sd, na.rm = TRUE)
+  bad <- is.na(row_sd) | row_sd == 0
   mat <- mat[!bad, , drop = FALSE]
   if (nrow(mat) < 2L || ncol(mat) < 2L) return(NULL)
   n_use <- min(as.integer(n_pcs), nrow(mat) - 1L, ncol(mat) - 1L)
@@ -74,6 +75,7 @@ run_pca_mat <- function(mat, n_pcs = 10L) {
 
 ## UMAP on a compact cells x dims score matrix (no HVF/PCA needed).
 run_umap_scores <- function(scores, seed = 42L, n_neighbors = 15L, min_dist = 0.3) {
+  if (is.null(scores) || nrow(scores) < 4L) return(NULL)
   set.seed(seed)
   uwot::umap(scores, n_neighbors = min(n_neighbors, nrow(scores) - 1L),
              min_dist = min_dist, metric = "euclidean", verbose = FALSE)
@@ -96,15 +98,17 @@ run_umap_wide <- function(wide_df, meta_cols,
 ## Per-column regression of score_mat on cell mean methylation.
 ## Both inputs are cells x features matrices. Returns residual matrix (cells x shared features).
 regress_out_meth <- function(score_mat, meth_mat) {
+  stopifnot(nrow(score_mat) == nrow(meth_mat))
   shared <- intersect(colnames(score_mat), colnames(meth_mat))
+  if (length(shared) == 0) stop("regress_out_meth: no shared columns between score and meth matrices")
   score_mat <- score_mat[, shared, drop = FALSE]
   meth_mat <- meth_mat[, shared, drop = FALSE]
   cell_mean_meth <- rowMeans(meth_mat, na.rm = TRUE)
   resid_mat <- vapply(seq_len(ncol(score_mat)), function(j) {
     y <- score_mat[, j]
-    fit <- try(lm(y ~ cell_mean_meth), silent = TRUE)
+    fit <- try(lm(y ~ cell_mean_meth, na.action = na.exclude), silent = TRUE)
     if (inherits(fit, "try-error")) return(y)
-    residuals(fit)
+    as.numeric(residuals(fit))
   }, numeric(nrow(score_mat)))
   colnames(resid_mat) <- shared
   resid_mat

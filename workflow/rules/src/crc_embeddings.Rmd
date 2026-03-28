@@ -199,36 +199,43 @@ win_embeds <- lapply(names(assay_map), function(akey) {
   hvw_pca_umap(as.matrix(assay(sce, akey)))
 })
 names(win_embeds) <- assay_map
+
+failed <- names(which(sapply(win_embeds, is.null)))
+if (length(failed) > 0) warning("run_embedding returned NULL for: ", paste(failed, collapse = ", "))
+
+saveRDS(list(sce = sce, win_embeds = win_embeds, assay_map = assay_map),
+        "crc_embeddings_debug.rds")
 ```
 
 ## By location {.tabset .tabset-pills}
 
 ```{r win_loc_S, fig.width = ng_fig_size(2, 1)$w, fig.height = ng_fig_size(2, 1)$h}
 ### S
-print(plot_pair(win_embeds[["S"]]$umap, sce, "S (windows)"))
+if (!is.null(win_embeds[["S"]])) print(plot_pair(win_embeds[["S"]]$umap, sce, "S (windows)"))
 ```
 
 ```{r win_loc_adjS, fig.width = ng_fig_size(2, 1)$w, fig.height = ng_fig_size(2, 1)$h}
 ### adjS
-print(plot_pair(win_embeds[["adjS"]]$umap, sce, "adjS (windows)"))
+if (!is.null(win_embeds[["adjS"]])) print(plot_pair(win_embeds[["adjS"]]$umap, sce, "adjS (windows)"))
 ```
 
 ```{r win_loc_scm, fig.width = ng_fig_size(2, 1)$w, fig.height = ng_fig_size(2, 1)$h}
 ### S_cellmeth
-print(plot_pair(win_embeds[["S_cellmeth"]]$umap, sce, "S_cellmeth (windows)"))
+if (!is.null(win_embeds[["S_cellmeth"]])) print(plot_pair(win_embeds[["S_cellmeth"]]$umap, sce, "S_cellmeth (windows)"))
 ```
 
 ```{r win_loc_meth, fig.width = ng_fig_size(2, 1)$w, fig.height = ng_fig_size(2, 1)$h}
 ### methylation
-print(plot_pair(win_embeds[["methylation"]]$umap, sce, "methylation (windows)"))
+if (!is.null(win_embeds[["methylation"]])) print(plot_pair(win_embeds[["methylation"]]$umap, sce, "methylation (windows)"))
 ```
 
 ## Four-panel comparison (location)
 
 ```{r win_panel, fig.width = ng_fig_size(4, 1)$w, fig.height = ng_fig_size(4, 1)$h}
-df_win_panel <- bind_rows(lapply(names(win_embeds), function(lbl) {
-  data.frame(umap1 = win_embeds[[lbl]]$umap[, 1],
-             umap2 = win_embeds[[lbl]]$umap[, 2],
+ok_embeds <- Filter(Negate(is.null), win_embeds)
+df_win_panel <- bind_rows(lapply(names(ok_embeds), function(lbl) {
+  data.frame(umap1 = ok_embeds[[lbl]]$umap[, 1],
+             umap2 = ok_embeds[[lbl]]$umap[, 2],
              location = colData(sce)$location,
              assay = lbl)
 }))
@@ -247,8 +254,8 @@ ggplot(df_win_panel, aes(x = umap1, y = umap2, color = location)) +
 ## PCA (first two PCs, per assay)
 
 ```{r win_pca_plot, fig.width = ng_fig_size(4, 2)$w, fig.height = ng_fig_size(4, 2)$h}
-df_win_pca <- bind_rows(lapply(names(win_embeds), function(lbl) {
-  pca <- win_embeds[[lbl]]$pca
+df_win_pca <- bind_rows(lapply(names(ok_embeds), function(lbl) {
+  pca <- ok_embeds[[lbl]]$pca
   data.frame(PC1 = pca[, 1], PC2 = pca[, 2],
              location = colData(sce)$location,
              patient  = colData(sce)$patient,
@@ -269,26 +276,24 @@ ggplot(df_win_pca, aes(x = PC1, y = PC2, color = location)) +
 ## Variance explained
 
 ```{r win_varexp, fig.width = ng_fig_size(4, 1)$w, fig.height = ng_fig_size(2, 1)$h}
-## Add HVW assays as separate SCE entries for getVarianceExplained
-hvw_sce <- SingleCellExperiment(
-  assays  = lapply(names(assay_map), function(akey) {
-    lbl <- assay_map[[akey]]
-    mat <- as.matrix(assay(sce, akey))
-    mat[win_embeds[[lbl]]$hvf_idx, , drop = FALSE]
-  }) |> setNames(assay_map),
-  colData = colData(sce)
-)
+saveRDS(list(sce = sce, win_embeds = win_embeds, assay_map = assay_map),
+        "crc_win_varexp_debug.rds")
 
-saveRDS(list(sce = sce, win_embeds = win_embeds, hvw_sce = hvw_sce,
-             assay_map = assay_map),
-        "crc_embeddings_debug.rds")
-
-ve_win <- bind_rows(lapply(assay_map, function(lbl) {
-  ve <- getVarianceExplained(hvw_sce, exprs_values = lbl,
+ve_win <- bind_rows(lapply(names(assay_map), function(akey) {
+  lbl <- assay_map[[akey]]
+  if (is.null(win_embeds[[lbl]])) return(NULL)
+  mat <- as.matrix(assay(sce, akey))
+  hvw_mat <- mat[win_embeds[[lbl]]$hvf_idx, , drop = FALSE]
+  rownames(hvw_mat) <- NULL
+  tmp_sce <- SingleCellExperiment(
+    assays = list(x = hvw_mat),
+    colData = colData(sce)
+  )
+  ve <- getVarianceExplained(tmp_sce, exprs_values = "x",
                              variables = c("location", "patient"))
-  data.frame(assay    = lbl,
+  data.frame(assay = lbl,
              location = median(ve[, "location"], na.rm = TRUE),
-             patient  = median(ve[, "patient"],  na.rm = TRUE))
+             patient = median(ve[, "patient"], na.rm = TRUE))
 }))
 ve_win_long <- pivot_longer(ve_win, c("location", "patient"),
                             names_to = "variable", values_to = "median_ve")
@@ -306,9 +311,9 @@ ggplot(ve_win_long, aes(x = assay, y = median_ve, fill = variable)) +
 
 ```{r win_sil}
 sil_win <- data.frame(
-  assay         = assay_map,
-  silhouette    = sapply(names(win_embeds), function(lbl)
-    sil_score(win_embeds[[lbl]]$umap, colData(sce)$location)),
+  assay = names(ok_embeds),
+  silhouette = sapply(names(ok_embeds), function(lbl)
+    sil_score(ok_embeds[[lbl]]$umap, colData(sce)$location)),
   feature_space = "windows"
 )
 print(sil_win)
@@ -361,9 +366,10 @@ saveRDS(list(annot_mats = annot_mats, annot_umaps = annot_umaps),
 ## Four-panel comparison (location)
 
 ```{r annot_panel, fig.width = ng_fig_size(4, 1)$w, fig.height = ng_fig_size(4, 1)$h}
-df_annot_panel <- bind_rows(lapply(names(annot_umaps), function(lbl) {
-  data.frame(umap1 = annot_umaps[[lbl]][, 1],
-             umap2 = annot_umaps[[lbl]][, 2],
+ok_annot_umaps <- Filter(Negate(is.null), annot_umaps)
+df_annot_panel <- bind_rows(lapply(names(ok_annot_umaps), function(lbl) {
+  data.frame(umap1 = ok_annot_umaps[[lbl]][, 1],
+             umap2 = ok_annot_umaps[[lbl]][, 2],
              location = colData(sce)$location,
              assay = lbl)
 }))
@@ -408,17 +414,19 @@ ggplot(df_annot_pca, aes(x = PC1, y = PC2, color = location)) +
 ## Variance explained
 
 ```{r annot_varexp, fig.width = ng_fig_size(4, 1)$w, fig.height = ng_fig_size(2, 1)$h}
-annot_sce <- SingleCellExperiment(
-  assays  = lapply(annot_mats, t) |> setNames(assay_map),
-  colData = colData(sce)
-)
-
 ve_annot <- bind_rows(lapply(assay_map, function(lbl) {
-  ve <- getVarianceExplained(annot_sce, exprs_values = lbl,
+  if (ncol(annot_mats[[lbl]]) == 0) return(NULL)
+  mat <- t(annot_mats[[lbl]])
+  rownames(mat) <- NULL
+  tmp_sce <- SingleCellExperiment(
+    assays = list(x = mat),
+    colData = colData(sce)
+  )
+  ve <- getVarianceExplained(tmp_sce, exprs_values = "x",
                              variables = c("location", "patient"))
-  data.frame(assay    = lbl,
+  data.frame(assay = lbl,
              location = median(ve[, "location"], na.rm = TRUE),
-             patient  = median(ve[, "patient"],  na.rm = TRUE))
+             patient = median(ve[, "patient"], na.rm = TRUE))
 }))
 ve_annot_long <- pivot_longer(ve_annot, c("location", "patient"),
                               names_to = "variable", values_to = "median_ve")
@@ -464,9 +472,9 @@ Heatmap(loc_means, name = "mean adjS", col = col_fun,
 
 ```{r annot_sil}
 sil_annot <- data.frame(
-  assay         = assay_map,
-  silhouette    = sapply(names(annot_umaps), function(lbl)
-    sil_score(annot_umaps[[lbl]], colData(sce)$location)),
+  assay = names(ok_annot_umaps),
+  silhouette = sapply(names(ok_annot_umaps), function(lbl)
+    sil_score(ok_annot_umaps[[lbl]], colData(sce)$location)),
   feature_space = "annotations"
 )
 print(sil_annot)
