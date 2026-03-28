@@ -54,6 +54,18 @@ knitr::opts_chunk$set(
 )
 ```
 
+```{r git_commit, echo = FALSE, results = "asis"}
+git_sha <- tryCatch(
+  system("git rev-parse --short HEAD", intern = TRUE, ignore.stderr = TRUE),
+  error = function(e) "unknown"
+)
+cat(sprintf("Git commit: `%s`\n\n", git_sha))
+```
+
+```{r save_snmk_debug, include = FALSE}
+saveRDS(file = "snmk_crc_embeddings.rds", object = snakemake)
+```
+
 ```{r logging, include = FALSE}
 log <- file(snakemake@log$log, open = "wt")
 sink(log)
@@ -144,13 +156,6 @@ rm(s_mat, s_cellmeth_mat)
 hvw_pca_umap <- function(mat, n_hvw = N_HVW, n_pcs = N_PCS) {
   run_embedding(mat, n_hvf = n_hvw, n_pcs = n_pcs,
                 n_neighbors = 15L, min_dist = 0.3, seed = 42L)
-}
-
-## UMAP on a small cell x dims score matrix (e.g. annotation-level).
-run_umap_scores <- function(scores, seed = 42L, n_neighbors = 15, min_dist = 0.3) {
-  set.seed(seed)
-  umap(scores, n_neighbors = min(n_neighbors, nrow(scores) - 1),
-       min_dist = min_dist, metric = "euclidean", verbose = FALSE)
 }
 
 plot_pair <- function(coords, sce_obj, title_prefix) {
@@ -269,20 +274,21 @@ hvw_sce <- SingleCellExperiment(
   assays  = lapply(names(assay_map), function(akey) {
     lbl <- assay_map[[akey]]
     mat <- as.matrix(assay(sce, akey))
-    mat[win_embeds[[lbl]]$hvw_idx, , drop = FALSE]
+    mat[win_embeds[[lbl]]$hvf_idx, , drop = FALSE]
   }) |> setNames(assay_map),
   colData = colData(sce)
 )
 
-saveRDS(hvw_sce, "debug_hvw_sce.rds")
-saveRDS(assay_map, "debug_assay_map.rds")
+saveRDS(list(sce = sce, win_embeds = win_embeds, hvw_sce = hvw_sce,
+             assay_map = assay_map),
+        "crc_embeddings_debug.rds")
 
 ve_win <- bind_rows(lapply(assay_map, function(lbl) {
   ve <- getVarianceExplained(hvw_sce, exprs_values = lbl,
                              variables = c("location", "patient"))
   data.frame(assay    = lbl,
-             location = median(ve["location", ], na.rm = TRUE),
-             patient  = median(ve["patient",  ], na.rm = TRUE))
+             location = median(ve[, "location"], na.rm = TRUE),
+             patient  = median(ve[, "patient"],  na.rm = TRUE))
 }))
 ve_win_long <- pivot_longer(ve_win, c("location", "patient"),
                             names_to = "variable", values_to = "median_ve")
@@ -347,6 +353,9 @@ cat("Cell x annotation matrix:", nrow(annot_mats[[1]]), "x", ncol(annot_mats[[1]
 ```{r annot_umap_compute}
 ## UMAP on cell x annotation matrices (small so no HVW needed; all annotations kept)
 annot_umaps <- lapply(annot_mats, function(m) run_umap_scores(m))
+
+saveRDS(list(annot_mats = annot_mats, annot_umaps = annot_umaps),
+        "crc_annot_embeddings_debug.rds")
 ```
 
 ## Four-panel comparison (location)
@@ -408,8 +417,8 @@ ve_annot <- bind_rows(lapply(assay_map, function(lbl) {
   ve <- getVarianceExplained(annot_sce, exprs_values = lbl,
                              variables = c("location", "patient"))
   data.frame(assay    = lbl,
-             location = median(ve["location", ], na.rm = TRUE),
-             patient  = median(ve["patient",  ], na.rm = TRUE))
+             location = median(ve[, "location"], na.rm = TRUE),
+             patient  = median(ve[, "patient"],  na.rm = TRUE))
 }))
 ve_annot_long <- pivot_longer(ve_annot, c("location", "patient"),
                               names_to = "variable", values_to = "median_ve")

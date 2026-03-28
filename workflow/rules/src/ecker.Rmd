@@ -46,6 +46,14 @@ knitr::opts_chunk$set(
 )
 ```
 
+```{r git_commit, echo = FALSE, results = "asis"}
+git_sha <- tryCatch(
+  system("git rev-parse --short HEAD", intern = TRUE, ignore.stderr = TRUE),
+  error = function(e) "unknown"
+)
+cat(sprintf("Git commit: `%s`\n\n", git_sha))
+```
+
 ```{r save_snmk_debug, include = FALSE}
 saveRDS(file = "snmk_ecker_features.rds", object = snakemake)
 ```
@@ -769,26 +777,6 @@ ggplot(locus_sub, aes(x = avg_meth, y = shannon, color = major_type)) +
 library(uwot)
 source("src/embedding_utils.R")
 
-## Thin wrapper: takes a wide data.frame (cells x features + meta cols), calls
-## run_embedding() on the transposed feature matrix (features x cells), and
-## returns a data.frame of meta cols + UMAP1 + UMAP2.
-run_umap_wide <- function(wide_df, meta_cols,
-                          n_hvf = 1000L,
-                          n_pcs = 50L,
-                          n_neighbors = 15L,
-                          seed = 42L) {
-  if (is.null(wide_df) || nrow(wide_df) < 4L) return(NULL)
-  meta <- wide_df %>% select(all_of(meta_cols))
-  mat <- wide_df %>% select(-all_of(meta_cols)) %>% as.matrix()
-  res <- run_embedding(t(mat),
-                       n_hvf = n_hvf,
-                       n_pcs = n_pcs,
-                       n_neighbors = n_neighbors,
-                       seed = seed)
-  if (is.null(res)) return(NULL)
-  bind_cols(meta, setNames(as.data.frame(res$umap), c("UMAP1", "UMAP2")))
-}
-
 plot_umap_class <- function(df, title, subtitle = NULL) {
   if (is.null(df) || nrow(df) == 0) {
     message("No UMAP result for: ", title)
@@ -905,20 +893,11 @@ cat("Cells (S):", nrow(cells_S_wide), "\n")
 ```{r cell_umap_S_regress}
 annot_cols_S <- setdiff(colnames(cells_S_wide), meta_cols_cell)
 annot_cols_meth <- setdiff(colnames(cells_meth_wide), meta_cols_cell)
-shared_annots <- intersect(annot_cols_S, annot_cols_meth)
 
-S_mat <- as.matrix(cells_S_wide[, shared_annots, drop = FALSE])
-meth_mat <- as.matrix(cells_meth_wide[, shared_annots, drop = FALSE])
-
-cell_mean_meth <- rowMeans(meth_mat, na.rm = TRUE)
-
-S_resid <- vapply(seq_len(ncol(S_mat)), function(j) {
-  y <- S_mat[, j]
-  fit <- try(lm(y ~ cell_mean_meth), silent = TRUE)
-  if (inherits(fit, "try-error")) return(y)
-  residuals(fit)
-}, numeric(nrow(S_mat)))
-colnames(S_resid) <- shared_annots
+S_resid <- regress_out_meth(
+  as.matrix(cells_S_wide[, annot_cols_S, drop = FALSE]),
+  as.matrix(cells_meth_wide[, annot_cols_meth, drop = FALSE])
+)
 
 cells_S_regressed <- bind_cols(
   cells_S_wide[, meta_cols_cell, drop = FALSE],

@@ -1,10 +1,12 @@
-## Shared HVF -> scale -> PCA -> UMAP pipeline used by ecker.Rmd and
+## Shared embedding utilities used by ecker.Rmd, argelaguet.Rmd, and
 ## crc_embeddings.Rmd. Source after ggtheme.R.
 ##
-## Input convention: mat is features x cells (rows = features, cols = cells).
+## Convention for run_embedding / run_pca_mat: mat is features x cells.
+## Convention for run_umap_wide / regress_out_meth: cells x features (wide df).
+## Requires dplyr, uwot, matrixStats, cluster.
 
-## Core pipeline: HVF selection, feature scaling, PCA, UMAP.
-## Returns list(umap = cells x 2 coords, pca = cells x n_pcs, hvf_idx = row indices)
+## HVF selection, feature scaling, PCA, UMAP.
+## Returns list(umap = cells x 2, pca = cells x n_pcs, hvf_idx = row indices)
 ## or NULL if the data is too small.
 run_embedding <- function(mat,
                           n_hvf = 1000L,
@@ -31,8 +33,6 @@ run_embedding <- function(mat,
     if (any(nas)) sub_mat[i, nas] <- row_means[i]
   }
 
-  ## scale each feature to mean 0, sd 1 across cells
-  ## scale() operates on columns so transpose, scale, transpose back
   scaled <- t(scale(t(sub_mat)))
   bad <- apply(scaled, 1, function(x) all(is.na(x) | is.nan(x)))
   scaled <- scaled[!bad, , drop = FALSE]
@@ -54,6 +54,60 @@ run_embedding <- function(mat,
                        n_epochs = 500, verbose = FALSE)
 
   list(umap = coords, pca = pca_scores, hvf_idx = hvf_idx)
+}
+
+## PCA on a features x cells matrix. Returns cells x PCs score matrix or NULL.
+run_pca_mat <- function(mat, n_pcs = 10L) {
+  mat[!is.finite(mat)] <- NA
+  row_means <- rowMeans(mat, na.rm = TRUE)
+  for (i in seq_len(nrow(mat))) {
+    nas <- is.na(mat[i, ])
+    if (any(nas)) mat[i, nas] <- row_means[i]
+  }
+  bad <- apply(mat, 1, function(x) sd(x, na.rm = TRUE) == 0 | all(is.na(x)))
+  mat <- mat[!bad, , drop = FALSE]
+  if (nrow(mat) < 2L || ncol(mat) < 2L) return(NULL)
+  n_use <- min(as.integer(n_pcs), nrow(mat) - 1L, ncol(mat) - 1L)
+  if (n_use < 1L) return(NULL)
+  prcomp(t(mat), center = TRUE, scale. = TRUE, rank. = n_use)$x
+}
+
+## UMAP on a compact cells x dims score matrix (no HVF/PCA needed).
+run_umap_scores <- function(scores, seed = 42L, n_neighbors = 15L, min_dist = 0.3) {
+  set.seed(seed)
+  uwot::umap(scores, n_neighbors = min(n_neighbors, nrow(scores) - 1L),
+             min_dist = min_dist, metric = "euclidean", verbose = FALSE)
+}
+
+## Wide data.frame wrapper: splits meta columns, transposes to features x cells,
+## runs run_embedding(), returns data.frame of meta + UMAP1 + UMAP2.
+run_umap_wide <- function(wide_df, meta_cols,
+                          n_hvf = 1000L, n_pcs = 50L,
+                          n_neighbors = 15L, seed = 42L) {
+  if (is.null(wide_df) || nrow(wide_df) < 4L) return(NULL)
+  meta <- wide_df %>% dplyr::select(dplyr::all_of(meta_cols))
+  mat <- wide_df %>% dplyr::select(-dplyr::all_of(meta_cols)) %>% as.matrix()
+  res <- run_embedding(t(mat), n_hvf = n_hvf, n_pcs = n_pcs,
+                       n_neighbors = n_neighbors, seed = seed)
+  if (is.null(res)) return(NULL)
+  dplyr::bind_cols(meta, setNames(as.data.frame(res$umap), c("UMAP1", "UMAP2")))
+}
+
+## Per-column regression of score_mat on cell mean methylation.
+## Both inputs are cells x features matrices. Returns residual matrix (cells x shared features).
+regress_out_meth <- function(score_mat, meth_mat) {
+  shared <- intersect(colnames(score_mat), colnames(meth_mat))
+  score_mat <- score_mat[, shared, drop = FALSE]
+  meth_mat <- meth_mat[, shared, drop = FALSE]
+  cell_mean_meth <- rowMeans(meth_mat, na.rm = TRUE)
+  resid_mat <- vapply(seq_len(ncol(score_mat)), function(j) {
+    y <- score_mat[, j]
+    fit <- try(lm(y ~ cell_mean_meth), silent = TRUE)
+    if (inherits(fit, "try-error")) return(y)
+    residuals(fit)
+  }, numeric(nrow(score_mat)))
+  colnames(resid_mat) <- shared
+  resid_mat
 }
 
 ## Mean silhouette width for cluster labels on a coordinate matrix.
