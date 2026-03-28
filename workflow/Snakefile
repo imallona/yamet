@@ -20,13 +20,11 @@ include: op.join("rules", "mm10.smk")
 include: op.join("rules", "crc.smk")
 include: op.join("rules", "ecker.smk")
 include: op.join("rules", "argelaguet.smk")
+include: op.join("rules", "simulations.smk")
 include: op.join("rules", "archive.smk")
 
 
 shell.prefix("set -o pipefail; export PATH=$HOME/.local/yamet/bin:$PATH;")
-
-# include: op.join("rules", "feature_simulations.smk")
-# include: op.join("rules", "scnmt_gastrulation.smk")
 
 
 ## the shuffling is to have as many permutations as len(seed) of each of the annotations, to build
@@ -60,8 +58,8 @@ rule all:
         op.join(CRC, "results", "crc_embeddings_10000.html"),
         # op.join(ECKER_BASE, "results", "ecker.html"),  ## Ecker mouse brain
         # op.join(ARGELAGUET_BASE, "results", "argelaguet.html"),  ## Argelaguet gastrulation
-
-        # op.join(CRC_OUTPUT, "patient_crc01_scna.bed.gz")
+        # op.join(SIM_RESULTS, "figure2.html"),  ## coverage simulations
+        # op.join(SIM_RESULTS, "08_combined_figure_adj.html"),  ## within/between cell simulations
 
 rule install_yamet:
     """

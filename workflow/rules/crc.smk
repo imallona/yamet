@@ -344,8 +344,6 @@ def list_annotated_windows():
             res.append(f"windows_{{win_size}}_nt_{subcat}_{cat}_annotation.frac")
     return [op.join("hg19", item) for item in res]
 
-print(list_annotated_windows())
-
 rule combine_annotated_windows:
     conda:
         op.join("..", "envs", "yamet.yml")

@@ -1,0 +1,412 @@
+---
+title: "Within Cell Variability"
+author: "Atreya Choudhury"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  bookdown::html_document2:
+    code_folding: hide
+    number_sections: no
+    fig_crop: yes
+---
+
+## Strategy
+
+The goal is to generate features with various heterogeneity levels for the purpose of within cell differentiation.
+That means features should be differentiable, not by the heterogeneity between different samples, but by heterogeneity between individual lines.
+This means we want features to be differentiable in terms of their sample entropy but not their 2-mer shannon entropy.
+
+Consider the sequence $0011\; 0$.
+Notice that every 2-mer is seen exactly once.
+This can be generalised to longer sequences, say $0011\; 0011\; 0011\; 0$.
+Here, all the 2-mers have the same frequency.
+Similary, the sequence $0110\; 0$ has the same property.
+We will refer to these short sequences as snips.
+Putting these two together, observe the two sequences below.
+
+$$0011\; 0011\; 0110\; 0110\; 0$$
+$$0011\; 0110\; 0011\; 0110\; 0$$
+
+They both have the same distribution of 2-mers but differ in their sample entropy (the second one having higher sample entropy).
+This provides the basis of our simulation framework.
+For each feature, we start with a sequence where the first half is made up of $0011$s and the second is made up of $0110$s.
+For each feature, we pick a certain fraction of snips (equally from the two halves) in proportion to a true within cell variability index (wcVI).
+These snip positions differ between different features (even ones with the same wcVI) but are the same for different samples within the same feature.
+The snips at the selected positions are then shuffled in the different samples.
+The idea is that features where a higher fraction of snips were shuffled exhibit higher sample entropy compared to those where a lower fraction of snips were shuffled.
+We also add some stochastic methylation sampling from a beta-binomial distribution to control the level to which a feature in a particular sample is over/under-methylated.
+
+We start by creating a template for a cell.
+We have a fixed number of features, the length of each feature is taken to be the same and the number of simulated CpG sites is the same as well.
+Every feature is given a **within cell Variability Index (wcVI)** between 1 and 10 and stored in the `wc_vi` column.
+As described above we pick a fraction of snips in proportion to the feature's `wc_vi`.
+This is stored in the `snip_pos` column.
+For every feature, we sample from a bernoulli distribution indicating whether the feature will be over/under-methylated compared to the baseline.
+This is stored in the `higher` column.
+The extent to which each sample in each feature is over/under-methylated is sampled from a beta binomial model which is biased towards lower deviations.
+This difference is stored in the `delta` column.
+This template file can now be used for generating new samples and also for running `yamet` on the simulated data.
+
+With the template, we now generate samples as described above.
+For samples within the same feature, we shuffle the snips at the positions described in `snip_pos`.
+At this stage, observe that the all the features in all the samples are approximately $50\%$ methylated and that this value is the same for all the samples.
+We would like to introduce some randomness to the average methylation level which is done using the data generated in the `higher` and `delta` column.
+For every sample in every feature, we sample $35\%$ of the snips.
+The value in the `higher` column for that feature tells us whether this sample should be over-methylated or under-methylated.
+From this sampled set of snips, we further subsample for two sets of snips such that the difference in their size is in proportion to the value in the `delta` column at that sample-feature intersection.
+Then, one set of these snips is changed to $1110$ while the other is changed to $0001$.
+This not only introduces the difference in methylation but also adds more regularity at higher/lower methylation, simulating the quadratic relationship between sample entropy and average methylation.
+
+
+```{r, setup}
+suppressPackageStartupMessages({
+  library(ggplot2)
+  library(ggpubr)
+  library(svglite)
+})
+
+source("rules/src/mi_table.R")
+source("rules/src/make_grid_plots.R")
+source("rules/src/ggtheme.R")
+
+knitr::opts_chunk$set(
+    echo = FALSE,
+    message = FALSE,
+    warning = FALSE,
+    fig.path = "simulations/output/05_plots/",
+    dev = c("png", "svg"),
+    dpi=500
+)
+
+data_dir <- dirname(snakemake@input[["disp_scmet"]])
+S_GRID <- snakemake@params[["S_GRID"]]
+N_GRID <- snakemake@params[["N_GRID"]]
+DISP <- snakemake@params[["DISP"]]
+
+## Large axis labels applied to every plot
+big_labels <- theme(
+  axis.title = element_text(size = 22, face = "bold", color = "black"),
+  axis.text  = element_text(size = 18, color = "black")
+)
+
+## Within-cell colour gradient (navy)
+wc_scale <- scale_color_gradient(low = "grey90", high = "#000080")
+```
+
+
+```{r}
+dir.create('simulations/rds', showWarnings = FALSE)
+```
+
+## Variation
+For benchmarking against the number of samples, we used a grid with `r length(S_GRID$S)` sample sizes (S = `r paste(S_GRID$S, collapse = ", ")`), `r S_GRID$N` features where each feature has `r S_GRID$f` CpGs (all covered).
+```{r}
+s_plots <- make_grid_plots(S_GRID, "S", "wc_vi", data_dir)
+```
+
+For benchmarking against the number of features, we used a grid with `r N_GRID$S` samples, `r length(N_GRID$N)` feature sizes (N = `r paste(N_GRID$N, collapse = ", ")`) where each feature has `r N_GRID$f` CpGs (all covered).
+```{r}
+n_plots <- make_grid_plots(N_GRID, "N", "wc_vi", data_dir)
+```
+
+## One Example
+We show one example with `r DISP$S` samples, `r DISP$N` features where each feature has `r DISP$f` CpGs (all covered).
+```{r}
+S <- DISP$S
+N <- DISP$N
+f <- DISP$f
+
+intervals <- read.table(
+  paste0(data_dir, paste("/intervals", S, N, f, "tsv", sep = ".")),
+  header = T
+)
+intervals <- intervals["wc_vi"]
+sampens <- read.table(
+  paste0(data_dir, paste("/yamet", S, N, f, "det.out", sep = ".")),
+  header = T
+)
+jnt <- cbind(sampens, intervals)
+rownames(jnt) <- paste(jnt$start, jnt$end, sep = ":")
+output_cols <- grep("^output", colnames(jnt), value = TRUE)
+jnt$sampen_avg <- rowMeans(jnt[, output_cols])
+jnt.long <- do.call(rbind, lapply(output_cols, function(col) {
+  data.frame(
+    start = jnt$start,
+    end = jnt$end,
+    sample = col,
+    sampen = jnt[[col]],
+    shannon = jnt$shannon,
+    avg_meth = jnt$avg_meth,
+    wc_vi = jnt$wc_vi
+  )
+}))
+
+meth <- read.table(
+  paste0(data_dir, paste("/yamet", S, N, f, "meth.out", sep = ".")),
+  header = TRUE
+)
+meth.long <- do.call(rbind, lapply(output_cols, function(col) {
+  data.frame(
+    meth = meth[[col]]
+  )
+}))
+
+all.long <- cbind(jnt.long, meth.long)
+
+samp_meth <- ggplot(all.long, aes(x = meth, y = sampen, color = wc_vi)) +
+  geom_point(alpha = 0.3) +
+  theme_ng() +
+  wc_scale +
+  big_labels +
+  labs(
+    x = "avg. methylation", y = "sample entropy", color = "wcVI"
+  )
+
+samp_vi <- ggplot(all.long, aes(x = as.factor(wc_vi), y = sampen)) +
+  geom_point(alpha = 0.7, position = position_jitter(width = 0.2)) +
+  geom_violin(alpha = 0.3, position = position_dodge(0.8)) +
+  theme_ng() +
+  big_labels +
+  labs(
+    x = "wcVI", y = "sample entropy"
+  )
+
+shannon_meth <- ggplot(jnt, aes(x = avg_meth, y = shannon, color = wc_vi)) +
+  geom_point(alpha = 0.7) +
+  theme_ng() +
+  wc_scale +
+  big_labels +
+  labs(
+    x = "avg. methylation", y = "Shannon entropy", color = "wcVI"
+  )
+
+shannon_vi <- ggplot(jnt, aes(x = as.factor(wc_vi), y = shannon, color = avg_meth)) +
+  geom_point(alpha = 0.7) +
+  theme_ng() +
+  big_labels +
+  labs(
+    x = "wcVI", y = "Shannon entropy", color = "meth"
+  )
+
+samp_shan <- ggplot(all.long, aes(x = shannon, y = sampen, color = wc_vi)) +
+  geom_point(alpha = 0.7) +
+  theme_ng() +
+  wc_scale +
+  big_labels +
+  labs(
+    x = "Shannon entropy", y = "sample entropy", color = "wcVI"
+  )
+```
+
+```{r}
+scmet_fit <- readRDS(paste0(data_dir, paste("/scmet", S, N, f, "rds", sep = ".")))
+tmp <- colMeans(scmet_fit$posterior$mu)
+jnt$scmet_mu <- tmp[match(rownames(jnt), names(tmp))]
+tmp <- colMeans(scmet_fit$posterior$gamma)
+jnt$scmet_gamma <- tmp[match(rownames(jnt), names(tmp))]
+tmp <- colMeans(scmet_fit$posterior$epsilon)
+jnt$scmet_epsilon <- tmp[match(rownames(jnt), names(tmp))]
+```
+
+```{r}
+scmet_mu_vi <- ggplot(jnt, aes(x = as.factor(wc_vi), y = scmet_mu, color = avg_meth)) +
+  geom_point(alpha = 0.7) +
+  theme_ng() +
+  big_labels +
+  labs(
+    x = "wcVI", y = expression("scMET " ~ mu), color = "meth"
+  )
+
+scmet_mu_meth <- ggplot(jnt, aes(x = avg_meth, y = scmet_mu, color = wc_vi)) +
+  geom_point(alpha = 0.7) +
+  theme_ng() +
+  wc_scale +
+  big_labels +
+  labs(
+    x = "avg. methylation", y = expression("scMET " ~mu), color = "wcVI"
+  )
+
+scmet_gamma_meth <- ggplot(jnt, aes(x = avg_meth, y = scmet_gamma, color = wc_vi)) +
+  geom_point(alpha = 0.7) +
+  theme_ng() +
+  wc_scale +
+  big_labels +
+  labs(
+    x = "avg. methylation", y = expression("scMET " ~gamma), color = "wcVI"
+  )
+
+scmet_epsilon_meth <- ggplot(jnt, aes(x = avg_meth, y = scmet_epsilon, color = wc_vi)) +
+  geom_point(alpha = 0.7) +
+  theme_ng() +
+  wc_scale +
+  big_labels +
+  labs(
+    x = "avg. methylation", y = expression("scMET " ~epsilon), color = "wcVI"
+  )
+
+sampen_avg_vi <- ggplot(jnt, aes(x = as.factor(wc_vi), y = sampen_avg, color = avg_meth)) +
+  geom_point(alpha = 0.7) +
+  theme_ng() +
+  big_labels +
+  labs(
+    x = "wcVI", y = "sampen (average)", color = "meth"
+  )
+
+sampen_avg_meth <- ggplot(jnt, aes(x = avg_meth, y = sampen_avg, color = wc_vi)) +
+  geom_point(alpha = 0.7) +
+  theme_ng() +
+  wc_scale +
+  big_labels +
+  labs(
+    x = "avg. methylation", y = "sampen (average)", color = "wcVI"
+  )
+```
+
+```{r}
+mi_table <- mi_table_gen(jnt, "wc_vi", table = T)
+mi_fd <- mi_table_gen(jnt, "wc_vi", table = F)
+saveRDS(mi_fd,     'simulations/rds/perf_within.rds')
+saveRDS(all.long,  'simulations/rds/all.long_within.rds')
+saveRDS(jnt,       'simulations/rds/jnt_within.rds')
+saveRDS(s_plots,   'simulations/rds/s_plots_within.rds')
+saveRDS(n_plots,   'simulations/rds/n_plots_within.rds')
+```
+
+```{r adj-within}
+## ── Adjusted entropy (adjS = norm. sample entropy, adjH = norm. Shannon) ──────
+
+## Load norm.det.out for the display example
+norm_det <- read.table(
+  paste0(data_dir, paste("/yamet", S, N, f, "norm.det.out", sep = ".")),
+  header = T
+)
+rownames(norm_det) <- paste(norm_det$start, norm_det$end, sep = ":")
+norm_output_cols <- grep("^output", colnames(norm_det), value = TRUE)
+
+## Per-cell per-feature long format with adj columns
+jnt.adj.long <- do.call(rbind, lapply(output_cols, function(col) {
+  data.frame(
+    start        = jnt$start,
+    end          = jnt$end,
+    sample       = col,
+    adj_sampen   = norm_det[[col]],
+    norm_shannon = norm_det$shannon_norm,
+    avg_meth     = norm_det$avg_meth,
+    wc_vi        = jnt$wc_vi
+  )
+}))
+## Attach per-cell methylation (same as unadjusted all.long)
+all.long_adj <- cbind(jnt.adj.long, meth.long)
+
+## Add adj summary columns to jnt, then save jnt_within_adj.rds
+jnt$adj_sampen_avg <- rowMeans(norm_det[rownames(jnt), norm_output_cols])
+jnt$shannon_norm   <- norm_det[rownames(jnt), "shannon_norm"]
+
+## Adj grid performance plots
+s_plots_adj <- make_grid_plots(S_GRID, "S", "wc_vi", data_dir, adj = TRUE)
+n_plots_adj <- make_grid_plots(N_GRID, "N", "wc_vi", data_dir, adj = TRUE)
+mi_fd_adj   <- mi_table_gen(jnt, "wc_vi", table = FALSE, adj = TRUE)
+
+saveRDS(mi_fd_adj,    'simulations/rds/perf_within_adj.rds')
+saveRDS(all.long_adj, 'simulations/rds/all.long_within_adj.rds')
+saveRDS(jnt,          'simulations/rds/jnt_within_adj.rds')
+saveRDS(s_plots_adj,  'simulations/rds/s_plots_within_adj.rds')
+saveRDS(n_plots_adj,  'simulations/rds/n_plots_within_adj.rds')
+```
+
+## Plots
+
+```{r samp_meth}
+print(samp_meth)
+```
+
+```{r samp_vi}
+print(samp_vi)
+```
+
+```{r samp_shan}
+print(samp_shan)
+```
+
+```{r shannon_meth}
+print(shannon_meth)
+```
+
+```{r shannon_vi}
+print(shannon_vi)
+```
+
+```{r scmet_mu_vi}
+print(scmet_mu_vi)
+```
+
+```{r scmet_mu_meth}
+print(scmet_mu_meth)
+```
+
+```{r scmet_gamma_meth}
+print(scmet_gamma_meth)
+```
+
+```{r scmet_epsilon_meth}
+print(scmet_epsilon_meth)
+```
+
+```{r sampen_avg_vi}
+print(sampen_avg_vi)
+```
+
+```{r sampen_avg_meth}
+print(sampen_avg_meth)
+```
+
+## Performance
+
+```{r nmi}
+metric_labels <- c(
+  "Sample Entropy" = "sample entropy",
+  "Shannon Entropy" = "Shannon entropy",
+  "Average Methylation" = "avg. methylation",
+  "scMET (mu)" = expression("scMET" ~ mu),
+  "scMET (gamma)" = expression("scMET" ~ gamma),
+  "scMET (epsilon)" = expression("scMET" ~ epsilon)
+)
+
+nmi <- ggplot(mi_fd, aes(x = reorder(Metric, -NMI), y = NMI)) +
+    geom_point(size = 3) +
+    geom_text(aes(label = round(NMI, 3)), vjust = -0.5, size = 5) +
+    theme_ng() +
+    big_labels +
+    scale_x_discrete(labels = metric_labels) +
+    labs(
+        x = NULL,
+        y = "Normalized Mutual Information (to wcVI)"
+    ) +
+    scale_y_continuous(expand = expansion(mult = c(0, 0.1))) +
+    theme(axis.text.x = element_text(angle = 30, hjust = 1, size = 16))
+
+print(nmi)
+```
+
+```{r s_nmi}
+print(s_plots$nmi + big_labels + xlab("# cells") + ylab("performance (metric NMI)"))
+```
+
+```{r s_seconds}
+print(s_plots$seconds + big_labels + xlab("# cells") + ylab("CPU time (s)"))
+```
+
+```{r s_mem}
+print(s_plots$mem + big_labels + xlab("# cells") + ylab("memory usage (MB)"))
+```
+
+```{r n_nmi}
+print(n_plots$nmi + big_labels + xlab("# features") + ylab("performance (metric NMI)"))
+```
+
+```{r n_seconds}
+print(n_plots$seconds + big_labels + xlab("# features") + ylab("CPU time (s)"))
+```
+
+```{r n_mem}
+print(n_plots$mem + big_labels + xlab("# features") + ylab("memory usage (MB)"))
+```
