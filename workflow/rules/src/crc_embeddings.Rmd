@@ -63,7 +63,7 @@ cat(sprintf("Git commit: `%s`\n\n", git_sha))
 ```
 
 ```{r save_snmk_debug, include = FALSE}
-saveRDS(file = "snmk_crc_embeddings.rds", object = snakemake)
+saveRDS(file = "snmk_crc_embeddings.rds", object = snakemake, compress = "xz")
 ```
 
 ```{r logging, include = FALSE}
@@ -203,8 +203,12 @@ names(win_embeds) <- assay_map
 failed <- names(which(sapply(win_embeds, is.null)))
 if (length(failed) > 0) warning("run_embedding returned NULL for: ", paste(failed, collapse = ", "))
 
-saveRDS(list(sce = sce, win_embeds = win_embeds, assay_map = assay_map),
-        "crc_embeddings_debug.rds")
+saveRDS(list(col_data = as.data.frame(colData(sce)),
+             row_data = as.data.frame(rowData(sce)),
+             assay_names = assayNames(sce),
+             sce_dim = dim(sce),
+             win_embeds = win_embeds, assay_map = assay_map),
+        "crc_embeddings_debug.rds", compress = "xz")
 ```
 
 ## By location {.tabset .tabset-pills}
@@ -276,8 +280,9 @@ ggplot(df_win_pca, aes(x = PC1, y = PC2, color = location)) +
 ## Variance explained
 
 ```{r win_varexp, fig.width = ng_fig_size(4, 1)$w, fig.height = ng_fig_size(2, 1)$h}
-saveRDS(list(sce = sce, win_embeds = win_embeds, assay_map = assay_map),
-        "crc_win_varexp_debug.rds")
+saveRDS(list(win_embeds = win_embeds, assay_map = assay_map,
+             sce_dim = dim(sce)),
+        "crc_win_varexp_debug.rds", compress = "xz")
 
 ve_win <- bind_rows(lapply(names(assay_map), function(akey) {
   lbl <- assay_map[[akey]]
@@ -360,7 +365,7 @@ cat("Cell x annotation matrix:", nrow(annot_mats[[1]]), "x", ncol(annot_mats[[1]
 annot_umaps <- lapply(annot_mats, function(m) run_umap_scores(m))
 
 saveRDS(list(annot_mats = annot_mats, annot_umaps = annot_umaps),
-        "crc_annot_embeddings_debug.rds")
+        "crc_annot_embeddings_debug.rds", compress = "xz")
 ```
 
 ## Four-panel comparison (location)

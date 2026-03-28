@@ -37,12 +37,9 @@ export -f process_cell
 
 mkdir -p "${snakemake_params[harmonized]}"
 
-id_met_col=$(
-    zcat "${snakemake_input[meta]}" |
-        head -1 |
-        tr '\t' '\n' |
-        awk '/^id_met$/ { print NR }'
-)
+header=$(zcat "${snakemake_input[meta]}" | head -1) || true
+id_met_col=$(echo "$header" | tr '\t' '\n' | awk '/^id_met$/ { print NR }')
+[[ -z "$id_met_col" ]] && { echo "Error: id_met column not found in metadata"; exit 1; }
 
 zcat "${snakemake_input[meta]}" |
     awk -F'\t' -v col="$id_met_col" 'NR > 1 && $col != "NA" { print $col }' |

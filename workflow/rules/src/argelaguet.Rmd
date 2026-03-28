@@ -57,7 +57,7 @@ cat(sprintf("Git commit: `%s`\n\n", git_sha))
 ```
 
 ```{r save_snmk_debug, include = FALSE}
-saveRDS(file = "snmk_argelaguet_features.rds", object = snakemake)
+saveRDS(file = "snmk_argelaguet_features.rds", object = snakemake, compress = "xz")
 ```
 
 ```{r logging, include = FALSE}

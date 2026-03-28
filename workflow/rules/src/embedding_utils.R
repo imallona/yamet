@@ -75,7 +75,8 @@ run_pca_mat <- function(mat, n_pcs = 10L) {
 
 ## UMAP on a compact cells x dims score matrix (no HVF/PCA needed).
 run_umap_scores <- function(scores, seed = 42L, n_neighbors = 15L, min_dist = 0.3) {
-  if (is.null(scores) || nrow(scores) < 4L) return(NULL)
+  if (is.null(scores) || nrow(scores) < 4L || ncol(scores) < 1L) return(NULL)
+  if (all(!is.finite(scores))) return(NULL)
   set.seed(seed)
   uwot::umap(scores, n_neighbors = min(n_neighbors, nrow(scores) - 1L),
              min_dist = min_dist, metric = "euclidean", verbose = FALSE)
