@@ -474,7 +474,7 @@ rule lazy_move_rds_objects:
     input:
         op.join(CRC, "results", "crc_windows_{win_size}_nt.html")
     output:
-        sce = op.join(CRC, 'results', 'sce_windows_{win_size}_colon.rds'),
+        windows_sce = op.join(CRC, 'results', 'sce_windows_{win_size}_colon.rds'),
         de =  op.join(CRC, 'results', 'de_list_{win_size}.rds')
     threads: 1
     shell:
@@ -488,7 +488,7 @@ rule render_crc_sce_report:
     conda:
         op.join("..", "envs", "r.yml")
     input:
-        sce = op.join(CRC, 'results', 'sce_windows_{win_size}_colon.rds'),
+        windows_sce = op.join(CRC, 'results', 'sce_windows_{win_size}_colon.rds'),
         de =  op.join(CRC, 'results', 'de_list_{win_size}.rds'),
         windows_annotation = op.join(HG19_BASE, "windows_{win_size}_nt_annotation.gz")
     threads: workflow.cores

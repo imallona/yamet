@@ -50,7 +50,7 @@ This is supposed to be knitted from 'workflow'
 if (FALSE) {
     setwd('../..')
     de <- readRDS('/home/imallona/src/yamet/workflow/data/crc/results/de_list_10000.rds')
-    sce <- readRDS('/home/imallona/src/yamet/workflow/data/crc/results/sce_windows_10000_colon.rds')
+    windows_sce <- readRDS('/home/imallona/src/yamet/workflow/data/crc/results/sce_windows_10000_colon.rds')
 }
 
 source("src/ggtheme.R")
@@ -89,7 +89,7 @@ sink(log, type = "message")
 
 
 ```{r}
-sce <- readRDS(snakemake@input[['sce']])
+windows_sce <- readRDS(snakemake@input[['windows_sce']])
 de <- readRDS(snakemake@input[['de']])
 ```
 
@@ -182,12 +182,12 @@ For plotting entropies: I cannot use the residuals of the fits above. But  I can
 ```{r}
 formula <- "sampen ~ meth + I(meth^2)"
 
-str(assay(sce, 'sampen'))
+str(assay(windows_sce, 'sampen'))
 
 rowwise_lm_residuals <- function(i) {
     df <- data.frame(
-        sampen  = assay(sce, 'sampen')[i, ],
-        meth    = assay(sce, 'meth')[i, ])
+        sampen  = assay(windows_sce, 'sampen')[i, ],
+        meth    = assay(windows_sce, 'meth')[i, ])
     
     fit <- try(lm(formula, data = df), silent = TRUE)
     if (inherits(fit, "try-error")) return(rep(NA, nrow(df)))
@@ -195,17 +195,17 @@ rowwise_lm_residuals <- function(i) {
     return(res)
 }
 
-res_mat <- do.call(rbind, bplapply(seq_len(nrow(sce)), rowwise_lm_residuals,
+res_mat <- do.call(rbind, bplapply(seq_len(nrow(windows_sce)), rowwise_lm_residuals,
                                    BPPARAM = MulticoreParam(workers = snakemake@threads)))
 
-rownames(res_mat) <- rownames(sce)
-colnames(res_mat) <- colnames(sce)
+rownames(res_mat) <- rownames(windows_sce)
+colnames(res_mat) <- colnames(windows_sce)
 
 ## these are the meth-independent sampen values for plotting
-assay(sce, "sampen_corrected") <- res_mat
+assay(windows_sce, "sampen_corrected") <- res_mat
 
-colData(sce)$location <- factor(
-  colData(sce)$location,
+colData(windows_sce)$location <- factor(
+  colData(windows_sce)$location,
   levels = c("NC", "PT", "LN", "ML", "MP", "MO"))
 ```
 
@@ -214,17 +214,17 @@ colData(sce)$location <- factor(
 
 ```{r}
 
-df <- reshape2::melt(as.matrix(assay(sce, "sampen_corrected")[,1:200])) # subset for plotting
+df <- reshape2::melt(as.matrix(assay(windows_sce, "sampen_corrected")[,1:200])) # subset for plotting
 ggplot(df, aes(value)) + geom_density(fill="steelblue", alpha=0.5) +
   labs(title="Distribution of corrected sampen values (downsampled)") +
     theme_ng()
 
 
 
-## sce <- runPCA(sce, exprs_values="sampen_corrected")
-## plotReducedDim(sce, "PCA", colour_by="location")
+## windows_sce <- runPCA(windows_sce, exprs_values="sampen_corrected")
+## plotReducedDim(windows_sce, "PCA", colour_by="location")
 
-## ve <- getVarianceExplained(sce,
+## ve <- getVarianceExplained(windows_sce,
 ##                            exprs_values = "sampen_corrected",
 ##                            variables = c('location', 'patient'))
 
@@ -239,9 +239,9 @@ ggplot(df, aes(value)) + geom_density(fill="steelblue", alpha=0.5) +
 ```{r, fig.width = 8, fig.height = 4}
 
 df_violin <- data.frame(
-  value = colMeans(assay(sce, "sampen_corrected")),
-  location = colData(sce)$location,
-  patient  = colData(sce)$patient
+  value = colMeans(assay(windows_sce, "sampen_corrected")),
+  location = colData(windows_sce)$location,
+  patient  = colData(windows_sce)$patient
 )
 
 ggplot(df_violin, aes(x = location, y = value)) +
@@ -254,10 +254,10 @@ ggplot(df_violin, aes(x = location, y = value)) +
 
 ```{r, fig.width = 8, fig.height = 4}
 df_cells <- data.frame(
-  mean_sampen = colMeans(assay(sce, "sampen")),
-  mean_sampen_corrected = colMeans(assay(sce, "sampen_corrected")),
-  location = colData(sce)$location,
-  patient = colData(sce)$patient
+  mean_sampen = colMeans(assay(windows_sce, "sampen")),
+  mean_sampen_corrected = colMeans(assay(windows_sce, "sampen_corrected")),
+  location = colData(windows_sce)$location,
+  patient = colData(windows_sce)$patient
 )
 
 ggplot(df_cells, aes(x = mean_sampen, y = mean_sampen_corrected, color = location)) +
@@ -273,8 +273,8 @@ Rowdata aspects - they're not correct, full of NAs, @todo fix upstream, now fixi
 
 
 ```{r}
-## str(rowData(sce))
-table(rowData(sce)$`11_Promoter_hmm`, useNA="ifany")
+## str(rowData(windows_sce))
+table(rowData(windows_sce)$`11_Promoter_hmm`, useNA="ifany")
 
 # annot_fn <- 'hg19/windows_10000_nt_annotation.gz'
 annot_fn <- snakemake@input[['windows_annotation']]
@@ -288,17 +288,16 @@ rownames(annot) <- annot$region
 
 annot <- annot[,setdiff(colnames(annot), c('chr', 'start', 'end', 'region'))]
 
-rowData(sce) <- annot[rownames(sce),]
-saveRDS(sce, snakemake@params[['corrected_sce']])
+rowData(windows_sce) <- annot[rownames(windows_sce),]
 
-summary(rowData(sce)$`X11_Promoter_hmm`, useNA="ifany")
+summary(rowData(windows_sce)$`X11_Promoter_hmm`, useNA="ifany")
 ```
 
-Fixed, binarize the annotations
+Binarize the annotations: any non-zero fractional overlap becomes 1.
 
 
 ```{r}
-rd <- as.data.frame(rowData(sce))
+rd <- as.data.frame(rowData(windows_sce))
 
 rd_bin <- as.data.frame(lapply(rd, function(x) {
   if (is.numeric(x)) {
@@ -310,11 +309,13 @@ rd_bin <- as.data.frame(lapply(rd, function(x) {
 
 colnames(rd_bin) <- paste0(colnames(rd_bin), '_bin')
 
-rownames(rd_bin) <- rownames(rowData(sce))
-rowData(sce) <- cbind(rowData(sce), rd_bin)
+rownames(rd_bin) <- rownames(rowData(windows_sce))
+rowData(windows_sce) <- cbind(rowData(windows_sce), rd_bin)
 
-summary(rowData(sce)$`X11_Promoter_hmm`, useNA="ifany")
-table(rowData(sce)$`X11_Promoter_hmm_bin`, useNA="ifany")
+saveRDS(windows_sce, snakemake@params[['corrected_sce']])
+
+summary(rowData(windows_sce)$`X11_Promoter_hmm`, useNA="ifany")
+table(rowData(windows_sce)$`X11_Promoter_hmm_bin`, useNA="ifany")
 
 ```
 
@@ -326,8 +327,8 @@ for (contrast in names(de)) {
     up <- de[[contrast]]$coefs_df$region[de[[contrast]]$coefs_df$moderated_t >= 0 & de[[contrast]]$coefs_df$adj_p < 0.05]
     down <- de[[contrast]]$coefs_df$region[de[[contrast]]$coefs_df$moderated_t < 0 & de[[contrast]]$coefs_df$adj_p < 0.05]
 
-    rowData(sce)[,paste0(contrast, '_up_bin')] <- rownames(sce) %in% up
-    rowData(sce)[,paste0(contrast, '_down_bin')] <- rownames(sce) %in% down
+    rowData(windows_sce)[,paste0(contrast, '_up_bin')] <- rownames(windows_sce) %in% up
+    rowData(windows_sce)[,paste0(contrast, '_down_bin')] <- rownames(windows_sce) %in% down
 }
 ```
 
@@ -336,7 +337,7 @@ Let's do it for patient CRC01 only, so the SCNA makes sense
 
 ```{r}
 
-crc01 <- sce[,sce$patient == 'CRC01']
+crc01 <- windows_sce[,windows_sce$patient == 'CRC01']
 assay_mat <- assay(crc01, "sampen_corrected")
 
 ## set.seed(20)
@@ -357,7 +358,7 @@ bin_features <- c('pmds_pmd_bin',
 # rowdata_sub <- rowData(crc01)[rows_keep, bin_features, drop = FALSE]
 rowdata_sub <- rowData(crc01)[, bin_features, drop = FALSE]
 
-sce
+windows_sce
 str(rowdata_sub)
 ## so, per cell, average corrected sampen by whether the feature is flagged as present or not (gene/not gene etc)
 
@@ -631,12 +632,12 @@ Plus plot the association between corrected entropy, entropy, avg meth, and shan
 
 ```{r}
 
-expr <- assay(sce, "sampen_corrected")
+expr <- assay(windows_sce, "sampen_corrected")
 
-rd <- as.data.frame(rowData(sce))[,grep('_bin$', colnames(rowData(sce)))]
+rd <- as.data.frame(rowData(windows_sce))[,grep('_bin$', colnames(rowData(windows_sce)))]
 str(rd)
 
-rd <- as.data.frame(rowData(sce))[, grep("_bin$", colnames(rowData(sce)))]
+rd <- as.data.frame(rowData(windows_sce))[, grep("_bin$", colnames(rowData(windows_sce)))]
 rd_mat <- as.matrix(rd)
 
 # preallocate result matrices (median norm sampen per genomic category)
@@ -654,14 +655,14 @@ rownames(cell_ann_median) <- colnames(expr)
 colnames(cell_ann_median) <- paste0(colnames(rd_mat), "_median")
 
 # add to colData
-colData(sce) <- cbind(
-    colData(sce),
+colData(windows_sce) <- cbind(
+    colData(windows_sce),
     as.data.frame(cell_ann_median)
 )
 ```
 
 ```{r, fig.width = 9, fig.height = 9}
-df <- as.data.frame(colData(sce))
+df <- as.data.frame(colData(windows_sce))
 
 ann <- grep("_bin_median$", colnames(df), value = TRUE)
 
@@ -693,7 +694,7 @@ This below is not working because it's trying to find association with genomic l
 Let's do this on crc01 only.
 
 ```{r, fig.width = 8, fig.height = 8}
-crc01 <- sce[,sce$patient == 'CRC01']
+crc01 <- windows_sce[,windows_sce$patient == 'CRC01']
 expr <- assay(crc01, "sampen_corrected")
 cd   <- as.data.frame(colData(crc01))
 rd   <- as.data.frame(rowData(crc01))

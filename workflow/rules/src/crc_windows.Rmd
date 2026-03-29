@@ -287,7 +287,7 @@ col_data <- data.frame(df_all_filtered[,c('cell', 'patient', 'location', 'mean_s
 row_data <- annot[colnames(features), , drop = FALSE]
 rownames(row_data) <- colnames(features)
 
-sce <- SingleCellExperiment(
+windows_sce <- SingleCellExperiment(
   assays = assay_list,
   colData = col_data,
   rowData = row_data
@@ -338,17 +338,17 @@ meth_mat <- do.call(cbind, meth_mats)
 rm(meth_mats)
 
 # align with the other assay
-meth_mat <- meth_mat[rownames(sce), colnames(assay(sce, "sampen"))]
+meth_mat <- meth_mat[rownames(windows_sce), colnames(assay(windows_sce, "sampen"))]
 
 stopifnot(
-  identical(rownames(assay(sce, "sampen")), rownames(meth_mat)),
-  identical(colnames(assay(sce, "sampen")), colnames(meth_mat)))
+  identical(rownames(assay(windows_sce, "sampen")), rownames(meth_mat)),
+  identical(colnames(assay(windows_sce, "sampen")), colnames(meth_mat)))
 
-assay(sce, "meth") <- meth_mat
+assay(windows_sce, "meth") <- meth_mat
 
 rm(meth_mat)
 
-saveRDS(sce, file = 'sce_windows_colon.rds')
+saveRDS(windows_sce, file = 'sce_windows_colon.rds')
 ```
 
 # QC  {.tabset .tabset-pills}
