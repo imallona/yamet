@@ -740,6 +740,14 @@ make_heatmap <- function(df, value_col, title,
   mat <- wide %>% select(-lineage, -lineage_class) %>% as.matrix()
   rownames(mat) <- wide$lineage
 
+  breaks <- c(min(mat, na.rm = TRUE),
+              mean(range(mat, na.rm = TRUE)),
+              max(mat, na.rm = TRUE))
+  if (any(!is.finite(breaks)) || breaks[1] == breaks[3]) {
+    message("Skipping heatmap: degenerate data (all-NA or constant matrix)")
+    return(invisible(NULL))
+  }
+
   lc_levels <- sort(unique(wide$lineage_class))
   lc_pal    <- setNames(viridisLite::turbo(length(lc_levels),
                                             begin = 0.05, end = 0.95),
@@ -753,12 +761,7 @@ make_heatmap <- function(df, value_col, title,
     )
   )
 
-  col_fun <- colorRamp2(
-    c(min(mat, na.rm = TRUE),
-      mean(range(mat, na.rm = TRUE)),
-      max(mat, na.rm = TRUE)),
-    palette
-  )
+  col_fun <- colorRamp2(breaks, palette)
 
   Heatmap(mat,
           name              = title,
