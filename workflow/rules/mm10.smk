@@ -20,6 +20,8 @@ rule mm10_per_chr_ref:
 
 
 rule mm10_aggregate_ref:
+    wildcard_constraints:
+        meth_pat="[^.]+",
     input:
         lambda wildcards: expand(
             op.join(MM10_BASE, "{chr}.{{meth_pat}}.ref"),
