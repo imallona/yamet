@@ -18,7 +18,7 @@ ARGELAGUET_MAX_CELLS     = 20
 ARGELAGUET_DOWNSAMPLE_SEED = 42
 
 ## Set True to restrict to chr10 for fast testing; False for full genome.
-ARGELAGUET_CHR10_ONLY    = True
+ARGELAGUET_CHR10_ONLY    = False
 
 ## GRCm38 (mm10) chromosomes. Defined explicitly rather than reusing the shared
 ## CHRS variable, which hg19.smk also defines (with human chromosomes 1-22).

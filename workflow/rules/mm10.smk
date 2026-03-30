@@ -5,10 +5,6 @@ Reference file generation and mm10-specific annotation downloads.
 CHRS = [str(i) for i in range(1, 20)] + ["X", "Y"]
 MM10_BASE = "mm10"
 
-## Chromosomes used when building the CG reference.
-## ecker.smk overrides this to ["10"] when ECKER_CHR10_ONLY is True so only
-## chr10 is downloaded and aggregated, avoiding a full-genome sort.
-MM10_CG_CHRS = CHRS
 
 rule mm10_per_chr_ref:
     conda:
@@ -27,10 +23,19 @@ rule mm10_aggregate_ref:
     input:
         lambda wildcards: expand(
             op.join(MM10_BASE, "{chr}.{{meth_pat}}.ref"),
-            chr=(MM10_CG_CHRS if wildcards.meth_pat == "CG" else CHRS),
+            chr=CHRS,
         ),
     output:
         op.join(MM10_BASE, "ref.{meth_pat}.gz"),
+    shell:
+        "sort -m -k1,1 -k2,2n {input} | gzip > {output}"
+
+
+rule mm10_chr10_aggregate_ref:
+    input:
+        op.join(MM10_BASE, "10.{meth_pat}.ref"),
+    output:
+        op.join(MM10_BASE, "ref.{meth_pat}.chr10.gz"),
     shell:
         "sort -m -k1,1 -k2,2n {input} | gzip > {output}"
 

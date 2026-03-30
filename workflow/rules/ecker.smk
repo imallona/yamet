@@ -21,11 +21,14 @@ ECKER_DOWNSAMPLE_SEED = 42
 ## set to True to restrict to chr10 for speed; False for full genome
 ECKER_CHR10_ONLY = True
 
-## tell mm10.smk which chromosomes to include in the CG reference
-MM10_CG_CHRS = ["10"] if ECKER_CHR10_ONLY else CHRS
-
 ## chromosomes to retain in annotation BED files for Ecker runs
 _ECKER_BED_CHRS = ["10"] if ECKER_CHR10_ONLY else CHRS
+
+_ECKER_REF = (
+    op.join(MM10_BASE, "ref.CG.chr10.gz")
+    if ECKER_CHR10_ONLY
+    else op.join(MM10_BASE, "ref.CG.gz")
+)
 
 ECKER_ANNOTATIONS = {
     "chip": ["h3k4me3", "h3k9me3", "h3k27me3", "h3k4me1", "h3k27ac"],
@@ -208,7 +211,7 @@ rule run_yamet_on_ecker_features:
         op.join("..", "envs", "yamet.yml")
     input:
         cells=lambda wildcards: get_ecker_harmonized_files(wildcards.sub_region, wildcards.sub_type),
-        ref=op.join(MM10_BASE, "ref.CG.gz"),
+        ref=_ECKER_REF,
         bed=op.join(ECKER_BASE, "beds", "{annotation}.bed"),
     output:
         simple_uncomp=temp(op.join(ECKER_OUTPUT, "{annotation}_{sub_region}_{sub_type}.out")),
