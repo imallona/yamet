@@ -8,8 +8,8 @@
 ## where m = met_reads, t = met_reads + nonmet_reads,
 ## meth_bin = 1 if met_reads > 0 else 0.
 ##
-## CpG positions are already strand-collapsed in the source files,
-## so no strand correction is needed.
+## The source pos is the 1-based G position of the CpG (strand-collapsed).
+## The reference uses 0-based C position, so pos - 2 gives the correct coordinate.
 
 set -euo pipefail
 
@@ -29,7 +29,7 @@ process_cell() {
       NR > 1 {
         if (chr10 == "True" && $1 != "10") next
         OFS = "\t"
-        print $1, $2, $3, $3 + $4, ($3 > 0 ? 1 : 0)
+        print $1, $2 - 2, $3, $3 + $4, ($3 > 0 ? 1 : 0)
       }
     ' | sort -k1,1 -k2,2n | gzip -c > "$dst"
 }

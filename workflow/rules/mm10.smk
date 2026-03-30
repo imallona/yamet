@@ -11,6 +11,8 @@ rule mm10_per_chr_ref:
         op.join("..", "envs", "processing.yml")
     output:
         temp(op.join(MM10_BASE, "{chr}.{meth_pat}.ref")),
+    log:
+        op.join("logs", "mm10_per_chr_ref_{chr}_{meth_pat}.log"),
     params:
         fa="Mus_musculus.GRCm38.dna.chromosome.{chr}.fa",
         base="https://ftp.ensembl.org/pub/release-102/fasta/mus_musculus/dna/",
