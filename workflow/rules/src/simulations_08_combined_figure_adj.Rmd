@@ -410,3 +410,41 @@ ggsave(
   units    = "in"
 )
 ```
+
+# Figure 3: adjS within methylation bins
+
+Binning average methylation into 0.1-wide intervals and showing adjS per bin
+confirms that the residual association between adjS and variability indices is
+not an artifact of methylation level.
+
+```{r bins-wc, fig.width = ng_fig_size(5, 2)$w, fig.height = ng_fig_size(5, 2)$h}
+all_long_wc_adj %>%
+  mutate(meth_bin = cut(meth, breaks = seq(0, 1, 0.1), include.lowest = TRUE)) %>%
+  filter(!is.na(meth_bin), !is.na(adj_sampen)) %>%
+  ggplot(aes(x = meth_bin, y = adj_sampen, fill = cut(wc_vi, 5))) +
+  geom_boxplot(outlier.size = 0.3, outlier.alpha = 0.2) +
+  scale_fill_viridis_d(option = "viridis", name = "wcVI quintile") +
+  labs(
+    x = "avg. methylation bin",
+    y = "adj. sample entropy (adjS)",
+    title = "simul. II within-cell variability"
+  ) +
+  theme_ng(base_size = fig_base) + fig_theme_sq +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+```
+
+```{r bins-ac, fig.width = ng_fig_size(5, 2)$w, fig.height = ng_fig_size(5, 2)$h}
+all_long_ac_adj %>%
+  mutate(meth_bin = cut(meth, breaks = seq(0, 1, 0.1), include.lowest = TRUE)) %>%
+  filter(!is.na(meth_bin), !is.na(adj_sampen)) %>%
+  ggplot(aes(x = meth_bin, y = adj_sampen, fill = cut(bc_vi, 5))) +
+  geom_boxplot(outlier.size = 0.3, outlier.alpha = 0.2) +
+  scale_fill_viridis_d(option = "plasma", name = "acVI quintile") +
+  labs(
+    x = "avg. methylation bin",
+    y = "adj. sample entropy (adjS)",
+    title = "simul. III across-cell variability"
+  ) +
+  theme_ng(base_size = fig_base) + fig_theme_sq +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+```
