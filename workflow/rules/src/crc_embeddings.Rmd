@@ -108,20 +108,6 @@ print(table(colData(windows_sce)$location, colData(windows_sce)$patient, useNA =
 ```{r filter_impute}
 na_frac <- rowMeans(is.na(assay(windows_sce, "sampen")))
 windows_sce <- windows_sce[na_frac < 0.3, ]
-
-impute_rowmeans <- function(mat) {
-  row_means <- rowMeans(mat, na.rm = TRUE)
-  for (i in seq_len(nrow(mat))) {
-    nas <- is.na(mat[i, ])
-    if (any(nas)) mat[i, nas] <- row_means[i]
-  }
-  mat
-}
-
-assay(windows_sce, "sampen")           <- impute_rowmeans(as.matrix(assay(windows_sce, "sampen")))
-assay(windows_sce, "meth")             <- impute_rowmeans(as.matrix(assay(windows_sce, "meth")))
-assay(windows_sce, "sampen_corrected") <- impute_rowmeans(as.matrix(assay(windows_sce, "sampen_corrected")))
-
 cat("Windows after NA filter:", nrow(windows_sce), "\n")
 ```
 
@@ -133,9 +119,9 @@ cell_mean_meth <- colMeans(assay(windows_sce, "meth"), na.rm = TRUE)
 
 fit_residuals <- function(i, y_mat, x) {
   y <- y_mat[i, ]
-  fit <- try(lm(y ~ x), silent = TRUE)
+  fit <- try(lm(y ~ x, na.action = na.exclude), silent = TRUE)
   if (inherits(fit, "try-error")) return(y)
-  residuals(fit)
+  as.numeric(residuals(fit))
 }
 
 s_mat <- as.matrix(assay(windows_sce, "sampen"))

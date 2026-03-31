@@ -196,12 +196,11 @@ keep_rows <- rowMeans(is.na(features)) < 0.2
 features <- features[keep_rows, ]
 df_all_filtered <- df_all[keep_rows, ]
 
-# impute remaining NAs
-
-for (j in seq_len(ncol(features))) {
-  col_mean <- mean(features[[j]], na.rm = TRUE)
-  features[[j]][is.na(features[[j]])] <- col_mean
-}
+## drop any remaining NAs to get a complete matrix for UMAP
+keep_cols2 <- colSums(is.na(features)) == 0
+keep_rows2 <- rowSums(is.na(features[, keep_cols2])) == 0
+features <- features[keep_rows2, keep_cols2]
+df_all_filtered <- df_all_filtered[keep_rows2, ]
 
 ## dim(features)
 

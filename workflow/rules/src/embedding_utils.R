@@ -27,10 +27,10 @@ run_embedding <- function(mat,
   hvf_idx <- order(vars, decreasing = TRUE)[seq_len(n_keep)]
   sub_mat <- mat[hvf_idx, , drop = FALSE]
 
-  row_means <- rowMeans(sub_mat, na.rm = TRUE)
-  for (i in seq_len(nrow(sub_mat))) {
-    nas <- is.na(sub_mat[i, ])
-    if (any(nas)) sub_mat[i, nas] <- row_means[i]
+  sub_mat <- sub_mat[rowSums(is.na(sub_mat)) == 0L, , drop = FALSE]
+  if (nrow(sub_mat) < 2L) {
+    message("run_embedding: too few complete features after NA removal; returning NULL")
+    return(NULL)
   }
 
   scaled <- t(scale(t(sub_mat)))
@@ -59,11 +59,8 @@ run_embedding <- function(mat,
 ## PCA on a features x cells matrix. Returns cells x PCs score matrix or NULL.
 run_pca_mat <- function(mat, n_pcs = 10L) {
   mat[!is.finite(mat)] <- NA
-  row_means <- rowMeans(mat, na.rm = TRUE)
-  for (i in seq_len(nrow(mat))) {
-    nas <- is.na(mat[i, ])
-    if (any(nas)) mat[i, nas] <- row_means[i]
-  }
+  mat <- mat[rowSums(is.na(mat)) == 0L, , drop = FALSE]
+  if (nrow(mat) < 2L || ncol(mat) < 2L) return(NULL)
   row_sd <- apply(mat, 1, sd, na.rm = TRUE)
   bad <- is.na(row_sd) | row_sd == 0
   mat <- mat[!bad, , drop = FALSE]
