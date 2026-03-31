@@ -479,7 +479,7 @@ rule lazy_move_rds_objects:
     threads: 1
     shell:
         """
-        cp sce_windows_colon.rds {output.sce}
+        cp sce_windows_colon.rds {output.windows_sce}
         cp de_list.rds {output.de}
         """
         

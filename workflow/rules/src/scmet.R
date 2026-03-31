@@ -17,7 +17,7 @@ meth <- fread(
   header = T
 )
 jnt <- cbind(meth, intervals)
-output_cols <- grep("^output", colnames(jnt), value = TRUE)
+output_cols <- setdiff(colnames(jnt), c("chr", "start", "end"))
 scmet_Y <- melt(jnt,
   measure.vars = output_cols,
   variable.name = "Cell",
