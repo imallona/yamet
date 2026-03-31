@@ -127,11 +127,14 @@ meta_cells <- meta_raw %>%
 meta_grp <- meta_cells %>%
   group_by(stage_san, lineage_san) %>%
   summarise(
-    stage          = first(stage),
-    lineage        = first(lineage10x),
-    lineage_class  = first(na.omit(lineage10x_2)),
-    n_meta         = n(),
-    .groups        = "drop"
+    stage         = first(stage),
+    lineage       = first(lineage10x),
+    lineage_class = {
+      vals <- lineage10x_2[!is.na(lineage10x_2) & lineage10x_2 != ""]
+      if (length(vals) == 0) NA_character_ else first(vals)
+    },
+    n_meta        = n(),
+    .groups       = "drop"
   )
 
 cat("Groups (stage x lineage):", nrow(meta_grp), "\n")
@@ -621,7 +624,7 @@ driven; lower-right are across-cell driven. The epiCHAOS paper found epiblast to
 the highest epigenetic heterogeneity; annotations that separate lineages cleanly
 should appear lower-right here.
 
-```{r drivers_sd, fig.width = ng_fig_size(1, 1)$w, fig.height = ng_fig_size(1, 1)$h}
+```{r drivers_sd, fig.width = ng_fig_size(3, 3)$w, fig.height = ng_fig_size(3, 3)$h}
 var_all <- all_grp_meta %>%
   group_by(annotation) %>%
   summarise(
@@ -667,17 +670,20 @@ if (any(!is.na(var_all$adjH_sd))) {
 Variance in group-level adjH and adjS explained by lineage class (R2). Upper-left =
 within-cell driven; lower-right = across-cell (lineage-driven).
 
-```{r drivers_r2, fig.width = ng_fig_size(1, 1)$w, fig.height = ng_fig_size(1, 1)$h}
+```{r drivers_r2, fig.width = ng_fig_size(3, 3)$w, fig.height = ng_fig_size(3, 3)$h}
+safe_r2 <- function(y, grp) {
+  tryCatch({
+    r <- summary(lm(y ~ grp))$r.squared
+    if (is.nan(r) || is.na(r)) 0 else r
+  }, error = function(e) NA_real_)
+}
+
 r2_by_ann <- all_grp_meta %>%
   filter(!is.na(lineage_class)) %>%
   group_by(annotation) %>%
   summarise(
-    r2_adjH = tryCatch({
-      summary(lm(median_adjH ~ lineage_class, data = cur_data()))$r.squared
-    }, error = function(e) NA_real_),
-    r2_adjS = tryCatch({
-      summary(lm(median_adjS ~ lineage_class, data = cur_data()))$r.squared
-    }, error = function(e) NA_real_),
+    r2_adjH = safe_r2(median_adjH, lineage_class),
+    r2_adjS = safe_r2(median_adjS, lineage_class),
     .groups = "drop"
   )
 
@@ -870,7 +876,7 @@ saveRDS(list(cells_adjS_wide = cells_adjS_wide,
 
 ## Cell-level: adjS across annotations
 
-```{r cell_umap_adjS, fig.width = ng_fig_size(1, 1)$w, fig.height = ng_fig_size(1, 1)$h}
+```{r cell_umap_adjS, fig.width = ng_fig_size(2, 2)$w, fig.height = ng_fig_size(2, 2)$h}
 umap_cell_adjS <- run_umap_wide(cells_adjS_wide, meta_cols_cell,
                                  n_neighbors = 15L)
 saveRDS(umap_cell_adjS, "argelaguet_umap_cell_adjS.rds")
@@ -882,7 +888,7 @@ plot_umap(umap_cell_adjS, "lineage_class",
 
 ## Cell-level: adjS colored by stage
 
-```{r cell_umap_adjS_stage, fig.width = ng_fig_size(1, 1)$w, fig.height = ng_fig_size(1, 1)$h}
+```{r cell_umap_adjS_stage, fig.width = ng_fig_size(2, 2)$w, fig.height = ng_fig_size(2, 2)$h}
 plot_umap(umap_cell_adjS, "stage",
           title    = "Cell-level UMAP - adjS features",
           subtitle = "colored by developmental stage")
@@ -890,7 +896,7 @@ plot_umap(umap_cell_adjS, "stage",
 
 ## Cell-level: avg methylation across annotations
 
-```{r cell_umap_meth, fig.width = ng_fig_size(1, 1)$w, fig.height = ng_fig_size(1, 1)$h}
+```{r cell_umap_meth, fig.width = ng_fig_size(2, 2)$w, fig.height = ng_fig_size(2, 2)$h}
 umap_cell_meth <- run_umap_wide(cells_meth_wide, meta_cols_cell,
                                  n_neighbors = 15L)
 saveRDS(umap_cell_meth, "argelaguet_umap_cell_meth.rds")
@@ -938,7 +944,7 @@ cells_S_regressed <- bind_cols(
 )
 ```
 
-```{r cell_umap_S_regressed, fig.width = ng_fig_size(1, 1)$w, fig.height = ng_fig_size(1, 1)$h}
+```{r cell_umap_S_regressed, fig.width = ng_fig_size(2, 2)$w, fig.height = ng_fig_size(2, 2)$h}
 umap_cell_S_regressed <- run_umap_wide(cells_S_regressed, meta_cols_cell,
                                         n_neighbors = 15L)
 saveRDS(umap_cell_S_regressed, "argelaguet_umap_cell_S_regressed.rds")
@@ -950,7 +956,7 @@ plot_umap(umap_cell_S_regressed, "lineage_class",
 
 ## Group-level: adjH across annotations
 
-```{r group_umap_adjH, fig.width = ng_fig_size(1, 1)$w, fig.height = ng_fig_size(1, 1)$h}
+```{r group_umap_adjH, fig.width = ng_fig_size(2, 2)$w, fig.height = ng_fig_size(2, 2)$h}
 adjH_wide_grp <- all_grp_meta %>%
   filter(!is.na(lineage_class)) %>%
   select(stage_san, lineage_san, stage, lineage, lineage_class,
@@ -969,8 +975,64 @@ plot_umap(umap_grp_adjH, "lineage_class",
           subtitle = "median adjH per annotation as feature vector")
 ```
 
-```{r group_umap_adjH_stage, fig.width = ng_fig_size(1, 1)$w, fig.height = ng_fig_size(1, 1)$h}
+```{r group_umap_adjH_stage, fig.width = ng_fig_size(2, 2)$w, fig.height = ng_fig_size(2, 2)$h}
 plot_umap(umap_grp_adjH, "stage",
           title    = "Group-level UMAP - adjH features",
           subtitle = "colored by developmental stage")
+```
+
+# UMAP: per-annotation locus-level {.tabset .tabset-pills}
+
+For each annotation, groups (stage x lineage) are embedded using per-locus
+normalised Shannon entropy (adjH) sampled from the `.norm.det.out.gz` files as
+features. This gives a much richer feature space than the cross-annotation UMAP
+above.
+
+```{r locus_umap_setup}
+LOCUS_N_UMAP <- 2000L
+LOCUS_SEED   <- 42L
+
+meta_cols_grp_arg <- c("stage_san", "lineage_san", "stage", "lineage", "lineage_class")
+
+build_ann_locus_mat <- function(annotation_name, fps, col, n_loci = LOCUS_N_UMAP) {
+  fps_ann <- fps[get_annotation(basename(fps)) == annotation_name]
+  if (length(fps_ann) < 4L) return(NULL)
+  ref <- read_tsv(fps_ann[[1]], na = "-1", show_col_types = FALSE)
+  n   <- min(n_loci, nrow(ref))
+  set.seed(LOCUS_SEED)
+  idx <- sort(sample.int(nrow(ref), n))
+  rows <- bplapply(fps_ann, function(fp)
+    read_tsv(fp, na = "-1", show_col_types = FALSE)[[col]][idx],
+    BPPARAM = param)
+  mat <- do.call(rbind, rows)
+  colnames(mat) <- paste0("locus_", idx)
+  df <- data.frame(
+    stage_san   = get_stage(basename(fps_ann)),
+    lineage_san = get_lineage(basename(fps_ann)),
+    as.data.frame(mat),
+    check.names = FALSE
+  )
+  left_join(df,
+            meta_grp %>% select(stage_san, lineage_san, stage, lineage, lineage_class),
+            by = c("stage_san", "lineage_san"))
+}
+
+ann_names_locus <- unique(get_annotation(basename(norm_det_paths)))
+```
+
+```{r locus_umap_adjH, fig.width = ng_fig_size(2, 2)$w, fig.height = ng_fig_size(2, 2)$h, results = "asis"}
+for (ann in ann_names_locus) {
+  cat("\n## ", ann, "\n\n")
+  mat <- build_ann_locus_mat(ann, norm_det_paths, "shannon_norm")
+  if (is.null(mat)) {
+    cat("Not enough groups for", ann, "\n\n")
+    next
+  }
+  umap_res <- run_umap_wide(mat, meta_cols_grp_arg, n_neighbors = 5L)
+  p <- plot_umap(umap_res, "lineage_class",
+                 title    = paste0("Locus UMAP - adjH - ", ann),
+                 subtitle = paste0(LOCUS_N_UMAP, " loci sampled"))
+  if (!is.null(p)) print(p)
+  cat("\n\n")
+}
 ```
