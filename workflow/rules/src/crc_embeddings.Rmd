@@ -450,7 +450,7 @@ ggplot(ve_annot_long, aes(x = assay, y = median_ve, fill = variable)) +
 
 ## Annotation heatmap (mean adjS per location)
 
-```{r annot_heatmap, eval = has_annots, fig.width = ng_fig_size(ncol(annot_mats[["adjS"]]), 1, panel_mm = 30)$w, fig.height = 4}
+```{r annot_heatmap, eval = has_annots, fig.width = ng_fig_size(length(annot_cols), 1, panel_mm = 30)$w, fig.height = 4}
 loc_means <- do.call(rbind, lapply(loc_levels, function(l) {
   idx <- which(colData(windows_sce)$location == l)
   if (length(idx) == 0) return(NULL)
