@@ -77,6 +77,10 @@ knitr::opts_chunk$set(
     dpi=500
 )
 
+log_con <- file(snakemake@log[[1]], open = "wt")
+sink(log_con)
+sink(log_con, type = "message")
+
 data_dir <- dirname(snakemake@input[["disp_scmet"]])
 S_GRID <- snakemake@params[["S_GRID"]]
 N_GRID <- snakemake@params[["N_GRID"]]

@@ -25,6 +25,10 @@ knitr::opts_chunk$set(
     dev = c("png", "svg"),
     dpi=500
 )
+
+log_con <- file(snakemake@log[[1]], open = "wt")
+sink(log_con)
+sink(log_con, type = "message")
 ```
 
 ```{r, fig.width = 5, fig.height = 5}

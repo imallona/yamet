@@ -52,6 +52,10 @@ knitr::opts_chunk$set(
     dpi=500
 )
 
+log_con <- file(snakemake@log[[1]], open = "wt")
+sink(log_con)
+sink(log_con, type = "message")
+
 source("rules/src/mi_table.R")
 source("rules/src/make_grid_plots.R")
 source('rules/src/ggtheme.R')

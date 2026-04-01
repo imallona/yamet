@@ -436,7 +436,7 @@ ggplot(ve_annot_long, aes(x = assay, y = median_ve, fill = variable)) +
 
 ## Annotation heatmap (mean adjS per location)
 
-```{r annot_heatmap, eval = has_annots, fig.width = ng_fig_size(length(annot_cols), 1, panel_mm = 30)$w, fig.height = 4}
+```{r annot_heatmap, eval = has_annots, fig.width = min(ng_fig_size(length(annot_cols), 1, panel_mm = 30)$w, 50), fig.height = 4}
 loc_means <- do.call(rbind, lapply(loc_levels, function(l) {
   idx <- which(colData(windows_sce)$location == l)
   if (length(idx) == 0) return(NULL)
@@ -519,7 +519,7 @@ for (col in annot_cols) {
 
 ## Silhouette summary {-}
 
-```{r per_annot_sil_summary, eval = has_annots, fig.width = ng_fig_size(length(annot_cols), 1, panel_mm = 35)$w, fig.height = ng_fig_size(length(annot_cols), 1, panel_mm = 35)$h}
+```{r per_annot_sil_summary, eval = has_annots, fig.width = min(ng_fig_size(length(annot_cols), 1, panel_mm = 35)$w, 50), fig.height = ng_fig_size(length(annot_cols), 1, panel_mm = 35)$h}
 sil_pa_df <- bind_rows(per_annot_sil)
 
 sil_pa_long <- pivot_longer(sil_pa_df, starts_with("sil_"),

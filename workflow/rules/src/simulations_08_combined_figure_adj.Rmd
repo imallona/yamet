@@ -26,6 +26,10 @@ knitr::opts_chunk$set(
   dpi      = 300
 )
 
+log_con <- file(snakemake@log[[1]], open = "wt")
+sink(log_con)
+sink(log_con, type = "message")
+
 ## ── Colour scales ─────────────────────────────────────────────────────────────
 wc_scale <- scale_color_gradient(low = "grey90", high = "#000080")   # within-cell
 ac_scale <- scale_color_gradient(low = "grey90", high = "#800080")   # across-cell
