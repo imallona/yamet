@@ -29,7 +29,7 @@ get_mi <- function(data_dir, S, N, f, x, adj = FALSE) {
 
   jnt <- cbind(sampens, intervals)
   rownames(jnt) <- paste(jnt$start, jnt$end, sep = ":")
-  output_cols <- grep("^output", colnames(jnt), value = TRUE)
+  output_cols <- grep("\\.tsv$", colnames(jnt), value = TRUE)
 
   scmet_fit <- readRDS(paste0(data_dir, paste("/scmet", S, N, f, "rds", sep = ".")))
   tmp <- colMeans(scmet_fit$posterior$mu)

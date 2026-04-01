@@ -436,30 +436,33 @@ ggplot(ve_annot_long, aes(x = assay, y = median_ve, fill = variable)) +
 
 ## Annotation heatmap (mean adjS per location)
 
-```{r annot_heatmap, eval = has_annots, fig.width = min(ng_fig_size(length(annot_cols), 1, panel_mm = 30)$w, 50), fig.height = 4}
-loc_means <- do.call(rbind, lapply(loc_levels, function(l) {
+```{r annot_heatmap, eval = has_annots, fig.width = ng_fig_size(length(loc_levels), 1, panel_mm = 12)$w, fig.height = ng_fig_size(1, length(annot_cols), panel_mm = 8)$h}
+present_locs <- sapply(loc_levels, function(l) any(colData(windows_sce)$location == l))
+loc_means <- do.call(rbind, lapply(loc_levels[present_locs], function(l) {
   idx <- which(colData(windows_sce)$location == l)
-  if (length(idx) == 0) return(NULL)
   colMeans(annot_mats[["adjS"]][idx, , drop = FALSE], na.rm = TRUE)
 }))
-present <- sapply(loc_levels, function(l) any(colData(windows_sce)$location == l))
-loc_means <- loc_means[present, , drop = FALSE]
-rownames(loc_means) <- loc_levels[present]
+rownames(loc_means) <- loc_levels[present_locs]
 colnames(loc_means) <- gsub("_bin$", "", colnames(loc_means))
 
+annot_by_loc <- t(loc_means)
+
 col_fun <- colorRamp2(
-  quantile(loc_means, c(0.05, 0.5, 0.95), na.rm = TRUE),
+  quantile(annot_by_loc, c(0.05, 0.5, 0.95), na.rm = TRUE),
   c("navy", "white", "firebrick")
 )
-ha <- rowAnnotation(
-  location = rownames(loc_means),
-  col = list(location = loc_colors[rownames(loc_means)])
+ha <- HeatmapAnnotation(
+  location = colnames(annot_by_loc),
+  col = list(location = loc_colors[colnames(annot_by_loc)])
 )
-Heatmap(loc_means, name = "mean adjS", col = col_fun,
-        right_annotation = ha, show_row_names = TRUE, show_column_names = TRUE,
-        cluster_rows = TRUE, cluster_columns = TRUE,
-        row_names_gp = gpar(fontsize = 8), column_names_gp = gpar(fontsize = 7),
-        column_title = "Mean adjS per annotation per location")
+tryCatch(
+  draw(Heatmap(annot_by_loc, name = "mean adjS", col = col_fun,
+               top_annotation = ha, show_row_names = TRUE, show_column_names = TRUE,
+               cluster_rows = TRUE, cluster_columns = FALSE,
+               row_names_gp = gpar(fontsize = 8), column_names_gp = gpar(fontsize = 7),
+               column_title = "Mean adjS per annotation per location")),
+  error = function(e) message("Heatmap rendering failed: ", conditionMessage(e))
+)
 ```
 
 ## Silhouette scores
@@ -480,7 +483,7 @@ For each annotation separately: take the subset of windows in that annotation,
 select the top `r N_HVW` highly variable windows, run PCA, then UMAP.
 This is the full single-cell pipeline per genomic context.
 
-```{r per_annot_loop, eval = has_annots, results = "asis", fig.width = ng_fig_size(2, 1)$w, fig.height = ng_fig_size(2, 1)$h}
+```{r per_annot_loop, eval = FALSE, results = "asis", fig.width = ng_fig_size(2, 1)$w, fig.height = ng_fig_size(2, 1)$h}
 per_annot_sil <- list()
 
 for (col in annot_cols) {
@@ -519,7 +522,7 @@ for (col in annot_cols) {
 
 ## Silhouette summary {-}
 
-```{r per_annot_sil_summary, eval = has_annots, fig.width = min(ng_fig_size(length(annot_cols), 1, panel_mm = 35)$w, 50), fig.height = ng_fig_size(length(annot_cols), 1, panel_mm = 35)$h}
+```{r per_annot_sil_summary, eval = FALSE, fig.width = ng_fig_size(length(annot_cols), 1, panel_mm = 7)$w, fig.height = ng_fig_size(1, 1)$h}
 sil_pa_df <- bind_rows(per_annot_sil)
 
 sil_pa_long <- pivot_longer(sil_pa_df, starts_with("sil_"),

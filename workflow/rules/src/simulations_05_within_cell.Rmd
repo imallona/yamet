@@ -74,7 +74,9 @@ knitr::opts_chunk$set(
     warning = FALSE,
     fig.path = "simulations/output/05_plots/",
     dev = c("png", "svg"),
-    dpi=500
+    dpi = 500,
+    fig.width  = ng_fig_size(1, 1)$w,
+    fig.height = ng_fig_size(1, 1)$h
 )
 
 log_con <- file(snakemake@log[[1]], open = "wt")
@@ -85,12 +87,6 @@ data_dir <- dirname(snakemake@input[["disp_scmet"]])
 S_GRID <- snakemake@params[["S_GRID"]]
 N_GRID <- snakemake@params[["N_GRID"]]
 DISP <- snakemake@params[["DISP"]]
-
-## Large axis labels applied to every plot
-big_labels <- theme(
-  axis.title = element_text(size = 22, face = "bold", color = "black"),
-  axis.text  = element_text(size = 18, color = "black")
-)
 
 ## Within-cell colour gradient (navy)
 wc_scale <- scale_color_gradient(low = "grey90", high = "#000080")
@@ -130,7 +126,7 @@ sampens <- read.table(
 )
 jnt <- cbind(sampens, intervals)
 rownames(jnt) <- paste(jnt$start, jnt$end, sep = ":")
-output_cols <- grep("^output", colnames(jnt), value = TRUE)
+output_cols <- grep("\\.tsv$", colnames(jnt), value = TRUE)
 jnt$sampen_avg <- rowMeans(jnt[, output_cols])
 jnt.long <- do.call(rbind, lapply(output_cols, function(col) {
   data.frame(
@@ -284,7 +280,7 @@ norm_det <- read.table(
   header = T
 )
 rownames(norm_det) <- paste(norm_det$start, norm_det$end, sep = ":")
-norm_output_cols <- grep("^output", colnames(norm_det), value = TRUE)
+norm_output_cols <- grep("\\.tsv$", colnames(norm_det), value = TRUE)
 
 ## Per-cell per-feature long format with adj columns
 jnt.adj.long <- do.call(rbind, lapply(output_cols, function(col) {
@@ -392,25 +388,25 @@ print(nmi)
 ```
 
 ```{r s_nmi}
-print(s_plots$nmi + big_labels + xlab("# cells") + ylab("performance (metric NMI)"))
+print(s_plots$nmi + xlab("# cells") + ylab("performance (metric NMI)"))
 ```
 
 ```{r s_seconds}
-print(s_plots$seconds + big_labels + xlab("# cells") + ylab("CPU time (s)"))
+print(s_plots$seconds + xlab("# cells") + ylab("CPU time (s)"))
 ```
 
 ```{r s_mem}
-print(s_plots$mem + big_labels + xlab("# cells") + ylab("memory usage (MB)"))
+print(s_plots$mem + xlab("# cells") + ylab("memory usage (MB)"))
 ```
 
 ```{r n_nmi}
-print(n_plots$nmi + big_labels + xlab("# features") + ylab("performance (metric NMI)"))
+print(n_plots$nmi + xlab("# features") + ylab("performance (metric NMI)"))
 ```
 
 ```{r n_seconds}
-print(n_plots$seconds + big_labels + xlab("# features") + ylab("CPU time (s)"))
+print(n_plots$seconds + xlab("# features") + ylab("CPU time (s)"))
 ```
 
 ```{r n_mem}
-print(n_plots$mem + big_labels + xlab("# features") + ylab("memory usage (MB)"))
+print(n_plots$mem + xlab("# features") + ylab("memory usage (MB)"))
 ```
