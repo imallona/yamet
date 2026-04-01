@@ -156,7 +156,6 @@ samp_meth <- ggplot(all.long, aes(x = meth, y = sampen, color = wc_vi)) +
   geom_point(alpha = 0.3) +
   theme_ng() +
   wc_scale +
-  big_labels +
   labs(
     x = "avg. methylation", y = "sample entropy", color = "wcVI"
   )
@@ -165,7 +164,6 @@ samp_vi <- ggplot(all.long, aes(x = as.factor(wc_vi), y = sampen)) +
   geom_point(alpha = 0.7, position = position_jitter(width = 0.2)) +
   geom_violin(alpha = 0.3, position = position_dodge(0.8)) +
   theme_ng() +
-  big_labels +
   labs(
     x = "wcVI", y = "sample entropy"
   )
@@ -174,7 +172,6 @@ shannon_meth <- ggplot(jnt, aes(x = avg_meth, y = shannon, color = wc_vi)) +
   geom_point(alpha = 0.7) +
   theme_ng() +
   wc_scale +
-  big_labels +
   labs(
     x = "avg. methylation", y = "Shannon entropy", color = "wcVI"
   )
@@ -182,7 +179,6 @@ shannon_meth <- ggplot(jnt, aes(x = avg_meth, y = shannon, color = wc_vi)) +
 shannon_vi <- ggplot(jnt, aes(x = as.factor(wc_vi), y = shannon, color = avg_meth)) +
   geom_point(alpha = 0.7) +
   theme_ng() +
-  big_labels +
   labs(
     x = "wcVI", y = "Shannon entropy", color = "meth"
   )
@@ -191,7 +187,6 @@ samp_shan <- ggplot(all.long, aes(x = shannon, y = sampen, color = wc_vi)) +
   geom_point(alpha = 0.7) +
   theme_ng() +
   wc_scale +
-  big_labels +
   labs(
     x = "Shannon entropy", y = "sample entropy", color = "wcVI"
   )
@@ -211,7 +206,6 @@ jnt$scmet_epsilon <- tmp[match(rownames(jnt), names(tmp))]
 scmet_mu_vi <- ggplot(jnt, aes(x = as.factor(wc_vi), y = scmet_mu, color = avg_meth)) +
   geom_point(alpha = 0.7) +
   theme_ng() +
-  big_labels +
   labs(
     x = "wcVI", y = expression("scMET " ~ mu), color = "meth"
   )
@@ -220,7 +214,6 @@ scmet_mu_meth <- ggplot(jnt, aes(x = avg_meth, y = scmet_mu, color = wc_vi)) +
   geom_point(alpha = 0.7) +
   theme_ng() +
   wc_scale +
-  big_labels +
   labs(
     x = "avg. methylation", y = expression("scMET " ~mu), color = "wcVI"
   )
@@ -229,7 +222,6 @@ scmet_gamma_meth <- ggplot(jnt, aes(x = avg_meth, y = scmet_gamma, color = wc_vi
   geom_point(alpha = 0.7) +
   theme_ng() +
   wc_scale +
-  big_labels +
   labs(
     x = "avg. methylation", y = expression("scMET " ~gamma), color = "wcVI"
   )
@@ -238,7 +230,6 @@ scmet_epsilon_meth <- ggplot(jnt, aes(x = avg_meth, y = scmet_epsilon, color = w
   geom_point(alpha = 0.7) +
   theme_ng() +
   wc_scale +
-  big_labels +
   labs(
     x = "avg. methylation", y = expression("scMET " ~epsilon), color = "wcVI"
   )
@@ -246,7 +237,6 @@ scmet_epsilon_meth <- ggplot(jnt, aes(x = avg_meth, y = scmet_epsilon, color = w
 sampen_avg_vi <- ggplot(jnt, aes(x = as.factor(wc_vi), y = sampen_avg, color = avg_meth)) +
   geom_point(alpha = 0.7) +
   theme_ng() +
-  big_labels +
   labs(
     x = "wcVI", y = "sampen (average)", color = "meth"
   )
@@ -255,7 +245,6 @@ sampen_avg_meth <- ggplot(jnt, aes(x = avg_meth, y = sampen_avg, color = wc_vi))
   geom_point(alpha = 0.7) +
   theme_ng() +
   wc_scale +
-  big_labels +
   labs(
     x = "avg. methylation", y = "sampen (average)", color = "wcVI"
   )
@@ -375,7 +364,6 @@ nmi <- ggplot(mi_fd, aes(x = reorder(Metric, -NMI), y = NMI)) +
     geom_point(size = 3) +
     geom_text(aes(label = round(NMI, 3)), vjust = -0.5, size = 5) +
     theme_ng() +
-    big_labels +
     scale_x_discrete(labels = metric_labels) +
     labs(
         x = NULL,

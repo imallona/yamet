@@ -13,6 +13,7 @@ suppressPackageStartupMessages({
   library(ggplot2)
   library(patchwork)
   library(svglite)
+  library(dplyr)
 })
 
 source("rules/src/ggtheme.R")

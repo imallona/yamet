@@ -43,6 +43,8 @@ suppressPackageStartupMessages({
   library(svglite)
 })
 
+source('rules/src/ggtheme.R')
+
 knitr::opts_chunk$set(
     echo = FALSE,
     message = FALSE,
@@ -60,7 +62,6 @@ sink(log_con, type = "message")
 
 source("rules/src/mi_table.R")
 source("rules/src/make_grid_plots.R")
-source('rules/src/ggtheme.R')
 
 data_dir <- dirname(snakemake@input[["disp_scmet"]])
 S_GRID <- snakemake@params[["S_GRID"]]
@@ -131,7 +132,6 @@ samp_meth <- ggplot(all.long, aes(x = meth, y = sampen, color = bc_vi)) +
   geom_point(alpha = 0.7) +
   theme_ng() +
   ac_scale +
-  big_labels +
   labs(
     x = "avg. methylation", y = "sample entropy", color = "acVI"
   )
@@ -140,7 +140,6 @@ samp_vi <- ggplot(all.long, aes(x = as.factor(bc_vi), y = sampen)) +
   geom_point(alpha = 0.7, position = position_jitter(width = 0.2)) +
   geom_violin(alpha = 0.3, position = position_dodge(0.8)) +
   theme_ng() +
-  big_labels +
   labs(
     x = "acVI", y = "sample entropy"
   )
@@ -149,7 +148,6 @@ shannon_meth <- ggplot(jnt, aes(x = avg_meth, y = shannon, color = bc_vi)) +
   geom_point(alpha = 0.7) +
   theme_ng() +
   ac_scale +
-  big_labels +
   labs(
     x = "avg. methylation", y = "Shannon entropy", color = "acVI"
   )
@@ -157,7 +155,6 @@ shannon_meth <- ggplot(jnt, aes(x = avg_meth, y = shannon, color = bc_vi)) +
 shannon_vi <- ggplot(jnt, aes(x = as.factor(bc_vi), y = shannon, color = avg_meth)) +
   geom_point(alpha = 0.7) +
   theme_ng() +
-  big_labels +
   labs(
     x = "acVI", y = "Shannon entropy", color = "avg. methylation"
   )
@@ -166,7 +163,6 @@ samp_shan <- ggplot(all.long, aes(x = shannon, y = sampen, color = bc_vi)) +
   geom_point(alpha = 0.7) +
   theme_ng() +
   ac_scale +
-  big_labels +
   labs(
     x = "Shannon entropy", y = "sample entropy", color = "acVI"
   )
@@ -186,7 +182,6 @@ jnt$scmet_epsilon <- tmp[match(rownames(jnt), names(tmp))]
 scmet_mu_vi <- ggplot(jnt, aes(x = as.factor(bc_vi), y = scmet_mu, color = avg_meth)) +
   geom_point(alpha = 0.7) +
   theme_ng() +
-  big_labels +
   labs(
     x = "acVI", y = expression("scMET " ~ mu), color = "avg. methylation"
   )
@@ -195,7 +190,6 @@ scmet_mu_meth <- ggplot(jnt, aes(x = avg_meth, y = scmet_mu, color = bc_vi)) +
   geom_point(alpha = 0.7) +
   theme_ng() +
   ac_scale +
-  big_labels +
   labs(
     x = "avg. methylation", y = expression("scMET " ~ mu), color = "acVI"
   )
@@ -204,7 +198,6 @@ scmet_gamma_meth <- ggplot(jnt, aes(x = avg_meth, y = scmet_gamma, color = bc_vi
   geom_point(alpha = 0.7) +
   theme_ng() +
   ac_scale +
-  big_labels +
   labs(
     x = "avg. methylation", y = expression("scMET " ~ gamma), color = "acVI"
   )
@@ -213,7 +206,6 @@ scmet_epsilon_meth <- ggplot(jnt, aes(x = avg_meth, y = scmet_epsilon, color = b
   geom_point(alpha = 0.7) +
   theme_ng() +
   ac_scale +
-  big_labels +
   labs(
     x = "avg. methylation", y = expression("scMET " ~ epsilon), color = "acVI"
   )
@@ -221,7 +213,6 @@ scmet_epsilon_meth <- ggplot(jnt, aes(x = avg_meth, y = scmet_epsilon, color = b
 sampen_avg_vi <- ggplot(jnt, aes(x = as.factor(bc_vi), y = sampen_avg, color = avg_meth)) +
   geom_point(alpha = 0.7) +
   theme_ng() +
-  big_labels +
   labs(
     x = "acVI", y = "avg. sample entropy", color = "avg. methylation"
   )
@@ -230,7 +221,6 @@ sampen_avg_meth <- ggplot(jnt, aes(x = avg_meth, y = sampen_avg, color = bc_vi))
   geom_point(alpha = 0.7) +
   theme_ng() +
   ac_scale +
-  big_labels +
   labs(
     x = "avg. methylation", y = "avg. sample entropy", color = "acVI"
   )
@@ -350,7 +340,6 @@ nmi <- ggplot(mi_fd, aes(x = reorder(Metric, -NMI), y = NMI)) +
     geom_point(size = 3) +
     geom_text(aes(label = round(NMI, 3)), vjust = -0.5, size = 5) +
     theme_ng() +
-    big_labels +
     scale_x_discrete(labels = metric_labels) +
     labs(
         x = NULL,
