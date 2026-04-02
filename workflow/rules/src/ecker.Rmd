@@ -13,6 +13,12 @@ output:
     theme: lumen
 ---
 
+```{r logging_early, include = FALSE}
+log <- file(snakemake@log$log, open = "wt")
+sink(log)
+sink(log, type = "message")
+```
+
 ```{r setup}
 suppressPackageStartupMessages({
   library(readr)
@@ -57,12 +63,6 @@ cat(sprintf("Git commit: `%s`\n\n", git_sha))
 
 ```{r save_snmk_debug, include = FALSE}
 saveRDS(file = "snmk_ecker_features.rds", object = snakemake, compress = "xz")
-```
-
-```{r logging, include = FALSE}
-log <- file(snakemake@log$log, open = "wt")
-sink(log)
-sink(log, type = "message")
 ```
 
 Mouse (mm10), CpG context only. chr10 only: `r snakemake@params[["chr10_only"]]`.

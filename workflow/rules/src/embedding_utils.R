@@ -16,6 +16,7 @@ run_embedding <- function(mat,
                           seed = 42L) {
   if (is.null(mat) || ncol(mat) < 4L) return(NULL)
 
+  storage.mode(mat) <- "double"
   mat[!is.finite(mat)] <- NA
 
   vars <- matrixStats::rowVars(mat, useNames = FALSE, na.rm = TRUE)

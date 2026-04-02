@@ -36,7 +36,7 @@ suppressPackageStartupMessages({
 
 source("src/ggtheme.R")
 source("src/embedding_utils.R")
-param <- MulticoreParam(workers = snakemake@threads)
+param <- SerialParam()
 ```
 
 ```{r opts}
@@ -44,7 +44,7 @@ knitr::opts_chunk$set(
   echo       = TRUE,
   fig.width  = ng_fig_size(1, 1)$w,
   fig.height = ng_fig_size(1, 1)$h,
-  cache      = FALSE,
+  cache      = TRUE,
   include    = TRUE,
   fig.path   = "crc_embeddings_plots/",
   dev        = c("png", "svg"),
@@ -89,7 +89,7 @@ an independent check), and DNA methylation as baseline.
 loc_levels <- c("NC", "PT", "LN", "ML", "MP", "MO")
 loc_colors <- setNames(cbbPalette[seq_along(loc_levels)], loc_levels)
 
-N_HVW <- 500   ## top variable windows to retain before PCA
+N_HVW <- 1000  ## top variable windows to retain before PCA
 N_PCS <- 10    ## PCs to compute
 ```
 
@@ -540,124 +540,22 @@ ggplot(sil_pa_long, aes(x = annotation, y = silhouette, fill = metric)) +
   theme_ng()
 ```
 
-# Per-locus annotation embeddings (feature SCE)
-
-Individual loci from each annotation type (individual PMDs, gene bodies, promoters,
-enhancers, ChIP peaks, etc.) are used as features, with per-cell sample entropy
-values from the det.out.gz files. Same HVW -> PCA -> UMAP pipeline as for windows.
-
-```{r build_feature_sce}
-regex_feat <- "(.*)_(.*)_(.*)_(.*)\\.det\\.out\\.gz$"
-
-read_feature_det <- function(fp) {
-  fn <- basename(fp)
-  annotation <- paste(gsub(regex_feat, "\\1", fn),
-                      gsub(regex_feat, "\\2", fn), sep = "_")
-  patient  <- gsub(regex_feat, "\\3", fn)
-  location <- gsub(regex_feat, "\\4", fn)
-  dt <- read_tsv(fp, na = "-1", show_col_types = FALSE)
-  cell_cols <- grep("singleC", colnames(dt), value = TRUE)
-  if (length(cell_cols) == 0) return(NULL)
-  loci <- sprintf("%s_%s:%s-%s", annotation, dt$chr, dt$start, dt$end)
-  mat <- as.matrix(dt[, cell_cols])
-  rownames(mat) <- loci
-  list(mat = mat, patient = patient, location = location, cells = cell_cols)
-}
-
-feature_paths <- unlist(snakemake@input[["feature_outputs"]])
-feat_results  <- Filter(Negate(is.null),
-                        bplapply(feature_paths, read_feature_det, BPPARAM = param))
-
-## cell metadata: patient/location are constant per file; take first occurrence per cell
-cell_meta_df <- unique(do.call(rbind, lapply(feat_results, function(r) {
-  data.frame(cell = r$cells, patient = r$patient, location = r$location,
-             stringsAsFactors = FALSE)
-})))
-rownames(cell_meta_df) <- cell_meta_df$cell
-
-## group by annotation, cbind cells; then rbind all annotations
-annot_labels  <- sapply(feat_results, function(r) {
-  sub("_[^_]+:[0-9]+-[0-9]+$", "", rownames(r$mat)[1])
-})
-unique_annots <- unique(annot_labels)
-
-per_annot_mats <- lapply(unique_annots, function(a) {
-  mats <- lapply(feat_results[annot_labels == a], function(r) r$mat)
-  do.call(cbind, mats)
-})
-names(per_annot_mats) <- unique_annots
-
-all_feat_cells <- unique(unlist(lapply(per_annot_mats, colnames)))
-
-pad_to_cells <- function(mat, cells) {
-  missing <- setdiff(cells, colnames(mat))
-  if (length(missing) > 0) {
-    na_block <- matrix(NA_real_, nrow = nrow(mat), ncol = length(missing),
-                       dimnames = list(rownames(mat), missing))
-    mat <- cbind(mat, na_block)
-  }
-  mat[, cells, drop = FALSE]
-}
-
-feat_mat <- do.call(rbind, lapply(per_annot_mats, pad_to_cells, cells = all_feat_cells))
-cat("Feature loci x cells:", nrow(feat_mat), "x", ncol(feat_mat), "\n")
-
-col_data_feat <- cell_meta_df[all_feat_cells, ]
-col_data_feat$location <- factor(col_data_feat$location, levels = loc_levels)
-
-feature_sce <- SingleCellExperiment(
-  assays   = list(sampen = feat_mat),
-  colData  = col_data_feat
-)
-
-saveRDS(feature_sce, "crc_feature_sce_debug.rds", compress = "xz")
-```
-
-```{r filter_feature_sce}
-na_loci  <- rowMeans(is.na(assay(feature_sce, "sampen")))
-na_cells <- colMeans(is.na(assay(feature_sce, "sampen")))
-feature_sce <- feature_sce[na_loci < 0.3, na_cells < 0.3]
-cat("After NA filter: loci", nrow(feature_sce), "cells", ncol(feature_sce), "\n")
-```
-
-## By location {.tabset .tabset-pills}
-
-```{r feat_sce_embed, fig.width = ng_fig_size(2, 1)$w, fig.height = ng_fig_size(2, 1)$h}
-feat_embed <- hvw_pca_umap(as.matrix(assay(feature_sce, "sampen")))
-if (is.null(feat_embed)) {
-  warning("Feature loci embedding returned NULL")
-} else {
-  print(plot_pair(feat_embed$umap, feature_sce, "Feature loci / S"))
-}
-```
-
-## Silhouette
-
-```{r feat_sce_sil}
-sil_feat_loci <- data.frame(
-  assay         = "S",
-  silhouette    = if (!is.null(feat_embed)) sil_score(feat_embed$umap, colData(feature_sce)$location) else NA_real_,
-  feature_space = "feature_loci"
-)
-```
-
 # Summary: all feature spaces and metrics
 
 ```{r combined_sil, fig.width = ng_fig_size(4, 3)$w, fig.height = ng_fig_size(4, 1)$h}
 if (!has_annots) sil_annot <- data.frame(assay = character(), silhouette = numeric(), feature_space = character())
-sil_all <- bind_rows(sil_win, sil_annot, sil_feat_loci)
+sil_all <- bind_rows(sil_win, sil_annot)
 sil_all$assay         <- factor(sil_all$assay, levels = assay_map)
 sil_all$feature_space <- factor(sil_all$feature_space,
-                                levels = c("windows", "annotations", "feature_loci"))
+                                levels = c("windows", "annotations"))
 
 ggplot(sil_all, aes(x = assay, y = silhouette, fill = feature_space)) +
   geom_col(position = position_dodge(width = 0.8)) +
   geom_hline(yintercept = 0, linetype = "dashed", colour = "grey40") +
-  scale_fill_manual(values = c("windows"      = "#0072B2",
-                               "annotations"  = "#D55E00",
-                               "feature_loci" = "#009E73")) +
+  scale_fill_manual(values = c("windows"     = "#0072B2",
+                               "annotations" = "#D55E00")) +
   labs(x = NULL, y = "mean silhouette (location clusters)",
-       title = "Location separation: windows vs annotation-level vs feature loci") +
+       title = "Location separation: windows vs annotation-level") +
   theme_ng()
 ```
 

@@ -13,16 +13,20 @@ output:
     theme: lumen
 ---
 
+```{r logging_early, include = FALSE}
+log <- file(snakemake@log$log, open = "wt")
+sink(log)
+sink(log, type = "message")
+```
+
 ```{r, setup}
 suppressPackageStartupMessages({
   library(readr)
-  library(lmerTest)
   library(ggplot2)
   library(knitr)
   library(ComplexHeatmap)
   library(viridis)
   library(BiocParallel)
-  library(ggstance)
   library(dplyr)
   library(tidyr)
   library(ggrepel)
@@ -53,11 +57,6 @@ saveRDS(file = 'snmk_object_features.rds', object = snakemake)
 ## setwd('../..')
 ```
 
-```{r logging, include = FALSE}
-log <- file(snakemake@log$log, open = "wt")
-sink(log)
-sink(log, type = "message")
-```
 
 
 
