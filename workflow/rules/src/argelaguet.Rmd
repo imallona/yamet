@@ -25,6 +25,7 @@ suppressPackageStartupMessages({
   library(ComplexHeatmap)
   library(circlize)
   library(uwot)
+  library(irlba)
 })
 
 source("src/ggtheme.R")
@@ -1001,9 +1002,8 @@ build_ann_locus_mat <- function(annotation_name, fps, col, n_loci = LOCUS_N_UMAP
   n   <- min(n_loci, nrow(ref))
   set.seed(LOCUS_SEED)
   idx <- sort(sample.int(nrow(ref), n))
-  rows <- bplapply(fps_ann, function(fp)
-    read_tsv(fp, na = "-1", show_col_types = FALSE)[[col]][idx],
-    BPPARAM = param)
+  rows <- lapply(fps_ann, function(fp)
+    read_tsv(fp, na = "-1", show_col_types = FALSE)[[col]][idx])
   mat <- do.call(rbind, rows)
   colnames(mat) <- paste0("locus_", idx)
   df <- data.frame(

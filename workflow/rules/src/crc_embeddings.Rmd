@@ -21,6 +21,7 @@ suppressPackageStartupMessages({
   library(tidyr)
   library(BiocParallel)
   library(uwot)
+  library(irlba)
   library(matrixStats)
   library(SingleCellExperiment)
   library(SummarizedExperiment)

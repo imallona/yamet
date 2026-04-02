@@ -5,7 +5,7 @@
 ## Convention for run_umap_wide / regress_out_meth: cells x features (wide df).
 ## Requires dplyr, uwot, matrixStats, cluster.
 
-## HVF selection, feature scaling, PCA, UMAP.
+## HVF selection, feature scaling, PCA (via randomized SVD), UMAP.
 ## Returns list(umap = cells x 2, pca = cells x n_pcs, hvf_idx = row indices)
 ## or NULL if the data is too small.
 run_embedding <- function(mat,
@@ -43,8 +43,9 @@ run_embedding <- function(mat,
     message("run_embedding: too few PCs available (", n_pcs_use, "); returning NULL")
     return(NULL)
   }
-  pca_scores <- prcomp(t(scaled), center = FALSE, scale. = FALSE,
-                       rank. = n_pcs_use)$x
+  set.seed(seed)
+  pca_scores <- irlba::prcomp_irlba(t(scaled), n = n_pcs_use,
+                                     center = FALSE, scale. = FALSE)$x
   message("run_embedding: HVF = ", n_keep, ", PCs = ", n_pcs_use,
           ", cells = ", ncol(mat))
 

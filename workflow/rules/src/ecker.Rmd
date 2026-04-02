@@ -24,6 +24,7 @@ suppressPackageStartupMessages({
   library(ggridges)
   library(ComplexHeatmap)
   library(circlize)
+  library(irlba)
 })
 
 source("src/ggtheme.R")
