@@ -22,7 +22,7 @@ include: op.join("rules", "ecker.smk")
 include: op.join("rules", "argelaguet.smk")
 include: op.join("rules", "simulations.smk")
 include: op.join("rules", "archive.smk")
-## pre-yamet coordinate validation (must come after all dataset smk files)
+## coordinate validatios (reference vs harmonized yamet inputs)
 include: op.join("rules", "validate.smk")
 
 

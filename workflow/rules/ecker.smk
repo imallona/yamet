@@ -100,27 +100,6 @@ rule harmonize_ecker_metadata:
         "src/harmonize_ecker_metadata.R"
 
 
-# ## reports the AllcPath (basename) of cells matching the harmonized metadata
-# ##   'column' equals 'value'
-# def slice_eckers_metadata(column, value):
-#     meta_fn = op.join('ecker_data','harmonized_ecker_metadata.tsv.gz')
-
-#     if not op.exists(meta_fn):
-#         raise Exception("No metadata found.")
-
-#     meta = pd.read_csv(filepath_or_buffer = meta_fn,
-#                        sep='\t',
-#                        compression='gzip', header=0, quotechar='"')
-
-#     if set([column]).issubset(meta.columns):
-#         return [i for i in meta[meta[column] == value]['basename']]
-#     else:
-#         return None
-
-# ## this is a long one!
-# print(slice_eckers_metadata('SubType', 'IT-L4 Shc3'))
-
-
 rule ecker_urls:
     input:
         op.join(ECKER_BASE, "meta.tsv.gz"),
