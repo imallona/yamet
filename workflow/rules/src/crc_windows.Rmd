@@ -13,10 +13,15 @@ output:
     theme: lumen
 ---
 
+```{r logging_early, include = FALSE}
+log <- file(snakemake@log$log, open = "wt")
+sink(log)
+sink(log, type = "message")
+```
+
 ```{r, setup}
 suppressPackageStartupMessages({
   library(readr)
-  library(lmerTest)
   library(ggplot2)
   library(knitr)
   library(ComplexHeatmap)
@@ -71,11 +76,6 @@ saveRDS(file = 'snmk_object_windows.rds', object = snakemake)
 ## snakemake <- readRDS('snmk_object_windows.rds')
 ```
 
-```{r logging, include = FALSE}
-log <- file(snakemake@log$log, open = "wt")
-sink(log)
-sink(log, type = "message")
-```
 
 # QC: tile annotations  {.tabset .tabset-pills}
 
@@ -88,7 +88,7 @@ NROWS <- 5e4
 
 annot <- read_tsv(
   snakemake@input[["annotations"]],
-  n_max = NROWS, show_col_types = FALSE
+  show_col_types = FALSE
 )
 
 annot$region <- sprintf("%s:%s-%s", annot$chr, annot$start, annot$end)
@@ -163,7 +163,7 @@ rownames(shannons) <- paste(
   sep = "_"
 )
 
-sampens <- lapply(filepaths, \(x) process_reports(x)$sampen)
+sampens_list <- lapply(filepaths, \(x) process_reports(x)$sampen)
 ```
 
 
@@ -269,7 +269,7 @@ ggplot(cell_summary, aes(x = location, y = var_sampen, fill = location)) +
 
 ## Export SCE
 
-Export a SCE (again with some filtering for NAs and some imputation)
+Export a SCE with NA filtering.
 
 ```{r}
 
@@ -356,7 +356,7 @@ Back to the SCE-free plotting/reports
 
 ```{r}
 ## let's get a value per window - median
-sampens <- bplapply(sampens, \(x) {
+sampens_list <- bplapply(sampens_list, \(x) {
   x$median <- apply(
     x$sampen, 1, function(x) median(x, na.rm = TRUE)
   ) # median sampEn per window/genomic tile
@@ -615,58 +615,8 @@ all_data <- bplapply(filepaths, process_reports, BPPARAM = param)
 sampens <- do.call(cbind, lapply(all_data, \(x) x$sampen))
 meths <- do.call(cbind, lapply(all_data, \(x) x$meth))
 
-annot <- as.data.frame(read_tsv(snakemake@input[["annotations"]], show_col_types = FALSE))
-annot$region <- sprintf("%s:%s-%s", annot$chr, annot$start, annot$end)
-rownames(annot) <- annot$region
-annot <- annot[,setdiff(colnames(annot), c('chr', 'start', 'end', 'region'))]
 annot[1:3,1:3]
-## rownames(annot) <- rownames(sampens)
 
-get_row_annotations <- function(regions) {
-  rowAnnotation(tile_annotation = as.matrix(data.frame(
-    ## pmd = annot[regions, "pmds_pmd"],
-    ## hmd = annot[regions, "hmds_pmd"],
-    ## H3K27me3 = annot[regions, "H3K27me3_chip"],
-    ## H3K9me3 = annot[regions, "H3K9me3_chip"],
-    ## H3K4me3 = annot[regions, "H3K4me3_chip"],
-    ## laminb1 = annot[regions, "laminb1_lad"],
-    ## X8_Quiescent = annot[regions, "8_Quiescent_hmm"]
-  genes = annot[rownames(med_sampens), "genes_genes"],
-  islands = annot[rownames(med_sampens), "cpgIslandExt_cpgIslandExt"],                     
-
-  pmd = annot[rownames(med_sampens), "pmds_pmd"],
-  hmd = annot[rownames(med_sampens), "hmds_pmd"],
-
-  scna_nc = annot[rownames(med_sampens), "crc01_nc_scna_scna"],
-  scna_gain = annot[rownames(med_sampens), "crc01_gain_scna_scna"],
-  scna_loss = annot[rownames(med_sampens), "crc01_lost_scna_scna"],  
-
-  H3K27me3 = annot[rownames(med_sampens), "H3K27me3_chip"],
-  H3K9me3 = annot[rownames(med_sampens), "H3K9me3_chip"],
-  H3K4me3 = annot[rownames(med_sampens), "H3K4me3_chip"],
-  laminb1 = annot[rownames(med_sampens), "laminb1_lad"],
-  
-  X0_Enhancer_hmm = annot[rownames(med_sampens), "0_Enhancer_hmm"],
-  X2_Enhancer_hmm = annot[rownames(med_sampens), "2_Enhancer_hmm"],
-  X1_Transcribed_hmm = annot[rownames(med_sampens), "1_Transcribed_hmm"],
-  X4_Transcribed_hmm = annot[rownames(med_sampens), "4_Transcribed_hmm"],
-  X5_RegPermissive_hmm = annot[rownames(med_sampens), "5_RegPermissive_hmm"],
-  X7_RegPermissive_hmm = annot[rownames(med_sampens), "7_RegPermissive_hmm"],
-  
-  X3_Quiescent = annot[rownames(med_sampens), "3_Quiescent_hmm"],
-  X8_Quiescent = annot[rownames(med_sampens), "8_Quiescent_hmm"],
-  X10_Quiescent = annot[rownames(med_sampens), "10_Quiescent_hmm"],
-
-  X11_Promoter = annot[rownames(med_sampens), "11_Promoter_hmm"],
-  X12_Promoter = annot[rownames(med_sampens), "12_Promoter_hmm"],
-
-  X9_ConstitutiveHet = annot[rownames(med_sampens), "9_ConstitutiveHet_hmm"],
-  X13_ConstitutiveHet = annot[rownames(med_sampens), "13_ConstitutiveHet_hmm"],
-  
-  X6_LowConfidence = annot[rownames(med_sampens), "6_LowConfidence_hmm"]
-  
-  )))
-}
 
 meta <- data.frame(
   colname = colnames(sampens),
@@ -816,79 +766,89 @@ top_meth <- sub_meths[top_2k_idx, ]
 ```
 
 
-Let's now add to the row annotation whether regions are top_meth or top_entropy
-
-```{r}
-row_ha <- rowAnnotation(tile_annotation = as.matrix(data.frame(
-
-  diff_sampen_atreya = coefs_df$adj_p < 0.05,
-  
-  genes = annot[coefs_df$region, "genes_genes"],
-  islands = annot[coefs_df$region, "cpgIslandExt_cpgIslandExt"],                     
-
-  pmd = annot[coefs_df$region, "pmds_pmd"],
-  hmd = annot[coefs_df$region, "hmds_pmd"],
-
-  scna_nc = annot[coefs_df$region, "crc01_nc_scna_scna"],
-  scna_gain = annot[coefs_df$region, "crc01_gain_scna_scna"],
-  scna_loss = annot[coefs_df$region, "crc01_lost_scna_scna"],  
-
-  H3K27me3 = annot[coefs_df$region, "H3K27me3_chip"],
-  H3K9me3 = annot[coefs_df$region, "H3K9me3_chip"],
-  H3K4me3 = annot[coefs_df$region, "H3K4me3_chip"],
-  laminb1 = annot[coefs_df$region, "laminb1_lad"],
-  
-  X0_Enhancer_hmm = annot[coefs_df$region, "0_Enhancer_hmm"],
-  X2_Enhancer_hmm = annot[coefs_df$region, "2_Enhancer_hmm"],
-  X1_Transcribed_hmm = annot[coefs_df$region, "1_Transcribed_hmm"],
-  X4_Transcribed_hmm = annot[coefs_df$region, "4_Transcribed_hmm"],
-  X5_RegPermissive_hmm = annot[coefs_df$region, "5_RegPermissive_hmm"],
-  X7_RegPermissive_hmm = annot[coefs_df$region, "7_RegPermissive_hmm"],
-  
-  X3_Quiescent = annot[coefs_df$region, "3_Quiescent_hmm"],
-  X8_Quiescent = annot[coefs_df$region, "8_Quiescent_hmm"],
-  X10_Quiescent = annot[coefs_df$region, "10_Quiescent_hmm"],
-
-  X11_Promoter = annot[coefs_df$region, "11_Promoter_hmm"],
-  X12_Promoter = annot[coefs_df$region, "12_Promoter_hmm"],
-
-  X9_ConstitutiveHet = annot[coefs_df$region, "9_ConstitutiveHet_hmm"],
-  X13_ConstitutiveHet = annot[coefs_df$region, "13_ConstitutiveHet_hmm"],
-  
-  X6_LowConfidence = annot[coefs_df$region, "6_LowConfidence_hmm"]
-)))
-```
-
 ## Heatmap including diff entropic (Atreya's)
 
+Rows are restricted to the top 2000 windows by BH-adjusted p-value from the PT vs NC
+comparison (meth + location + patient model), then further to complete cases across all
+biopsy groups. Clustering all ~300k windows genome-wide is not tractable.
+Columns are biopsy groups (patient x location), annotated at the top.
+
 ```{r, fig.width = 16, fig.height = 10}
-## euclidean distance directly
-row.hc <- hclust(dist(sub_sampens), method = "ward.D2")
+stopifnot(all(rownames(top_entropy) == rownames(top_meth)))
+
+cc_top <- complete.cases(top_entropy) & complete.cases(top_meth)
+top_entropy_cc <- top_entropy[cc_top, ]
+top_meth_cc <- top_meth[cc_top, ]
+coefs_df_top <- coefs_df[top_2k_idx[cc_top], ]
+
+row.hc <- hclust(dist(top_entropy_cc), method = "ward.D2")
 
 column_ha <- HeatmapAnnotation(
-  loc = substr(groups$subloc, 1, 2),
-  patient = groups$patient
+  location = substr(groups$subloc, 1, 2),
+  patient = groups$patient,
+  col = list(
+    location = setNames(
+      scales::hue_pal()(length(unique(substr(groups$subloc, 1, 2)))),
+      sort(unique(substr(groups$subloc, 1, 2)))
+    )
+  )
 )
 
-stopifnot(all(rownames(sub_sampens) == rownames(sub_meths)))
+row_ha <- rowAnnotation(tile_annotation = as.matrix(data.frame(
 
-# x11()
+  diff_sampen_atreya = coefs_df_top$adj_p < 0.05,
 
-Heatmap(sub_sampens,
+  genes = annot[coefs_df_top$region, "genes_genes"],
+  islands = annot[coefs_df_top$region, "cpgIslandExt_cpgIslandExt"],
+
+  pmd = annot[coefs_df_top$region, "pmds_pmd"],
+  hmd = annot[coefs_df_top$region, "hmds_pmd"],
+
+  scna_nc = annot[coefs_df_top$region, "crc01_nc_scna_scna"],
+  scna_gain = annot[coefs_df_top$region, "crc01_gain_scna_scna"],
+  scna_loss = annot[coefs_df_top$region, "crc01_lost_scna_scna"],
+
+  H3K27me3 = annot[coefs_df_top$region, "H3K27me3_chip"],
+  H3K9me3 = annot[coefs_df_top$region, "H3K9me3_chip"],
+  H3K4me3 = annot[coefs_df_top$region, "H3K4me3_chip"],
+  laminb1 = annot[coefs_df_top$region, "laminb1_lad"],
+
+  X0_Enhancer_hmm = annot[coefs_df_top$region, "0_Enhancer_hmm"],
+  X2_Enhancer_hmm = annot[coefs_df_top$region, "2_Enhancer_hmm"],
+  X1_Transcribed_hmm = annot[coefs_df_top$region, "1_Transcribed_hmm"],
+  X4_Transcribed_hmm = annot[coefs_df_top$region, "4_Transcribed_hmm"],
+  X5_RegPermissive_hmm = annot[coefs_df_top$region, "5_RegPermissive_hmm"],
+  X7_RegPermissive_hmm = annot[coefs_df_top$region, "7_RegPermissive_hmm"],
+
+  X3_Quiescent = annot[coefs_df_top$region, "3_Quiescent_hmm"],
+  X8_Quiescent = annot[coefs_df_top$region, "8_Quiescent_hmm"],
+  X10_Quiescent = annot[coefs_df_top$region, "10_Quiescent_hmm"],
+
+  X11_Promoter = annot[coefs_df_top$region, "11_Promoter_hmm"],
+  X12_Promoter = annot[coefs_df_top$region, "12_Promoter_hmm"],
+
+  X9_ConstitutiveHet = annot[coefs_df_top$region, "9_ConstitutiveHet_hmm"],
+  X13_ConstitutiveHet = annot[coefs_df_top$region, "13_ConstitutiveHet_hmm"],
+
+  X6_LowConfidence = annot[coefs_df_top$region, "6_LowConfidence_hmm"]
+)))
+
+Heatmap(top_entropy_cc,
   name = "Sample entropy",
   top_annotation = column_ha,
   right_annotation = row_ha,
   show_row_names = FALSE,
   show_column_names = FALSE,
   cluster_columns = FALSE,
-  cluster_rows = row.hc,
-)  +  Heatmap(sub_meths,
-              name = "DNA methylation",              
-              col = colorRamp2(c(0, 1), c("white", "black")),
-              show_row_names = FALSE,
-              show_column_names = FALSE,
-              cluster_columns = FALSE,
-              cluster_rows = row.hc)
+  cluster_rows = row.hc
+) + Heatmap(top_meth_cc,
+  name = "DNA methylation",
+  col = colorRamp2(c(0, 1), c("white", "black")),
+  show_row_names = FALSE,
+  show_column_names = FALSE,
+  cluster_columns = FALSE,
+  cluster_rows = row.hc
+)
 ```
 
 # H vs S driver categorization {.tabset .tabset-pills}
@@ -934,7 +894,7 @@ cat("adjH rows:", nrow(adj_shannons_long),
 
 ```{r build_adj_sampens_long}
 ## use per-window medians already computed in the QC section
-adj_sampens_long <- lapply(sampens, function(s) {
+adj_sampens_long <- lapply(sampens_list, function(s) {
   data.frame(
     window   = names(s$median),
     adjS     = s$median,
