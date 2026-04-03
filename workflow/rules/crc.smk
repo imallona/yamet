@@ -221,6 +221,7 @@ rule run_yamet_on_separate_features:
             "{file}",
             file=get_harmonized_files(wildcards.patient, wildcards.location),
         ),
+        validation=op.join(CRC, "coords_validated.flag"),
         ref=op.join(HG19_BASE, "ref.CG.gz"),
         bed=op.join(HG19_BASE, "{subcat}.{cat}.bed")
     output:
@@ -375,6 +376,7 @@ rule run_yamet_on_windows:
             file=get_harmonized_files(wildcards.patient, wildcards.location),
         ),
         # cells = get_harmonized_files,
+        validation=op.join(CRC, "coords_validated.flag"),
         ref=op.join(HG19_BASE, "ref.CG.gz"),
         windows=op.join(HG19_BASE, "windows_{win_size}_nt.bed")
     output:

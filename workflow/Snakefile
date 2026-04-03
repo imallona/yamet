@@ -22,6 +22,8 @@ include: op.join("rules", "ecker.smk")
 include: op.join("rules", "argelaguet.smk")
 include: op.join("rules", "simulations.smk")
 include: op.join("rules", "archive.smk")
+## pre-yamet coordinate validation (must come after all dataset smk files)
+include: op.join("rules", "validate.smk")
 
 
 shell.prefix("set -o pipefail; export PATH=$HOME/.local/yamet/bin:$PATH;")

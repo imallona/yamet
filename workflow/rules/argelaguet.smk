@@ -183,7 +183,7 @@ rule argelaguet_filter_mm10_bed:
     params:
         pattern=_ARG_BED_CHR_GREP,
     shell:
-        "grep -E '{params.pattern}' {input} > {output}"
+        "sed 's/^chr//' {input} | grep -E '{params.pattern}' > {output}"
 
 
 rule argelaguet_prep_gastro_bed:
@@ -218,6 +218,7 @@ rule run_yamet_on_argelaguet_features:
         cells=lambda wildcards: get_argelaguet_harmonized_files(
             wildcards.stage, wildcards.lineage
         ),
+        validation=op.join(ARGELAGUET_BASE, "coords_validated.flag"),
         ref=op.join(MM10_BASE, "ref.CG.gz"),
         bed=op.join(ARGELAGUET_BASE, "beds", "{annotation}.bed"),
     output:
@@ -266,10 +267,18 @@ rule run_yamet_on_argelaguet_features:
 
 def list_argelaguet_yamet_outputs(wildcards):
     checkpoints.harmonize_argelaguet_cells.get()
+    meta = pd.read_csv(
+        op.join(ARGELAGUET_BASE, "meta.tsv.gz"), sep="\t", compression="gzip"
+    )
+    available = [c for c in ARGELAGUET_STRATIFY_BY if c in meta.columns]
+    combos = [
+        tuple(_arg_sanitize(v) for v in row)
+        for _, row in meta[available].dropna().drop_duplicates().iterrows()
+    ]
     res = []
     for cat in ARGELAGUET_ANNOTATIONS:
         for ann in ARGELAGUET_ANNOTATIONS[cat]:
-            for stage, lineage in ARGELAGUET_GROUPS:
+            for stage, lineage in combos:
                 if get_argelaguet_harmonized_files(stage, lineage):
                     res.append(f"{ann}_{stage}_{lineage}.det.out.gz")
     return [op.join(ARGELAGUET_OUTPUT, item) for item in res]

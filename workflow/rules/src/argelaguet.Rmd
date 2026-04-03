@@ -67,12 +67,6 @@ cat(sprintf("Git commit: `%s`\n\n", git_sha))
 saveRDS(file = "snmk_argelaguet_features.rds", object = snakemake, compress = "xz")
 ```
 
-```{r logging, include = FALSE}
-log <- file(snakemake@log$log, open = "wt")
-sink(log)
-sink(log, type = "message")
-```
-
 Mouse (mm10 / GRCm38), CpG context. chr10 only: `r snakemake@params[["chr10_only"]]`.
 TET TKO cells (Plate11-16) excluded. Only cells passing methylation QC included.
 

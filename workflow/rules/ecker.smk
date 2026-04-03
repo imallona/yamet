@@ -211,6 +211,7 @@ rule run_yamet_on_ecker_features:
         op.join("..", "envs", "yamet.yml")
     input:
         cells=lambda wildcards: get_ecker_harmonized_files(wildcards.sub_region, wildcards.sub_type),
+        validation=op.join(ECKER_BASE, "coords_validated.flag"),
         ref=_ECKER_REF,
         bed=op.join(ECKER_BASE, "beds", "{annotation}.bed"),
     output:
@@ -247,10 +248,18 @@ rule run_yamet_on_ecker_features:
 
 def list_ecker_yamet_outputs(wildcards):
     checkpoints.harmonize_ecker_cells.get()
+    meta = pd.read_csv(
+        op.join(ECKER_BASE, "meta.tsv.gz"), sep="\t", compression="gzip"
+    )
+    available = [c for c in ECKER_STRATIFY_BY if c in meta.columns]
+    combos = [
+        tuple(_sanitize(v) for v in row)
+        for _, row in meta[available].dropna().drop_duplicates().iterrows()
+    ]
     res = []
     for cat in ECKER_ANNOTATIONS:
         for ann in ECKER_ANNOTATIONS[cat]:
-            for sub_region, sub_type in ECKER_GROUPS:
+            for sub_region, sub_type in combos:
                 if get_ecker_harmonized_files(sub_region, sub_type):
                     res.append(f"{ann}_{sub_region}_{sub_type}.det.out.gz")
     return [op.join(ECKER_OUTPUT, item) for item in res]
