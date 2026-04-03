@@ -15,8 +15,10 @@ rule validate_argelaguet_coords:
         flag=touch(op.join(ARGELAGUET_HARMONIZED, "coords_validated.flag")),
     params:
         harmonized=ARGELAGUET_HARMONIZED,
+    log:
+        op.join(ARGELAGUET_HARMONIZED, "coords_validated.log"),
     shell:
-        "bash {_VALIDATE_SCRIPT} {params.harmonized} {input.ref}"
+        "bash {_VALIDATE_SCRIPT} {params.harmonized} {input.ref} 2> {log}"
 
 
 rule validate_ecker_coords:
@@ -27,8 +29,10 @@ rule validate_ecker_coords:
         flag=touch(op.join(ECKER_HARMONIZED, "coords_validated.flag")),
     params:
         harmonized=ECKER_HARMONIZED,
+    log:
+        op.join(ECKER_HARMONIZED, "coords_validated.log"),
     shell:
-        "bash {_VALIDATE_SCRIPT} {params.harmonized} {input.ref}"
+        "bash {_VALIDATE_SCRIPT} {params.harmonized} {input.ref} 2> {log}"
 
 
 rule validate_crc_coords:
@@ -39,5 +43,7 @@ rule validate_crc_coords:
         flag=touch(op.join(CRC_HARMONIZED, "coords_validated.flag")),
     params:
         harmonized=CRC_HARMONIZED,
+    log:
+        op.join(CRC_HARMONIZED, "coords_validated.log"),
     shell:
-        "bash {_VALIDATE_SCRIPT} {params.harmonized} {input.ref}"
+        "bash {_VALIDATE_SCRIPT} {params.harmonized} {input.ref} 2> {log}"

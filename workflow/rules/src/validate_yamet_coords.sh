@@ -10,8 +10,6 @@
 #
 # Exit 1 on any failure so snakemake aborts the run before yamet is invoked.
 
-set -euo pipefail
-
 harmonized_dir="$1"
 ref="$2"
 
