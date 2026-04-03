@@ -785,13 +785,7 @@ row.hc <- hclust(dist(top_entropy_cc), method = "ward.D2")
 
 column_ha <- HeatmapAnnotation(
   location = substr(groups$subloc, 1, 2),
-  patient = groups$patient,
-  col = list(
-    location = setNames(
-      scales::hue_pal()(length(unique(substr(groups$subloc, 1, 2)))),
-      sort(unique(substr(groups$subloc, 1, 2)))
-    )
-  )
+  patient = groups$patient
 )
 
 row_ha <- rowAnnotation(tile_annotation = as.matrix(data.frame(
@@ -854,8 +848,8 @@ Heatmap(top_entropy_cc,
 # H vs S driver categorization {.tabset .tabset-pills}
 
 Read meth-normalized Shannon (adjH) from `.norm.det.out.gz` files. Only the summary
-column is loaded — per-cell columns are skipped — so this is memory-efficient. adjS
-medians come from the `sampens` list already in memory (computed in the QC section).
+column is loaded (per-cell columns are skipped), so this is memory-efficient. adjS
+medians come from `sampens_list` already in memory (computed in the QC section).
 Per-annotation R2 is then computed for both metrics with location as the predictor.
 
 ```{r read_adj_shannons}

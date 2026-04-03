@@ -13,13 +13,19 @@ output:
     theme: lumen
 ---
 
+```{r logging_early, include = FALSE}
+log <- file(snakemake@log$log, open = "wt")
+sink(log)
+sink(log, type = "message")
+```
+
 ```{r, setup}
 suppressPackageStartupMessages({
   library(readr)
   ## library(lmerTest)
   library(ggplot2)
   library(knitr)
-  ## library(ComplexHeatmap)
+  library(ComplexHeatmap)
   library(viridis)
   library(tidyr)
   library(Matrix)
@@ -44,15 +50,7 @@ suppressPackageStartupMessages({
 })
 ```
 
-This is supposed to be knitted from 'workflow'
-
 ```{r}
-if (FALSE) {
-    setwd('../..')
-    de <- readRDS('/home/imallona/src/yamet/workflow/data/crc/results/de_list_10000.rds')
-    windows_sce <- readRDS('/home/imallona/src/yamet/workflow/data/crc/results/sce_windows_10000_colon.rds')
-}
-
 source("src/ggtheme.R")
 source('src/diff_testing.R')
 
@@ -78,13 +76,6 @@ opts_chunk$set(
 #  knitr::knit_exit()
 # })
 
-```
-
-
-```{r logging, include = FALSE}
-log <- file(snakemake@log$log, open = "wt")
-sink(log)
-sink(log, type = "message")
 ```
 
 
@@ -134,7 +125,7 @@ ggplot(df_long, aes(x = contrast, y = count, fill = direction)) +
   theme_ng() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
   labs(title = "Differentially entropy windows per contrast",
-       y = "Number of genes (log scale)",
+       y = "Number of windows (log scale)",
        x = "Contrast")
 
 ```
@@ -171,7 +162,7 @@ ggplot(df_long, aes(x = contrast, y = count, fill = direction)) +
   theme_ng() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
   labs(title = "Differentially entropy windows per contrast",
-       y = "Number of genes (log scale)",
+       y = "Number of windows (log scale)",
        x = "Contrast")
 ```
 
@@ -269,7 +260,8 @@ ggplot(df_cells, aes(x = mean_sampen, y = mean_sampen_corrected, color = locatio
 
 ```
 
-Rowdata aspects - they're not correct, full of NAs, @todo fix upstream, now fixing downstream
+Row annotation (rowData) is re-read from the annotation file here because the SCE was built
+from a partial read in crc_windows.Rmd; the full annotation is loaded and assigned below.
 
 
 ```{r}
@@ -478,9 +470,10 @@ ggplot(df_crc01, aes(x = location,
   theme_ng(base_size = 14)
 ```
 
-It does not, was the diff entropic tests originally not been applied to CRC01? what's going on?
+Differential entropy was tested across all patients jointly; per-patient visualizations
+show the location effect within a single patient.
 
-Plus plot the association of diff entropic features
+Association of diff entropic windows with genomic features:
 
 ```{r}
 str(rowData(crc01))
@@ -527,16 +520,11 @@ prop_df <- expand.grid(annotation = annot_features,
 ##   ungroup()
 
 
-## oof, not good, given the features that overlap multiple things.Also, remove the no change.
 prop_df[order(prop_df$proportion, decreasing = TRUE),]
 
-
-## bring this back if odd
-## prop_df$proportion[is.na(prop_df$proportion)] <- 0
-prop_df <- prop_df %>% 
+prop_df <- prop_df %>%
   dplyr::filter(!is.na(proportion))
 
-## pff not good
 ggplot(prop_df, aes(x = contrast, y = proportion, fill = annotation)) +
   ## geom_col(position = position_dodge()) +
   geom_col(position = "stack") + 
@@ -555,9 +543,7 @@ ggplot(prop_df, aes(x = contrast, y = annotation)) +
   theme_ng() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
-## why are some contrasts empty? and, btw, do we want to plot all contrasts and directions? and hmm and manual segmentations combined?
-
-## in any case, simplify plotting by showing the effect size direction, for each contrast, separately / side by side
+## split by direction for cleaner visualization
 prop_df <- prop_df %>%
   mutate(direction = ifelse(grepl("_up_", contrast), "Up", "Down"))
 
@@ -577,7 +563,7 @@ prop_df <- prop_df %>%
 
 ```
 
-Similarly for HMMs, where the amount of "not present" shouldn't be so high
+Same analysis restricted to chromatin state (HMM) annotations:
 
 ```{r}
 
@@ -648,7 +634,7 @@ for (j in seq_len(ncol(rd_mat))) {
     idx <- rd_mat[, j] == 1                # features annotated with category j
     subexpr <- expr[idx, , drop = FALSE]   # subset expression matrix
 
-    cell_ann_median[, j] <- apply(subexpr, 2, median)  # median
+    cell_ann_median[, j] <- apply(subexpr, 2, median, na.rm = TRUE)
 }
 
 rownames(cell_ann_median) <- colnames(expr)
@@ -689,9 +675,7 @@ ggplot(plot_df, aes(x = location, y = value)) +
 
 ```
 
-This below is not working because it's trying to find association with genomic locations _and_ also locations, so it makes no sense. Also including the residuals of yet another sampen vs meth evaluation. So not correct.
-
-Let's do this on crc01 only.
+Per-cell entropy unexplained by annotation-level predictors, fit on CRC01 only.
 
 ```{r, fig.width = 8, fig.height = 8}
 crc01 <- windows_sce[,windows_sce$patient == 'CRC01']
@@ -751,10 +735,8 @@ cor_mat <- cor(pred_mat_num, use = "pairwise.complete.obs")
 ## image(cor_mat, main = "Predictor synergy (correlation)", axes = FALSE)
 ## axis(1, at = seq(0,1,length.out=ncol(cor_mat)), labels = colnames(cor_mat), las=2, cex.axis=0.5)
 ## axis(2, at = seq(0,1,length.out=nrow(cor_mat)), labels = rownames(cor_mat), las=2, cex.axis=0.5)
-library(ComplexHeatmap)
-
-cor_mat_clean <- cor_mat
-cor_mat_clean[is.na(cor_mat_clean)] <- 0
+keep_pred <- rowSums(is.na(cor_mat)) < nrow(cor_mat)
+cor_mat_clean <- cor_mat[keep_pred, keep_pred]
 
 ## col_fun <- colorRamp2(
 ##     c(-1, -0.5, 0, 0.5, 1),
@@ -778,13 +760,9 @@ Heatmap(
 )
 
 
-## unexpected entropy per location
 boxplot(cell_unexpected ~ cd$location,
-        main = "Unexpected entropy per location",
+        main = "Residual entropy per biopsy location",
         ylab = "Residual SampEn")
-
-legend("topright", legend = colnames(ann_unexpected),
-       col = 1:ncol(ann_unexpected), lty = 1, cex = 0.5)
 
 ```
 
