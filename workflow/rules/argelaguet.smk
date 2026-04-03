@@ -134,7 +134,7 @@ checkpoint harmonize_argelaguet_cells:
         flag=op.join(ARGELAGUET_BASE, "downloaded.flag"),
         meta=op.join(ARGELAGUET_BASE, "meta.tsv.gz"),
     output:
-        flag=touch(op.join(ARGELAGUET_BASE, "harmonized.flag")),
+        flag=touch(op.join(ARGELAGUET_HARMONIZED, "done.flag")),
     params:
         raw=op.join(ARGELAGUET_BASE, "met", "cpg_level"),
         harmonized=ARGELAGUET_HARMONIZED,
@@ -218,7 +218,7 @@ rule run_yamet_on_argelaguet_features:
         cells=lambda wildcards: get_argelaguet_harmonized_files(
             wildcards.stage, wildcards.lineage
         ),
-        validation=op.join(ARGELAGUET_BASE, "coords_validated.flag"),
+        validation=op.join(ARGELAGUET_HARMONIZED, "coords_validated.flag"),
         ref=op.join(MM10_BASE, "ref.CG.gz"),
         bed=op.join(ARGELAGUET_BASE, "beds", "{annotation}.bed"),
     output:

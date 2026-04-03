@@ -157,7 +157,7 @@ checkpoint harmonize_ecker_cells:
         download_flag=op.join(ECKER_BASE, "downloaded.flag"),
         meta=op.join(ECKER_BASE, "meta.tsv.gz"),
     output:
-        flag=touch(op.join(ECKER_BASE, "harmonized.flag")),
+        flag=touch(op.join(ECKER_HARMONIZED, "done.flag")),
     params:
         raw=op.join(ECKER_BASE, "raw"),
         harmonized=ECKER_HARMONIZED,
@@ -211,7 +211,7 @@ rule run_yamet_on_ecker_features:
         op.join("..", "envs", "yamet.yml")
     input:
         cells=lambda wildcards: get_ecker_harmonized_files(wildcards.sub_region, wildcards.sub_type),
-        validation=op.join(ECKER_BASE, "coords_validated.flag"),
+        validation=op.join(ECKER_HARMONIZED, "coords_validated.flag"),
         ref=_ECKER_REF,
         bed=op.join(ECKER_BASE, "beds", "{annotation}.bed"),
     output:

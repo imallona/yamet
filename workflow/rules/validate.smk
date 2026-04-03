@@ -9,10 +9,10 @@ _VALIDATE_SCRIPT = op.join("src", "validate_yamet_coords.sh")
 
 rule validate_argelaguet_coords:
     input:
-        flag=op.join(ARGELAGUET_BASE, "harmonized.flag"),
+        flag=op.join(ARGELAGUET_HARMONIZED, "done.flag"),
         ref=op.join(MM10_BASE, "ref.CG.gz"),
     output:
-        flag=touch(op.join(ARGELAGUET_BASE, "coords_validated.flag")),
+        flag=touch(op.join(ARGELAGUET_HARMONIZED, "coords_validated.flag")),
     params:
         harmonized=ARGELAGUET_HARMONIZED,
     shell:
@@ -21,10 +21,10 @@ rule validate_argelaguet_coords:
 
 rule validate_ecker_coords:
     input:
-        flag=op.join(ECKER_BASE, "harmonized.flag"),
+        flag=op.join(ECKER_HARMONIZED, "done.flag"),
         ref=_ECKER_REF,
     output:
-        flag=touch(op.join(ECKER_BASE, "coords_validated.flag")),
+        flag=touch(op.join(ECKER_HARMONIZED, "coords_validated.flag")),
     params:
         harmonized=ECKER_HARMONIZED,
     shell:
@@ -36,7 +36,7 @@ rule validate_crc_coords:
         flag=op.join(CRC, "download.flag"),
         ref=op.join(HG19_BASE, "ref.CG.gz"),
     output:
-        flag=touch(op.join(CRC, "coords_validated.flag")),
+        flag=touch(op.join(CRC_HARMONIZED, "coords_validated.flag")),
     params:
         harmonized=CRC_HARMONIZED,
     shell:
