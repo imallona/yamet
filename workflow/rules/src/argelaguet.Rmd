@@ -985,12 +985,24 @@ plot_umap(umap_grp_adjH, "stage",
 # UMAP: per-annotation locus-level {.tabset .tabset-pills}
 
 For each annotation, groups (stage x lineage) are embedded using per-locus
-normalised Shannon entropy (adjH) sampled from the `.norm.det.out.gz` files as
-features. This gives a much richer feature space than the cross-annotation UMAP
-above. Only loci covered in at least 90% of groups enter HVF selection; groups
-lacking coverage at the selected HVF loci are excluded from the embedding rather
-than imputed. Annotations with very sparse coverage or tabs with no plot produced
-fewer than four embeddable groups.
+normalised Shannon entropy (adjH) from the `.norm.det.out.gz` files as features.
+This gives a richer feature space than the cross-annotation UMAP above.
+
+Locus selection (two-pass, memory-efficient):
+1. Pass 1 reads each file once, accumulating only a per-locus coverage count
+   (whether the value is finite). Loci covered in >= 50% of groups are eligible.
+2. The most-covered eligible loci (up to `r LOCUS_N_UMAP`) are selected.
+3. Pass 2 reads each file again to extract values only for the selected loci.
+
+Cells (stage x lineage groups) with too many uncovered loci (> 50% Inf after
+the !is.finite conversion) are removed by cell-level QC in `run_embedding`
+before HVF selection.
+
+For well-covered annotations (e.g. broad marks): stage 1 of the embedding uses
+complete features (0 NAs across all retained groups), keeping all groups.
+For very sparse annotations: a coverage-weighted fallback selects HVFs from
+features covered in up to 30% of groups, then drops groups with missing values
+at those HVFs. Annotations that remain too sparse to embed return no plot.
 
 ```{r locus_umap_setup}
 LOCUS_N_UMAP <- 2000L
@@ -998,17 +1010,63 @@ LOCUS_SEED   <- 42L
 
 meta_cols_grp_arg <- c("stage_san", "lineage_san", "stage", "lineage", "lineage_class")
 
-build_ann_locus_mat <- function(annotation_name, fps, col, n_loci = LOCUS_N_UMAP) {
+## Locus selection for UMAP: Inf in shannon_norm means no coverage at that
+## locus in that group (handled by run_embedding via !is.finite). Random
+## locus sampling yields almost no usable signal for sparse feature sets
+## (SINEs, histone marks) because coverage is low and scattered.
+##
+## Two-pass strategy:
+##   Pass 1 - coverage scan: read each file once, accumulate only a boolean
+##     coverage count per locus. Memory cost: O(n_loci) integers, not the
+##     full groups x loci matrix.
+##   Pass 2 - value extraction: read each file again, extract only the loci
+##     that are covered in >= min_locus_cov_frac of groups (most-covered first,
+##     up to n_loci). This keeps peak RAM at one file at a time.
+##
+## Column names in norm.det.out files contain file paths with special
+## characters (dots, slashes) which produce benign read_tsv type-guessing
+## warnings; suppressWarnings is used here as only the named col is needed.
+build_ann_locus_mat <- function(annotation_name, fps, col, n_loci = LOCUS_N_UMAP,
+                                min_locus_cov_frac = 0.5) {
   fps_ann <- fps[get_annotation(basename(fps)) == annotation_name]
   if (length(fps_ann) < 4L) return(NULL)
-  ref <- read_tsv(fps_ann[[1]], na = "-1", show_col_types = FALSE)
-  n   <- min(n_loci, nrow(ref))
-  set.seed(LOCUS_SEED)
-  idx <- sort(sample.int(nrow(ref), n))
-  rows <- lapply(fps_ann, function(fp)
-    read_tsv(fp, na = "-1", show_col_types = FALSE)[[col]][idx])
+
+  ## Pass 1: accumulate per-locus coverage counts, one file at a time.
+  cov_counts <- NULL
+  n_loci_total <- NULL
+  for (fp in fps_ann) {
+    vals <- suppressWarnings(
+      read_tsv(fp, na = "-1", show_col_types = FALSE))[[col]]
+    if (is.null(cov_counts)) {
+      n_loci_total <- length(vals)
+      cov_counts <- integer(n_loci_total)
+    }
+    cov_counts <- cov_counts + is.finite(vals)
+  }
+  locus_cov <- cov_counts / length(fps_ann)
+
+  eligible <- which(locus_cov >= min_locus_cov_frac)
+  if (length(eligible) < 2L) {
+    cat(annotation_name, ": no loci covered in >=", min_locus_cov_frac * 100,
+        "% of groups (total loci =", n_loci_total, "); skipping\n")
+    return(NULL)
+  }
+  top_loci <- eligible[order(locus_cov[eligible], decreasing = TRUE)]
+  idx <- sort(top_loci[seq_len(min(as.integer(n_loci), length(top_loci)))])
+
+  ## Pass 2: extract values only for selected loci, one file at a time.
+  rows <- lapply(fps_ann, function(fp) {
+    suppressWarnings(
+      read_tsv(fp, na = "-1", show_col_types = FALSE))[[col]][idx]
+  })
   mat <- do.call(rbind, rows)
   colnames(mat) <- paste0("locus_", idx)
+
+  cat(annotation_name, ": groups =", nrow(mat),
+      "| loci used =", ncol(mat),
+      "| eligible (cov >=", min_locus_cov_frac, ") =", length(eligible),
+      "| total loci =", n_loci_total, "\n")
+
   df <- data.frame(
     stage_san   = get_stage(basename(fps_ann)),
     lineage_san = get_lineage(basename(fps_ann)),

@@ -6,43 +6,98 @@
 ## Requires dplyr, uwot, matrixStats, cluster.
 
 ## HVF selection, feature scaling, PCA (via randomized SVD), UMAP.
-## Loci (rows) with > max_na_frac missing samples are excluded before HVF
-## selection so variance estimates are computed on well-covered features only.
-## Samples (cols) that still have NAs in the selected HVF loci are then dropped
-## rather than imputed. Returns list(umap, pca, hvf_idx, kept_cols) or NULL.
-## kept_cols is a logical vector over the original columns indicating which
-## samples were retained; run_umap_wide uses it to subset the meta rows.
+##
+## NA handling strategy (two stages):
+##
+## Stage 1 (preferred): restrict HVF candidates to features with complete
+## coverage across all cells (0 NAs). This keeps all cells and avoids
+## imputation. NAs arise from missing sequencing coverage, not from the
+## biological zero (unmethylated / zero entropy), which is a valid value.
+## HVF score = var * coverage_frac; for 0-NA features coverage_frac = 1 so
+## this reduces to plain variance.
+## Stage 1 is used when at least min_complete_hvf complete features exist.
+##
+## Stage 2 (sparse fallback for feature sets like gene bodies):
+## when too few complete features are available, HVFs are selected from the
+## broader pool (features with <= max_na_frac missing cells) using
+## coverage-weighted variance (score = var * coverage_frac), which penalises
+## features that appear highly variable only because of sparse coverage.
+## Cells missing at any selected HVF are then dropped rather than imputed.
+## kept_cols records which cells were retained.
+##
+## Returns list(umap, pca, hvf_idx, kept_cols) or NULL.
+## kept_cols is always returned: all TRUE in stage 1, subset in stage 2
+## or after cell-level QC.
 run_embedding <- function(mat,
                           n_hvf = 1000L,
                           n_pcs = 50L,
                           n_neighbors = 15L,
                           min_dist = 0.3,
                           seed = 42L,
-                          max_na_frac = 0.1) {
+                          max_na_frac = 0.3,
+                          min_complete_hvf = 10L,
+                          max_cell_na_frac = 0.5) {
   if (is.null(mat) || ncol(mat) < 4L) return(NULL)
 
   storage.mode(mat) <- "double"
   mat[!is.finite(mat)] <- NA
 
-  mat <- mat[rowMeans(is.na(mat)) <= max_na_frac, , drop = FALSE]
-
-  vars <- matrixStats::rowVars(mat, useNames = FALSE, na.rm = TRUE)
-  n_keep <- min(as.integer(n_hvf), sum(!is.na(vars) & vars > 0))
-  if (n_keep < 2L) {
-    message("run_embedding: too few variable features (", n_keep, "); returning NULL")
+  ## Cell-level QC: drop cells with too many NAs before HVF selection.
+  ## Analogous to scRNA-seq cell QC; cells with most loci unmeasured carry no
+  ## useful signal and would otherwise inflate variance estimates.
+  kept_qc <- colMeans(is.na(mat)) <= max_cell_na_frac
+  if (sum(kept_qc) < 4L) {
+    message("run_embedding: too few cells with <= ", max_cell_na_frac,
+            " NA fraction; returning NULL")
     return(NULL)
   }
-  hvf_idx <- order(vars, decreasing = TRUE)[seq_len(n_keep)]
-  sub_mat <- mat[hvf_idx, , drop = FALSE]
+  if (sum(!kept_qc) > 0L)
+    message("run_embedding: cell QC removed ", sum(!kept_qc),
+            " cells with > ", max_cell_na_frac, " NA fraction")
+  mat <- mat[, kept_qc, drop = FALSE]
 
-  kept_cols <- colSums(is.na(sub_mat)) == 0L
-  sub_mat <- sub_mat[, kept_cols, drop = FALSE]
-  if (nrow(sub_mat) < 2L || ncol(sub_mat) < 4L) {
-    message("run_embedding: too few complete features after NA removal; returning NULL")
-    return(NULL)
+  complete_rows <- rowSums(is.na(mat)) == 0L
+  complete_mat <- mat[complete_rows, , drop = FALSE]
+  vars_c <- matrixStats::rowVars(complete_mat, useNames = FALSE, na.rm = FALSE)
+  n_complete <- sum(!is.na(vars_c) & vars_c > 0)
+
+  if (n_complete >= as.integer(min_complete_hvf)) {
+    rank_c <- order(vars_c, decreasing = TRUE)[seq_len(min(as.integer(n_hvf), n_complete))]
+    hvf_idx <- which(complete_rows)[rank_c]
+    sub_mat <- mat[hvf_idx, , drop = FALSE]
+    kept_in_qc <- rep(TRUE, ncol(mat))
+    message("run_embedding: stage 1 (complete features), HVF = ", length(hvf_idx),
+            ", cells = ", ncol(mat))
+  } else {
+    message("run_embedding: only ", n_complete, " complete features",
+            " (< min_complete_hvf = ", min_complete_hvf, ");",
+            " sparse fallback (max_na_frac = ", max_na_frac, ")")
+    pool_rows <- rowMeans(is.na(mat)) <= max_na_frac
+    pool <- mat[pool_rows, , drop = FALSE]
+    vars_p <- matrixStats::rowVars(pool, useNames = FALSE, na.rm = TRUE)
+    cov_p <- rowMeans(!is.na(pool))
+    score_p <- vars_p * cov_p
+    n_keep <- min(as.integer(n_hvf), sum(!is.na(score_p) & score_p > 0))
+    if (n_keep < 2L) {
+      message("run_embedding: too few variable features in sparse fallback; returning NULL")
+      return(NULL)
+    }
+    rank_p <- order(score_p, decreasing = TRUE)[seq_len(n_keep)]
+    hvf_idx <- which(pool_rows)[rank_p]
+    sub_mat <- mat[hvf_idx, , drop = FALSE]
+    kept_in_qc <- colSums(is.na(sub_mat)) == 0L
+    sub_mat <- sub_mat[, kept_in_qc, drop = FALSE]
+    if (ncol(sub_mat) < 4L) {
+      message("run_embedding: too few cells after NA removal in sparse fallback; returning NULL")
+      return(NULL)
+    }
+    message("run_embedding: sparse fallback, HVF = ", length(hvf_idx),
+            ", cells retained = ", sum(kept_in_qc), " / ", ncol(mat))
   }
-  if (sum(!kept_cols) > 0L)
-    message("run_embedding: dropped ", sum(!kept_cols), " samples lacking coverage at HVF loci")
+
+  ## Map retained cells back to original column indices.
+  kept_cols <- kept_qc
+  kept_cols[kept_qc] <- kept_in_qc
 
   scaled <- t(scale(t(sub_mat)))
   bad <- apply(scaled, 1, function(x) all(is.na(x) | is.nan(x)))
@@ -57,8 +112,6 @@ run_embedding <- function(mat,
   set.seed(seed)
   pca_scores <- irlba::prcomp_irlba(t(scaled), n = n_pcs_use,
                                      center = FALSE, scale. = FALSE)$x
-  message("run_embedding: HVF = ", n_keep, ", PCs = ", n_pcs_use,
-          ", cells = ", ncol(mat))
 
   nn <- min(as.integer(n_neighbors), nrow(pca_scores) - 1L)
   set.seed(seed)
@@ -93,18 +146,21 @@ run_umap_scores <- function(scores, seed = 42L, n_neighbors = 15L, min_dist = 0.
 
 ## Wide data.frame wrapper: splits meta columns, transposes to features x cells,
 ## runs run_embedding(), returns data.frame of meta + UMAP1 + UMAP2.
-## Rows in wide_df that lack coverage at the HVF loci are silently dropped;
-## the caller should note that not all input groups may appear in the output.
+## In the sparse fallback, rows lacking HVF coverage are dropped; callers
+## should note that the output may have fewer rows than the input.
 run_umap_wide <- function(wide_df, meta_cols,
                           n_hvf = 1000L, n_pcs = 50L,
                           n_neighbors = 15L, seed = 42L,
-                          max_na_frac = 0.1) {
+                          max_na_frac = 0.3, min_complete_hvf = 10L,
+                          max_cell_na_frac = 0.5) {
   if (is.null(wide_df) || nrow(wide_df) < 4L) return(NULL)
   meta <- wide_df %>% dplyr::select(dplyr::all_of(meta_cols))
   mat <- wide_df %>% dplyr::select(-dplyr::all_of(meta_cols)) %>% as.matrix()
   res <- run_embedding(t(mat), n_hvf = n_hvf, n_pcs = n_pcs,
                        n_neighbors = n_neighbors, seed = seed,
-                       max_na_frac = max_na_frac)
+                       max_na_frac = max_na_frac,
+                       min_complete_hvf = min_complete_hvf,
+                       max_cell_na_frac = max_cell_na_frac)
   if (is.null(res)) return(NULL)
   dplyr::bind_cols(meta[res$kept_cols, , drop = FALSE],
                    setNames(as.data.frame(res$umap), c("UMAP1", "UMAP2")))

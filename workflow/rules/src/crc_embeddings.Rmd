@@ -179,6 +179,20 @@ assay_map <- c(
 
 # Per-window cell embeddings (HVW -> PCA -> UMAP)
 
+HVW selection and NA handling strategy (same across all reports):
+
+- Zero is a valid measurement (unmethylated window / zero entropy). NA means
+  no sequencing coverage at that window in that cell.
+- Stage 1 (preferred): only windows with complete coverage across all cells
+  (0 NAs) are eligible for HVW selection. Variance is computed on these
+  complete windows; the top `r N_HVW` are selected. All cells are retained.
+  For entropy assays this is typically all windows; for the methylation assay
+  the eligible pool may be smaller.
+- Stage 2 (sparse fallback): when fewer than 10 complete windows exist,
+  HVWs are selected from windows covered in up to 30% of cells using
+  coverage-weighted variance (score = var * coverage_fraction). Cells missing
+  at the selected HVWs are dropped.
+
 Top `r N_HVW` most variable windows are selected per assay before PCA and UMAP.
 
 ```{r win_hvw_pca_umap}
@@ -189,6 +203,20 @@ names(win_embeds) <- assay_map
 
 failed <- names(which(sapply(win_embeds, is.null)))
 if (length(failed) > 0) warning("run_embedding returned NULL for: ", paste(failed, collapse = ", "))
+
+cat("\nHVF selection summary (stage 1 = complete features; stage 2 = sparse fallback):\n")
+for (nm in names(win_embeds)) {
+  em <- win_embeds[[nm]]
+  if (is.null(em)) {
+    cat(nm, ": NULL\n")
+  } else {
+    n_cells_used <- sum(em$kept_cols)
+    cat(nm, ": HVF =", length(em$hvf_idx),
+        "| cells used =", n_cells_used, "/", ncol(windows_sce),
+        if (n_cells_used < ncol(windows_sce)) "(sparse fallback)" else "(all cells)",
+        "\n")
+  }
+}
 
 saveRDS(list(col_data = as.data.frame(colData(windows_sce)),
              row_data = as.data.frame(rowData(windows_sce)),
@@ -202,22 +230,22 @@ saveRDS(list(col_data = as.data.frame(colData(windows_sce)),
 
 ```{r win_loc_S, fig.width = ng_fig_size(2, 1)$w, fig.height = ng_fig_size(2, 1)$h}
 ### S
-if (!is.null(win_embeds[["S"]])) print(plot_pair(win_embeds[["S"]]$umap, windows_sce, "S (windows)"))
+if (!is.null(win_embeds[["S"]])) print(plot_pair(win_embeds[["S"]]$umap, windows_sce[, win_embeds[["S"]]$kept_cols], "S (windows)"))
 ```
 
 ```{r win_loc_adjS, fig.width = ng_fig_size(2, 1)$w, fig.height = ng_fig_size(2, 1)$h}
 ### adjS
-if (!is.null(win_embeds[["adjS"]])) print(plot_pair(win_embeds[["adjS"]]$umap, windows_sce, "adjS (windows)"))
+if (!is.null(win_embeds[["adjS"]])) print(plot_pair(win_embeds[["adjS"]]$umap, windows_sce[, win_embeds[["adjS"]]$kept_cols], "adjS (windows)"))
 ```
 
 ```{r win_loc_scm, fig.width = ng_fig_size(2, 1)$w, fig.height = ng_fig_size(2, 1)$h}
 ### S_cellmeth
-if (!is.null(win_embeds[["S_cellmeth"]])) print(plot_pair(win_embeds[["S_cellmeth"]]$umap, windows_sce, "S_cellmeth (windows)"))
+if (!is.null(win_embeds[["S_cellmeth"]])) print(plot_pair(win_embeds[["S_cellmeth"]]$umap, windows_sce[, win_embeds[["S_cellmeth"]]$kept_cols], "S_cellmeth (windows)"))
 ```
 
 ```{r win_loc_meth, fig.width = ng_fig_size(2, 1)$w, fig.height = ng_fig_size(2, 1)$h}
 ### methylation
-if (!is.null(win_embeds[["methylation"]])) print(plot_pair(win_embeds[["methylation"]]$umap, windows_sce, "methylation (windows)"))
+if (!is.null(win_embeds[["methylation"]])) print(plot_pair(win_embeds[["methylation"]]$umap, windows_sce[, win_embeds[["methylation"]]$kept_cols], "methylation (windows)"))
 ```
 
 ## Four-panel comparison (location)
@@ -225,9 +253,10 @@ if (!is.null(win_embeds[["methylation"]])) print(plot_pair(win_embeds[["methylat
 ```{r win_panel, fig.width = ng_fig_size(4, 1)$w, fig.height = ng_fig_size(4, 1)$h}
 ok_embeds <- Filter(Negate(is.null), win_embeds)
 df_win_panel <- bind_rows(lapply(names(ok_embeds), function(lbl) {
-  data.frame(umap1 = ok_embeds[[lbl]]$umap[, 1],
-             umap2 = ok_embeds[[lbl]]$umap[, 2],
-             location = colData(windows_sce)$location,
+  em <- ok_embeds[[lbl]]
+  data.frame(umap1 = em$umap[, 1],
+             umap2 = em$umap[, 2],
+             location = colData(windows_sce[, em$kept_cols])$location,
              assay = lbl)
 }))
 df_win_panel$assay <- factor(df_win_panel$assay, levels = assay_map)
@@ -246,10 +275,11 @@ ggplot(df_win_panel, aes(x = umap1, y = umap2, color = location)) +
 
 ```{r win_pca_plot, fig.width = ng_fig_size(4, 2)$w, fig.height = ng_fig_size(4, 2)$h}
 df_win_pca <- bind_rows(lapply(names(ok_embeds), function(lbl) {
-  pca <- ok_embeds[[lbl]]$pca
-  data.frame(PC1 = pca[, 1], PC2 = pca[, 2],
-             location = colData(windows_sce)$location,
-             patient  = colData(windows_sce)$patient,
+  em <- ok_embeds[[lbl]]
+  cd <- colData(windows_sce[, em$kept_cols])
+  data.frame(PC1 = em$pca[, 1], PC2 = em$pca[, 2],
+             location = cd$location,
+             patient  = cd$patient,
              assay    = lbl)
 }))
 df_win_pca$assay <- factor(df_win_pca$assay, levels = assay_map)
@@ -305,7 +335,8 @@ ggplot(ve_win_long, aes(x = assay, y = median_ve, fill = variable)) +
 sil_win <- data.frame(
   assay = names(ok_embeds),
   silhouette = sapply(names(ok_embeds), function(lbl)
-    sil_score(ok_embeds[[lbl]]$umap, colData(windows_sce)$location)),
+    sil_score(ok_embeds[[lbl]]$umap,
+              colData(windows_sce[, ok_embeds[[lbl]]$kept_cols])$location)),
   feature_space = "windows"
 )
 print(sil_win)
@@ -512,7 +543,7 @@ for (col in annot_cols) {
       sil_score(res$umap, colData(windows_sce)$location)
 
     cat(sprintf("\n### %s\n\n", alabel))
-    print(plot_pair(res$umap, windows_sce,
+    print(plot_pair(res$umap, windows_sce[, res$kept_cols],
                     sprintf("%s / %s (HVW -> PCA -> UMAP)", label, alabel)))
     cat("\n")
   }
