@@ -971,18 +971,48 @@ det_paths_genes <- list.files(snakemake@params[["output_path"]],
                                pattern = "det\\.out\\.gz$", full.names = TRUE)
 det_paths_genes <- det_paths_genes[!grepl("norm", det_paths_genes)]
 
-build_gene_mat <- function(col, fps, n_loci = LOCUS_N_UMAP) {
+## Two-pass coverage-based locus selection (same strategy as argelaguet.Rmd):
+## Pass 1 scans all files to find loci covered in >= min_locus_cov_frac of groups.
+## Pass 2 extracts values for the most-covered eligible loci (up to n_loci).
+## is.finite() handles both NA (-1 converted on read) and Inf (norm.det.out missing).
+build_gene_mat <- function(col, fps, n_loci = LOCUS_N_UMAP, min_locus_cov_frac = 0.5) {
   fps_g <- fps[get_annotation(basename(fps)) == "genes"]
   if (length(fps_g) < 4L) return(NULL)
-  ref <- read_tsv(fps_g[[1]], na = "-1", show_col_types = FALSE)
-  n   <- min(n_loci, nrow(ref))
-  set.seed(LOCUS_SEED)
-  idx <- sort(sample.int(nrow(ref), n))
+
+  cov_counts <- NULL
+  n_loci_total <- NULL
+  for (fp in fps_g) {
+    vals <- suppressWarnings(
+      read_tsv(fp, na = "-1", show_col_types = FALSE))[[col]]
+    if (is.null(cov_counts)) {
+      n_loci_total <- length(vals)
+      cov_counts <- integer(n_loci_total)
+    }
+    cov_counts <- cov_counts + is.finite(vals)
+  }
+  locus_cov <- cov_counts / length(fps_g)
+
+  eligible <- which(locus_cov >= min_locus_cov_frac)
+  if (length(eligible) < 2L) {
+    cat("genes: no loci covered in >=", min_locus_cov_frac * 100,
+        "% of groups (total loci =", n_loci_total, "); skipping\n")
+    return(NULL)
+  }
+  top_loci <- eligible[order(locus_cov[eligible], decreasing = TRUE)]
+  idx <- sort(top_loci[seq_len(min(as.integer(n_loci), length(top_loci)))])
+
   rows <- bplapply(fps_g, function(fp)
-    read_tsv(fp, na = "-1", show_col_types = FALSE)[[col]][idx],
+    suppressWarnings(
+      read_tsv(fp, na = "-1", show_col_types = FALSE))[[col]][idx],
     BPPARAM = param)
   mat <- do.call(rbind, rows)
   colnames(mat) <- paste0("gene_", idx)
+
+  cat("genes: groups =", nrow(mat),
+      "| loci used =", ncol(mat),
+      "| eligible (cov >=", min_locus_cov_frac, ") =", length(eligible),
+      "| total loci =", n_loci_total, "\n")
+
   df <- data.frame(
     sub_region = get_sub_region(basename(fps_g)),
     sub_type   = get_sub_type(basename(fps_g)),
@@ -1007,7 +1037,7 @@ meta_cols_grp <- c("sub_region", "sub_type", "cell_class", "major_type", "major_
 umap_gene_adjH <- run_umap_wide(gene_mat_adjH, meta_cols_grp, n_neighbors = 5L)
 plot_umap_class(umap_gene_adjH,
                 title    = "Gene-locus UMAP - adjH features",
-                subtitle = paste0(LOCUS_N_UMAP, " genes sampled"))
+                subtitle = paste0(LOCUS_N_UMAP, " genes (coverage-based selection)"))
 ```
 
 ## Group-level: gene loci, avg_meth
@@ -1016,7 +1046,7 @@ plot_umap_class(umap_gene_adjH,
 umap_gene_meth <- run_umap_wide(gene_mat_meth, meta_cols_grp, n_neighbors = 5L)
 plot_umap_class(umap_gene_meth,
                 title    = "Gene-locus UMAP - avg. methylation features",
-                subtitle = paste0(LOCUS_N_UMAP, " genes sampled"))
+                subtitle = paste0(LOCUS_N_UMAP, " genes (coverage-based selection)"))
 ```
 
 # Paper UMAP + our entropy overlay {.tabset .tabset-pills}
