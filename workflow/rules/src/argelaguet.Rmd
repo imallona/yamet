@@ -994,9 +994,9 @@ Locus selection (two-pass, memory-efficient):
 2. The most-covered eligible loci (up to `r LOCUS_N_UMAP`) are selected.
 3. Pass 2 reads each file again to extract values only for the selected loci.
 
-Cells (stage x lineage groups) with too many uncovered loci (> 50% Inf after
-the !is.finite conversion) are removed by cell-level QC in `run_embedding`
-before HVF selection.
+Cells (stage x lineage groups) with too many uncovered loci (> 50% NA after
+`read_tsv` converts the -1 sentinel to NA) are removed by cell-level QC in
+`run_embedding` before HVF selection.
 
 For well-covered annotations (e.g. broad marks): stage 1 of the embedding uses
 complete features (0 NAs across all retained groups), keeping all groups.
@@ -1010,8 +1010,8 @@ LOCUS_SEED   <- 42L
 
 meta_cols_grp_arg <- c("stage_san", "lineage_san", "stage", "lineage", "lineage_class")
 
-## Locus selection for UMAP: Inf in shannon_norm means no coverage at that
-## locus in that group (handled by run_embedding via !is.finite). Random
+## Locus selection for UMAP: -1 in shannon_norm means no coverage at that
+## locus in that group; read_tsv(na="-1") converts it to NA. Random
 ## locus sampling yields almost no usable signal for sparse feature sets
 ## (SINEs, histone marks) because coverage is low and scattered.
 ##

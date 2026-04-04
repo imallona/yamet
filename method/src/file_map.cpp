@@ -158,14 +158,27 @@ void ParsedInfo::aggregate() {
         if (agg_bin.t[cl_idx] > 0) {
           agg_bin.avg_meth[cl_idx] = ((double)agg_bin.m[cl_idx]) / ((double)agg_bin.t[cl_idx]);
         }
-        /// expected shannon entropy per bin across files based on average methylation
-        if (agg_bin.avg_meth[cl_idx] != -1) {
-          auto &p = agg_bin.avg_meth[cl_idx];
+        /// expected shannon entropy using pattern-based methylation rate (same approach as
+        /// sampen_exp). avg_meth is built from front-position reads only, so using it here
+        /// would give p=0 when front positions are all unmethylated even if other positions
+        /// in the window are methylated, producing Inf in shannon_norm. Using cm-derived p
+        /// keeps shannon and shannon_exp consistent.
+        if (total_cm[cluster] > 0) {
+          const auto &cm_cl     = agg_bin.cm[cl_idx];
+          double      total_d   = 0, ones = 0;
+          for (size_t k = 0; k < cm_cl.size(); k++) {
+            total_d += cm_cl[k];
+            ones += __builtin_popcountll(static_cast<unsigned long long>(k)) * cm_cl[k];
+          }
+          const unsigned int m_len =
+              static_cast<unsigned int>(__builtin_ctzll(static_cast<unsigned long long>(cm_cl.size())));
+          const double p = (m_len > 0 && total_d > 0) ? ones / (m_len * total_d) : 0.0;
           agg_bin.shannon_exp[cl_idx] =
-              (p == 1 || p == 0) ? 0 : -2 * (p * log(p) + (1 - p) * log(1 - p));
-          agg_bin.shannon_exp[cl_idx] /= log(agg_bin.cm[cl_idx].size());
+              (p == 0.0 || p == 1.0) ? 0.0 : -2.0 * (p * log(p) + (1.0 - p) * log(1.0 - p));
+          agg_bin.shannon_exp[cl_idx] /= log(static_cast<double>(cm_cl.size()));
         }
-        /// normalized shannon entropy per bin across files by the expected shannon entropy
+        /// normalized shannon entropy. shannon_exp == 0 iff p == 0 or p == 1, which means
+        /// every pattern in cm is the same, so shannon == 0 as well. Division is safe.
         if (agg_bin.shannon[cl_idx] != -1 && agg_bin.shannon_exp[cl_idx] != -1) {
           agg_bin.shannon_norm[cl_idx] =
               (agg_bin.shannon_exp[cl_idx] == 0 && agg_bin.shannon[cl_idx] == 0)

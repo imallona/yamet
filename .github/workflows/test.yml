@@ -201,6 +201,24 @@ jobs:
 
           diff test_cluster/out/det.out \
               current_test_metadata.det.out
+      - name: Test shannon_norm no Inf regression
+        if: always()
+        run: |
+          cd test
+          ../method/build/yamet \
+              -c test_shannon_norm_no_inf/in/cell1.tsv \
+                 test_shannon_norm_no_inf/in/cell2.tsv \
+              -r test_shannon_norm_no_inf/in/reference.tsv \
+              -i test_shannon_norm_no_inf/in/regions.bed \
+              --norm-det-out current_test_shannon_norm_no_inf.norm.det.out
+
+          echo 'Check shannon_norm contains no Inf values'
+          if grep -qi "inf" current_test_shannon_norm_no_inf.norm.det.out; then
+            echo "FAIL: Inf in shannon_norm output"
+            cat current_test_shannon_norm_no_inf.norm.det.out
+            exit 1
+          fi
+          echo "PASS"
 
           echo 'Diff expected vs produced output'
 
