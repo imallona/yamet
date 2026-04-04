@@ -19,8 +19,8 @@ if [ -z "$cell" ]; then
     exit 1
 fi
 
-cell_has_chr=$(zcat "$cell" | head -100 | grep -cP "^chr" || true)
-ref_has_chr=$(zcat "$ref"  | head -200 | grep -cP "^chr" || true)
+cell_has_chr=$(zcat "$cell" | head -100 | grep -c '^chr' || true)
+ref_has_chr=$(zcat "$ref"  | head -200 | grep -c '^chr' || true)
 
 if [ "$cell_has_chr" -gt 0 ] && [ "$ref_has_chr" -eq 0 ]; then
     echo "ERROR: cell file $cell uses chr-prefixed chromosomes but reference $ref does not" >&2

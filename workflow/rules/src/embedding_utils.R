@@ -6,18 +6,25 @@
 ## Requires dplyr, uwot, matrixStats, cluster.
 
 ## HVF selection, feature scaling, PCA (via randomized SVD), UMAP.
-## Returns list(umap = cells x 2, pca = cells x n_pcs, hvf_idx = row indices)
-## or NULL if the data is too small.
+## Loci (rows) with > max_na_frac missing samples are excluded before HVF
+## selection so variance estimates are computed on well-covered features only.
+## Samples (cols) that still have NAs in the selected HVF loci are then dropped
+## rather than imputed. Returns list(umap, pca, hvf_idx, kept_cols) or NULL.
+## kept_cols is a logical vector over the original columns indicating which
+## samples were retained; run_umap_wide uses it to subset the meta rows.
 run_embedding <- function(mat,
                           n_hvf = 1000L,
                           n_pcs = 50L,
                           n_neighbors = 15L,
                           min_dist = 0.3,
-                          seed = 42L) {
+                          seed = 42L,
+                          max_na_frac = 0.1) {
   if (is.null(mat) || ncol(mat) < 4L) return(NULL)
 
   storage.mode(mat) <- "double"
   mat[!is.finite(mat)] <- NA
+
+  mat <- mat[rowMeans(is.na(mat)) <= max_na_frac, , drop = FALSE]
 
   vars <- matrixStats::rowVars(mat, useNames = FALSE, na.rm = TRUE)
   n_keep <- min(as.integer(n_hvf), sum(!is.na(vars) & vars > 0))
@@ -28,11 +35,14 @@ run_embedding <- function(mat,
   hvf_idx <- order(vars, decreasing = TRUE)[seq_len(n_keep)]
   sub_mat <- mat[hvf_idx, , drop = FALSE]
 
-  sub_mat <- sub_mat[rowSums(is.na(sub_mat)) == 0L, , drop = FALSE]
-  if (nrow(sub_mat) < 2L) {
+  kept_cols <- colSums(is.na(sub_mat)) == 0L
+  sub_mat <- sub_mat[, kept_cols, drop = FALSE]
+  if (nrow(sub_mat) < 2L || ncol(sub_mat) < 4L) {
     message("run_embedding: too few complete features after NA removal; returning NULL")
     return(NULL)
   }
+  if (sum(!kept_cols) > 0L)
+    message("run_embedding: dropped ", sum(!kept_cols), " samples lacking coverage at HVF loci")
 
   scaled <- t(scale(t(sub_mat)))
   bad <- apply(scaled, 1, function(x) all(is.na(x) | is.nan(x)))
@@ -55,7 +65,7 @@ run_embedding <- function(mat,
   coords <- uwot::umap(pca_scores, n_neighbors = nn, min_dist = min_dist,
                        n_epochs = 500, verbose = FALSE)
 
-  list(umap = coords, pca = pca_scores, hvf_idx = hvf_idx)
+  list(umap = coords, pca = pca_scores, hvf_idx = hvf_idx, kept_cols = kept_cols)
 }
 
 ## PCA on a features x cells matrix. Returns cells x PCs score matrix or NULL.
@@ -83,16 +93,21 @@ run_umap_scores <- function(scores, seed = 42L, n_neighbors = 15L, min_dist = 0.
 
 ## Wide data.frame wrapper: splits meta columns, transposes to features x cells,
 ## runs run_embedding(), returns data.frame of meta + UMAP1 + UMAP2.
+## Rows in wide_df that lack coverage at the HVF loci are silently dropped;
+## the caller should note that not all input groups may appear in the output.
 run_umap_wide <- function(wide_df, meta_cols,
                           n_hvf = 1000L, n_pcs = 50L,
-                          n_neighbors = 15L, seed = 42L) {
+                          n_neighbors = 15L, seed = 42L,
+                          max_na_frac = 0.1) {
   if (is.null(wide_df) || nrow(wide_df) < 4L) return(NULL)
   meta <- wide_df %>% dplyr::select(dplyr::all_of(meta_cols))
   mat <- wide_df %>% dplyr::select(-dplyr::all_of(meta_cols)) %>% as.matrix()
   res <- run_embedding(t(mat), n_hvf = n_hvf, n_pcs = n_pcs,
-                       n_neighbors = n_neighbors, seed = seed)
+                       n_neighbors = n_neighbors, seed = seed,
+                       max_na_frac = max_na_frac)
   if (is.null(res)) return(NULL)
-  dplyr::bind_cols(meta, setNames(as.data.frame(res$umap), c("UMAP1", "UMAP2")))
+  dplyr::bind_cols(meta[res$kept_cols, , drop = FALSE],
+                   setNames(as.data.frame(res$umap), c("UMAP1", "UMAP2")))
 }
 
 ## Per-column regression of score_mat on cell mean methylation.

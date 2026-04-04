@@ -28,6 +28,8 @@ rule build_hg19_chr_per_chr:
         fa="Homo_sapiens.GRCh37.dna.chromosome.{chr}.fa",
         base="https://ftp.ensembl.org/pub/grch37/current/fasta/homo_sapiens/dna/",
         chr_prefix="chr",
+    log:
+        op.join("logs", "build_hg19_chr_{chr}_{meth_pat}.log")
     script:
         "src/build_chr_cpg_ref.sh"
 

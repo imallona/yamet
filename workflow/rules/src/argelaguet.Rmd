@@ -987,7 +987,10 @@ plot_umap(umap_grp_adjH, "stage",
 For each annotation, groups (stage x lineage) are embedded using per-locus
 normalised Shannon entropy (adjH) sampled from the `.norm.det.out.gz` files as
 features. This gives a much richer feature space than the cross-annotation UMAP
-above.
+above. Only loci covered in at least 90% of groups enter HVF selection; groups
+lacking coverage at the selected HVF loci are excluded from the embedding rather
+than imputed. Annotations with very sparse coverage or tabs with no plot produced
+fewer than four embeddable groups.
 
 ```{r locus_umap_setup}
 LOCUS_N_UMAP <- 2000L

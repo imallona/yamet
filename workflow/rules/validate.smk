@@ -37,7 +37,7 @@ rule validate_ecker_coords:
 
 rule validate_crc_coords:
     input:
-        flag=op.join(CRC, "download.flag"),
+        flag=op.join(CRC_HARMONIZED, "done.flag"),
         ref=op.join(HG19_BASE, "ref.CG.gz"),
     output:
         flag=touch(op.join(CRC_HARMONIZED, "coords_validated.flag")),

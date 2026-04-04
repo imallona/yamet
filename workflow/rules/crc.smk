@@ -161,6 +161,18 @@ checkpoint download_crc_bismarks:
         """
 
 
+rule mark_crc_harmonized_done:
+    input:
+        lambda _: [
+            f
+            for patient, locations in SAMPLES.items()
+            for location in set(locations)
+            for f in get_harmonized_files(patient, location)
+        ]
+    output:
+        touch(op.join(CRC_HARMONIZED, "done.flag"))
+
+
 rule harmonize_cell_report_for_yamet:
     conda:
         op.join("..", "envs", "processing.yml")
