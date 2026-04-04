@@ -218,7 +218,7 @@ rule run_yamet_on_argelaguet_features:
         cells=lambda wildcards: get_argelaguet_harmonized_files(
             wildcards.stage, wildcards.lineage
         ),
-        validation=op.join(ARGELAGUET_HARMONIZED, "coords_validated.flag"),
+        validation=ancient(op.join(ARGELAGUET_HARMONIZED, "coords_validated.flag")),
         ref=op.join(MM10_BASE, "ref.CG.gz"),
         bed=op.join(ARGELAGUET_BASE, "beds", "{annotation}.bed"),
     output:

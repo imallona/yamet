@@ -190,7 +190,7 @@ rule run_yamet_on_ecker_features:
         op.join("..", "envs", "yamet.yml")
     input:
         cells=lambda wildcards: get_ecker_harmonized_files(wildcards.sub_region, wildcards.sub_type),
-        validation=op.join(ECKER_HARMONIZED, "coords_validated.flag"),
+        validation=ancient(op.join(ECKER_HARMONIZED, "coords_validated.flag")),
         ref=_ECKER_REF,
         bed=op.join(ECKER_BASE, "beds", "{annotation}.bed"),
     output:
