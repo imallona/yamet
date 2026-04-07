@@ -6,3 +6,4 @@ dependencies:
   - cmake
   - libboost-devel
   - cxx-compiler
+  - cli11
