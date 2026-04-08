@@ -2,8 +2,9 @@
 title: "Normalization, Emanuel's simuls"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 author: "Atreya, Emanuel, Izaskun"
-params: 
+params:
   yamet_dir:
+  fig_path:
 output:
   bookdown::html_document2:
     code_folding: hide
@@ -27,7 +28,7 @@ knitr::opts_chunk$set(
     echo = FALSE,
     message = FALSE,
     warning = FALSE,
-    fig.path = "../output/03_plots/",
+    fig.path = params$fig_path,
     dev = c("png", "svg"),
     dpi=500
 )
@@ -36,8 +37,7 @@ knitr::opts_chunk$set(
 Firstly, we import the different yamet output files.
 
 ```{r, import}
-##data.dir <- '../output/yamet/out/'
-data.dir <- file.path("..", params$yamet_dir)
+data.dir <- params$yamet_dir
 data.paths <- list.files(data.dir, pattern = "\\.tsv$", full.names = TRUE)
 data.list <- lapply(data.paths, fread)
 data <- rbindlist(data.list)

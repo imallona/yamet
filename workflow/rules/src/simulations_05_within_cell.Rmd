@@ -64,29 +64,29 @@ suppressPackageStartupMessages({
   library(svglite)
 })
 
-source("src/mi_table.R")
-source("src/make_grid_plots.R")
-source("src/ggtheme.R")
+source("rules/src/mi_table.R")
+source("rules/src/make_grid_plots.R")
+source("rules/src/ggtheme.R")
 
 knitr::opts_chunk$set(
     echo = FALSE,
     message = FALSE,
     warning = FALSE,
-    fig.path = "../output/05_plots/",
+    fig.path = "simulations/output/05_plots/",
     dev = c("png", "svg"),
-    dpi=500
+    dpi = 500,
+    fig.width  = ng_fig_size(1, 1)$w,
+    fig.height = ng_fig_size(1, 1)$h
 )
+
+log_con <- file(snakemake@log[[1]], open = "wt")
+sink(log_con)
+sink(log_con, type = "message")
 
 data_dir <- dirname(snakemake@input[["disp_scmet"]])
 S_GRID <- snakemake@params[["S_GRID"]]
 N_GRID <- snakemake@params[["N_GRID"]]
 DISP <- snakemake@params[["DISP"]]
-
-## Large axis labels applied to every plot
-big_labels <- theme(
-  axis.title = element_text(size = 22, face = "bold", color = "black"),
-  axis.text  = element_text(size = 18, color = "black")
-)
 
 ## Within-cell colour gradient (navy)
 wc_scale <- scale_color_gradient(low = "grey90", high = "#000080")
@@ -94,7 +94,7 @@ wc_scale <- scale_color_gradient(low = "grey90", high = "#000080")
 
 
 ```{r}
-dir.create('rds', showWarnings = FALSE)
+dir.create('simulations/rds', showWarnings = FALSE)
 ```
 
 ## Variation
@@ -126,7 +126,7 @@ sampens <- read.table(
 )
 jnt <- cbind(sampens, intervals)
 rownames(jnt) <- paste(jnt$start, jnt$end, sep = ":")
-output_cols <- grep("^output", colnames(jnt), value = TRUE)
+output_cols <- grep("\\.tsv$", colnames(jnt), value = TRUE)
 jnt$sampen_avg <- rowMeans(jnt[, output_cols])
 jnt.long <- do.call(rbind, lapply(output_cols, function(col) {
   data.frame(
@@ -156,7 +156,6 @@ samp_meth <- ggplot(all.long, aes(x = meth, y = sampen, color = wc_vi)) +
   geom_point(alpha = 0.3) +
   theme_ng() +
   wc_scale +
-  big_labels +
   labs(
     x = "avg. methylation", y = "sample entropy", color = "wcVI"
   )
@@ -165,7 +164,6 @@ samp_vi <- ggplot(all.long, aes(x = as.factor(wc_vi), y = sampen)) +
   geom_point(alpha = 0.7, position = position_jitter(width = 0.2)) +
   geom_violin(alpha = 0.3, position = position_dodge(0.8)) +
   theme_ng() +
-  big_labels +
   labs(
     x = "wcVI", y = "sample entropy"
   )
@@ -174,7 +172,6 @@ shannon_meth <- ggplot(jnt, aes(x = avg_meth, y = shannon, color = wc_vi)) +
   geom_point(alpha = 0.7) +
   theme_ng() +
   wc_scale +
-  big_labels +
   labs(
     x = "avg. methylation", y = "Shannon entropy", color = "wcVI"
   )
@@ -182,7 +179,6 @@ shannon_meth <- ggplot(jnt, aes(x = avg_meth, y = shannon, color = wc_vi)) +
 shannon_vi <- ggplot(jnt, aes(x = as.factor(wc_vi), y = shannon, color = avg_meth)) +
   geom_point(alpha = 0.7) +
   theme_ng() +
-  big_labels +
   labs(
     x = "wcVI", y = "Shannon entropy", color = "meth"
   )
@@ -191,7 +187,6 @@ samp_shan <- ggplot(all.long, aes(x = shannon, y = sampen, color = wc_vi)) +
   geom_point(alpha = 0.7) +
   theme_ng() +
   wc_scale +
-  big_labels +
   labs(
     x = "Shannon entropy", y = "sample entropy", color = "wcVI"
   )
@@ -211,7 +206,6 @@ jnt$scmet_epsilon <- tmp[match(rownames(jnt), names(tmp))]
 scmet_mu_vi <- ggplot(jnt, aes(x = as.factor(wc_vi), y = scmet_mu, color = avg_meth)) +
   geom_point(alpha = 0.7) +
   theme_ng() +
-  big_labels +
   labs(
     x = "wcVI", y = expression("scMET " ~ mu), color = "meth"
   )
@@ -220,7 +214,6 @@ scmet_mu_meth <- ggplot(jnt, aes(x = avg_meth, y = scmet_mu, color = wc_vi)) +
   geom_point(alpha = 0.7) +
   theme_ng() +
   wc_scale +
-  big_labels +
   labs(
     x = "avg. methylation", y = expression("scMET " ~mu), color = "wcVI"
   )
@@ -229,7 +222,6 @@ scmet_gamma_meth <- ggplot(jnt, aes(x = avg_meth, y = scmet_gamma, color = wc_vi
   geom_point(alpha = 0.7) +
   theme_ng() +
   wc_scale +
-  big_labels +
   labs(
     x = "avg. methylation", y = expression("scMET " ~gamma), color = "wcVI"
   )
@@ -238,7 +230,6 @@ scmet_epsilon_meth <- ggplot(jnt, aes(x = avg_meth, y = scmet_epsilon, color = w
   geom_point(alpha = 0.7) +
   theme_ng() +
   wc_scale +
-  big_labels +
   labs(
     x = "avg. methylation", y = expression("scMET " ~epsilon), color = "wcVI"
   )
@@ -246,7 +237,6 @@ scmet_epsilon_meth <- ggplot(jnt, aes(x = avg_meth, y = scmet_epsilon, color = w
 sampen_avg_vi <- ggplot(jnt, aes(x = as.factor(wc_vi), y = sampen_avg, color = avg_meth)) +
   geom_point(alpha = 0.7) +
   theme_ng() +
-  big_labels +
   labs(
     x = "wcVI", y = "sampen (average)", color = "meth"
   )
@@ -255,7 +245,6 @@ sampen_avg_meth <- ggplot(jnt, aes(x = avg_meth, y = sampen_avg, color = wc_vi))
   geom_point(alpha = 0.7) +
   theme_ng() +
   wc_scale +
-  big_labels +
   labs(
     x = "avg. methylation", y = "sampen (average)", color = "wcVI"
   )
@@ -264,11 +253,11 @@ sampen_avg_meth <- ggplot(jnt, aes(x = avg_meth, y = sampen_avg, color = wc_vi))
 ```{r}
 mi_table <- mi_table_gen(jnt, "wc_vi", table = T)
 mi_fd <- mi_table_gen(jnt, "wc_vi", table = F)
-saveRDS(mi_fd,     'rds/perf_within.rds')
-saveRDS(all.long,  'rds/all.long_within.rds')
-saveRDS(jnt,       'rds/jnt_within.rds')
-saveRDS(s_plots,   'rds/s_plots_within.rds')
-saveRDS(n_plots,   'rds/n_plots_within.rds')
+saveRDS(mi_fd,     'simulations/rds/perf_within.rds')
+saveRDS(all.long,  'simulations/rds/all.long_within.rds')
+saveRDS(jnt,       'simulations/rds/jnt_within.rds')
+saveRDS(s_plots,   'simulations/rds/s_plots_within.rds')
+saveRDS(n_plots,   'simulations/rds/n_plots_within.rds')
 ```
 
 ```{r adj-within}
@@ -280,7 +269,7 @@ norm_det <- read.table(
   header = T
 )
 rownames(norm_det) <- paste(norm_det$start, norm_det$end, sep = ":")
-norm_output_cols <- grep("^output", colnames(norm_det), value = TRUE)
+norm_output_cols <- grep("\\.tsv$", colnames(norm_det), value = TRUE)
 
 ## Per-cell per-feature long format with adj columns
 jnt.adj.long <- do.call(rbind, lapply(output_cols, function(col) {
@@ -306,11 +295,11 @@ s_plots_adj <- make_grid_plots(S_GRID, "S", "wc_vi", data_dir, adj = TRUE)
 n_plots_adj <- make_grid_plots(N_GRID, "N", "wc_vi", data_dir, adj = TRUE)
 mi_fd_adj   <- mi_table_gen(jnt, "wc_vi", table = FALSE, adj = TRUE)
 
-saveRDS(mi_fd_adj,    'rds/perf_within_adj.rds')
-saveRDS(all.long_adj, 'rds/all.long_within_adj.rds')
-saveRDS(jnt,          'rds/jnt_within_adj.rds')
-saveRDS(s_plots_adj,  'rds/s_plots_within_adj.rds')
-saveRDS(n_plots_adj,  'rds/n_plots_within_adj.rds')
+saveRDS(mi_fd_adj,    'simulations/rds/perf_within_adj.rds')
+saveRDS(all.long_adj, 'simulations/rds/all.long_within_adj.rds')
+saveRDS(jnt,          'simulations/rds/jnt_within_adj.rds')
+saveRDS(s_plots_adj,  'simulations/rds/s_plots_within_adj.rds')
+saveRDS(n_plots_adj,  'simulations/rds/n_plots_within_adj.rds')
 ```
 
 ## Plots
@@ -375,7 +364,6 @@ nmi <- ggplot(mi_fd, aes(x = reorder(Metric, -NMI), y = NMI)) +
     geom_point(size = 3) +
     geom_text(aes(label = round(NMI, 3)), vjust = -0.5, size = 5) +
     theme_ng() +
-    big_labels +
     scale_x_discrete(labels = metric_labels) +
     labs(
         x = NULL,
@@ -388,25 +376,25 @@ print(nmi)
 ```
 
 ```{r s_nmi}
-print(s_plots$nmi + big_labels + xlab("# cells") + ylab("performance (metric NMI)"))
+print(s_plots$nmi + xlab("# cells") + ylab("performance (metric NMI)"))
 ```
 
 ```{r s_seconds}
-print(s_plots$seconds + big_labels + xlab("# cells") + ylab("CPU time (s)"))
+print(s_plots$seconds + xlab("# cells") + ylab("CPU time (s)"))
 ```
 
 ```{r s_mem}
-print(s_plots$mem + big_labels + xlab("# cells") + ylab("memory usage (MB)"))
+print(s_plots$mem + xlab("# cells") + ylab("memory usage (MB)"))
 ```
 
 ```{r n_nmi}
-print(n_plots$nmi + big_labels + xlab("# features") + ylab("performance (metric NMI)"))
+print(n_plots$nmi + xlab("# features") + ylab("performance (metric NMI)"))
 ```
 
 ```{r n_seconds}
-print(n_plots$seconds + big_labels + xlab("# features") + ylab("CPU time (s)"))
+print(n_plots$seconds + xlab("# features") + ylab("CPU time (s)"))
 ```
 
 ```{r n_mem}
-print(n_plots$mem + big_labels + xlab("# features") + ylab("memory usage (MB)"))
+print(n_plots$mem + xlab("# features") + ylab("memory usage (MB)"))
 ```

@@ -1,8 +1,10 @@
 ---
 title: "Coverage Plots"
 date: "22/1/2025"
-params: 
-  sim_data_dir: 
+params:
+  sim_data_dir:
+  coverage_out_dir:
+  fig_path:
 output:
     bookdown::html_document2:
     code_folding: hide
@@ -31,16 +33,16 @@ knitr::opts_chunk$set(
     echo = FALSE,
     message = FALSE,
     warning = FALSE,
-    fig.path = "../output/02_plots/",
+    fig.path = params$fig_path,
     dev = c("png", "svg"),
     dpi=500
 )
 ```
 
 ```{r, paths}
-dataDir <- file.path("..", params$sim_data_dir)
-outDir <- file.path("..", "output/sim_data_coverage")
-if (!dir.exists(outDir)) dir.create(outDir)
+dataDir <- params$sim_data_dir
+outDir <- params$coverage_out_dir
+if (!dir.exists(outDir)) dir.create(outDir, recursive = TRUE)
 
 
 simFiles <- list.files(dataDir, full.names = TRUE)

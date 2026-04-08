@@ -13,6 +13,12 @@ output:
     theme: lumen
 ---
 
+```{r logging_early, include = FALSE}
+log <- file(snakemake@log$log, open = "wt")
+sink(log)
+sink(log, type = "message")
+```
+
 ```{r setup}
 suppressPackageStartupMessages({
   library(readr)
@@ -24,6 +30,7 @@ suppressPackageStartupMessages({
   library(ggridges)
   library(ComplexHeatmap)
   library(circlize)
+  library(irlba)
 })
 
 source("src/ggtheme.R")
@@ -46,14 +53,16 @@ knitr::opts_chunk$set(
 )
 ```
 
-```{r save_snmk_debug, include = FALSE}
-saveRDS(file = "snmk_ecker_features.rds", object = snakemake)
+```{r git_commit, echo = FALSE, results = "asis"}
+git_sha <- tryCatch(
+  system("git rev-parse --short HEAD", intern = TRUE, ignore.stderr = TRUE),
+  error = function(e) "unknown"
+)
+cat(sprintf("Git commit: `%s`\n\n", git_sha))
 ```
 
-```{r logging, include = FALSE}
-log <- file(snakemake@log$log, open = "wt")
-sink(log)
-sink(log, type = "message")
+```{r save_snmk_debug, include = FALSE}
+saveRDS(file = "snmk_ecker_features.rds", object = snakemake, compress = "xz")
 ```
 
 Mouse (mm10), CpG context only. chr10 only: `r snakemake@params[["chr10_only"]]`.
@@ -767,47 +776,7 @@ ggplot(locus_sub, aes(x = avg_meth, y = shannon, color = major_type)) +
 
 ```{r umap_helpers}
 library(uwot)
-
-run_umap_wide <- function(wide_df, meta_cols,
-                           n_hvf       = 1000L,
-                           n_pcs       = 50L,
-                           n_neighbors = 15L,
-                           seed        = 42L) {
-  if (is.null(wide_df) || nrow(wide_df) < 4L) return(NULL)
-  meta <- wide_df %>% select(all_of(meta_cols))
-  mat  <- wide_df %>% select(-all_of(meta_cols)) %>% as.matrix()
-
-  mat[is.infinite(mat)] <- NA
-  mat[is.na(mat)]       <- 0
-
-  feat_var <- apply(mat, 2, var, na.rm = TRUE)
-  n_keep   <- min(as.integer(n_hvf), sum(feat_var > 0, na.rm = TRUE))
-  if (n_keep < 2L) {
-    message("Too few variable features (", n_keep, "); skipping")
-    return(NULL)
-  }
-  mat <- mat[, order(feat_var, decreasing = TRUE)[seq_len(n_keep)], drop = FALSE]
-  message("HVF: ", n_keep, " of ", length(feat_var), " features selected")
-
-  scaled <- scale(mat)
-  bad    <- apply(scaled, 2, function(x) all(is.na(x) | is.nan(x)))
-  scaled <- scaled[, !bad, drop = FALSE]
-  if (ncol(scaled) == 0L) return(NULL)
-
-  n_pcs_use <- min(as.integer(n_pcs), nrow(scaled) - 1L, ncol(scaled))
-  if (n_pcs_use < 2L) {
-    message("Too few PCs available (", n_pcs_use, "); skipping")
-    return(NULL)
-  }
-  pca <- prcomp(scaled, rank. = n_pcs_use, scale. = FALSE)
-  message("PCA: using ", n_pcs_use, " PCs")
-
-  nn <- min(as.integer(n_neighbors), nrow(pca$x) - 1L)
-  set.seed(seed)
-  coords <- uwot::umap(pca$x, n_neighbors = nn, min_dist = 0.3,
-                        n_epochs = 500, verbose = FALSE)
-  bind_cols(meta, setNames(as.data.frame(coords), c("UMAP1", "UMAP2")))
-}
+source("src/embedding_utils.R")
 
 plot_umap_class <- function(df, title, subtitle = NULL) {
   if (is.null(df) || nrow(df) == 0) {
@@ -901,6 +870,59 @@ plot_umap_class(umap_cell_meth,
                 subtitle = "per-cell avg. methylation per annotation as feature vector")
 ```
 
+## Cell-level: S with marginal methylation regressed out
+
+Unadjusted S per cell per annotation, with the per-cell mean methylation (averaged
+across all annotations for that cell) regressed out column-wise before embedding.
+This decouples entropy from the global methylation level of each cell while keeping
+locus-level heterogeneity signal, as a check that cell-type separation is not merely
+reflecting methylation differences.
+
+```{r cell_umap_S_load}
+cells_S_long <- read_cells_long(short_paths_umap, "sampen")
+
+cells_S_wide <- pivot_wider(cells_S_long,
+                            id_cols = c(sub_region, sub_type, cell_idx),
+                            names_from = annotation,
+                            values_from = value) %>%
+  left_join(meta_grp %>% select(sub_region, sub_type, cell_class, major_type, major_region),
+            by = c("sub_region", "sub_type"))
+
+cat("Cells (S):", nrow(cells_S_wide), "\n")
+```
+
+```{r cell_umap_S_regress}
+id_cols <- c("sub_region", "sub_type", "cell_idx")
+shared_cells <- inner_join(
+  cells_S_wide[, id_cols], cells_meth_wide[, id_cols], by = id_cols
+)
+cells_S_matched <- semi_join(cells_S_wide, shared_cells, by = id_cols)
+cells_meth_matched <- semi_join(cells_meth_wide, shared_cells, by = id_cols)
+
+annot_cols_S <- setdiff(colnames(cells_S_matched), meta_cols_cell)
+annot_cols_meth <- setdiff(colnames(cells_meth_matched), meta_cols_cell)
+
+S_resid <- regress_out_meth(
+  as.matrix(cells_S_matched[, annot_cols_S, drop = FALSE]),
+  as.matrix(cells_meth_matched[, annot_cols_meth, drop = FALSE])
+)
+
+cells_S_regressed <- bind_cols(
+  cells_S_matched[, meta_cols_cell, drop = FALSE],
+  as.data.frame(S_resid)
+)
+```
+
+```{r cell_umap_S_regressed, fig.width = 5, fig.height = 5}
+umap_cell_S_regressed <- run_umap_wide(cells_S_regressed, meta_cols_cell,
+                                        n_neighbors = 15L)
+saveRDS(umap_cell_S_regressed, "ecker_umap_cell_S_regressed.rds")
+
+plot_umap_class(umap_cell_S_regressed,
+                title    = "Cell-level UMAP - S with marginal meth regressed out",
+                subtitle = "residuals of S ~ cell mean methylation per annotation")
+```
+
 ## Group-level: adjH across annotations
 
 ```{r group_umap_adjH, fig.width = 5, fig.height = 5}
@@ -949,18 +971,48 @@ det_paths_genes <- list.files(snakemake@params[["output_path"]],
                                pattern = "det\\.out\\.gz$", full.names = TRUE)
 det_paths_genes <- det_paths_genes[!grepl("norm", det_paths_genes)]
 
-build_gene_mat <- function(col, fps, n_loci = LOCUS_N_UMAP) {
+## Two-pass coverage-based locus selection (same strategy as argelaguet.Rmd):
+## Pass 1 scans all files to find loci covered in >= min_locus_cov_frac of groups.
+## Pass 2 extracts values for the most-covered eligible loci (up to n_loci).
+## is.finite() handles both NA (-1 converted on read) and Inf (norm.det.out missing).
+build_gene_mat <- function(col, fps, n_loci = LOCUS_N_UMAP, min_locus_cov_frac = 0.5) {
   fps_g <- fps[get_annotation(basename(fps)) == "genes"]
   if (length(fps_g) < 4L) return(NULL)
-  ref <- read_tsv(fps_g[[1]], na = "-1", show_col_types = FALSE)
-  n   <- min(n_loci, nrow(ref))
-  set.seed(LOCUS_SEED)
-  idx <- sort(sample.int(nrow(ref), n))
+
+  cov_counts <- NULL
+  n_loci_total <- NULL
+  for (fp in fps_g) {
+    vals <- suppressWarnings(
+      read_tsv(fp, na = "-1", show_col_types = FALSE))[[col]]
+    if (is.null(cov_counts)) {
+      n_loci_total <- length(vals)
+      cov_counts <- integer(n_loci_total)
+    }
+    cov_counts <- cov_counts + is.finite(vals)
+  }
+  locus_cov <- cov_counts / length(fps_g)
+
+  eligible <- which(locus_cov >= min_locus_cov_frac)
+  if (length(eligible) < 2L) {
+    cat("genes: no loci covered in >=", min_locus_cov_frac * 100,
+        "% of groups (total loci =", n_loci_total, "); skipping\n")
+    return(NULL)
+  }
+  top_loci <- eligible[order(locus_cov[eligible], decreasing = TRUE)]
+  idx <- sort(top_loci[seq_len(min(as.integer(n_loci), length(top_loci)))])
+
   rows <- bplapply(fps_g, function(fp)
-    read_tsv(fp, na = "-1", show_col_types = FALSE)[[col]][idx],
+    suppressWarnings(
+      read_tsv(fp, na = "-1", show_col_types = FALSE))[[col]][idx],
     BPPARAM = param)
   mat <- do.call(rbind, rows)
   colnames(mat) <- paste0("gene_", idx)
+
+  cat("genes: groups =", nrow(mat),
+      "| loci used =", ncol(mat),
+      "| eligible (cov >=", min_locus_cov_frac, ") =", length(eligible),
+      "| total loci =", n_loci_total, "\n")
+
   df <- data.frame(
     sub_region = get_sub_region(basename(fps_g)),
     sub_type   = get_sub_type(basename(fps_g)),
@@ -985,7 +1037,7 @@ meta_cols_grp <- c("sub_region", "sub_type", "cell_class", "major_type", "major_
 umap_gene_adjH <- run_umap_wide(gene_mat_adjH, meta_cols_grp, n_neighbors = 5L)
 plot_umap_class(umap_gene_adjH,
                 title    = "Gene-locus UMAP - adjH features",
-                subtitle = paste0(LOCUS_N_UMAP, " genes sampled"))
+                subtitle = paste0(LOCUS_N_UMAP, " genes (coverage-based selection)"))
 ```
 
 ## Group-level: gene loci, avg_meth
@@ -994,7 +1046,7 @@ plot_umap_class(umap_gene_adjH,
 umap_gene_meth <- run_umap_wide(gene_mat_meth, meta_cols_grp, n_neighbors = 5L)
 plot_umap_class(umap_gene_meth,
                 title    = "Gene-locus UMAP - avg. methylation features",
-                subtitle = paste0(LOCUS_N_UMAP, " genes sampled"))
+                subtitle = paste0(LOCUS_N_UMAP, " genes (coverage-based selection)"))
 ```
 
 # Paper UMAP + our entropy overlay {.tabset .tabset-pills}

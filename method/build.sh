@@ -16,6 +16,9 @@ if [ ! -d "$BUILD_DIR" ]; then
   mkdir "$BUILD_DIR"
 fi
 
+# Remove stale cmake cache so the active conda env's libraries are found
+rm -f "$BUILD_DIR/CMakeCache.txt"
+
 # Run CMake from the parent directory, pointing to the build directory
 cmake -S"$SCRIPT_DIR" -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
   -DCMAKE_BUILD_TYPE=Release \

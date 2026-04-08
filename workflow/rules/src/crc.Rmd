@@ -13,16 +13,20 @@ output:
     theme: lumen
 ---
 
+```{r logging_early, include = FALSE}
+log <- file(snakemake@log$log, open = "wt")
+sink(log)
+sink(log, type = "message")
+```
+
 ```{r, setup}
 suppressPackageStartupMessages({
   library(readr)
-  library(lmerTest)
   library(ggplot2)
   library(knitr)
   library(ComplexHeatmap)
   library(viridis)
   library(BiocParallel)
-  library(ggstance)
   library(dplyr)
   library(tidyr)
   library(ggrepel)
@@ -53,11 +57,6 @@ saveRDS(file = 'snmk_object_features.rds', object = snakemake)
 ## setwd('../..')
 ```
 
-```{r logging, include = FALSE}
-log <- file(snakemake@log$log, open = "wt")
-sink(log)
-sink(log, type = "message")
-```
 
 
 
@@ -651,6 +650,43 @@ ggplot(ranges, aes(color = location)) +
 
 ```{r}
 adjsampens <- files
+```
+
+## adjS within methylation bins {.tabset .tabset-pills}
+
+Boxplots of adjS stratified by 0.1-wide average methylation bins, colored by
+location. Persistent differences within bins show that adjS captures
+heterogeneity beyond average methylation level.
+
+### All annotations
+
+```{r adjS_meth_bins_all, fig.width = ng_fig_size(5, 6)$w, fig.height = ng_fig_size(5, 6)$h}
+adjsampens %>%
+  mutate(meth_bin = cut(avg_meth, breaks = seq(0, 1, 0.1), include.lowest = TRUE)) %>%
+  filter(!is.na(meth_bin), !is.na(sampen)) %>%
+  ggplot(aes(x = meth_bin, y = sampen, fill = location)) +
+  geom_boxplot(outlier.size = 0.3, outlier.alpha = 0.2) +
+  scale_fill_brewer(palette = "Set1") +
+  facet_wrap(~annotation) +
+  labs(x = "avg. methylation bin", y = "adj. sample entropy (adjS)") +
+  theme_ng() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+```
+
+### CRC01 only
+
+```{r adjS_meth_bins_crc01, fig.width = ng_fig_size(5, 6)$w, fig.height = ng_fig_size(5, 6)$h}
+adjsampens %>%
+  filter(patient == "CRC01") %>%
+  mutate(meth_bin = cut(avg_meth, breaks = seq(0, 1, 0.1), include.lowest = TRUE)) %>%
+  filter(!is.na(meth_bin), !is.na(sampen)) %>%
+  ggplot(aes(x = meth_bin, y = sampen, fill = location)) +
+  geom_boxplot(outlier.size = 0.3, outlier.alpha = 0.2) +
+  scale_fill_brewer(palette = "Set1") +
+  facet_wrap(~annotation) +
+  labs(x = "avg. methylation bin", y = "adj. sample entropy (adjS)") +
+  theme_ng() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
 ```
 
 # Unnormalized Shannon's MEDIANS DOWNSAMPLED {.tabset .tabset-pills}

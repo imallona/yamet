@@ -6,6 +6,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## Upcoming
 
+## [v1.1.0]
+
+### Added
+
+- [workflow] Argelaguet gastrulation dataset: download, format conversion, and analysis report (promoter vs enhancer, as in issue #24)
+- [workflow] CRC cell embeddings report with featureset-wise PCA/UMAP
+- [workflow] Ecker dataset: applied same embedding and sparse representation procedure as other datasets
+- [workflow] adjS vs intervals of DNA methylation
+- [workflow] Coordinate validator (`validate.smk`, `validate_yamet_coords.sh`) to check yamet output coordinates
+- [workflow] Simulations restructured into the main snakemake ruleset, reusing Argelaguet's download rules
+- [workflow] Shared embedding utilities (`embedding_utils.R`)
+- [test] Test case for shannon norm with no infinite values (division by zero edge case)
+
+### Fixed
+
+- [method] Infinite shannon entropy normalisation values caused by division by zero
+- [method] cmake cache and install targets
+- [workflow] Cell embeddings no longer impute missing values; sparse representations handle NAs natively
+- [workflow] HVG/PCA for sparse data where zero and NA carry distinct biological meaning
+
+### Changed
+
+- [workflow] Simulations moved from top-level `simulations/` into `workflow/rules/simulations.smk` and `workflow/simulations/`
+- [workflow] Cell embeddings standardized across datasets; marginal methylation handled via scaling rather than imputation
+
 ## [v1.1.0-rc.5](https://github.com/imallona/yamet/releases/tag/v1.1.0-rc.5)
 
 ### Added

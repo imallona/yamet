@@ -13,19 +13,23 @@ suppressPackageStartupMessages({
   library(ggplot2)
   library(patchwork)
   library(svglite)
+  library(dplyr)
 })
 
-## setwd('..')
-source("src/ggtheme.R")
+source("rules/src/ggtheme.R")
 
 knitr::opts_chunk$set(
   echo    = FALSE,
   message = FALSE,
   warning = FALSE,
-  fig.path = "output/08_plots/",
+  fig.path = "simulations/output/08_plots/",
   dev      = c("png", "svg"),
   dpi      = 300
 )
+
+log_con <- file(snakemake@log[[1]], open = "wt")
+sink(log_con)
+sink(log_con, type = "message")
 
 ## ── Colour scales ─────────────────────────────────────────────────────────────
 wc_scale <- scale_color_gradient(low = "grey90", high = "#000080")   # within-cell
@@ -78,26 +82,26 @@ add_simul_label <- function(p, label) {
 
 ```{r load-data}
 ## ── Unadjusted (S / H) ────────────────────────────────────────────────────────
-all_long_wc  <- readRDS("rds/all.long_within.rds")
-jnt_wc       <- readRDS("rds/jnt_within.rds")
-s_plots_wc   <- readRDS("rds/s_plots_within.rds")
-n_plots_wc   <- readRDS("rds/n_plots_within.rds")
+all_long_wc  <- readRDS("simulations/rds/all.long_within.rds")
+jnt_wc       <- readRDS("simulations/rds/jnt_within.rds")
+s_plots_wc   <- readRDS("simulations/rds/s_plots_within.rds")
+n_plots_wc   <- readRDS("simulations/rds/n_plots_within.rds")
 
-all_long_ac  <- readRDS("rds/all.long_across.rds")
-jnt_ac       <- readRDS("rds/jnt_across.rds")
-s_plots_ac   <- readRDS("rds/s_plots_across.rds")
-n_plots_ac   <- readRDS("rds/n_plots_across.rds")
+all_long_ac  <- readRDS("simulations/rds/all.long_across.rds")
+jnt_ac       <- readRDS("simulations/rds/jnt_across.rds")
+s_plots_ac   <- readRDS("simulations/rds/s_plots_across.rds")
+n_plots_ac   <- readRDS("simulations/rds/n_plots_across.rds")
 
 ## ── Adjusted (adjS / adjH) ────────────────────────────────────────────────────
-all_long_wc_adj <- readRDS("rds/all.long_within_adj.rds")
-jnt_wc_adj      <- readRDS("rds/jnt_within_adj.rds")
-s_plots_wc_adj  <- readRDS("rds/s_plots_within_adj.rds")
-n_plots_wc_adj  <- readRDS("rds/n_plots_within_adj.rds")
+all_long_wc_adj <- readRDS("simulations/rds/all.long_within_adj.rds")
+jnt_wc_adj      <- readRDS("simulations/rds/jnt_within_adj.rds")
+s_plots_wc_adj  <- readRDS("simulations/rds/s_plots_within_adj.rds")
+n_plots_wc_adj  <- readRDS("simulations/rds/n_plots_within_adj.rds")
 
-all_long_ac_adj <- readRDS("rds/all.long_across_adj.rds")
-jnt_ac_adj      <- readRDS("rds/jnt_across_adj.rds")
-s_plots_ac_adj  <- readRDS("rds/s_plots_across_adj.rds")
-n_plots_ac_adj  <- readRDS("rds/n_plots_across_adj.rds")
+all_long_ac_adj <- readRDS("simulations/rds/all.long_across_adj.rds")
+jnt_ac_adj      <- readRDS("simulations/rds/jnt_across_adj.rds")
+s_plots_ac_adj  <- readRDS("simulations/rds/s_plots_across_adj.rds")
+n_plots_ac_adj  <- readRDS("simulations/rds/n_plots_across_adj.rds")
 ```
 
 # Figure 1 – Adjusted entropies (adjS / adjH)
@@ -236,7 +240,7 @@ print(fig_adj)
 
 ```{r save-adj-figure}
 ggsave(
-  filename = "output/figure_simulations_combined_adj.svg",
+  filename = "simulations/output/figure_simulations_combined_adj.svg",
   plot     = fig_adj,
   width    = 8.27,
   height   = 11.69,
@@ -244,7 +248,7 @@ ggsave(
 )
 
 ggsave(
-  filename = "output/figure_simulations_combined_adj.pdf",
+  filename = "simulations/output/figure_simulations_combined_adj.pdf",
   plot     = fig_adj,
   width    = 8.27,
   height   = 11.69,
@@ -396,7 +400,7 @@ print(fig_cmp)
 
 ```{r save-pairwise-figure}
 ggsave(
-  filename = "output/figure_simulations_comparison_adj_unadj.svg",
+  filename = "simulations/output/figure_simulations_comparison_adj_unadj.svg",
   plot     = fig_cmp,
   width    = 16,
   height   = 8,
@@ -404,10 +408,48 @@ ggsave(
 )
 
 ggsave(
-  filename = "output/figure_simulations_comparison_adj_unadj.pdf",
+  filename = "simulations/output/figure_simulations_comparison_adj_unadj.pdf",
   plot     = fig_cmp,
   width    = 16,
   height   = 8,
   units    = "in"
 )
+```
+
+# Figure 3: adjS within methylation bins
+
+Binning average methylation into 0.1-wide intervals and showing adjS per bin
+confirms that the residual association between adjS and variability indices is
+not an artifact of methylation level.
+
+```{r bins-wc, fig.width = ng_fig_size(5, 2)$w, fig.height = ng_fig_size(5, 2)$h}
+all_long_wc_adj %>%
+  mutate(meth_bin = cut(meth, breaks = seq(0, 1, 0.1), include.lowest = TRUE)) %>%
+  filter(!is.na(meth_bin), !is.na(adj_sampen)) %>%
+  ggplot(aes(x = meth_bin, y = adj_sampen, fill = cut(wc_vi, 5))) +
+  geom_boxplot(outlier.size = 0.3, outlier.alpha = 0.2) +
+  scale_fill_viridis_d(option = "viridis", name = "wcVI quintile") +
+  labs(
+    x = "avg. methylation bin",
+    y = "adj. sample entropy (adjS)",
+    title = "simul. II within-cell variability"
+  ) +
+  theme_ng(base_size = fig_base) + fig_theme_sq +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+```
+
+```{r bins-ac, fig.width = ng_fig_size(5, 2)$w, fig.height = ng_fig_size(5, 2)$h}
+all_long_ac_adj %>%
+  mutate(meth_bin = cut(meth, breaks = seq(0, 1, 0.1), include.lowest = TRUE)) %>%
+  filter(!is.na(meth_bin), !is.na(adj_sampen)) %>%
+  ggplot(aes(x = meth_bin, y = adj_sampen, fill = cut(bc_vi, 5))) +
+  geom_boxplot(outlier.size = 0.3, outlier.alpha = 0.2) +
+  scale_fill_viridis_d(option = "plasma", name = "acVI quintile") +
+  labs(
+    x = "avg. methylation bin",
+    y = "adj. sample entropy (adjS)",
+    title = "simul. III across-cell variability"
+  ) +
+  theme_ng(base_size = fig_base) + fig_theme_sq +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
 ```

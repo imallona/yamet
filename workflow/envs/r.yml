@@ -34,3 +34,9 @@ dependencies:
   - bioconda::bioconductor-summarizedexperiment
   - bioconda::bioconductor-singlecellexperiment
   - bioconda::bioconductor-scater
+  - conda-forge::r-matrix
+  - conda-forge::r-matrixstats
+  - conda-forge::r-irlba
+  - conda-forge::r-cowplot
+  - conda-forge::r-cluster
+  - conda-forge::r-knitr

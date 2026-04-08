@@ -122,8 +122,7 @@ misc:
 
 - `.github/workflows` and `test`: testing and build automations
 - `method`: yamet code. See [our releases](https://github.com/imallona/yamet/releases) (including binaries)
-- `simulations`: yamet simulations
-- `workflow`: yamet applications, except simulations
+- `workflow`: main snakemake workflow. Includes rules for building yamet, downloading and processing real datasets (CRC, Ecker, Argelaguet gastrulation), running simulations, and archiving outputs. Simulation source code (Rmd scripts, R helpers), conda environments, and input parameters all live under `workflow/`.
 - `yamet-r`: yamet R package
 
 You might want to browse the issues and PRs to explore current developments.
@@ -131,19 +130,30 @@ You might want to browse the issues and PRs to explore current developments.
 
 ## Running the analysis / reproducible figures
 
-For simulations:
-
-```bash
-cd simulations
-snakemake --use-conda --cores NUM_CORES
-```
-
-For other analysis (mind the slow data download):
+All analyses, including simulations, are run from the workflow directory:
 
 ```bash
 cd workflow
 snakemake --use-conda --cores NUM_CORES
 ```
+
+Simulation targets are available through the main workflow. To run only the
+coverage simulations, for example:
+
+```bash
+cd workflow
+snakemake --use-conda --cores NUM_CORES simulations/results/simulation_figure2.html
+```
+
+To run the within/between cell simulations:
+
+```bash
+cd workflow
+snakemake --use-conda --cores NUM_CORES simulations/results/simulation_08_combined_figure_adj.html
+```
+
+Simulations share the Argelaguet gastrulation download, so the gastrulation
+tarball is only fetched once.
 
 ## License
 

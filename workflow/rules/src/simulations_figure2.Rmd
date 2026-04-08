@@ -2,8 +2,10 @@
 title: "Figure 2"
 author: "Emanuel Sonder"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
-params: 
+params:
   yamet_dir:
+  schemes_dir:
+  coverage_data_dir:
 output:
   bookdown::html_document2:
     code_folding: hide
@@ -31,14 +33,14 @@ cbbPaletteTrunc <- c("darkgrey","#F0E442", "#0072B2", "#D55E00", "#CC79A7")
 ```
 
 ```{r, paths}
-outDir <- file.path("..", "schemes")
-if(!dir.exists(outDir)) dir.create(outDir)
+outDir <- params$schemes_dir
+if(!dir.exists(outDir)) dir.create(outDir, recursive = TRUE)
 ```
 
 # Panel A: 
 
 ```{r, import scheme}
-scheme <- magick::image_read_svg("../schemes/simulations_nb_overview.svg", 
+scheme <- magick::image_read_svg(file.path(params$schemes_dir, "simulations_nb_overview.svg"),
                                  width=2880, height=1620)
 panelA <- magick::image_ggplot(scheme) + labs(tag="A") +
     theme(plot.tag = element_text(face="bold", size=16), 
@@ -48,7 +50,7 @@ panelA <- magick::image_ggplot(scheme) + labs(tag="A") +
 # Panel B: 
 
 ```{r, coverage}
-ovCovDt <- readRDS(file.path("..", "output/sim_data_coverage/overall_coverage.rds"))
+ovCovDt <- readRDS(file.path(params$coverage_data_dir, "overall_coverage.rds"))
 ovCovDt <- subset(ovCovDt, coverage_mode!="low")
 ovCovDt[,coverage_mode:=revalue(coverage_mode, c("real"="Argelaguet - 2019",
                                             "lowReal"="low",
@@ -82,7 +84,7 @@ panelB
 ```{r, stretches length}
 maxCpGs <- max(ovCovDt$n_cpgs)
 
-strLenDt <- readRDS(file.path("..", "output/sim_data_coverage/covered_stretches_length.rds"))
+strLenDt <- readRDS(file.path(params$coverage_data_dir, "covered_stretches_length.rds"))
 strLenDt <- subset(strLenDt, !(coverage_mode %in% c("low", "complete")))
 strLenDt[,coverage_mode:=revalue(coverage_mode, c("real"="Argelaguet - 2019",
                                                   "lowReal"="low",
@@ -115,7 +117,7 @@ panelC
 # Panel D: Yamet scores
 
 ```{r, import yamet outputs}
-dataDir <- file.path("..", params$yamet_dir)
+dataDir <- params$yamet_dir
 dataPaths <- list.files(dataDir, pattern = "\\.tsv$", full.names = TRUE)
 yametDts <- lapply(dataPaths, fread)
 yametDt <- rbindlist(yametDts)

@@ -21,11 +21,14 @@ ECKER_DOWNSAMPLE_SEED = 42
 ## set to True to restrict to chr10 for speed; False for full genome
 ECKER_CHR10_ONLY = True
 
-## tell mm10.smk which chromosomes to include in the CG reference
-MM10_CG_CHRS = ["10"] if ECKER_CHR10_ONLY else CHRS
-
 ## chromosomes to retain in annotation BED files for Ecker runs
 _ECKER_BED_CHRS = ["10"] if ECKER_CHR10_ONLY else CHRS
+
+_ECKER_REF = (
+    op.join(MM10_BASE, "ref.CG.chr10.gz")
+    if ECKER_CHR10_ONLY
+    else op.join(MM10_BASE, "ref.CG.gz")
+)
 
 ECKER_ANNOTATIONS = {
     "chip": ["h3k4me3", "h3k9me3", "h3k27me3", "h3k4me1", "h3k27ac"],
@@ -97,27 +100,6 @@ rule harmonize_ecker_metadata:
         "src/harmonize_ecker_metadata.R"
 
 
-# ## reports the AllcPath (basename) of cells matching the harmonized metadata
-# ##   'column' equals 'value'
-# def slice_eckers_metadata(column, value):
-#     meta_fn = op.join('ecker_data','harmonized_ecker_metadata.tsv.gz')
-
-#     if not op.exists(meta_fn):
-#         raise Exception("No metadata found.")
-
-#     meta = pd.read_csv(filepath_or_buffer = meta_fn,
-#                        sep='\t',
-#                        compression='gzip', header=0, quotechar='"')
-
-#     if set([column]).issubset(meta.columns):
-#         return [i for i in meta[meta[column] == value]['basename']]
-#     else:
-#         return None
-
-# ## this is a long one!
-# print(slice_eckers_metadata('SubType', 'IT-L4 Shc3'))
-
-
 rule ecker_urls:
     input:
         op.join(ECKER_BASE, "meta.tsv.gz"),
@@ -154,7 +136,7 @@ checkpoint harmonize_ecker_cells:
         download_flag=op.join(ECKER_BASE, "downloaded.flag"),
         meta=op.join(ECKER_BASE, "meta.tsv.gz"),
     output:
-        flag=touch(op.join(ECKER_BASE, "harmonized.flag")),
+        flag=touch(op.join(ECKER_HARMONIZED, "done.flag")),
     params:
         raw=op.join(ECKER_BASE, "raw"),
         harmonized=ECKER_HARMONIZED,
@@ -208,7 +190,8 @@ rule run_yamet_on_ecker_features:
         op.join("..", "envs", "yamet.yml")
     input:
         cells=lambda wildcards: get_ecker_harmonized_files(wildcards.sub_region, wildcards.sub_type),
-        ref=op.join(MM10_BASE, "ref.CG.gz"),
+        validation=ancient(op.join(ECKER_HARMONIZED, "coords_validated.flag")),
+        ref=_ECKER_REF,
         bed=op.join(ECKER_BASE, "beds", "{annotation}.bed"),
     output:
         simple_uncomp=temp(op.join(ECKER_OUTPUT, "{annotation}_{sub_region}_{sub_type}.out")),
@@ -244,10 +227,18 @@ rule run_yamet_on_ecker_features:
 
 def list_ecker_yamet_outputs(wildcards):
     checkpoints.harmonize_ecker_cells.get()
+    meta = pd.read_csv(
+        op.join(ECKER_BASE, "meta.tsv.gz"), sep="\t", compression="gzip"
+    )
+    available = [c for c in ECKER_STRATIFY_BY if c in meta.columns]
+    combos = [
+        tuple(_sanitize(v) for v in row)
+        for _, row in meta[available].dropna().drop_duplicates().iterrows()
+    ]
     res = []
     for cat in ECKER_ANNOTATIONS:
         for ann in ECKER_ANNOTATIONS[cat]:
-            for sub_region, sub_type in ECKER_GROUPS:
+            for sub_region, sub_type in combos:
                 if get_ecker_harmonized_files(sub_region, sub_type):
                     res.append(f"{ann}_{sub_region}_{sub_type}.det.out.gz")
     return [op.join(ECKER_OUTPUT, item) for item in res]

@@ -6,6 +6,8 @@
 ## Atreya Choudhury
 ## Started 26th Feb 2025
 
+exec > "${snakemake_log[0]}" 2>&1
+
 curl "${snakemake_params[base]}${snakemake_params[fa]}".gz --output ${snakemake_params[fa]}.gz
 
 gunzip -f ${snakemake_params[fa]}.gz

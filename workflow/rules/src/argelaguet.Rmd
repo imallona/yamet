@@ -1,0 +1,1102 @@
+---
+title: "Argelaguet 2019 mouse gastrulation: methylation entropy by feature (CpG context)"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+author: "Izaskun Mallona"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: hide
+    code_download: true
+    number_sections: true
+    df_print: default
+    theme: lumen
+---
+
+```{r logging_early, include = FALSE}
+log <- file(snakemake@log$log, open = "wt")
+sink(log)
+sink(log, type = "message")
+```
+
+```{r setup}
+suppressPackageStartupMessages({
+  library(readr)
+  library(ggplot2)
+  library(dplyr)
+  library(tidyr)
+  library(BiocParallel)
+  library(ggrepel)
+  library(ggridges)
+  library(ComplexHeatmap)
+  library(circlize)
+  library(uwot)
+  library(irlba)
+})
+
+source("src/ggtheme.R")
+source("src/embedding_utils.R")
+param <- MulticoreParam(workers = snakemake@threads)
+```
+
+```{r opts}
+knitr::opts_chunk$set(
+  echo       = TRUE,
+  fig.width  = 5,
+  fig.height = 5,
+  cache      = FALSE,
+  include    = TRUE,
+  fig.path   = "argelaguet_plots/",
+  dev        = c("png", "svg"),
+  dpi        = 500,
+  cache.lazy = FALSE,
+  warning    = TRUE,
+  message    = TRUE
+)
+```
+
+```{r git_commit, echo = FALSE, results = "asis"}
+git_sha <- tryCatch(
+  system("git rev-parse --short HEAD", intern = TRUE, ignore.stderr = TRUE),
+  error = function(e) "unknown"
+)
+cat(sprintf("Git commit: `%s`\n\n", git_sha))
+```
+
+```{r save_snmk_debug, include = FALSE}
+saveRDS(file = "snmk_argelaguet_features.rds", object = snakemake, compress = "xz")
+```
+
+Mouse (mm10 / GRCm38), CpG context. chr10 only: `r snakemake@params[["chr10_only"]]`.
+TET TKO cells (Plate11-16) excluded. Only cells passing methylation QC included.
+
+```{r helpers}
+get_annotation <- function(fn) sub("^(.*)_[^_]+_[^_]+\\..*$", "\\1", fn)
+get_stage      <- function(fn) sub("^.*_([^_]+)_[^_]+\\..*$", "\\1", fn)
+get_lineage    <- function(fn) sub("^.*_([^_.]+)\\.[^_]*$",   "\\1", fn)
+
+ann_labels <- c(
+  "genes"            = "Genes",
+  "promoters"        = "Promoters",
+  "lines"            = "LINEs",
+  "sines"            = "SINEs",
+  "h3k4me3"          = "H3K4me3 (ENCODE)",
+  "h3k9me3"          = "H3K9me3 (ENCODE)",
+  "h3k27me3"         = "H3K27me3 (ENCODE)",
+  "h3k4me1"          = "H3K4me1 (ENCODE)",
+  "h3k27ac"          = "H3K27ac (ENCODE)",
+  ## gastrulation-specific from GSE125318 (E7.5 ChIP-seq)
+  "enh-E75-Ect"      = "Enh E7.5 Ect",
+  "enh-E75-End"      = "Enh E7.5 End",
+  "enh-E75-Mes"      = "Enh E7.5 Mes",
+  "enh-E75-union"    = "Enh E7.5 union",
+  "h3k4me3-E75-Ect"      = "H3K4me3 E7.5 Ect",
+  "h3k4me3-E75-End"      = "H3K4me3 E7.5 End",
+  "h3k4me3-E75-Mes"      = "H3K4me3 E7.5 Mes",
+  "h3k4me3-E75-common"   = "H3K4me3 E7.5 common",
+  ## ESC marks from ENCODE
+  "esc-p300"         = "ESC p300",
+  "esc-dhs"          = "ESC DHS"
+)
+
+harmonize_levels <- function(df) {
+  missing_ann <- setdiff(unique(df$annotation), names(ann_labels))
+  if (length(missing_ann) > 0)
+    warning("unknown annotations: ", paste(missing_ann, collapse = ", "))
+  df$annotation <- factor(df$annotation,
+                           levels = names(ann_labels),
+                           labels = unname(ann_labels))
+  if ("stage" %in% names(df))
+    df$stage <- factor(df$stage, levels = sort(unique(df$stage)))
+  df
+}
+
+## Sanitize metadata strings the same way the smk does for wildcard values.
+sanitize <- function(x) gsub("[ ._]", "-", x)
+```
+
+```{r load_metadata}
+meta_raw <- read_tsv(snakemake@params[["meta_path"]],
+                     na = "NA", show_col_types = FALSE)
+
+meta_cells <- meta_raw %>%
+  mutate(
+    stage_san   = sanitize(stage),
+    lineage_san = sanitize(lineage10x)
+  )
+
+meta_grp <- meta_cells %>%
+  group_by(stage_san, lineage_san) %>%
+  summarise(
+    stage         = first(stage),
+    lineage       = first(lineage10x),
+    lineage_class = {
+      vals <- lineage10x_2[!is.na(lineage10x_2) & lineage10x_2 != ""]
+      if (length(vals) == 0) NA_character_ else first(vals)
+    },
+    n_meta        = n(),
+    .groups       = "drop"
+  )
+
+cat("Groups (stage x lineage):", nrow(meta_grp), "\n")
+cat("Stages:", paste(sort(unique(meta_grp$stage)), collapse = ", "), "\n")
+cat("Lineage classes:", paste(sort(unique(meta_grp$lineage_class)), collapse = ", "), "\n")
+```
+
+# S - sample entropy {.tabset .tabset-pills}
+
+Per-cell sample entropy (S) from `.out.gz` files.
+
+```{r import_sampen}
+short_paths <- list.files(snakemake@params[["output_path"]],
+                           pattern = "\\.out\\.gz$", full.names = TRUE)
+short_paths <- short_paths[!grepl("\\.det\\.out\\.gz$",  short_paths)]
+short_paths <- short_paths[!grepl("\\.meth\\.out\\.gz$", short_paths)]
+
+read_short <- function(fp) {
+  fn <- basename(fp)
+  dt <- read_tsv(fp, na = "-1", show_col_types = FALSE)
+  dt <- dt[, c("sampen", "avg_meth")]
+  dt$annotation  <- get_annotation(fn)
+  dt$stage_san   <- get_stage(fn)
+  dt$lineage_san <- get_lineage(fn)
+  dt
+}
+
+sampens <- do.call(rbind, bplapply(short_paths, read_short, BPPARAM = param))
+sampens <- harmonize_levels(sampens)
+sampens <- sampens %>%
+  left_join(meta_grp %>% select(stage_san, lineage_san, stage, lineage,
+                                 lineage_class),
+            by = c("stage_san", "lineage_san"))
+
+cat("cell_class NA:", sum(is.na(sampens$lineage_class)), "/", nrow(sampens), "\n")
+```
+
+## S vs methylation
+
+```{r scatter_sampen, fig.width = ng_fig_size(5, 9)$w, fig.height = ng_fig_size(5, 9)$h}
+ggplot(sampens %>% filter(!is.na(lineage_class)),
+       aes(x = avg_meth, y = sampen, color = lineage_class)) +
+  geom_point(size = 0.3, alpha = 0.15) +
+  scale_color_viridis_d(option = "turbo", begin = 0.05, end = 0.95,
+                         na.value = "grey70") +
+  facet_grid(annotation ~ stage) +
+  labs(x = "average methylation", y = "sample entropy (S)",
+       color = "lineage class") +
+  guides(color = guide_legend(override.aes = list(size = 2.5, alpha = 1))) +
+  theme_ng()
+```
+
+## S distributions
+
+```{r violin_sampen, fig.width = ng_fig_size(4, 9)$w, fig.height = ng_fig_size(4, 9)$h}
+ggplot(sampens %>% filter(!is.na(lineage_class)),
+       aes(x = lineage_class, y = sampen, fill = lineage_class)) +
+  geom_violin(alpha = 0.5, draw_quantiles = 0.5) +
+  scale_fill_viridis_d(option = "turbo", begin = 0.05, end = 0.95) +
+  facet_grid(annotation ~ stage, scales = "free_y") +
+  labs(y = "sample entropy (S)") +
+  theme_ng() +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+```
+
+# adjS - methylation-adjusted sample entropy {.tabset .tabset-pills}
+
+Per-cell normalised sample entropy from `.out.gz` files.
+
+```{r import_adjS}
+read_adjS <- function(fp) {
+  fn <- basename(fp)
+  dt <- read_tsv(fp, na = "-1", show_col_types = FALSE)
+  dt <- dt[, c("sampen_norm", "avg_meth")]
+  colnames(dt) <- c("sampen", "avg_meth")
+  dt$annotation  <- get_annotation(fn)
+  dt$stage_san   <- get_stage(fn)
+  dt$lineage_san <- get_lineage(fn)
+  dt
+}
+
+adjsampens <- do.call(rbind, bplapply(short_paths, read_adjS, BPPARAM = param))
+adjsampens <- harmonize_levels(adjsampens)
+adjsampens <- adjsampens %>%
+  left_join(meta_grp %>% select(stage_san, lineage_san, stage, lineage,
+                                 lineage_class),
+            by = c("stage_san", "lineage_san"))
+```
+
+## adjS vs methylation
+
+```{r scatter_adjS, fig.width = ng_fig_size(5, 9)$w, fig.height = ng_fig_size(5, 9)$h}
+ggplot(adjsampens %>% filter(!is.na(lineage_class)),
+       aes(x = avg_meth, y = sampen, color = lineage_class)) +
+  geom_point(size = 0.3, alpha = 0.15) +
+  scale_color_viridis_d(option = "turbo", begin = 0.05, end = 0.95,
+                         na.value = "grey70") +
+  facet_grid(annotation ~ stage) +
+  labs(x = "average methylation", y = "adj. sample entropy (adjS)",
+       color = "lineage class") +
+  guides(color = guide_legend(override.aes = list(size = 2.5, alpha = 1))) +
+  theme_ng()
+```
+
+## adjS distributions
+
+```{r ridges_adjS, fig.width = ng_fig_size(4, 9)$w, fig.height = ng_fig_size(4, 9)$h}
+ggplot(adjsampens %>% filter(!is.na(lineage_class)),
+       aes(x = sampen, y = lineage, fill = lineage_class)) +
+  geom_density_ridges(alpha = 0.6, scale = 0.85) +
+  scale_fill_viridis_d(option = "turbo", begin = 0.05, end = 0.95) +
+  facet_grid(annotation ~ stage, scales = "free") +
+  labs(x = "adj. sample entropy (adjS)") +
+  theme_ng() +
+  theme(legend.position = "none")
+```
+
+# H - Shannon entropy medians {.tabset .tabset-pills}
+
+Per-locus Shannon entropy (H) from `.det.out.gz`. One median per group per annotation.
+
+```{r import_shannon}
+det_paths <- list.files(snakemake@params[["output_path"]],
+                         pattern = "det\\.out\\.gz$", full.names = TRUE)
+det_paths <- det_paths[!grepl("norm", det_paths)]
+
+read_shannon <- function(fp) {
+  fn  <- basename(fp)
+  tmp <- read_tsv(fp, na = "-1", show_col_types = FALSE, n_max = 10e4)
+  tibble(
+    file            = fn,
+    median_shannon  = median(tmp$shannon,  na.rm = TRUE),
+    median_avg_meth = median(tmp$avg_meth, na.rm = TRUE),
+    annotation      = get_annotation(fn),
+    stage_san       = get_stage(fn),
+    lineage_san     = get_lineage(fn)
+  )
+}
+
+shannons <- bplapply(det_paths, read_shannon, BPPARAM = param) |> bind_rows()
+shannons <- harmonize_levels(shannons)
+shannons <- shannons %>%
+  left_join(meta_grp %>% select(stage_san, lineage_san, stage, lineage,
+                                 lineage_class),
+            by = c("stage_san", "lineage_san"))
+```
+
+## Median H vs methylation
+
+```{r scatter_shannon, fig.width = ng_fig_size(4, 9)$w, fig.height = ng_fig_size(4, 9)$h}
+ggplot(shannons %>% filter(!is.na(lineage_class)),
+       aes(x = median_avg_meth, y = median_shannon, color = lineage_class)) +
+  geom_point(size = 1.5, alpha = 0.8) +
+  scale_color_viridis_d(option = "turbo", begin = 0.05, end = 0.95,
+                         na.value = "grey70") +
+  facet_grid(annotation ~ stage) +
+  labs(x = "median avg. methylation", y = "median Shannon entropy (H)",
+       color = "lineage class") +
+  guides(color = guide_legend(override.aes = list(size = 3))) +
+  theme_ng()
+```
+
+# adjH - methylation-adjusted Shannon entropy {.tabset .tabset-pills}
+
+Per-locus normalised Shannon entropy from `.norm.det.out.gz`.
+
+```{r import_adjH}
+norm_det_paths <- list.files(snakemake@params[["output_path"]],
+                              pattern = "norm\\.det\\.out\\.gz$",
+                              full.names = TRUE)
+
+read_adjH <- function(fp) {
+  fn  <- basename(fp)
+  tmp <- read_tsv(fp, na = "-1", show_col_types = FALSE, n_max = 10e4)
+  tibble(
+    file            = fn,
+    median_shannon  = median(tmp$shannon_norm, na.rm = TRUE),
+    median_avg_meth = median(tmp$avg_meth,     na.rm = TRUE),
+    annotation      = get_annotation(fn),
+    stage_san       = get_stage(fn),
+    lineage_san     = get_lineage(fn)
+  )
+}
+
+adjshannons <- bplapply(norm_det_paths, read_adjH, BPPARAM = param) |> bind_rows()
+adjshannons <- harmonize_levels(adjshannons)
+adjshannons <- adjshannons %>%
+  left_join(meta_grp %>% select(stage_san, lineage_san, stage, lineage,
+                                 lineage_class),
+            by = c("stage_san", "lineage_san"))
+```
+
+## Median adjH vs methylation
+
+```{r scatter_adjH, fig.width = ng_fig_size(4, 9)$w, fig.height = ng_fig_size(4, 9)$h}
+ggplot(adjshannons %>% filter(!is.na(lineage_class)),
+       aes(x = median_avg_meth, y = median_shannon, color = lineage_class)) +
+  geom_point(size = 1.5, alpha = 0.8) +
+  scale_color_viridis_d(option = "turbo", begin = 0.05, end = 0.95,
+                         na.value = "grey70") +
+  facet_grid(annotation ~ stage) +
+  labs(x = "median avg. methylation", y = "median adj. Shannon entropy (adjH)",
+       color = "lineage class") +
+  guides(color = guide_legend(override.aes = list(size = 3))) +
+  theme_ng()
+```
+
+# Assembly {.tabset .tabset-pills}
+
+S and adjS are per-cell. H and adjH are medians across loci per group.
+
+```{r group_medians}
+saveRDS(
+  list(sampens     = sampens,
+       adjsampens  = adjsampens,
+       shannons    = shannons,
+       adjshannons = adjshannons),
+  file = "argelaguet_entropy.rds"
+)
+
+sampen_grp <- sampens %>%
+  group_by(annotation, stage_san, lineage_san) %>%
+  summarise(median_S    = median(sampen,   na.rm = TRUE),
+            median_meth = median(avg_meth, na.rm = TRUE),
+            .groups     = "drop")
+
+adjS_grp <- adjsampens %>%
+  group_by(annotation, stage_san, lineage_san) %>%
+  summarise(median_adjS = median(sampen, na.rm = TRUE),
+            .groups     = "drop")
+
+all_grp <- sampen_grp %>%
+  left_join(adjS_grp,
+            by = c("annotation", "stage_san", "lineage_san")) %>%
+  left_join(shannons %>% select(annotation, stage_san, lineage_san,
+                                 median_H = median_shannon),
+            by = c("annotation", "stage_san", "lineage_san")) %>%
+  left_join(adjshannons %>% select(annotation, stage_san, lineage_san,
+                                    median_adjH = median_shannon),
+            by = c("annotation", "stage_san", "lineage_san"))
+
+all_grp_meta <- all_grp %>%
+  left_join(meta_grp, by = c("stage_san", "lineage_san"))
+
+saveRDS(
+  list(all_grp      = all_grp,
+       meta_grp     = meta_grp,
+       all_grp_meta = all_grp_meta),
+  file = "argelaguet_groups_meta.rds"
+)
+
+cat("Groups with entropy data:", nrow(all_grp_meta), "\n")
+```
+
+## adjS vs adjH
+
+```{r adjS_vs_adjH, fig.width = ng_fig_size(4, 1)$w, fig.height = ng_fig_size(4, 1)$h}
+df_cmp <- all_grp_meta %>% filter(!is.na(lineage_class))
+if (nrow(df_cmp) > 0) {
+  ggplot(df_cmp, aes(x = median_adjH, y = median_adjS, color = annotation)) +
+    geom_point(size = 1.5, alpha = 0.8) +
+    scale_color_viridis_d(option = "turbo", begin = 0.05, end = 0.95) +
+    facet_grid(. ~ lineage_class) +
+    labs(x = "median adjH", y = "median adjS", color = "annotation") +
+    guides(color = guide_legend(override.aes = list(size = 3))) +
+    theme_ng()
+}
+```
+
+## S vs H
+
+```{r S_vs_H, fig.width = ng_fig_size(4, 1)$w, fig.height = ng_fig_size(4, 1)$h}
+if (nrow(df_cmp) > 0) {
+  ggplot(df_cmp, aes(x = median_H, y = median_S, color = annotation)) +
+    geom_point(size = 1.5, alpha = 0.8) +
+    scale_color_viridis_d(option = "turbo", begin = 0.05, end = 0.95) +
+    facet_grid(. ~ lineage_class) +
+    labs(x = "median H", y = "median S", color = "annotation") +
+    guides(color = guide_legend(override.aes = list(size = 3))) +
+    theme_ng()
+}
+```
+
+# Time course {.tabset .tabset-pills}
+
+Entropy trajectories across developmental stages. Each point is the median for one
+(stage, lineage) group. The gastrulation time series spans E4.5 through E7.5, covering
+the emergence of epiblast, primitive streak, and the three germ layers. Entropy at
+enhancers and active chromatin marks is expected to rise in progenitor states and
+fall upon lineage commitment.
+
+```{r timecourse_data}
+stage_order <- sort(unique(all_grp_meta$stage))
+tc <- all_grp_meta %>%
+  filter(!is.na(lineage_class), !is.na(stage)) %>%
+  mutate(stage = factor(stage, levels = stage_order))
+```
+
+## adjS by stage and lineage class
+
+```{r timecourse_adjS, fig.width = ng_fig_size(length(stage_order), 9)$w, fig.height = ng_fig_size(length(stage_order), 9)$h}
+ggplot(tc, aes(x = stage, y = median_adjS,
+               color = lineage_class, group = interaction(lineage_san, annotation))) +
+  geom_line(alpha = 0.5, linewidth = 0.4) +
+  geom_point(size = 1.2, alpha = 0.8) +
+  scale_color_viridis_d(option = "turbo", begin = 0.05, end = 0.95) +
+  facet_wrap(~ annotation, ncol = 3, scales = "free_y") +
+  labs(x = "developmental stage", y = "median adjS",
+       color = "lineage class") +
+  guides(color = guide_legend(override.aes = list(size = 2.5, alpha = 1,
+                                                   linewidth = 1))) +
+  theme_ng()
+```
+
+## adjH by stage and lineage class
+
+```{r timecourse_adjH, fig.width = ng_fig_size(length(stage_order), 9)$w, fig.height = ng_fig_size(length(stage_order), 9)$h}
+ggplot(tc, aes(x = stage, y = median_adjH,
+               color = lineage_class, group = interaction(lineage_san, annotation))) +
+  geom_line(alpha = 0.5, linewidth = 0.4) +
+  geom_point(size = 1.2, alpha = 0.8) +
+  scale_color_viridis_d(option = "turbo", begin = 0.05, end = 0.95) +
+  facet_wrap(~ annotation, ncol = 3, scales = "free_y") +
+  labs(x = "developmental stage", y = "median adjH",
+       color = "lineage class") +
+  guides(color = guide_legend(override.aes = list(size = 2.5, alpha = 1,
+                                                   linewidth = 1))) +
+  theme_ng()
+```
+
+## Methylation by stage and lineage class
+
+```{r timecourse_meth, fig.width = ng_fig_size(length(stage_order), 9)$w, fig.height = ng_fig_size(length(stage_order), 9)$h}
+ggplot(tc, aes(x = stage, y = median_meth,
+               color = lineage_class, group = interaction(lineage_san, annotation))) +
+  geom_line(alpha = 0.5, linewidth = 0.4) +
+  geom_point(size = 1.2, alpha = 0.8) +
+  scale_color_viridis_d(option = "turbo", begin = 0.05, end = 0.95) +
+  facet_wrap(~ annotation, ncol = 3, scales = "free_y") +
+  labs(x = "developmental stage", y = "median avg. methylation",
+       color = "lineage class") +
+  guides(color = guide_legend(override.aes = list(size = 2.5, alpha = 1,
+                                                   linewidth = 1))) +
+  theme_ng()
+```
+
+# Enhancers vs promoters {.tabset .tabset-pills}
+
+Comparing entropy at active enhancer marks (H3K27ac, H3K4me1) against promoter marks
+(H3K4me3, Promoters). The gastrulation paper reports that meso- and endoderm-defining
+enhancers undergo concerted demethylation upon germ-layer specification; adjS at
+these marks captures the heterogeneity of that process. H3K27ac and H3K4me1
+here come from ENCODE bulk mm10 data, not gastrulation-specific ChIP.
+
+```{r enh_vs_prom_data}
+enh_marks  <- c("Enh E7.5 Ect", "Enh E7.5 End", "Enh E7.5 Mes",
+                "Enh E7.5 union", "ESC p300")
+prom_marks <- c("H3K4me3 E7.5 common", "Promoters",
+                "H3K4me3 (ENCODE)")
+
+ep_df <- all_grp_meta %>%
+  filter(annotation %in% c(enh_marks, prom_marks),
+         !is.na(lineage_class)) %>%
+  mutate(
+    mark_type = case_when(
+      annotation %in% enh_marks  ~ "enhancer",
+      annotation %in% prom_marks ~ "promoter"
+    ),
+    stage = factor(stage, levels = stage_order)
+  )
+```
+
+## adjS enhancers vs promoters across stage
+
+```{r enh_vs_prom_adjS, fig.width = ng_fig_size(length(stage_order), 2)$w, fig.height = ng_fig_size(length(stage_order), 2)$h}
+ggplot(ep_df, aes(x = stage, y = median_adjS,
+                   color = lineage_class, shape = mark_type,
+                   group = interaction(lineage_san, annotation))) +
+  geom_line(alpha = 0.4, linewidth = 0.4) +
+  geom_point(size = 1.5, alpha = 0.85) +
+  scale_color_viridis_d(option = "turbo", begin = 0.05, end = 0.95) +
+  scale_shape_manual(values = c("enhancer" = 16, "promoter" = 17)) +
+  facet_grid(mark_type ~ lineage_class, scales = "free_y") +
+  labs(x = "developmental stage", y = "median adjS",
+       color = "lineage class", shape = "mark type") +
+  guides(
+    color = guide_legend(override.aes = list(size = 2.5, alpha = 1, linewidth = 1)),
+    shape = guide_legend(override.aes = list(size = 2.5))
+  ) +
+  theme_ng()
+```
+
+## adjH enhancers vs promoters across stage
+
+```{r enh_vs_prom_adjH, fig.width = ng_fig_size(length(stage_order), 2)$w, fig.height = ng_fig_size(length(stage_order), 2)$h}
+ggplot(ep_df, aes(x = stage, y = median_adjH,
+                   color = lineage_class, shape = mark_type,
+                   group = interaction(lineage_san, annotation))) +
+  geom_line(alpha = 0.4, linewidth = 0.4) +
+  geom_point(size = 1.5, alpha = 0.85) +
+  scale_color_viridis_d(option = "turbo", begin = 0.05, end = 0.95) +
+  scale_shape_manual(values = c("enhancer" = 16, "promoter" = 17)) +
+  facet_grid(mark_type ~ lineage_class, scales = "free_y") +
+  labs(x = "developmental stage", y = "median adjH",
+       color = "lineage class", shape = "mark type") +
+  guides(
+    color = guide_legend(override.aes = list(size = 2.5, alpha = 1, linewidth = 1)),
+    shape = guide_legend(override.aes = list(size = 2.5))
+  ) +
+  theme_ng()
+```
+
+## Paired scatter: adjS enhancer vs adjS promoter
+
+Each point is one (stage, lineage) group. Groups above the diagonal have higher
+within-cell entropy at enhancers than at promoters.
+
+```{r enh_prom_scatter, fig.width = ng_fig_size(2, 2)$w, fig.height = ng_fig_size(2, 2)$h}
+ep_wide <- all_grp_meta %>%
+  filter(annotation %in% c("Enh E7.5 union", "Promoters"),
+         !is.na(lineage_class)) %>%
+  select(stage_san, lineage_san, lineage_class, stage, annotation, median_adjS) %>%
+  pivot_wider(names_from = annotation, values_from = median_adjS) %>%
+  rename(adjS_enh = `Enh E7.5 union`, adjS_prom = Promoters) %>%
+  mutate(stage = factor(stage, levels = stage_order))
+
+if (all(c("adjS_enh", "adjS_prom") %in% names(ep_wide))) {
+  ggplot(ep_wide, aes(x = adjS_prom, y = adjS_enh,
+                       color = lineage_class, shape = stage)) +
+    geom_abline(slope = 1, intercept = 0, linetype = "dashed",
+                color = "grey60", linewidth = 0.4) +
+    geom_point(size = 2, alpha = 0.8) +
+    scale_color_viridis_d(option = "turbo", begin = 0.05, end = 0.95) +
+    scale_shape_manual(values = seq_along(levels(ep_wide$stage))) +
+    labs(x = "median adjS at promoters", y = "median adjS at E7.5 enhancers (union)",
+         color = "lineage class", shape = "stage") +
+    guides(
+      color = guide_legend(override.aes = list(size = 3)),
+      shape = guide_legend(override.aes = list(size = 3))
+    ) +
+    theme_ng()
+}
+```
+
+# Variation across lineages {.tabset .tabset-pills}
+
+SD and range of group medians per annotation, broken down by lineage class.
+
+```{r variation_helpers}
+safe_range <- function(x) {
+  x <- x[is.finite(x)]
+  if (length(x) < 2) return(NA_real_)
+  diff(range(x))
+}
+```
+
+```{r variation_lineage, fig.width = ng_fig_size(4, 1)$w, fig.height = ng_fig_size(4, 1)$h}
+var_lineage <- all_grp_meta %>%
+  filter(!is.na(lineage_class)) %>%
+  group_by(annotation, lineage_class) %>%
+  summarise(
+    adjS_sd    = sd(median_adjS, na.rm = TRUE),
+    adjH_sd    = sd(median_adjH, na.rm = TRUE),
+    adjS_range = safe_range(median_adjS),
+    adjH_range = safe_range(median_adjH),
+    .groups = "drop"
+  )
+
+if (any(!is.na(var_lineage$adjH_sd))) {
+  ggplot(var_lineage, aes(x = adjH_sd, y = adjS_sd,
+                           color = annotation, label = annotation)) +
+    geom_point(size = 3) +
+    geom_text_repel(size = 3) +
+    scale_color_viridis_d(option = "turbo", begin = 0.05, end = 0.95) +
+    facet_grid(. ~ lineage_class) +
+    labs(x = "SD of adjH across groups",
+         y = "SD of adjS across groups") +
+    theme_ng()
+}
+```
+
+# Driver categorization {.tabset .tabset-pills}
+
+Whether entropy variation is driven within cells (adjS) or across cells (adjH),
+based on variance across all (stage, lineage) groups. Upper-left points are within-cell
+driven; lower-right are across-cell driven. The epiCHAOS paper found epiblast to have
+the highest epigenetic heterogeneity; annotations that separate lineages cleanly
+should appear lower-right here.
+
+```{r drivers_sd, fig.width = ng_fig_size(3, 3)$w, fig.height = ng_fig_size(3, 3)$h}
+var_all <- all_grp_meta %>%
+  group_by(annotation) %>%
+  summarise(
+    adjS_sd    = sd(median_adjS, na.rm = TRUE),
+    adjH_sd    = sd(median_adjH, na.rm = TRUE),
+    adjS_range = safe_range(median_adjS),
+    adjH_range = safe_range(median_adjH),
+    .groups = "drop"
+  )
+
+if (any(!is.na(var_all$adjH_sd))) {
+  shannon_sd_thr <- quantile(var_all$adjH_sd, 0.3, na.rm = TRUE)
+  sampen_sd_thr  <- quantile(var_all$adjS_sd, 0.3, na.rm = TRUE)
+
+  var_all <- var_all %>%
+    mutate(
+      driver = case_when(
+        is.na(adjH_sd) | is.na(adjS_sd)                    ~ NA_character_,
+        adjH_sd < shannon_sd_thr & adjS_sd < sampen_sd_thr ~ "not changing enough",
+        adjH_sd >= adjS_sd * 1.5                            ~ "across-cell driven",
+        adjS_sd >= adjH_sd * 1.5                            ~ "within-cell driven",
+        TRUE                                                 ~ "both"
+      )
+    )
+
+  cat("Driver table (SD-based):\n")
+  print(table(var_all$driver, useNA = "always"))
+
+  ggplot(var_all, aes(x = adjH_sd, y = adjS_sd,
+                       color = driver, shape = driver, label = annotation)) +
+    geom_point(size = 3) +
+    geom_text_repel() +
+    scale_color_viridis_d(option = "turbo", begin = 0.05, end = 0.95,
+                           na.value = "grey60") +
+    labs(x = "SD of adjH across all groups",
+         y = "SD of adjS across all groups") +
+    theme_ng()
+}
+```
+
+## R-squared by lineage class
+
+Variance in group-level adjH and adjS explained by lineage class (R2). Upper-left =
+within-cell driven; lower-right = across-cell (lineage-driven).
+
+```{r drivers_r2, fig.width = ng_fig_size(3, 3)$w, fig.height = ng_fig_size(3, 3)$h}
+safe_r2 <- function(y, grp) {
+  tryCatch({
+    r <- summary(lm(y ~ grp))$r.squared
+    if (is.nan(r) || is.na(r)) 0 else r
+  }, error = function(e) NA_real_)
+}
+
+r2_by_ann <- all_grp_meta %>%
+  filter(!is.na(lineage_class)) %>%
+  group_by(annotation) %>%
+  summarise(
+    r2_adjH = safe_r2(median_adjH, lineage_class),
+    r2_adjS = safe_r2(median_adjS, lineage_class),
+    .groups = "drop"
+  )
+
+if (any(!is.na(r2_by_ann$r2_adjH))) {
+  r2_thr <- 0.3
+  r2_by_ann <- r2_by_ann %>%
+    mutate(
+      driver_r2 = case_when(
+        is.na(r2_adjH) | is.na(r2_adjS)              ~ NA_character_,
+        r2_adjH < r2_thr & r2_adjS < r2_thr          ~ "not explained by lineage",
+        r2_adjH >= r2_adjS * 1.5 & r2_adjH >= r2_thr ~ "across-cell driven",
+        r2_adjS >= r2_adjH * 1.5 & r2_adjS >= r2_thr ~ "within-cell driven",
+        TRUE                                           ~ "both"
+      )
+    )
+
+  cat("Driver table (R2-based):\n")
+  print(table(r2_by_ann$driver_r2, useNA = "always"))
+
+  ggplot(r2_by_ann, aes(x = r2_adjH, y = r2_adjS,
+                         color = driver_r2, shape = driver_r2,
+                         label = annotation)) +
+    geom_vline(xintercept = r2_thr, linetype = "dashed",
+               color = "grey60") +
+    geom_hline(yintercept = r2_thr, linetype = "dashed",
+               color = "grey60") +
+    geom_point(size = 3) +
+    geom_text_repel(size = 3) +
+    scale_color_viridis_d(option = "turbo", begin = 0.05, end = 0.95,
+                           na.value = "grey60") +
+    scale_x_continuous(limits = c(0, 1)) +
+    scale_y_continuous(limits = c(0, 1)) +
+    labs(x = "R2 of adjH explained by lineage class",
+         y = "R2 of adjS explained by lineage class",
+         color = "driver", shape = "driver") +
+    theme_ng()
+}
+```
+
+# Heatmaps {.tabset .tabset-pills}
+
+Rows = lineage (clustered). Columns = annotation. Row bars show lineage class.
+
+```{r heatmap_helpers}
+make_heatmap <- function(df, value_col, title,
+                          palette = c("navy", "white", "firebrick")) {
+  wide <- df %>%
+    select(lineage, annotation, lineage_class,
+           value = all_of(value_col)) %>%
+    filter(!is.na(lineage_class)) %>%
+    group_by(lineage, annotation, lineage_class) %>%
+    summarise(value = median(value, na.rm = TRUE), .groups = "drop") %>%
+    pivot_wider(names_from = annotation, values_from = value)
+
+  if (nrow(wide) < 2) {
+    message("Too few rows for heatmap")
+    return(invisible(NULL))
+  }
+
+  mat <- wide %>% select(-lineage, -lineage_class) %>% as.matrix()
+  rownames(mat) <- wide$lineage
+
+  breaks <- c(min(mat, na.rm = TRUE),
+              mean(range(mat, na.rm = TRUE)),
+              max(mat, na.rm = TRUE))
+  if (any(!is.finite(breaks)) || breaks[1] == breaks[3]) {
+    message("Skipping heatmap: degenerate data (all-NA or constant matrix)")
+    return(invisible(NULL))
+  }
+
+  lc_levels <- sort(unique(wide$lineage_class))
+  lc_pal    <- setNames(viridisLite::turbo(length(lc_levels),
+                                            begin = 0.05, end = 0.95),
+                         lc_levels)
+
+  row_ann <- rowAnnotation(
+    lineage_class = wide$lineage_class,
+    col = list(lineage_class = lc_pal),
+    annotation_legend_param = list(
+      lineage_class = list(title = "lineage class")
+    )
+  )
+
+  col_fun <- colorRamp2(breaks, palette)
+
+  Heatmap(mat,
+          name              = title,
+          col               = col_fun,
+          row_split         = wide$lineage_class,
+          cluster_rows      = TRUE,
+          cluster_columns   = FALSE,
+          show_row_names    = TRUE,
+          show_column_names = TRUE,
+          row_names_gp      = gpar(fontsize = 7),
+          right_annotation  = row_ann,
+          column_title      = title,
+          na_col            = "grey90")
+}
+```
+
+## adjS
+
+```{r heatmap_adjS, fig.width = 10, fig.height = 8}
+heat_df_adjs <- adjsampens %>%
+  group_by(annotation, stage_san, lineage_san, lineage, lineage_class) %>%
+  summarise(median_adjS = median(sampen, na.rm = TRUE), .groups = "drop")
+
+make_heatmap(heat_df_adjs, "median_adjS", "median adjS",
+             palette = c("navy", "white", "firebrick"))
+```
+
+## adjH
+
+```{r heatmap_adjH, fig.width = 10, fig.height = 8}
+heat_df_adjh <- adjshannons %>%
+  group_by(annotation, stage_san, lineage_san, lineage, lineage_class) %>%
+  summarise(median_adjH = median(median_shannon, na.rm = TRUE), .groups = "drop")
+
+make_heatmap(heat_df_adjh, "median_adjH", "median adjH",
+             palette = c("navy", "white", "firebrick"))
+```
+
+# Cell-level UMAP {.tabset .tabset-pills}
+
+```{r umap_helpers}
+
+plot_umap <- function(df, color_col, title, subtitle = NULL) {
+  if (is.null(df) || nrow(df) == 0) {
+    message("No UMAP result for: ", title)
+    return(invisible(NULL))
+  }
+  ggplot(df %>% filter(!is.na(.data[[color_col]])),
+         aes(x = UMAP1, y = UMAP2, color = .data[[color_col]])) +
+    geom_point(size = 1.5, alpha = 0.7) +
+    scale_color_viridis_d(option = "turbo", begin = 0.05, end = 0.95) +
+    labs(title = title, subtitle = subtitle,
+         color = color_col) +
+    guides(color = guide_legend(override.aes = list(size = 3))) +
+    theme_ng()
+}
+```
+
+```{r cell_umap_load}
+short_paths_umap <- list.files(snakemake@params[["output_path"]],
+                                pattern = "\\.out\\.gz$", full.names = TRUE)
+short_paths_umap <- short_paths_umap[!grepl("\\.det\\.out\\.gz$",  short_paths_umap)]
+short_paths_umap <- short_paths_umap[!grepl("\\.meth\\.out\\.gz$", short_paths_umap)]
+
+read_cells_long <- function(fps, col) {
+  bind_rows(bplapply(fps, function(fp) {
+    fn   <- basename(fp)
+    vals <- read_tsv(fp, na = "-1", show_col_types = FALSE)[[col]]
+    data.frame(
+      stage_san   = get_stage(fn),
+      lineage_san = get_lineage(fn),
+      annotation  = get_annotation(fn),
+      cell_idx    = seq_along(vals),
+      value       = vals,
+      stringsAsFactors = FALSE
+    )
+  }, BPPARAM = param))
+}
+
+cells_adjS_long <- read_cells_long(short_paths_umap, "sampen_norm")
+cells_meth_long <- read_cells_long(short_paths_umap, "avg_meth")
+
+meta_cols_cell <- c("stage_san", "lineage_san", "cell_idx",
+                    "stage", "lineage", "lineage_class")
+
+cells_adjS_wide <- pivot_wider(cells_adjS_long,
+                                id_cols    = c(stage_san, lineage_san, cell_idx),
+                                names_from = annotation,
+                                values_from = value) %>%
+  left_join(meta_grp %>% select(stage_san, lineage_san, stage, lineage,
+                                 lineage_class),
+            by = c("stage_san", "lineage_san"))
+
+cells_meth_wide <- pivot_wider(cells_meth_long,
+                                id_cols    = c(stage_san, lineage_san, cell_idx),
+                                names_from = annotation,
+                                values_from = value) %>%
+  left_join(meta_grp %>% select(stage_san, lineage_san, stage, lineage,
+                                 lineage_class),
+            by = c("stage_san", "lineage_san"))
+
+saveRDS(list(cells_adjS_wide = cells_adjS_wide,
+             cells_meth_wide = cells_meth_wide),
+        "argelaguet_cell_matrices.rds")
+```
+
+## Cell-level: adjS across annotations
+
+```{r cell_umap_adjS, fig.width = ng_fig_size(2, 2)$w, fig.height = ng_fig_size(2, 2)$h}
+umap_cell_adjS <- run_umap_wide(cells_adjS_wide, meta_cols_cell,
+                                 n_neighbors = 15L)
+saveRDS(umap_cell_adjS, "argelaguet_umap_cell_adjS.rds")
+
+plot_umap(umap_cell_adjS, "lineage_class",
+          title    = "Cell-level UMAP - adjS features",
+          subtitle = "per-cell adjS per annotation as feature vector")
+```
+
+## Cell-level: adjS colored by stage
+
+```{r cell_umap_adjS_stage, fig.width = ng_fig_size(2, 2)$w, fig.height = ng_fig_size(2, 2)$h}
+plot_umap(umap_cell_adjS, "stage",
+          title    = "Cell-level UMAP - adjS features",
+          subtitle = "colored by developmental stage")
+```
+
+## Cell-level: avg methylation across annotations
+
+```{r cell_umap_meth, fig.width = ng_fig_size(2, 2)$w, fig.height = ng_fig_size(2, 2)$h}
+umap_cell_meth <- run_umap_wide(cells_meth_wide, meta_cols_cell,
+                                 n_neighbors = 15L)
+saveRDS(umap_cell_meth, "argelaguet_umap_cell_meth.rds")
+
+plot_umap(umap_cell_meth, "lineage_class",
+          title    = "Cell-level UMAP - avg. methylation features",
+          subtitle = "per-cell avg. methylation per annotation as feature vector")
+```
+
+## Cell-level: S with marginal methylation regressed out
+
+Unadjusted S per cell per annotation, with per-cell mean methylation regressed out
+column-wise before embedding. This checks that cell separation reflects locus-level
+heterogeneity rather than global methylation differences between cells.
+
+```{r cell_umap_S_regress}
+cells_S_long <- read_cells_long(short_paths_umap, "sampen")
+
+cells_S_wide <- pivot_wider(cells_S_long,
+                             id_cols    = c(stage_san, lineage_san, cell_idx),
+                             names_from = annotation,
+                             values_from = value) %>%
+  left_join(meta_grp %>% select(stage_san, lineage_san, stage, lineage,
+                                 lineage_class),
+            by = c("stage_san", "lineage_san"))
+
+id_cols <- c("stage_san", "lineage_san", "cell_idx")
+shared_cells <- inner_join(
+  cells_S_wide[, id_cols], cells_meth_wide[, id_cols], by = id_cols
+)
+cells_S_matched <- semi_join(cells_S_wide, shared_cells, by = id_cols)
+cells_meth_matched <- semi_join(cells_meth_wide, shared_cells, by = id_cols)
+
+annot_cols_S <- setdiff(colnames(cells_S_matched), meta_cols_cell)
+annot_cols_meth <- setdiff(colnames(cells_meth_matched), meta_cols_cell)
+
+S_resid <- regress_out_meth(
+  as.matrix(cells_S_matched[, annot_cols_S, drop = FALSE]),
+  as.matrix(cells_meth_matched[, annot_cols_meth, drop = FALSE])
+)
+
+cells_S_regressed <- bind_cols(
+  cells_S_matched[, meta_cols_cell, drop = FALSE],
+  as.data.frame(S_resid)
+)
+```
+
+```{r cell_umap_S_regressed, fig.width = ng_fig_size(2, 2)$w, fig.height = ng_fig_size(2, 2)$h}
+umap_cell_S_regressed <- run_umap_wide(cells_S_regressed, meta_cols_cell,
+                                        n_neighbors = 15L)
+saveRDS(umap_cell_S_regressed, "argelaguet_umap_cell_S_regressed.rds")
+
+plot_umap(umap_cell_S_regressed, "lineage_class",
+          title    = "Cell-level UMAP - S with marginal meth regressed out",
+          subtitle = "residuals of S ~ cell mean methylation per annotation")
+```
+
+## Group-level: adjH across annotations
+
+```{r group_umap_adjH, fig.width = ng_fig_size(2, 2)$w, fig.height = ng_fig_size(2, 2)$h}
+adjH_wide_grp <- all_grp_meta %>%
+  filter(!is.na(lineage_class)) %>%
+  select(stage_san, lineage_san, stage, lineage, lineage_class,
+         annotation, median_adjH) %>%
+  pivot_wider(names_from = annotation, values_from = median_adjH)
+
+umap_grp_adjH <- run_umap_wide(
+  adjH_wide_grp,
+  meta_cols   = c("stage_san", "lineage_san", "stage", "lineage", "lineage_class"),
+  n_neighbors = 5L
+)
+saveRDS(umap_grp_adjH, "argelaguet_umap_grp_adjH.rds")
+
+plot_umap(umap_grp_adjH, "lineage_class",
+          title    = "Group-level UMAP - adjH features",
+          subtitle = "median adjH per annotation as feature vector")
+```
+
+```{r group_umap_adjH_stage, fig.width = ng_fig_size(2, 2)$w, fig.height = ng_fig_size(2, 2)$h}
+plot_umap(umap_grp_adjH, "stage",
+          title    = "Group-level UMAP - adjH features",
+          subtitle = "colored by developmental stage")
+```
+
+# UMAP: per-annotation locus-level {.tabset .tabset-pills}
+
+```{r locus_umap_constants}
+LOCUS_N_UMAP <- 2000L
+```
+
+For each annotation, groups (stage x lineage) are embedded using per-locus
+normalised Shannon entropy (adjH) from the `.norm.det.out.gz` files as features.
+This gives a richer feature space than the cross-annotation UMAP above.
+
+Locus selection (two-pass, memory-efficient):
+1. Pass 1 reads each file once, accumulating only a per-locus coverage count
+   (whether the value is finite). Loci covered in >= 50% of groups are eligible.
+2. The most-covered eligible loci (up to `r LOCUS_N_UMAP`) are selected.
+3. Pass 2 reads each file again to extract values only for the selected loci.
+
+Cells (stage x lineage groups) with too many uncovered loci (> 50% NA after
+`read_tsv` converts the -1 sentinel to NA) are removed by cell-level QC in
+`run_embedding` before HVF selection.
+
+For well-covered annotations (e.g. broad marks): stage 1 of the embedding uses
+complete features (0 NAs across all retained groups), keeping all groups.
+For very sparse annotations: a coverage-weighted fallback selects HVFs from
+features covered in up to 30% of groups, then drops groups with missing values
+at those HVFs. Annotations that remain too sparse to embed return no plot.
+
+```{r locus_umap_setup}
+LOCUS_SEED <- 42L
+
+meta_cols_grp_arg <- c("stage_san", "lineage_san", "stage", "lineage", "lineage_class")
+
+## Locus selection for UMAP: -1 in shannon_norm means no coverage at that
+## locus in that group; read_tsv(na="-1") converts it to NA. Random
+## locus sampling yields almost no usable signal for sparse feature sets
+## (SINEs, histone marks) because coverage is low and scattered.
+##
+## Two-pass strategy:
+##   Pass 1 - coverage scan: read each file once, accumulate only a boolean
+##     coverage count per locus. Memory cost: O(n_loci) integers, not the
+##     full groups x loci matrix.
+##   Pass 2 - value extraction: read each file again, extract only the loci
+##     that are covered in >= min_locus_cov_frac of groups (most-covered first,
+##     up to n_loci). This keeps peak RAM at one file at a time.
+##
+## Column names in norm.det.out files contain file paths with special
+## characters (dots, slashes) which produce benign read_tsv type-guessing
+## warnings; suppressWarnings is used here as only the named col is needed.
+build_ann_locus_mat <- function(annotation_name, fps, col, n_loci = LOCUS_N_UMAP,
+                                min_locus_cov_frac = 0.5) {
+  fps_ann <- fps[get_annotation(basename(fps)) == annotation_name]
+  if (length(fps_ann) < 4L) return(NULL)
+
+  ## Pass 1: accumulate per-locus coverage counts, one file at a time.
+  cov_counts <- NULL
+  n_loci_total <- NULL
+  for (fp in fps_ann) {
+    vals <- suppressWarnings(
+      read_tsv(fp, na = "-1", show_col_types = FALSE))[[col]]
+    if (is.null(cov_counts)) {
+      n_loci_total <- length(vals)
+      cov_counts <- integer(n_loci_total)
+    }
+    cov_counts <- cov_counts + is.finite(vals)
+  }
+  locus_cov <- cov_counts / length(fps_ann)
+
+  eligible <- which(locus_cov >= min_locus_cov_frac)
+  if (length(eligible) < 2L) {
+    cat(annotation_name, ": no loci covered in >=", min_locus_cov_frac * 100,
+        "% of groups (total loci =", n_loci_total, "); skipping\n")
+    return(NULL)
+  }
+  top_loci <- eligible[order(locus_cov[eligible], decreasing = TRUE)]
+  idx <- sort(top_loci[seq_len(min(as.integer(n_loci), length(top_loci)))])
+
+  ## Pass 2: extract values only for selected loci, one file at a time.
+  rows <- lapply(fps_ann, function(fp) {
+    suppressWarnings(
+      read_tsv(fp, na = "-1", show_col_types = FALSE))[[col]][idx]
+  })
+  mat <- do.call(rbind, rows)
+  colnames(mat) <- paste0("locus_", idx)
+
+  cat(annotation_name, ": groups =", nrow(mat),
+      "| loci used =", ncol(mat),
+      "| eligible (cov >=", min_locus_cov_frac, ") =", length(eligible),
+      "| total loci =", n_loci_total, "\n")
+
+  df <- data.frame(
+    stage_san   = get_stage(basename(fps_ann)),
+    lineage_san = get_lineage(basename(fps_ann)),
+    as.data.frame(mat),
+    check.names = FALSE
+  )
+  left_join(df,
+            meta_grp %>% select(stage_san, lineage_san, stage, lineage, lineage_class),
+            by = c("stage_san", "lineage_san"))
+}
+
+ann_names_locus <- unique(get_annotation(basename(norm_det_paths)))
+```
+
+```{r locus_umap_adjH, fig.width = ng_fig_size(2, 2)$w, fig.height = ng_fig_size(2, 2)$h, results = "asis"}
+for (ann in ann_names_locus) {
+  cat("\n## ", ann, "\n\n")
+  mat <- build_ann_locus_mat(ann, norm_det_paths, "shannon_norm")
+  if (is.null(mat)) {
+    cat("Not enough groups for", ann, "\n\n")
+    next
+  }
+  umap_res <- run_umap_wide(mat, meta_cols_grp_arg, n_neighbors = 5L, seed = LOCUS_SEED)
+  p <- plot_umap(umap_res, "lineage_class",
+                 title    = paste0("Locus UMAP - adjH - ", ann),
+                 subtitle = paste0(LOCUS_N_UMAP, " loci sampled"))
+  if (!is.null(p)) print(p)
+  cat("\n\n")
+}
+```

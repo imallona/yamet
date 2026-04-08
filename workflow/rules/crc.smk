@@ -161,6 +161,18 @@ checkpoint download_crc_bismarks:
         """
 
 
+rule mark_crc_harmonized_done:
+    input:
+        lambda _: [
+            f
+            for patient, locations in SAMPLES.items()
+            for location in set(locations)
+            for f in get_harmonized_files(patient, location)
+        ]
+    output:
+        touch(op.join(CRC_HARMONIZED, "done.flag"))
+
+
 rule harmonize_cell_report_for_yamet:
     conda:
         op.join("..", "envs", "processing.yml")
@@ -221,6 +233,7 @@ rule run_yamet_on_separate_features:
             "{file}",
             file=get_harmonized_files(wildcards.patient, wildcards.location),
         ),
+        validation=ancient(op.join(CRC_HARMONIZED, "coords_validated.flag")),
         ref=op.join(HG19_BASE, "ref.CG.gz"),
         bed=op.join(HG19_BASE, "{subcat}.{cat}.bed")
     output:
@@ -344,8 +357,6 @@ def list_annotated_windows():
             res.append(f"windows_{{win_size}}_nt_{subcat}_{cat}_annotation.frac")
     return [op.join("hg19", item) for item in res]
 
-print(list_annotated_windows())
-
 rule combine_annotated_windows:
     conda:
         op.join("..", "envs", "yamet.yml")
@@ -377,6 +388,7 @@ rule run_yamet_on_windows:
             file=get_harmonized_files(wildcards.patient, wildcards.location),
         ),
         # cells = get_harmonized_files,
+        validation=ancient(op.join(CRC_HARMONIZED, "coords_validated.flag")),
         ref=op.join(HG19_BASE, "ref.CG.gz"),
         windows=op.join(HG19_BASE, "windows_{win_size}_nt.bed")
     output:
@@ -476,12 +488,12 @@ rule lazy_move_rds_objects:
     input:
         op.join(CRC, "results", "crc_windows_{win_size}_nt.html")
     output:
-        sce = op.join(CRC, 'results', 'sce_windows_{win_size}_colon.rds'),
+        windows_sce = op.join(CRC, 'results', 'sce_windows_{win_size}_colon.rds'),
         de =  op.join(CRC, 'results', 'de_list_{win_size}.rds')
     threads: 1
     shell:
         """
-        cp sce_windows_colon.rds {output.sce}
+        cp sce_windows_colon.rds {output.windows_sce}
         cp de_list.rds {output.de}
         """
         
@@ -490,7 +502,7 @@ rule render_crc_sce_report:
     conda:
         op.join("..", "envs", "r.yml")
     input:
-        sce = op.join(CRC, 'results', 'sce_windows_{win_size}_colon.rds'),
+        windows_sce = op.join(CRC, 'results', 'sce_windows_{win_size}_colon.rds'),
         de =  op.join(CRC, 'results', 'de_list_{win_size}.rds'),
         windows_annotation = op.join(HG19_BASE, "windows_{win_size}_nt_annotation.gz")
     threads: workflow.cores
@@ -503,6 +515,22 @@ rule render_crc_sce_report:
         log = op.join("logs", "render_crc_windows_sce_{win_size}.log")
     script:
         "src/crc_windows_sce.Rmd"
+
+rule render_crc_embeddings_report:
+    conda:
+        op.join("..", "envs", "r.yml")
+    input:
+        corrected_sce = op.join(CRC, 'results', 'sce_windows_colon_corrected_{win_size}.rds'),
+        feature_outputs = list_relevant_yamet_outputs()
+    threads: workflow.cores
+    params:
+        feature_output_path = CRC_OUTPUT
+    output:
+        op.join(CRC, "results", "crc_embeddings_{win_size}.html")
+    log:
+        log = op.join("logs", "render_crc_embeddings_{win_size}.log")
+    script:
+        "src/crc_embeddings.Rmd"
 
 # rule run_crc_stats_report:
 #     conda:
