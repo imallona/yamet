@@ -21,6 +21,7 @@ jobs:
         with:
           environment-file: workflow/envs/yamet.yml
           activate-environment: yamet
+          conda-config: channel_priority=strict
       - name: Build
         run: |
           cd method

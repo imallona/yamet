@@ -27,6 +27,7 @@ jobs:
         with:
           environment-file: workflow/envs/yamet.yml
           activate-environment: yamet
+          conda-config: channel_priority=strict
 
       - name: Install valgrind
         run: sudo apt update && sudo apt install -y valgrind
