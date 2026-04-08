@@ -1,37 +1,31 @@
 # yamet: Yet Another Methylation Entropy Tool
 
-`yamet` is a command line tool written in C++ for computing entropies from methylation data.
+`yamet` is a C++ command line tool for computing entropies from DNA methylation data.
 
-`yamet` takes cell methylation data, reference site definitions and intervals of interest as input, then computes sample entropy and 2-mer shannon entropy. The sample entropy metric is computed for every cell at every interval of interest and also aggregated per cell. It is a measure of the entropy within individual cells. The 2-mer shannon entropy metric is computed for every interval of interest and is a measure of the entropy across cells. Both metrics take into account missing/uncovered positions in the methylation files using a reference file of positions.
+It takes per-cell cytosine reports, a reference file of all CpG positions, and a BED file of genomic regions, then computes sample entropy (per cell, per interval) and 2-mer Shannon entropy (across cells, per interval). Missing positions are handled via the reference file.
 
-Please also check (probably side branches of):
-
+See also:
 - https://github.com/emsonder/MethQuant
 - https://github.com/emsonder/MethQuant-analysis
 
-<!-- prettier-ignore -->
 > [!NOTE]
-> `yamet` is currently under development! :confetti_ball:
+> `yamet` is under active development.
 
 ## Installation
 
 ### Brew
 
-**yamet** can be installed via `brew` on MacOS and Ubuntu
-
 ```bash
 brew tap atchox/brew
-
-# stable version
 brew install yamet
 
-# or build latest version from source
+# or build from source
 brew install --HEAD yamet
 ```
 
 ### Compiled binaries
 
-Compiled binaries can be downloaded from the [releases](https://github.com/imallona/yamet/releases) page.
+Compiled binaries are available on the [releases](https://github.com/imallona/yamet/releases) page.
 
 ### Build from source
 
@@ -44,116 +38,70 @@ bash build.sh
 
 ## Usage
 
-`yamet` processes (covered CpG) DNA methylation report(s), a reference file listing all CpG positions in a genome, and a bedfile specifying the genomic regions to calculate scores for (e.g. promoters, genes, etc). Full CLI args:
+```
+Usage: yamet -c <cytosine report>... -r <reference> -i <interval> [OPTIONS]
 
-```text
-yamet
+Input:
+  -c,--cytosine-report,--cell           per-cell cytosine report file(s), tab-separated,
+                                        sorted by chromosome and position:
+                                          chr  pos  meth_reads  total_reads  rate
+  --metadata                            metadata file (alternative to -c), tab-separated:
+                                          cell_id  cluster  path/to/cytosine_report
+  -r,--cytosine-locations,--reference   reference file of all CpG positions (required):
+                                          chr  pos
+  -i,--regions,--intervals              BED file of regions to compute entropies for (required):
+                                          chr  start  end
+  --skip-header                         lines to skip in all input files
+  --skip-header-cytosine-report         lines to skip in cell files
+  --skip-header-cytosine-locations      lines to skip in reference file
+  --skip-header-regions                 lines to skip in intervals file
+  --skip-header-metadata                lines to skip in metadata file
 
-input:
-  -c [ --cytosine_report ] arg          Per-cell cytosine report file(s) 
-                                        (Bismark-like for covered cytosines). 
-                                        Synonyms: --cytosine_report, --cell, 
-                                        -c.
-                                        Tab-separated, sorted by chromosome and
-                                        position:
-                                          chr   pos   meth_reads   total_reads 
-                                          rate
-  -r [ --cytosine_locations ] arg       Genomic locations of all cytosines 
-                                        (typically CpGs). Synonyms: 
-                                        --cytosine_locations, --reference, -r.
-                                        Required to reconstruct contiguous CpG 
-                                        sequences.
-                                        Columns:
-                                          chr   pos
-  -i [ --regions ] arg                  BED file defining genomic regions where
-                                        entropies will be computed. Synonyms: 
-                                        --regions, --features, --target, 
-                                        --intervals, -i.
-                                        Columns:
-                                          chr   start   end
-  --skip-header-all [=arg(=1)]          Header lines to skip in all input files
-                                        (default: 0). Synonyms: 
-                                        --skip-header-all, --skip-header.
-  --skip-header-cytosine_report [=arg(=1)]
-                                        Header lines to skip in 
-                                        cytosine_report/cell files (default: 
-                                        0).
-  --skip-header-cytosine_locations [=arg(=1)]
-                                        Header lines to skip in 
-                                        cytosine_locations/reference file 
-                                        (default: 0).
-  --skip-header-regions [=arg(=1)]      Header lines to skip in 
-                                        regions/features/target/intervals file 
-                                        (default: 0).
+Output:
+  -d,--det-out                          path to detailed output file
+  -n,--norm-det-out                     path to normalized detailed output file
+  -m,--meth-out                         path to average methylation output file
+  -o,--out                              path to simple output file
+  --all-meth / --templated-meth         include all CpGs in methylation summaries (default: false)
 
-output:
-  -d [ --det-out ] arg                  (optional) path to detailed output file
-  -n [ --norm-det-out ] arg             (optional) path to detailed normalized 
-                                        output file
-  -m [ --meth-out ] arg                 (optional) path to average methylation 
-                                        output file
-  --all-meth [=arg(=true)] (=false)     If true, include all CpGs in 
-                                        methylation summaries, including those 
-                                        not used for template construction 
-                                        (default: false).
-  -o [ --out ] arg                      (optional) path to simple output file
+Resources:
+  --cores                               cores for parallel file parsing (default: 0, auto)
+  --chunk-size                          read buffer size per file, e.g. 64K, 128M (default: 64K)
 
-resource utilisation:
-  --cores arg (=0)                      number of cores used for simultaneously
-                                        parsing methylation files
-  --chunk-size arg (=64K)               size of the buffer (per file) used for 
-                                        reading data. Can be specified as a 
-                                        positive integer (bytes) or with a 
-                                        suffix: B, K, M, G.
-
-verbose:
+Verbose:
   --print-intervals                     print parsed intervals file
   --print-reference                     print parsed reference file
-  --print-sampens [=arg(=true)] (=true) print computed sample entropies
+  --print-sampens / --no-print-sampens  print computed sample entropies (default: true)
 
-misc:
-  -h [ --help ]                         print help message
-  --version                             current version information
-
-
+Misc:
+  -h,--help                             show help message
+  --version                             show version information
 ```
 
-## Repository
+## Repository layout
 
-- `.github/workflows` and `test`: testing and build automations
-- `method`: yamet code. See [our releases](https://github.com/imallona/yamet/releases) (including binaries)
-- `workflow`: main snakemake workflow. Includes rules for building yamet, downloading and processing real datasets (CRC, Ecker, Argelaguet gastrulation), running simulations, and archiving outputs. Simulation source code (Rmd scripts, R helpers), conda environments, and input parameters all live under `workflow/`.
-- `yamet-r`: yamet R package
+- `.github/workflows` and `test`: CI and build automation
+- `method`: C++ source. See [releases](https://github.com/imallona/yamet/releases) for binaries.
+- `workflow`: Snakemake workflow for real datasets (CRC, Ecker, Argelaguet) and simulations.
 
-You might want to browse the issues and PRs to explore current developments.
-
-
-## Running the analysis / reproducible figures
-
-All analyses, including simulations, are run from the workflow directory:
+## Reproducing analyses
 
 ```bash
 cd workflow
 snakemake --use-conda --cores NUM_CORES
 ```
 
-Simulation targets are available through the main workflow. To run only the
-coverage simulations, for example:
+Specific targets:
 
 ```bash
-cd workflow
+# coverage simulations
 snakemake --use-conda --cores NUM_CORES simulations/results/simulation_figure2.html
-```
 
-To run the within/between cell simulations:
-
-```bash
-cd workflow
+# within/between cell simulations
 snakemake --use-conda --cores NUM_CORES simulations/results/simulation_08_combined_figure_adj.html
 ```
 
-Simulations share the Argelaguet gastrulation download, so the gastrulation
-tarball is only fetched once.
+Simulations share the Argelaguet gastrulation download, so the tarball is fetched only once.
 
 ## License
 
@@ -165,8 +113,6 @@ izaskun.mallona at gmail.com
 
 ## Acknowledgements
 
-We thank [Mark D. Robinson at UZH](https://robinsonlabuzh.github.io/) for partly funding this project.
+We thank Mark D. Robinson at UZH for partly funding this project, the Swiss National Science Foundation, and the Graduate Campus at the University of Zurich for their support.
 
-We thank the [Swiss National Science Foundation](https://data.snf.ch/grants/grant/190824) and the [Graduate Campus at the University of Zurich](https://www.grc.uzh.ch/en/funding) for their support.
-
-`yamet` builds on great FOSS components, including [snakemake](https://snakemake.readthedocs.io/en/stable/), and uses public data from epigenomic atlases and scientific publications. Thank you!
+`yamet` builds on great open source components including [snakemake](https://snakemake.readthedocs.io/en/stable/) and uses public data from epigenomic atlases.

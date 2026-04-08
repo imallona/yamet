@@ -43,7 +43,11 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install dependencies
-        run: sudo apt update && sudo apt install -y libcli11-dev libboost-iostreams-dev
+        run: |
+          sudo apt update && sudo apt install -y libboost-iostreams-dev
+          wget -q https://github.com/CLIUtils/CLI11/archive/refs/tags/v2.4.2.tar.gz -O /tmp/cli11.tar.gz
+          tar -xzf /tmp/cli11.tar.gz -C /tmp
+          sudo cp -r /tmp/CLI11-2.4.2/include/CLI /usr/local/include/
 
       - name: Build
         run: |
