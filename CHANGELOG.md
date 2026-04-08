@@ -28,6 +28,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - [workflow] Simulations moved from top-level `simulations/` into `workflow/rules/simulations.smk` and `workflow/simulations/`
 - [workflow] Cell embeddings standardized across datasets; marginal methylation handled via scaling rather than imputation
+- [build] Switched to conda for software management in testing
 
 ## [v1.1.0-rc.5](https://github.com/imallona/yamet/releases/tag/v1.1.0-rc.5)
 

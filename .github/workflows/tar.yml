@@ -1,14 +1,14 @@
 name: Cross-Platform Build
 
 on:
-  workflow_dispatch: null
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version tag to build (e.g. v1.1.0)"
+        required: false
   push:
     tags:
       - "v*"
-  pull_request:
-    paths:
-      - "method/**"
-      - ".github/workflows/tar.yml"
 
 jobs:
   build-macos:
@@ -25,7 +25,7 @@ jobs:
           cd method
           cmake -S. \
             -Bbuild \
-            -DVERSION=${{ github.ref_name }} \
+            -DVERSION=${{ inputs.version || github.ref_name }} \
             -DCMAKE_INSTALL_PREFIX=install \
             -DCPACK_GENERATOR=TGZ \
             -DCPACK_PACKAGING_INSTALL_PREFIX=/ \
@@ -63,7 +63,7 @@ jobs:
           cd method
           cmake -S. \
             -Bbuild \
-            -DVERSION=${{ github.ref_name }} \
+            -DVERSION=${{ inputs.version || github.ref_name }} \
             -DCMAKE_INSTALL_PREFIX=install \
             -DCPACK_GENERATOR=DEB \
             -DCPACK_PACKAGING_INSTALL_PREFIX=/usr \
