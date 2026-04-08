@@ -984,6 +984,10 @@ plot_umap(umap_grp_adjH, "stage",
 
 # UMAP: per-annotation locus-level {.tabset .tabset-pills}
 
+```{r locus_umap_constants}
+LOCUS_N_UMAP <- 2000L
+```
+
 For each annotation, groups (stage x lineage) are embedded using per-locus
 normalised Shannon entropy (adjH) from the `.norm.det.out.gz` files as features.
 This gives a richer feature space than the cross-annotation UMAP above.
@@ -1005,8 +1009,7 @@ features covered in up to 30% of groups, then drops groups with missing values
 at those HVFs. Annotations that remain too sparse to embed return no plot.
 
 ```{r locus_umap_setup}
-LOCUS_N_UMAP <- 2000L
-LOCUS_SEED   <- 42L
+LOCUS_SEED <- 42L
 
 meta_cols_grp_arg <- c("stage_san", "lineage_san", "stage", "lineage", "lineage_class")
 
@@ -1089,7 +1092,7 @@ for (ann in ann_names_locus) {
     cat("Not enough groups for", ann, "\n\n")
     next
   }
-  umap_res <- run_umap_wide(mat, meta_cols_grp_arg, n_neighbors = 5L)
+  umap_res <- run_umap_wide(mat, meta_cols_grp_arg, n_neighbors = 5L, seed = LOCUS_SEED)
   p <- plot_umap(umap_res, "lineage_class",
                  title    = paste0("Locus UMAP - adjH - ", ann),
                  subtitle = paste0(LOCUS_N_UMAP, " loci sampled"))
