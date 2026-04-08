@@ -1,6 +1,11 @@
 name: Cross-Platform Build
 
 on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version tag to build (e.g. v1.1.0)"
+        required: false
   push:
     tags:
       - "v*"
@@ -20,7 +25,7 @@ jobs:
           cd method
           cmake -S. \
             -Bbuild \
-            -DVERSION=${{ github.ref_name }} \
+            -DVERSION=${{ inputs.version || github.ref_name }} \
             -DCMAKE_INSTALL_PREFIX=install \
             -DCPACK_GENERATOR=TGZ \
             -DCPACK_PACKAGING_INSTALL_PREFIX=/ \
@@ -29,6 +34,7 @@ jobs:
           cpack --config build/CPackConfig.cmake --verbose
 
       - name: Create GitHub Release and upload tarball
+        if: github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
         with:
           files: method/yamet-*.tar.gz
@@ -38,19 +44,26 @@ jobs:
       matrix:
         os: ["ubuntu-24.04", "ubuntu-24.04-arm"]
     runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash -el {0}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install dependencies
-        run: sudo apt update && sudo apt install -y libcli11-dev libboost-iostreams-dev
+      - name: Set up conda
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          environment-file: workflow/envs/yamet.yml
+          activate-environment: yamet
+          conda-config: channel_priority=strict
 
       - name: Build
         run: |
           cd method
           cmake -S. \
             -Bbuild \
-            -DVERSION=${{ github.ref_name }} \
+            -DVERSION=${{ inputs.version || github.ref_name }} \
             -DCMAKE_INSTALL_PREFIX=install \
             -DCPACK_GENERATOR=DEB \
             -DCPACK_PACKAGING_INSTALL_PREFIX=/usr \
@@ -59,6 +72,7 @@ jobs:
           cpack --config build/CPackConfig.cmake --verbose
 
       - name: Create GitHub Release and upload tarball
+        if: github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
         with:
           files: method/yamet-*.deb

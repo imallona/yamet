@@ -6,10 +6,14 @@ on:
     paths:
       - "method/src/**.cpp"
       - "method/CMakeLists.txt"
+      - ".github/workflows/debug.yml"
 
 jobs:
   unsupported_gpp_should_fail:
     runs-on: ubuntu-24.04
+    defaults:
+      run:
+        shell: bash -el {0}
     strategy:
       matrix:
         compiler: [{ cpp: g++-12, c: gcc-12 }]
@@ -19,11 +23,12 @@ jobs:
         id: checkout
         uses: actions/checkout@v4
 
-      - name: Installs
-        run: |
-          sudo apt update && sudo apt install -y libboost-iostreams-dev
-          wget https://launchpad.net/ubuntu/+archive/primary/+files/libcli11-dev_2.6.1+ds-1_all.deb
-          sudo dpkg -i libcli11-dev_2.6.1+ds-1_all.deb
+      - name: Set up conda
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          environment-file: workflow/envs/yamet.yml
+          activate-environment: yamet
+          conda-config: channel_priority=strict
 
       - name: Build and test_0
         env:
@@ -47,6 +52,9 @@ jobs:
 
   supported_gpp_should_work:
     runs-on: ubuntu-24.04
+    defaults:
+      run:
+        shell: bash -el {0}
     strategy:
       matrix:
         compiler: [{ cpp: g++-13, c: gcc-13 }]
@@ -56,11 +64,12 @@ jobs:
         id: checkout
         uses: actions/checkout@v4
 
-      - name: Installs
-        run: |
-          sudo apt update && sudo apt install -y libboost-iostreams-dev
-          wget https://launchpad.net/ubuntu/+archive/primary/+files/libcli11-dev_2.6.1+ds-1_all.deb
-          sudo dpkg -i libcli11-dev_2.6.1+ds-1_all.deb
+      - name: Set up conda
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          environment-file: workflow/envs/yamet.yml
+          activate-environment: yamet
+          conda-config: channel_priority=strict
 
       - name: Build and test_0
         env:
