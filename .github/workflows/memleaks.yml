@@ -24,7 +24,8 @@ jobs:
           sudo apt update && sudo apt install -y libboost-iostreams-dev valgrind
           wget -q https://github.com/CLIUtils/CLI11/archive/refs/tags/v2.4.2.tar.gz -O /tmp/cli11.tar.gz
           tar -xzf /tmp/cli11.tar.gz -C /tmp
-          sudo cp -r /tmp/CLI11-2.4.2/include/CLI /usr/local/include/
+          cmake -S /tmp/CLI11-2.4.2 -B /tmp/cli11-build -DCLI11_TESTING=OFF -DCLI11_EXAMPLES=OFF
+          sudo cmake --install /tmp/cli11-build
 
       - name: Build and valgrind
         run: |
