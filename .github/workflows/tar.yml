@@ -1,9 +1,14 @@
 name: Cross-Platform Build
 
 on:
+  workflow_dispatch: null
   push:
     tags:
       - "v*"
+  pull_request:
+    paths:
+      - "method/**"
+      - ".github/workflows/tar.yml"
 
 jobs:
   build-macos:
@@ -29,6 +34,7 @@ jobs:
           cpack --config build/CPackConfig.cmake --verbose
 
       - name: Create GitHub Release and upload tarball
+        if: github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
         with:
           files: method/yamet-*.tar.gz
@@ -63,6 +69,7 @@ jobs:
           cpack --config build/CPackConfig.cmake --verbose
 
       - name: Create GitHub Release and upload tarball
+        if: github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
         with:
           files: method/yamet-*.deb

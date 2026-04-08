@@ -6,6 +6,7 @@ on:
     paths:
       - "method/src/**.cpp"
       - "method/CMakeLists.txt"
+      - ".github/workflows/debug.yml"
 
 jobs:
   unsupported_gpp_should_fail:

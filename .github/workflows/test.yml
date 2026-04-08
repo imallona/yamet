@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "method/**"
+      - ".github/workflows/test.yml"
 
 jobs:
   build_ubuntu_latest:

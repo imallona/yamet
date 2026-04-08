@@ -6,6 +6,7 @@ on:
     paths:
       - "method/src/**.cpp"
       - "method/CMakeLists.txt"
+      - ".github/workflows/memleaks.yml"
 
 env:
   PREFIX: $HOME/build/
