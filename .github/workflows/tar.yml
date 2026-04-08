@@ -44,17 +44,18 @@ jobs:
       matrix:
         os: ["ubuntu-24.04", "ubuntu-24.04-arm"]
     runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash -el {0}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install dependencies
-        run: |
-          sudo apt update && sudo apt install -y libboost-iostreams-dev
-          wget -q https://github.com/CLIUtils/CLI11/archive/refs/tags/v2.4.2.tar.gz -O /tmp/cli11.tar.gz
-          tar -xzf /tmp/cli11.tar.gz -C /tmp
-          cmake -S /tmp/CLI11-2.4.2 -B /tmp/cli11-build -DCLI11_TESTING=OFF -DCLI11_EXAMPLES=OFF
-          sudo cmake --install /tmp/cli11-build
+      - name: Set up conda
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          environment-file: workflow/envs/yamet.yml
+          activate-environment: yamet
 
       - name: Build
         run: |
