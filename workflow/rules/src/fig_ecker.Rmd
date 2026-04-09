@@ -1,0 +1,197 @@
+---
+title: "Ecker figure"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  bookdown::html_document2:
+    code_folding: hide
+    number_sections: no
+---
+
+```{r setup}
+suppressPackageStartupMessages({
+  library(ggplot2)
+  library(patchwork)
+  library(dplyr)
+  library(tidyr)
+  library(ComplexHeatmap)
+  library(circlize)
+  library(ggrastr)
+  library(viridisLite)
+  library(grid)
+})
+
+source("rules/src/ggtheme.R")
+
+knitr::opts_chunk$set(
+  echo    = TRUE,
+  message = FALSE,
+  warning = FALSE
+)
+
+log_con <- file(snakemake@log[[1]], open = "wt")
+sink(log_con)
+sink(log_con, type = "message")
+
+out_dir <- snakemake@params$out_dir
+if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE)
+```
+
+```{r load}
+meta         <- readRDS("ecker_groups_meta.rds")
+ent          <- readRDS("ecker_entropy.rds")
+umap_overlay <- readRDS("ecker_paper_umap_overlay.rds")
+```
+
+```{r paper-umap-data}
+umap_cells <- umap_overlay %>%
+  filter(annotation == "Genes") %>%
+  select(sub_type,
+         cell_class = cell_class.x,
+         major_type = major_type.x,
+         umap1, umap2,
+         median_adjS, median_adjH, median_meth) %>%
+  distinct(sub_type, umap1, umap2, .keep_all = TRUE)
+```
+
+```{r panel-a}
+cc_lvls <- sort(unique(umap_cells$cell_class))
+cc_pal  <- setNames(turbo(length(cc_lvls), begin = 0.05, end = 0.95), cc_lvls)
+
+pa <- ggplot(umap_cells, aes(x = umap1, y = umap2, color = cell_class)) +
+  geom_point_rast(size = 0.15, alpha = 0.5, raster.dpi = 300) +
+  scale_color_manual(values = cc_pal) +
+  guides(color = guide_legend(override.aes = list(size = 2, alpha = 1))) +
+  labs(x = "UMAP 1", y = "UMAP 2", color = "cell class") +
+  theme_ng(base_size = 8)
+```
+
+```{r panel-b}
+pb <- ggplot(umap_cells, aes(x = umap1, y = umap2, color = median_adjS)) +
+  geom_point_rast(size = 0.15, alpha = 0.5, raster.dpi = 300) +
+  scale_color_viridis_c(option = "viridis") +
+  labs(x = "UMAP 1", y = "UMAP 2", color = "adjS") +
+  theme_ng(base_size = 8)
+```
+
+```{r panel-c}
+pc <- ggplot(umap_cells, aes(x = umap1, y = umap2, color = median_adjH)) +
+  geom_point_rast(size = 0.15, alpha = 0.5, raster.dpi = 300) +
+  scale_color_viridis_c(option = "plasma") +
+  labs(x = "UMAP 1", y = "UMAP 2", color = "adjH") +
+  theme_ng(base_size = 8)
+```
+
+```{r panel-d}
+pd <- ggplot(umap_cells, aes(x = umap1, y = umap2, color = median_meth)) +
+  geom_point_rast(size = 0.15, alpha = 0.5, raster.dpi = 300) +
+  scale_color_distiller(palette = "RdBu", direction = -1) +
+  labs(x = "UMAP 1", y = "UMAP 2", color = "avg. meth.") +
+  theme_ng(base_size = 8)
+```
+
+```{r panel-e}
+var_class <- ent$adjsampens %>%
+  group_by(cell_class) %>%
+  summarise(iqr = IQR(sampen, na.rm = TRUE), .groups = "drop") %>%
+  arrange(desc(iqr)) %>%
+  mutate(cell_class = factor(cell_class, levels = cell_class))
+
+pe <- ggplot(var_class, aes(x = cell_class, y = iqr, fill = cell_class)) +
+  geom_col(show.legend = FALSE) +
+  scale_fill_manual(values = setNames(
+    turbo(nrow(var_class), begin = 0.05, end = 0.95),
+    levels(var_class$cell_class))) +
+  labs(x = "cell class", y = "IQR adjS") +
+  theme_ng(base_size = 8) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+```{r panel-f}
+grp <- meta$all_grp_meta
+
+r2_by_ann <- grp %>%
+  group_by(annotation) %>%
+  summarise(
+    r2 = summary(lm(median_adjS ~ cell_class, data = cur_data()))$r.squared,
+    .groups = "drop"
+  )
+
+pf <- ggplot(r2_by_ann, aes(x = reorder(annotation, r2), y = r2)) +
+  geom_col(fill = "#0072B2") +
+  coord_flip() +
+  labs(x = NULL, y = expression(R^2 ~ "(adjS ~ cell class)")) +
+  theme_ng(base_size = 8)
+```
+
+```{r heatmap}
+ht_wide <- grp %>%
+  select(sub_type, annotation, cell_class, major_type, median_adjS) %>%
+  group_by(sub_type, annotation, cell_class, major_type) %>%
+  summarise(median_adjS = median(median_adjS, na.rm = TRUE), .groups = "drop") %>%
+  pivot_wider(names_from = annotation, values_from = median_adjS)
+
+mat <- ht_wide %>% select(-sub_type, -cell_class, -major_type) %>% as.matrix()
+rownames(mat) <- ht_wide$sub_type
+
+cc_ht_lvls <- sort(unique(ht_wide$cell_class))
+cc_ht_pal  <- setNames(turbo(length(cc_ht_lvls), begin = 0.05, end = 0.95), cc_ht_lvls)
+
+mt_lvls <- sort(unique(ht_wide$major_type))
+mt_pal  <- setNames(turbo(length(mt_lvls), begin = 0.05, end = 0.95), mt_lvls)
+
+brk <- c(min(mat, na.rm = TRUE),
+          mean(range(mat, na.rm = TRUE)),
+          max(mat, na.rm = TRUE))
+
+ht <- Heatmap(
+  mat,
+  name              = "median adjS",
+  col               = colorRamp2(brk, c("navy", "white", "firebrick")),
+  row_split         = ht_wide$cell_class,
+  cluster_rows      = TRUE,
+  cluster_columns   = FALSE,
+  show_row_names    = TRUE,
+  show_column_names = TRUE,
+  row_names_gp      = gpar(fontsize = 6),
+  column_names_gp   = gpar(fontsize = 7),
+  right_annotation  = rowAnnotation(
+    cell_class = ht_wide$cell_class,
+    major_type = ht_wide$major_type,
+    col        = list(cell_class = cc_ht_pal, major_type = mt_pal),
+    annotation_legend_param = list(
+      cell_class = list(title = "cell class"),
+      major_type = list(title = "major type", ncol = 2)
+    )
+  ),
+  column_title = "median adjS per cell type and annotation"
+)
+```
+
+```{r combined, fig.width = ng_fig_size(4, 2)$w, fig.height = ng_fig_size(4, 2)$h}
+row1 <- (pa | pb | pc | pd) +
+  plot_annotation(tag_levels = list(c("A", "B", "C", "D")),
+                  theme = theme(plot.tag = element_text(size = 8, face = "bold")))
+
+row2 <- (pe | pf) +
+  plot_annotation(tag_levels = list(c("E", "F")),
+                  theme = theme(plot.tag = element_text(size = 8, face = "bold")))
+
+gg_fig <- row1 / row2 + plot_layout(heights = c(1, 0.8))
+print(gg_fig)
+
+ggsave(
+  file.path(out_dir, "fig_ecker_panels.pdf"),
+  plot   = gg_fig,
+  width  = ng_fig_size(4, 2)$w,
+  height = ng_fig_size(4, 2)$h,
+  units  = "in",
+  device = cairo_pdf
+)
+```
+
+```{r heatmap-save, fig.width = 10, fig.height = 10}
+draw(ht)
+pdf(file.path(out_dir, "fig_ecker_heatmap.pdf"), width = 10, height = 10)
+draw(ht)
+invisible(dev.off())
+```

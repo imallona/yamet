@@ -40,3 +40,5 @@ dependencies:
   - conda-forge::r-cowplot
   - conda-forge::r-cluster
   - conda-forge::r-knitr
+  - conda-forge::r-patchwork
+  - conda-forge::r-ggrastr

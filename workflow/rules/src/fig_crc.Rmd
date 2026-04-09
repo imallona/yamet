@@ -1,0 +1,183 @@
+---
+title: "CRC entropy figure"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  bookdown::html_document2:
+    code_folding: hide
+    number_sections: no
+---
+
+```{r setup}
+suppressPackageStartupMessages({
+  library(ggplot2)
+  library(patchwork)
+  library(dplyr)
+  library(tidyr)
+  library(ComplexHeatmap)
+  library(circlize)
+  library(ggrastr)
+  library(viridisLite)
+  library(grid)
+})
+
+source("rules/src/ggtheme.R")
+
+knitr::opts_chunk$set(
+  echo    = TRUE,
+  message = FALSE,
+  warning = FALSE
+)
+
+log_con <- file(snakemake@log[[1]], open = "wt")
+sink(log_con)
+sink(log_con, type = "message")
+
+out_dir <- snakemake@params$out_dir
+if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE)
+
+loc_pal <- c(NC = "#1b9e77", PT = "#d95f02", LN = "#7570b3",
+             ML = "#e7298a", MP = "#66a61e", MO = "#e6ab02")
+```
+
+```{r load}
+ent    <- readRDS("crc_entropy_summaries.rds")
+embeds <- readRDS("crc_embeddings_debug.rds")
+```
+
+```{r panel-a}
+set.seed(42)
+samp <- ent$adjsampens %>%
+  group_by(location) %>%
+  slice_sample(n = min(800, n())) %>%
+  ungroup()
+
+pa <- ggplot(samp, aes(x = avg_meth, y = sampen, color = location)) +
+  geom_point_rast(size = 0.3, alpha = 0.4, raster.dpi = 300) +
+  scale_color_manual(values = loc_pal) +
+  guides(color = guide_legend(override.aes = list(size = 2, alpha = 1))) +
+  labs(x = "avg. methylation", y = "adjS", color = "location") +
+  theme_ng(base_size = 8)
+```
+
+```{r panel-b}
+box_df <- ent$adjsampens %>%
+  group_by(annotation, location) %>%
+  summarise(
+    median_adjS = median(sampen, na.rm = TRUE),
+    .groups     = "drop"
+  )
+
+pb <- ggplot(box_df, aes(x = annotation, y = median_adjS,
+                          color = location, group = location)) +
+  geom_line(linewidth = 0.4, alpha = 0.8) +
+  geom_point(size = 0.8) +
+  scale_color_manual(values = loc_pal) +
+  labs(x = NULL, y = "median adjS", color = "location") +
+  theme_ng(base_size = 8) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+```{r panel-c}
+meth_df <- ent$adjsampens %>%
+  group_by(annotation, location) %>%
+  summarise(
+    median_meth = median(avg_meth, na.rm = TRUE),
+    .groups     = "drop"
+  )
+
+pc <- ggplot(meth_df, aes(x = annotation, y = median_meth,
+                           color = location, group = location)) +
+  geom_line(linewidth = 0.4, alpha = 0.8) +
+  geom_point(size = 0.8) +
+  scale_color_manual(values = loc_pal) +
+  labs(x = NULL, y = "median avg. methylation", color = "location") +
+  theme_ng(base_size = 8) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+```{r panel-d}
+umap_mat  <- embeds$win_embeds$adjS$umap
+kept_cols <- embeds$win_embeds$adjS$kept_cols
+col_df    <- embeds$col_data[kept_cols, ]
+
+umap_df <- data.frame(
+  UMAP1    = umap_mat[, 1],
+  UMAP2    = umap_mat[, 2],
+  location = col_df$location,
+  patient  = col_df$patient
+)
+
+pd <- ggplot(umap_df, aes(x = UMAP1, y = UMAP2, color = location)) +
+  geom_point_rast(size = 0.4, alpha = 0.6, raster.dpi = 300) +
+  scale_color_manual(values = loc_pal) +
+  guides(color = guide_legend(override.aes = list(size = 2, alpha = 1))) +
+  labs(x = "UMAP 1", y = "UMAP 2", color = "location",
+       title = "adjS window embedding") +
+  theme_ng(base_size = 8)
+```
+
+```{r heatmap}
+heat_df <- ent$adjsampens %>%
+  group_by(patient, location, annotation) %>%
+  summarise(median_adjS = median(sampen, na.rm = TRUE), .groups = "drop") %>%
+  mutate(sample = paste0(patient, "_", location))
+
+wide <- heat_df %>%
+  select(sample, annotation, median_adjS, location) %>%
+  pivot_wider(names_from = annotation, values_from = median_adjS)
+
+mat <- wide %>% select(-sample, -location) %>% as.matrix()
+rownames(mat) <- wide$sample
+
+brk <- c(min(mat, na.rm = TRUE),
+          mean(range(mat, na.rm = TRUE)),
+          max(mat, na.rm = TRUE))
+
+ht <- Heatmap(
+  mat,
+  name              = "median adjS",
+  col               = colorRamp2(brk, c("navy", "white", "firebrick")),
+  row_split         = wide$location,
+  cluster_rows      = TRUE,
+  cluster_columns   = FALSE,
+  show_row_names    = TRUE,
+  show_column_names = TRUE,
+  row_names_gp      = gpar(fontsize = 6),
+  column_names_gp   = gpar(fontsize = 6),
+  right_annotation  = rowAnnotation(
+    location = wide$location,
+    col      = list(location = loc_pal[as.character(sort(unique(wide$location)))]),
+    annotation_legend_param = list(location = list(title = "location"))
+  ),
+  column_title = "median adjS per sample and annotation"
+)
+```
+
+```{r combined, fig.width = ng_fig_size(2, 2)$w, fig.height = ng_fig_size(2, 2)$h}
+row1 <- (pa | pb) +
+  plot_annotation(tag_levels = list(c("A", "B")),
+                  theme = theme(plot.tag = element_text(size = 8, face = "bold")))
+
+row2 <- (pc | pd) +
+  plot_annotation(tag_levels = list(c("C", "D")),
+                  theme = theme(plot.tag = element_text(size = 8, face = "bold")))
+
+gg_fig <- row1 / row2 + plot_layout(heights = c(1, 1))
+print(gg_fig)
+
+ggsave(
+  file.path(out_dir, "fig_crc_panels.pdf"),
+  plot   = gg_fig,
+  width  = ng_fig_size(2, 2)$w,
+  height = ng_fig_size(2, 2)$h,
+  units  = "in",
+  device = cairo_pdf
+)
+```
+
+```{r heatmap-save, fig.width = 12, fig.height = 7}
+draw(ht)
+pdf(file.path(out_dir, "fig_crc_heatmap.pdf"), width = 12, height = 7)
+draw(ht)
+invisible(dev.off())
+```

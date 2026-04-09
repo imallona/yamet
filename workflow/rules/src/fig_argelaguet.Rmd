@@ -1,0 +1,193 @@
+---
+title: "Argelaguet figure"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  bookdown::html_document2:
+    code_folding: hide
+    number_sections: no
+---
+
+```{r setup}
+suppressPackageStartupMessages({
+  library(ggplot2)
+  library(patchwork)
+  library(dplyr)
+  library(tidyr)
+  library(ComplexHeatmap)
+  library(circlize)
+  library(ggrastr)
+  library(viridisLite)
+  library(grid)
+})
+
+source("rules/src/ggtheme.R")
+
+knitr::opts_chunk$set(
+  echo    = TRUE,
+  message = FALSE,
+  warning = FALSE
+)
+
+log_con <- file(snakemake@log[[1]], open = "wt")
+sink(log_con)
+sink(log_con, type = "message")
+
+out_dir <- snakemake@params$out_dir
+if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE)
+
+stage_pal <- c("E4.5" = "#440154", "E5.5" = "#31688e",
+               "E6.5" = "#35b779", "E7.5" = "#fde725")
+```
+
+```{r load}
+cell_matrices  <- readRDS("argelaguet_cell_matrices.rds")
+ent            <- readRDS("argelaguet_entropy.rds")
+grp_meta       <- readRDS("argelaguet_groups_meta.rds")
+cell_umap_adjS <- readRDS("argelaguet_umap_cell_adjS.rds")
+```
+
+```{r panel-a}
+pa <- ggplot(cell_umap_adjS, aes(x = UMAP1, y = UMAP2, color = stage)) +
+  geom_point_rast(size = 0.8, alpha = 0.7, raster.dpi = 300) +
+  scale_color_manual(values = stage_pal) +
+  guides(color = guide_legend(override.aes = list(size = 2, alpha = 1))) +
+  labs(x = "UMAP 1", y = "UMAP 2", color = "stage") +
+  theme_ng(base_size = 8)
+```
+
+```{r panel-b}
+tc_adjS <- ent$adjsampens %>%
+  group_by(stage, annotation) %>%
+  summarise(
+    median_adjS = median(sampen, na.rm = TRUE),
+    lo  = quantile(sampen, 0.25, na.rm = TRUE),
+    hi  = quantile(sampen, 0.75, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+pb <- ggplot(tc_adjS, aes(x = stage, y = median_adjS, color = annotation, group = annotation)) +
+  geom_line(linewidth = 0.5) +
+  geom_ribbon(aes(ymin = lo, ymax = hi, fill = annotation), alpha = 0.1, color = NA) +
+  scale_color_manual(values = cbbPalette) +
+  scale_fill_manual(values = cbbPalette) +
+  labs(x = "stage", y = "median adjS", color = "annotation", fill = "annotation") +
+  theme_ng(base_size = 8) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.key.size = unit(0.3, "cm"))
+```
+
+```{r panel-c}
+tc_adjH <- ent$adjshannons %>%
+  group_by(stage, annotation) %>%
+  summarise(
+    median_adjH = median(median_shannon, na.rm = TRUE),
+    lo  = quantile(median_shannon, 0.25, na.rm = TRUE),
+    hi  = quantile(median_shannon, 0.75, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+pc <- ggplot(tc_adjH, aes(x = stage, y = median_adjH, color = annotation, group = annotation)) +
+  geom_line(linewidth = 0.5) +
+  geom_ribbon(aes(ymin = lo, ymax = hi, fill = annotation), alpha = 0.1, color = NA) +
+  scale_color_manual(values = cbbPalette) +
+  scale_fill_manual(values = cbbPalette) +
+  labs(x = "stage", y = "median adjH", color = "annotation", fill = "annotation") +
+  theme_ng(base_size = 8) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.key.size = unit(0.3, "cm"))
+```
+
+```{r panel-d}
+enh_prom <- cell_matrices$cells_adjS_wide %>%
+  select(stage, enh = `enh-E75-union`, prom = promoters) %>%
+  filter(!is.na(enh), !is.na(prom))
+
+pd <- ggplot(enh_prom, aes(x = prom, y = enh, color = stage)) +
+  geom_point_rast(size = 0.5, alpha = 0.5, raster.dpi = 300) +
+  scale_color_manual(values = stage_pal) +
+  guides(color = guide_legend(override.aes = list(size = 2, alpha = 1))) +
+  labs(x = "adjS promoters", y = "adjS enhancers", color = "stage") +
+  theme_ng(base_size = 8)
+```
+
+```{r panel-e}
+var_lin <- ent$adjsampens %>%
+  group_by(lineage) %>%
+  summarise(iqr = IQR(sampen, na.rm = TRUE), .groups = "drop") %>%
+  arrange(desc(iqr)) %>%
+  mutate(lineage = factor(lineage, levels = lineage))
+
+pe <- ggplot(var_lin, aes(x = lineage, y = iqr)) +
+  geom_col(fill = "#35b779") +
+  coord_flip() +
+  labs(x = NULL, y = "IQR adjS") +
+  theme_ng(base_size = 8)
+```
+
+```{r heatmap}
+heat_df <- grp_meta$all_grp_meta %>%
+  group_by(lineage, annotation, lineage_class) %>%
+  summarise(median_adjS = median(median_adjS, na.rm = TRUE), .groups = "drop") %>%
+  filter(!is.na(lineage_class))
+
+wide <- heat_df %>%
+  pivot_wider(names_from = annotation, values_from = median_adjS)
+
+mat <- wide %>% select(-lineage, -lineage_class) %>% as.matrix()
+rownames(mat) <- wide$lineage
+
+brk <- c(min(mat, na.rm = TRUE),
+          mean(range(mat, na.rm = TRUE)),
+          max(mat, na.rm = TRUE))
+
+lc_lvls <- sort(unique(wide$lineage_class))
+lc_pal  <- setNames(turbo(length(lc_lvls), begin = 0.05, end = 0.95), lc_lvls)
+
+ht <- Heatmap(
+  mat,
+  name              = "median adjS",
+  col               = colorRamp2(brk, c("navy", "white", "firebrick")),
+  row_split         = wide$lineage_class,
+  cluster_rows      = TRUE,
+  cluster_columns   = FALSE,
+  show_row_names    = TRUE,
+  show_column_names = TRUE,
+  row_names_gp      = gpar(fontsize = 7),
+  column_names_gp   = gpar(fontsize = 7),
+  right_annotation  = rowAnnotation(
+    lineage_class = wide$lineage_class,
+    col = list(lineage_class = lc_pal),
+    annotation_legend_param = list(lineage_class = list(title = "lineage class"))
+  ),
+  column_title = "median adjS per lineage and annotation"
+)
+```
+
+```{r combined, fig.width = ng_fig_size(3, 2)$w, fig.height = ng_fig_size(3, 2)$h}
+row1 <- (pa | pb | pc) +
+  plot_annotation(tag_levels = list(c("A", "B", "C")),
+                  theme = theme(plot.tag = element_text(size = 8, face = "bold")))
+
+row2 <- (pd | pe) +
+  plot_annotation(tag_levels = list(c("D", "E")),
+                  theme = theme(plot.tag = element_text(size = 8, face = "bold")))
+
+gg_fig <- row1 / row2 + plot_layout(heights = c(1, 0.9))
+print(gg_fig)
+
+ggsave(
+  file.path(out_dir, "fig_argelaguet_panels.pdf"),
+  plot   = gg_fig,
+  width  = ng_fig_size(3, 2)$w,
+  height = ng_fig_size(3, 2)$h,
+  units  = "in",
+  device = cairo_pdf
+)
+```
+
+```{r heatmap-save, fig.width = 10, fig.height = 6}
+draw(ht)
+pdf(file.path(out_dir, "fig_argelaguet_heatmap.pdf"), width = 10, height = 6)
+draw(ht)
+invisible(dev.off())
+```
