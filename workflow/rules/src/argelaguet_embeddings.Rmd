@@ -1,5 +1,5 @@
 ---
-title: "Argelaguet: cell embeddings from chr10 windows entropy"
+title: "Argelaguet: cell embeddings from genomic windows entropy"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output:
   html_document:

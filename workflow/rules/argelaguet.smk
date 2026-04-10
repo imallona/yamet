@@ -329,8 +329,8 @@ rule run_yamet_on_argelaguet_windows:
     input:
         cells=get_all_argelaguet_harmonized_files,
         validation=ancient(op.join(ARGELAGUET_HARMONIZED, "coords_validated.flag")),
-        ref=op.join(MM10_BASE, "ref.CG.chr10.gz"),
-        windows=op.join(MM10_BASE, "windows_{win_size}_nt.chr10.bed"),
+        ref=op.join(MM10_BASE, "ref.CG.gz"),
+        windows=op.join(MM10_BASE, "windows_{win_size}_nt.bed"),
     output:
         det_tmp=temp(op.join(ARGELAGUET_WINDOWS_OUTPUT, "{win_size}_all.det.out")),
         norm_det_tmp=temp(op.join(ARGELAGUET_WINDOWS_OUTPUT, "{win_size}_all.norm.det.out")),

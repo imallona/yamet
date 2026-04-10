@@ -1,5 +1,5 @@
 ---
-title: "Argelaguet: single-cell windows SCE"
+title: "Argelaguet: single-cell genomic windows SCE"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output:
   html_document:
