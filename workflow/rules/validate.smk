@@ -8,6 +8,8 @@ _VALIDATE_SCRIPT = op.join("src", "validate_yamet_coords.sh")
 
 
 rule validate_argelaguet_coords:
+    conda:
+        op.join("..", "envs", "processing.yml")
     input:
         flag=op.join(ARGELAGUET_HARMONIZED, "done.flag"),
         ref=op.join(MM10_BASE, "ref.CG.gz"),
@@ -22,6 +24,8 @@ rule validate_argelaguet_coords:
 
 
 rule validate_ecker_coords:
+    conda:
+        op.join("..", "envs", "processing.yml")
     input:
         flag=op.join(ECKER_HARMONIZED, "done.flag"),
         ref=_ECKER_REF,
@@ -36,6 +40,8 @@ rule validate_ecker_coords:
 
 
 rule validate_crc_coords:
+    conda:
+        op.join("..", "envs", "processing.yml")
     input:
         flag=op.join(CRC_HARMONIZED, "done.flag"),
         ref=op.join(HG19_BASE, "ref.CG.gz"),

@@ -100,6 +100,8 @@ ARGELAGUET_GROUPS = get_argelaguet_groups()
 
 
 rule download_argelaguet:
+    conda:
+        op.join("..", "envs", "processing.yml")
     output:
         flag=touch(op.join(ARGELAGUET_BASE, "downloaded.flag")),
     params:

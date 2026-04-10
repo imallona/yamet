@@ -22,6 +22,8 @@ rule mm10_per_chr_ref:
 
 
 rule mm10_aggregate_ref:
+    conda:
+        op.join("..", "envs", "processing.yml")
     wildcard_constraints:
         meth_pat="[^.]+",
     input:
@@ -36,6 +38,8 @@ rule mm10_aggregate_ref:
 
 
 rule mm10_chr10_aggregate_ref:
+    conda:
+        op.join("..", "envs", "processing.yml")
     input:
         op.join(MM10_BASE, "10.{meth_pat}.ref"),
     output:
@@ -71,6 +75,8 @@ ENCODE_MAP = {
 
 
 rule get_mm10_encode:
+    conda:
+        op.join("..", "envs", "processing.yml")
     wildcard_constraints:
         ann="|".join(ENCODE_MAP.keys()),
     output:
@@ -109,6 +115,8 @@ rule make_windows_mm10:
 
 
 rule make_windows_mm10_chr10:
+    conda:
+        op.join("..", "envs", "processing.yml")
     input:
         op.join(MM10_BASE, "windows_{win_size}_nt.bed")
     output:

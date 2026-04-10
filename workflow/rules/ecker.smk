@@ -66,6 +66,8 @@ ECKER_GROUPS = get_ecker_groups()
 
 
 rule download_nemo_ecker_metadata:
+    conda:
+        "../envs/processing.yml"
     output:
         meta=temp(op.join(ECKER_BASE, "nemo_meta.tsv.gz")),
     params:
@@ -102,6 +104,8 @@ rule harmonize_ecker_metadata:
 
 
 rule ecker_urls:
+    conda:
+        "../envs/processing.yml"
     input:
         op.join(ECKER_BASE, "meta.tsv.gz"),
     output:
