@@ -40,7 +40,7 @@ if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE)
 meta         <- readRDS("ecker_groups_meta.rds")
 ent          <- readRDS("ecker_entropy.rds")
 umap_overlay <- readRDS("ecker_paper_umap_overlay.rds")
-win_umap     <- readRDS("ecker_umap_cell_adjS.rds")
+win_umap     <- readRDS("ecker_umap_windows_adjS.rds")
 ```
 
 ```{r paper-umap-data}

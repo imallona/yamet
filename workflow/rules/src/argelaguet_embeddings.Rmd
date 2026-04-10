@@ -157,7 +157,7 @@ saveRDS(
        assay_names = assayNames(sce),
        win_embeds = win_embeds,
        assay_map = assay_map),
-  "argelaguet_umap_cell_adjS.rds", compress = "xz"
+  "argelaguet_umap_windows_adjS.rds", compress = "xz"
 )
 ```
 

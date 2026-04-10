@@ -99,7 +99,7 @@ rule get_mm10_sizes:
 
 rule make_windows_mm10:
     conda:
-        op.join("..", "envs", "yamet.yml")
+        op.join("..", "envs", "processing.yml")
     input:
         sizes=op.join(MM10_BASE, "mm10.sizes"),
     output:

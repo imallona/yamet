@@ -207,7 +207,7 @@ rule run_yamet_on_ecker_features:
         op.join("logs", "yamet_ecker_{annotation}_{sub_region}_{sub_type}.log"),
     params:
         path=ECKER_OUTPUT,
-    threads: max(8, workflow.cores // 8)
+    threads: min(workflow.cores, 8)
     shell:
         """
         mkdir -p {params.path}
@@ -284,7 +284,7 @@ rule run_yamet_on_ecker_windows:
         prefix=lambda wildcards: op.join(ECKER_WINDOWS_OUTPUT, f"{wildcards.win_size}_all"),
     log:
         op.join("logs", "yamet_ecker_windows_{win_size}.log"),
-    threads: max(8, workflow.cores // 4)
+    threads: workflow.cores
     shell:
         """
         mkdir -p {params.path}
