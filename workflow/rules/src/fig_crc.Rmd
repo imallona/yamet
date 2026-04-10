@@ -142,8 +142,8 @@ ht <- Heatmap(
   cluster_columns   = FALSE,
   show_row_names    = TRUE,
   show_column_names = TRUE,
-  row_names_gp      = gpar(fontsize = 6),
-  column_names_gp   = gpar(fontsize = 6),
+  row_names_gp      = gpar(fontsize = 8),
+  column_names_gp   = gpar(fontsize = 8),
   right_annotation  = rowAnnotation(
     location = wide$location,
     col      = list(location = loc_pal[as.character(sort(unique(wide$location)))]),
@@ -153,31 +153,32 @@ ht <- Heatmap(
 )
 ```
 
-```{r combined, fig.width = ng_fig_size(2, 2)$w, fig.height = ng_fig_size(2, 2)$h}
-row1 <- (pa | pb) +
-  plot_annotation(tag_levels = list(c("A", "B")),
+## panel A is a scatter — wider than tall is more natural
+pa <- pa + theme(aspect.ratio = 0.6)
+
+fig_w <- ng_fig_size(3, 2)$w
+fig_h <- ng_fig_size(3, 2)$h
+
+gg_fig <- (pa | pb | pc) / pd +
+  plot_layout(heights = c(1, 1)) +
+  plot_annotation(tag_levels = "A",
                   theme = theme(plot.tag = element_text(size = 8, face = "bold")))
 
-row2 <- (pc | pd) +
-  plot_annotation(tag_levels = list(c("C", "D")),
-                  theme = theme(plot.tag = element_text(size = 8, face = "bold")))
-
-gg_fig <- row1 / row2 + plot_layout(heights = c(1, 1))
 print(gg_fig)
 
 ggsave(
   file.path(out_dir, "fig_crc_panels.pdf"),
   plot   = gg_fig,
-  width  = ng_fig_size(2, 2)$w,
-  height = ng_fig_size(2, 2)$h,
+  width  = fig_w,
+  height = fig_h,
   units  = "in",
   device = cairo_pdf
 )
 ```
 
-```{r heatmap-save, fig.width = 12, fig.height = 7}
+```{r heatmap-save, fig.width = 14, fig.height = 8}
 draw(ht)
-pdf(file.path(out_dir, "fig_crc_heatmap.pdf"), width = 12, height = 7)
+pdf(file.path(out_dir, "fig_crc_heatmap.pdf"), width = 14, height = 8)
 draw(ht)
 invisible(dev.off())
 ```

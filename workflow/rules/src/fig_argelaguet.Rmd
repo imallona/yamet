@@ -158,8 +158,9 @@ ht <- Heatmap(
   cluster_columns   = FALSE,
   show_row_names    = TRUE,
   show_column_names = TRUE,
-  row_names_gp      = gpar(fontsize = 7),
+  row_names_gp      = gpar(fontsize = 5),
   column_names_gp   = gpar(fontsize = 7),
+  row_names_max_width = unit(4, "cm"),
   right_annotation  = rowAnnotation(
     lineage_class = wide$lineage_class,
     col = list(lineage_class = lc_pal),
@@ -169,31 +170,42 @@ ht <- Heatmap(
 )
 ```
 
-```{r combined, fig.width = ng_fig_size(3, 2)$w, fig.height = ng_fig_size(3, 2)$h}
-row1 <- (pa | pb | pc) +
-  plot_annotation(tag_levels = list(c("A", "B", "C")),
+## Collapse annotation legends to single column and smaller keys so plot area is readable
+legend_theme <- theme(
+  legend.key.size   = unit(2, "mm"),
+  legend.text       = element_text(size = 5),
+  legend.title      = element_text(size = 6),
+  legend.position   = "right"
+)
+pb <- pb + guides(color = guide_legend(ncol = 1, override.aes = list(linewidth = 1)),
+                  fill  = guide_legend(ncol = 1)) + legend_theme
+pc <- pc + guides(color = guide_legend(ncol = 1, override.aes = list(linewidth = 1)),
+                  fill  = guide_legend(ncol = 1)) + legend_theme
+pe <- pe + theme(axis.text.y = element_text(size = 6))
+
+fig_w <- ng_fig_size(4, 2, panel_mm = 50)$w
+fig_h <- ng_fig_size(4, 2, panel_mm = 50)$h
+
+gg_fig <- (pa | pb | pc) / (pd | pe) +
+  plot_layout(heights = c(1, 0.9)) +
+  plot_annotation(tag_levels = "A",
                   theme = theme(plot.tag = element_text(size = 8, face = "bold")))
 
-row2 <- (pd | pe) +
-  plot_annotation(tag_levels = list(c("D", "E")),
-                  theme = theme(plot.tag = element_text(size = 8, face = "bold")))
-
-gg_fig <- row1 / row2 + plot_layout(heights = c(1, 0.9))
 print(gg_fig)
 
 ggsave(
   file.path(out_dir, "fig_argelaguet_panels.pdf"),
   plot   = gg_fig,
-  width  = ng_fig_size(3, 2)$w,
-  height = ng_fig_size(3, 2)$h,
+  width  = fig_w,
+  height = fig_h,
   units  = "in",
   device = cairo_pdf
 )
 ```
 
-```{r heatmap-save, fig.width = 10, fig.height = 6}
+```{r heatmap-save, fig.width = 14, fig.height = 10}
 draw(ht)
-pdf(file.path(out_dir, "fig_argelaguet_heatmap.pdf"), width = 10, height = 6)
+pdf(file.path(out_dir, "fig_argelaguet_heatmap.pdf"), width = 14, height = 10)
 draw(ht)
 invisible(dev.off())
 ```

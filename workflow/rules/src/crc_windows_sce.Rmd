@@ -118,14 +118,17 @@ ggplot(df_long, aes(x = contrast, y = count, fill = direction)) +
   geom_col(position = position_dodge(width = 0.8)) +
   geom_text(aes(label = count),
             position = position_dodge(width = 0.8),
-            vjust = -0.3, size = 3) +
-  scale_y_log10() +
+            vjust = -0.3, size = 2.5) +
+  scale_y_continuous(trans = "log1p",
+                     breaks = c(0, 1, 10, 100, 1000, 10000),
+                     labels = c(0, 1, 10, 100, 1000, 10000)) +
   scale_fill_manual(values = c("upregulated" = "#1b9e77",
                                "downregulated" = "#d95f02")) +
   theme_ng() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  theme(axis.text = element_text(size = 7),
+        axis.text.x = element_text(angle = 45, hjust = 1)) +
   labs(title = "Differentially entropy windows per contrast",
-       y = "Number of windows (log scale)",
+       y = "Number of windows (log1p scale)",
        x = "Contrast")
 
 ```
@@ -155,14 +158,17 @@ ggplot(df_long, aes(x = contrast, y = count, fill = direction)) +
   geom_col(position = position_dodge(width = 0.8)) +
   geom_text(aes(label = count),
             position = position_dodge(width = 0.8),
-            vjust = -0.3, size = 3) +
-  scale_y_log10() +
+            vjust = -0.3, size = 2.5) +
+  scale_y_continuous(trans = "log1p",
+                     breaks = c(0, 1, 10, 100, 1000, 10000),
+                     labels = c(0, 1, 10, 100, 1000, 10000)) +
   scale_fill_manual(values = c("upregulated" = "#1b9e77",
                                "downregulated" = "#d95f02")) +
   theme_ng() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  theme(axis.text = element_text(size = 7),
+        axis.text.x = element_text(angle = 45, hjust = 1)) +
   labs(title = "Differentially entropy windows per contrast",
-       y = "Number of windows (log scale)",
+       y = "Number of windows (log1p scale)",
        x = "Contrast")
 ```
 
@@ -525,41 +531,24 @@ prop_df[order(prop_df$proportion, decreasing = TRUE),]
 prop_df <- prop_df %>%
   dplyr::filter(!is.na(proportion))
 
-ggplot(prop_df, aes(x = contrast, y = proportion, fill = annotation)) +
-  ## geom_col(position = position_dodge()) +
-  geom_col(position = "stack") + 
-  labs(x = "Annotation feature",
-       y = "Proportion of contrast windows overlapping",
-       fill = "Contrast") +
-  theme_ng() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-
-
-ggplot(prop_df, aes(x = contrast, y = annotation)) +
-  geom_point(aes(size = proportion, color = proportion)) +
-  scale_size(range = c(1,6)) +
-  scale_color_gradient(low = "grey80", high = "red") +
-  labs(x = "Contrast", y = "Annotation", size = "Proportion", color = "Proportion") +
-  theme_ng() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-
-## split by direction for cleaner visualization
 prop_df <- prop_df %>%
-  mutate(direction = ifelse(grepl("_up_", contrast), "Up", "Down"))
+  mutate(
+    direction    = ifelse(grepl("_up_", contrast), "Up", "Down"),
+    contrast_clean = gsub("_(up|down)_bin", "", contrast),
+    annotation   = gsub("_bin$", "", annotation)
+  ) %>%
+  filter(!is.na(proportion))
 
-prop_df <- prop_df %>%
-  mutate(contrast_clean = gsub("_(up|down)_bin", "", contrast))
-
-## this might work
-## ggplot(prop_df, aes(x = contrast_clean, y = annotation)) +
-##   geom_point(aes(size = proportion, color = direction),
-##              position = position_dodge(width = 0.6)) +
-##   scale_size(range = c(1,6)) +
-##   scale_color_manual(values = c("Up" = "red", "Down" = "blue")) +
-##   labs(x = "Contrast", y = "Annotation",
-##        size = "Proportion", color = "Direction") +
-##   theme_ng() +
-##   theme(axis.text.x = element_text(angle = 45, hjust = 1))
+ggplot(prop_df, aes(x = contrast_clean, y = annotation)) +
+  geom_point(aes(size = proportion, color = direction)) +
+  scale_size(range = c(1, 6)) +
+  scale_color_manual(values = c("Up" = "#d95f02", "Down" = "#1b9e77")) +
+  facet_wrap(~ direction, nrow = 1) +
+  labs(x = "contrast", y = "annotation", size = "proportion", color = "direction",
+       title = "annotation overlap in diff. entropy windows (non-HMM)") +
+  theme_ng() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        axis.text = element_text(size = 7))
 
 ```
 
@@ -595,16 +584,20 @@ prop_df <- prop_df %>%
 prop_df <- prop_df %>%
   mutate(contrast_clean = gsub("_(up|down)_bin", "", contrast))
 
-prop_df$contrast_dir <- paste0(prop_df$contrast_clean, "_", prop_df$direction)
+prop_df <- prop_df %>%
+  mutate(annotation = gsub("_bin$", "", annotation)) %>%
+  filter(!is.na(proportion))
 
-ggplot(prop_df, aes(x = contrast_dir, y = annotation)) +
+ggplot(prop_df, aes(x = contrast_clean, y = annotation)) +
   geom_point(aes(size = proportion, color = direction)) +
-  scale_size(range = c(1,6)) +
-  scale_color_manual(values = c("Up" = "red", "Down" = "blue")) +
-  labs(x = "Contrast", y = "Annotation",
-       size = "Proportion", color = "Direction") +
+  scale_size(range = c(1, 6)) +
+  scale_color_manual(values = c("Up" = "#d95f02", "Down" = "#1b9e77")) +
+  facet_wrap(~ direction, nrow = 1) +
+  labs(x = "contrast", y = "annotation", size = "proportion", color = "direction",
+       title = "annotation overlap in diff. entropy windows (HMM)") +
   theme_ng() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        axis.text = element_text(size = 7))
 
 ```
 

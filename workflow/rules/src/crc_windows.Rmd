@@ -181,7 +181,7 @@ flatten_entry <- function(entry, filter) {
   df
 }
 
-df_all <- map_dfr(sampens, flatten_entry)
+df_all <- map_dfr(sampens_list, flatten_entry)
 ## dim(df_all)
 ## df_all[1:3, 1:3]
 

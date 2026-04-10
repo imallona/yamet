@@ -468,31 +468,43 @@ ggplot(ve_annot_long, aes(x = assay, y = median_ve, fill = variable)) +
 
 ## Annotation heatmap (mean adjS per location)
 
-```{r annot_heatmap, eval = has_annots, fig.width = ng_fig_size(length(loc_levels), 1, panel_mm = 12)$w, fig.height = ng_fig_size(1, length(annot_cols), panel_mm = 8)$h}
-present_locs <- sapply(loc_levels, function(l) any(colData(windows_sce)$location == l))
-loc_means <- do.call(rbind, lapply(loc_levels[present_locs], function(l) {
-  idx <- which(colData(windows_sce)$location == l)
+```{r annot_heatmap, eval = has_annots, fig.width = 10, fig.height = 6}
+## Build per-(patient x location) mean adjS matrix, rows = annotation, cols = sample
+cd <- as.data.frame(colData(windows_sce))
+samples <- unique(paste0(cd$patient, "_", cd$location))
+sample_means <- do.call(cbind, lapply(samples, function(s) {
+  idx <- which(paste0(cd$patient, "_", cd$location) == s)
   colMeans(annot_mats[["adjS"]][idx, , drop = FALSE], na.rm = TRUE)
 }))
-rownames(loc_means) <- loc_levels[present_locs]
-colnames(loc_means) <- gsub("_bin$", "", colnames(loc_means))
+colnames(sample_means) <- samples
+rownames(sample_means) <- gsub("_bin$", "", rownames(sample_means))
 
-annot_by_loc <- t(loc_means)
+sample_loc <- sub(".*_", "", samples)
+sample_pat <- sub("_[^_]+$", "", samples)
 
 col_fun <- colorRamp2(
-  quantile(annot_by_loc, c(0.05, 0.5, 0.95), na.rm = TRUE),
+  quantile(sample_means, c(0.05, 0.5, 0.95), na.rm = TRUE),
   c("navy", "white", "firebrick")
 )
 ha <- HeatmapAnnotation(
-  location = colnames(annot_by_loc),
-  col = list(location = loc_colors[colnames(annot_by_loc)])
+  location = sample_loc,
+  patient  = sample_pat,
+  col = list(
+    location = loc_colors[sample_loc],
+    patient  = setNames(
+      turbo(length(unique(sample_pat)), begin = 0.1, end = 0.9),
+      sort(unique(sample_pat))
+    )[sample_pat]
+  )
 )
 tryCatch(
-  draw(Heatmap(annot_by_loc, name = "mean adjS", col = col_fun,
-               top_annotation = ha, show_row_names = TRUE, show_column_names = TRUE,
+  draw(Heatmap(sample_means, name = "mean adjS", col = col_fun,
+               top_annotation = ha,
+               show_row_names = TRUE, show_column_names = TRUE,
                cluster_rows = TRUE, cluster_columns = FALSE,
-               row_names_gp = gpar(fontsize = 8), column_names_gp = gpar(fontsize = 7),
-               column_title = "Mean adjS per annotation per location")),
+               row_names_gp    = gpar(fontsize = 8),
+               column_names_gp = gpar(fontsize = 7),
+               column_title = "Mean adjS per annotation per sample")),
   error = function(e) message("Heatmap rendering failed: ", conditionMessage(e))
 )
 ```

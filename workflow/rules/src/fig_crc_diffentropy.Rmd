@@ -161,14 +161,16 @@ pc <- ggplot(comp_df, aes(x = location, y = adjS, fill = overlap)) +
         strip.text  = element_text(size = 6))
 ```
 
-```{r combined, fig.width = ng_fig_size(2, 3)$w, fig.height = ng_fig_size(2, 3)$h}
-row1 <- (pa | pb) +
-  plot_annotation(tag_levels = list(c("A", "B")),
-                  theme = theme(plot.tag = element_text(size = 8, face = "bold")))
+## Shrink legends so the plot area dominates
+pa <- pa + theme(legend.key.size = unit(2, "mm"), legend.text = element_text(size = 6))
+pb <- pb + theme(legend.key.size = unit(2, "mm"), legend.text = element_text(size = 6))
 
-gg_fig <- row1 / pc +
-  plot_layout(heights = c(1, 1.2)) +
-  plot_annotation(tag_levels = list(c("A", "B", "C")),
+fig_w <- ng_fig_size(3, 3)$w
+fig_h <- ng_fig_size(3, 3)$h
+
+gg_fig <- (pa | pb) / pc +
+  plot_layout(heights = c(1, 1.5)) +
+  plot_annotation(tag_levels = "A",
                   theme = theme(plot.tag = element_text(size = 8, face = "bold")))
 
 print(gg_fig)
@@ -176,8 +178,8 @@ print(gg_fig)
 ggsave(
   file.path(out_dir, "fig_crc_diffentropy.pdf"),
   plot   = gg_fig,
-  width  = ng_fig_size(2, 3)$w,
-  height = ng_fig_size(2, 3)$h,
+  width  = fig_w,
+  height = fig_h,
   units  = "in",
   device = cairo_pdf
 )

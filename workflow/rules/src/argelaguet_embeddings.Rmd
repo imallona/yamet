@@ -74,6 +74,7 @@ assay_map <- c(
 ```{r load_sce}
 sce <- readRDS(snakemake@params$corrected_sce)
 colData(sce)$stage   <- factor(colData(sce)$stage)
+## copy to a clean name used throughout; lineage10x is the original column
 colData(sce)$lineage <- factor(colData(sce)$lineage10x)
 
 cat("Cells:", ncol(sce), "\n")
@@ -162,7 +163,7 @@ saveRDS(
 
 ## By stage {.tabset .tabset-pills}
 
-```{r win_stage_S, fig.width = ng_fig_size(2, 1)$w, fig.height = ng_fig_size(2, 1)$h}
+```{r win_stage_S, fig.width = ng_fig_size(2, 1, panel_mm = 60)$w, fig.height = ng_fig_size(2, 1, panel_mm = 60)$h}
 ### S
 if (!is.null(win_embeds[["S"]])) {
   p1 <- plot_umap_stage(win_embeds[["S"]]$umap, sce[, win_embeds[["S"]]$kept_cols], "S (windows)")
@@ -171,7 +172,7 @@ if (!is.null(win_embeds[["S"]])) {
 }
 ```
 
-```{r win_stage_adjS, fig.width = ng_fig_size(2, 1)$w, fig.height = ng_fig_size(2, 1)$h}
+```{r win_stage_adjS, fig.width = ng_fig_size(2, 1, panel_mm = 60)$w, fig.height = ng_fig_size(2, 1, panel_mm = 60)$h}
 ### adjS
 if (!is.null(win_embeds[["adjS"]])) {
   p1 <- plot_umap_stage(win_embeds[["adjS"]]$umap, sce[, win_embeds[["adjS"]]$kept_cols], "adjS (windows)")
@@ -180,7 +181,7 @@ if (!is.null(win_embeds[["adjS"]])) {
 }
 ```
 
-```{r win_stage_meth, fig.width = ng_fig_size(2, 1)$w, fig.height = ng_fig_size(2, 1)$h}
+```{r win_stage_meth, fig.width = ng_fig_size(2, 1, panel_mm = 60)$w, fig.height = ng_fig_size(2, 1, panel_mm = 60)$h}
 ### methylation
 if (!is.null(win_embeds[["methylation"]])) {
   p1 <- plot_umap_stage(win_embeds[["methylation"]]$umap, sce[, win_embeds[["methylation"]]$kept_cols], "methylation (windows)")
@@ -191,7 +192,7 @@ if (!is.null(win_embeds[["methylation"]])) {
 
 ## Four-panel comparison (stage)
 
-```{r win_panel_stage, fig.width = ng_fig_size(4, 1)$w, fig.height = ng_fig_size(4, 1)$h}
+```{r win_panel_stage, fig.width = ng_fig_size(4, 1, panel_mm = 55)$w, fig.height = ng_fig_size(4, 1, panel_mm = 55)$h}
 ok_embeds <- Filter(Negate(is.null), win_embeds)
 df_panel <- bind_rows(lapply(names(ok_embeds), function(lbl) {
   em <- ok_embeds[[lbl]]
@@ -220,10 +221,8 @@ ve_win <- bind_rows(lapply(names(assay_map), function(akey) {
   mat <- as.matrix(assay(sce, akey))
   hvw_mat <- mat[win_embeds[[lbl]]$hvf_idx, , drop = FALSE]
   rownames(hvw_mat) <- NULL
-  tmp_sce <- SingleCellExperiment(
-    assays  = list(x = hvw_mat),
-    colData = colData(sce)
-  )
+  tmp_cd  <- data.frame(stage = colData(sce)$stage, lineage = colData(sce)$lineage)
+  tmp_sce <- SingleCellExperiment(assays = list(x = hvw_mat), colData = tmp_cd)
   ve <- getVarianceExplained(tmp_sce, exprs_values = "x",
                              variables = c("stage", "lineage"))
   data.frame(assay = lbl,
@@ -245,15 +244,29 @@ ggplot(ve_long, aes(x = assay, y = median_ve, fill = variable)) +
 
 ## Silhouette scores (by stage)
 
-```{r win_sil}
+```{r win_sil, fig.width = ng_fig_size(2, 1)$w, fig.height = ng_fig_size(1, 1)$h}
 sil_win <- data.frame(
   assay = names(ok_embeds),
   silhouette_stage = sapply(names(ok_embeds), function(lbl)
     sil_score(ok_embeds[[lbl]]$umap,
               colData(sce[, ok_embeds[[lbl]]$kept_cols])$stage)),
-  feature_space = "windows"
+  silhouette_lineage = sapply(names(ok_embeds), function(lbl)
+    sil_score(ok_embeds[[lbl]]$umap,
+              colData(sce[, ok_embeds[[lbl]]$kept_cols])$lineage))
 )
-print(sil_win)
+
+sil_long <- pivot_longer(sil_win, c("silhouette_stage", "silhouette_lineage"),
+                         names_to = "grouping", values_to = "silhouette")
+sil_long$grouping <- sub("silhouette_", "", sil_long$grouping)
+sil_long$assay    <- factor(sil_long$assay, levels = assay_map)
+
+ggplot(sil_long, aes(x = assay, y = silhouette, fill = grouping)) +
+  geom_col(position = position_dodge(width = 0.8)) +
+  geom_hline(yintercept = 0, linetype = "dashed", colour = "grey40") +
+  scale_fill_manual(values = c("stage" = "#0072B2", "lineage" = "#E69F00")) +
+  labs(x = NULL, y = "mean silhouette",
+       title = "Cluster separation by assay") +
+  theme_ng()
 ```
 
 # Per-cell entropy summaries
