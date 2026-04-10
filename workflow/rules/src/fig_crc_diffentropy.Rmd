@@ -161,7 +161,7 @@ pc <- ggplot(comp_df, aes(x = location, y = adjS, fill = overlap)) +
         strip.text  = element_text(size = 6))
 ```
 
-## Shrink legends so the plot area dominates
+```{r combined, fig.width = ng_fig_size(3, 3)$w, fig.height = ng_fig_size(3, 3)$h}
 pa <- pa + theme(legend.key.size = unit(2, "mm"), legend.text = element_text(size = 6))
 pb <- pb + theme(legend.key.size = unit(2, "mm"), legend.text = element_text(size = 6))
 

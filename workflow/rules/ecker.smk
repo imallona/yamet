@@ -20,7 +20,7 @@ ECKER_MAX_CELLS = 20
 ECKER_DOWNSAMPLE_SEED = 42
 
 ## set to True to restrict to chr10 for speed; False for full genome
-ECKER_CHR10_ONLY = True
+ECKER_CHR10_ONLY = False
 
 ## chromosomes to retain in annotation BED files for Ecker runs
 _ECKER_BED_CHRS = ["10"] if ECKER_CHR10_ONLY else CHRS
@@ -268,8 +268,8 @@ rule run_yamet_on_ecker_windows:
     input:
         cells=get_ecker_downsampled_cells,
         validation=ancient(op.join(ECKER_HARMONIZED, "coords_validated.flag")),
-        ref=op.join(MM10_BASE, "ref.CG.chr10.gz"),
-        windows=op.join(MM10_BASE, "windows_{win_size}_nt.chr10.bed"),
+        ref=op.join(MM10_BASE, "ref.CG.gz"),
+        windows=op.join(MM10_BASE, "windows_{win_size}_nt.bed"),
     output:
         det_tmp=temp(op.join(ECKER_WINDOWS_OUTPUT, "{win_size}_all.det.out")),
         norm_det_tmp=temp(op.join(ECKER_WINDOWS_OUTPUT, "{win_size}_all.norm.det.out")),

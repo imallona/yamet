@@ -54,6 +54,27 @@ rownames(meta_raw) <- meta_raw$cell_id
 cat("Cells in metadata:", nrow(meta_raw), "\n")
 cat("Cell classes:", length(unique(meta_raw$CellClass)), "\n")
 cat("Major types:", length(unique(meta_raw$MajorType)), "\n")
+cat("Sample metadata cell IDs (first 3):\n")
+print(head(rownames(meta_raw), 3))
+cat("Sample raw basename values (first 3):\n")
+print(head(meta_raw$basename, 3))
+```
+
+```{r cell_id_overlap_check}
+## Read raw column names from det file before building SCE, to diagnose ID mismatches.
+det_header <- readr::read_tsv(snakemake@input[["det"]], show_col_types = FALSE, n_max = 0)
+raw_col_names <- setdiff(colnames(det_header), c("chr", "start", "end"))
+derived_ids <- sub("\\.gz$", "", basename(raw_col_names))
+
+cat("Cells in windows yamet output:", length(raw_col_names), "\n")
+cat("Sample raw column names from det file (first 3):\n")
+print(head(raw_col_names, 3))
+cat("Sample derived cell IDs (first 3):\n")
+print(head(derived_ids, 3))
+
+n_overlap <- length(intersect(rownames(meta_raw), derived_ids))
+cat("Cell ID overlap (metadata vs yamet output):", n_overlap, "/",
+    length(derived_ids), "yamet cells found in metadata\n")
 ```
 
 ```{r build_sce}

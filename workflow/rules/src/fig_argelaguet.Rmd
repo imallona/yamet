@@ -170,7 +170,7 @@ ht <- Heatmap(
 )
 ```
 
-## Collapse annotation legends to single column and smaller keys so plot area is readable
+```{r combined, fig.width = ng_fig_size(4, 2, panel_mm = 50)$w, fig.height = ng_fig_size(4, 2, panel_mm = 50)$h}
 legend_theme <- theme(
   legend.key.size   = unit(2, "mm"),
   legend.text       = element_text(size = 5),
