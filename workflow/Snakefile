@@ -45,10 +45,12 @@ rule all:
         op.join(ECKER_BASE, "results", "ecker.html"),
         ## Argelaguet gastrulation
         op.join(ARGELAGUET_BASE, "results", "argelaguet.html"),
+        op.join(ARGELAGUET_BASE, "results", "argelaguet_windows_10000.html"),
+        op.join(ARGELAGUET_BASE, "results", "argelaguet_embeddings_10000.html"),
         ## simulations
         op.join(SIM_RESULTS, "simulation_figure2.html"),
         op.join(SIM_RESULTS, "simulation_08_combined_figure_adj.html"),
-        ## manuscript figures
+        ## manuscript figure assembly
         op.join(ECKER_BASE, "results", "fig_ecker.html"),
         op.join(ARGELAGUET_BASE, "results", "fig_argelaguet.html"),
         op.join(CRC, "results", "fig_crc.html"),

@@ -1,12 +1,16 @@
 """
 Figure assembly rules for manuscript figures.
 
-Each rule reads pre-computed RDS files saved to the workflow
+Each rule reads pre-computed RDS files saved to the workflow root by
+the upstream analysis Rmd scripts and assembles publication-quality
+PDF figures. PDFs are saved as side effects inside the Rmd scripts.
+Snakemake tracks only the HTML output per rule (Rmd script constraint).
 """
 
 import os.path as op
 
 MANUSCRIPT_FIGURES = op.join("..", "..", "sc_dna_methylation_entropy_2025", "figures")
+
 
 rule render_fig_ecker:
     conda:
@@ -14,9 +18,7 @@ rule render_fig_ecker:
     input:
         op.join(ECKER_BASE, "results", "ecker.html")
     output:
-        html    = op.join(ECKER_BASE, "results", "fig_ecker.html"),
-        panels  = op.join(MANUSCRIPT_FIGURES, "fig_ecker_panels.pdf"),
-        heatmap = op.join(MANUSCRIPT_FIGURES, "fig_ecker_heatmap.pdf"),
+        op.join(ECKER_BASE, "results", "fig_ecker.html")
     params:
         out_dir = MANUSCRIPT_FIGURES
     threads:
@@ -33,9 +35,7 @@ rule render_fig_argelaguet:
     input:
         op.join(ARGELAGUET_BASE, "results", "argelaguet.html")
     output:
-        html    = op.join(ARGELAGUET_BASE, "results", "fig_argelaguet.html"),
-        panels  = op.join(MANUSCRIPT_FIGURES, "fig_argelaguet_panels.pdf"),
-        heatmap = op.join(MANUSCRIPT_FIGURES, "fig_argelaguet_heatmap.pdf"),
+        op.join(ARGELAGUET_BASE, "results", "fig_argelaguet.html")
     params:
         out_dir = MANUSCRIPT_FIGURES
     threads:
@@ -53,9 +53,7 @@ rule render_fig_crc:
         op.join(CRC, "results", "crc.html"),
         op.join(CRC, "results", "crc_embeddings_10000.html"),
     output:
-        html    = op.join(CRC, "results", "fig_crc.html"),
-        panels  = op.join(MANUSCRIPT_FIGURES, "fig_crc_panels.pdf"),
-        heatmap = op.join(MANUSCRIPT_FIGURES, "fig_crc_heatmap.pdf"),
+        op.join(CRC, "results", "fig_crc.html")
     params:
         out_dir = MANUSCRIPT_FIGURES
     threads:
@@ -73,10 +71,9 @@ rule render_fig_crc_diffentropy:
         de = op.join(CRC, "results", "de_list_10000.rds"),
         embeddings = op.join(CRC, "results", "crc_embeddings_10000.html"),
     output:
-        html = op.join(CRC, "results", "fig_crc_diffentropy.html"),
-        pdf  = op.join(MANUSCRIPT_FIGURES, "fig_crc_diffentropy.pdf"),
+        op.join(CRC, "results", "fig_crc_diffentropy.html")
     params:
-        out_dir       = MANUSCRIPT_FIGURES,
+        out_dir = MANUSCRIPT_FIGURES,
         corrected_sce = op.join(CRC, "results", "sce_windows_colon_corrected_10000.rds")
     threads:
         4

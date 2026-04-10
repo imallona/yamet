@@ -14,6 +14,7 @@ tarball (E7.5 H3K27ac enhancers from GSE125318, ESC marks from ENCODE).
 ARGELAGUET_BASE          = "argelaguet"
 ARGELAGUET_HARMONIZED    = op.join(ARGELAGUET_BASE, "harmonized")
 ARGELAGUET_OUTPUT        = op.join(ARGELAGUET_BASE, "output")
+ARGELAGUET_WINDOWS_OUTPUT = op.join(ARGELAGUET_BASE, "windows_output")
 ARGELAGUET_MAX_CELLS     = 20
 ARGELAGUET_DOWNSAMPLE_SEED = 42
 
@@ -302,3 +303,108 @@ rule render_argelaguet_report:
         log=op.join("logs", "render_argelaguet.log"),
     script:
         "src/argelaguet.Rmd"
+
+
+## Windows-based single-cell embeddings for Argelaguet gastrulation data.
+## All cells are run against chr10 10 kb windows (chr10 reference + windows).
+## This mirrors the CRC windows pipeline but uses stage/lineage as metadata.
+
+def get_all_argelaguet_harmonized_files(wildcards):
+    """Return harmonized cell files for ALL cells (no per-group cap)."""
+    checkpoints.harmonize_argelaguet_cells.get()
+    meta = pd.read_csv(
+        op.join(ARGELAGUET_BASE, "meta.tsv.gz"), sep="\t", compression="gzip"
+    )
+    cell_ids = meta["id_met"].dropna().tolist()
+    return [
+        op.join(ARGELAGUET_HARMONIZED, f"{c}.gz")
+        for c in cell_ids
+        if op.exists(op.join(ARGELAGUET_HARMONIZED, f"{c}.gz"))
+    ]
+
+
+rule run_yamet_on_argelaguet_windows:
+    conda:
+        op.join("..", "envs", "yamet.yml")
+    input:
+        cells=get_all_argelaguet_harmonized_files,
+        validation=ancient(op.join(ARGELAGUET_HARMONIZED, "coords_validated.flag")),
+        ref=op.join(MM10_BASE, "ref.CG.chr10.gz"),
+        windows=op.join(MM10_BASE, "windows_{win_size}_nt.chr10.bed"),
+    output:
+        det_tmp=temp(op.join(ARGELAGUET_WINDOWS_OUTPUT, "{win_size}_all.det.out")),
+        norm_det_tmp=temp(op.join(ARGELAGUET_WINDOWS_OUTPUT, "{win_size}_all.norm.det.out")),
+        meth_tmp=temp(op.join(ARGELAGUET_WINDOWS_OUTPUT, "{win_size}_all.meth.out")),
+        simple_tmp=temp(op.join(ARGELAGUET_WINDOWS_OUTPUT, "{win_size}_all.out")),
+        det=op.join(ARGELAGUET_WINDOWS_OUTPUT, "{win_size}_all.det.out.gz"),
+        norm_det=op.join(ARGELAGUET_WINDOWS_OUTPUT, "{win_size}_all.norm.det.out.gz"),
+        meth=op.join(ARGELAGUET_WINDOWS_OUTPUT, "{win_size}_all.meth.out.gz"),
+        simple=op.join(ARGELAGUET_WINDOWS_OUTPUT, "{win_size}_all.out.gz"),
+    params:
+        path=ARGELAGUET_WINDOWS_OUTPUT,
+        prefix=lambda wildcards: op.join(ARGELAGUET_WINDOWS_OUTPUT, f"{wildcards.win_size}_all"),
+    log:
+        op.join("logs", "yamet_argelaguet_windows_{win_size}.log"),
+    threads: max(8, workflow.cores // 4)
+    shell:
+        """
+        mkdir -p {params.path}
+        yamet \
+         --cell {input.cells} \
+         --reference {input.ref} \
+         --intervals {input.windows} \
+         --cores {threads} \
+         --no-print-sampens \
+         --out {params.prefix}.out \
+         --det-out {params.prefix}.det.out \
+         --meth-out {params.prefix}.meth.out \
+         --norm-det-out {params.prefix}.norm.det.out &> {log}
+        gzip --keep -f \
+          {params.prefix}.out \
+          {params.prefix}.det.out \
+          {params.prefix}.meth.out \
+          {params.prefix}.norm.det.out &>> {log}
+        """
+
+
+rule render_argelaguet_windows_report:
+    conda:
+        op.join("..", "envs", "r.yml")
+    input:
+        det=op.join(ARGELAGUET_WINDOWS_OUTPUT, "{win_size}_all.det.out.gz"),
+        norm_det=op.join(ARGELAGUET_WINDOWS_OUTPUT, "{win_size}_all.norm.det.out.gz"),
+        meth=op.join(ARGELAGUET_WINDOWS_OUTPUT, "{win_size}_all.meth.out.gz"),
+        meta=op.join(ARGELAGUET_BASE, "meta.tsv.gz"),
+    output:
+        op.join(ARGELAGUET_BASE, "results", "argelaguet_windows_{win_size}.html"),
+    params:
+        corrected_sce=op.join(
+            ARGELAGUET_BASE, "results", "sce_windows_argelaguet_{win_size}_corrected.rds"
+        ),
+    threads:
+        workflow.cores
+    log:
+        log=op.join("logs", "render_argelaguet_windows_{win_size}.log"),
+    script:
+        "src/argelaguet_windows.Rmd"
+
+
+rule render_argelaguet_embeddings_report:
+    conda:
+        op.join("..", "envs", "r.yml")
+    input:
+        windows_html=op.join(
+            ARGELAGUET_BASE, "results", "argelaguet_windows_{win_size}.html"
+        ),
+    output:
+        op.join(ARGELAGUET_BASE, "results", "argelaguet_embeddings_{win_size}.html"),
+    params:
+        corrected_sce=op.join(
+            ARGELAGUET_BASE, "results", "sce_windows_argelaguet_{win_size}_corrected.rds"
+        ),
+    threads:
+        workflow.cores
+    log:
+        log=op.join("logs", "render_argelaguet_embeddings_{win_size}.log"),
+    script:
+        "src/argelaguet_embeddings.Rmd"

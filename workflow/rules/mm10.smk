@@ -83,6 +83,40 @@ rule get_mm10_encode:
         """
 
 
+rule get_mm10_sizes:
+    conda:
+        op.join("..", "envs", "processing.yml")
+    output:
+        op.join(MM10_BASE, "mm10.sizes")
+    shell:
+        """
+        mysql --user=genome --host=genome-mysql.cse.ucsc.edu -N -s -e \
+          'SELECT chrom,size FROM mm10.chromInfo' |
+          sed 's/^chr//' |
+          grep -v '_' > {output}
+        """
+
+
+rule make_windows_mm10:
+    conda:
+        op.join("..", "envs", "yamet.yml")
+    input:
+        sizes=op.join(MM10_BASE, "mm10.sizes"),
+    output:
+        op.join(MM10_BASE, "windows_{win_size}_nt.bed")
+    shell:
+        "bedtools makewindows -g {input.sizes} -w {wildcards.win_size} | sort -k1,1 -k2,2n > {output}"
+
+
+rule make_windows_mm10_chr10:
+    input:
+        op.join(MM10_BASE, "windows_{win_size}_nt.bed")
+    output:
+        op.join(MM10_BASE, "windows_{win_size}_nt.chr10.bed")
+    shell:
+        "grep '^10\t' {input} > {output}"
+
+
 rule decompress_mm10_annotation:
     conda:
         op.join("..", "envs", "processing.yml")
