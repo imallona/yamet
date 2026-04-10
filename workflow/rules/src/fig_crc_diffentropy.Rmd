@@ -144,16 +144,16 @@ comp_df <- bind_rows(lapply(key_anns, function(ann) {
 
   bind_rows(
     data.frame(location = col_df$location, adjS = in_vals,
-               overlap = "in",  annotation = gsub("_bin$", "", ann)),
+               overlap = "overlapping", annotation = gsub("_bin$", "", ann)),
     data.frame(location = col_df$location, adjS = out_vals,
-               overlap = "out", annotation = gsub("_bin$", "", ann))
+               overlap = "other",       annotation = gsub("_bin$", "", ann))
   )
 }))
 
 pc <- ggplot(comp_df, aes(x = location, y = adjS, fill = overlap)) +
   geom_boxplot(outlier.size = 0.2, lwd = 0.3) +
   facet_wrap(~ annotation, ncol = 3, scales = "free_y") +
-  scale_fill_manual(values = c(in = "#0072B2", out = "grey70")) +
+  scale_fill_manual(values = c(overlapping = "#0072B2", other = "grey70")) +
   labs(x = "location", y = "mean adjS per cell",
        fill = "annotation overlap") +
   theme_ng(base_size = 8) +

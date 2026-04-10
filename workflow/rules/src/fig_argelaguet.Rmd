@@ -65,11 +65,14 @@ tc_adjS <- ent$adjsampens %>%
     .groups = "drop"
   )
 
+ann_lvls_b <- sort(unique(tc_adjS$annotation))
+ann_pal_b  <- setNames(turbo(length(ann_lvls_b), begin = 0.05, end = 0.95), ann_lvls_b)
+
 pb <- ggplot(tc_adjS, aes(x = stage, y = median_adjS, color = annotation, group = annotation)) +
   geom_line(linewidth = 0.5) +
   geom_ribbon(aes(ymin = lo, ymax = hi, fill = annotation), alpha = 0.1, color = NA) +
-  scale_color_manual(values = cbbPalette) +
-  scale_fill_manual(values = cbbPalette) +
+  scale_color_manual(values = ann_pal_b) +
+  scale_fill_manual(values = ann_pal_b) +
   labs(x = "stage", y = "median adjS", color = "annotation", fill = "annotation") +
   theme_ng(base_size = 8) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1),
@@ -86,11 +89,14 @@ tc_adjH <- ent$adjshannons %>%
     .groups = "drop"
   )
 
+ann_lvls_c <- sort(unique(tc_adjH$annotation))
+ann_pal_c  <- setNames(turbo(length(ann_lvls_c), begin = 0.05, end = 0.95), ann_lvls_c)
+
 pc <- ggplot(tc_adjH, aes(x = stage, y = median_adjH, color = annotation, group = annotation)) +
   geom_line(linewidth = 0.5) +
   geom_ribbon(aes(ymin = lo, ymax = hi, fill = annotation), alpha = 0.1, color = NA) +
-  scale_color_manual(values = cbbPalette) +
-  scale_fill_manual(values = cbbPalette) +
+  scale_color_manual(values = ann_pal_c) +
+  scale_fill_manual(values = ann_pal_c) +
   labs(x = "stage", y = "median adjH", color = "annotation", fill = "annotation") +
   theme_ng(base_size = 8) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1),

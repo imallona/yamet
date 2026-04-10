@@ -48,7 +48,7 @@ embeds <- readRDS("crc_embeddings_debug.rds")
 set.seed(42)
 samp <- ent$adjsampens %>%
   group_by(location) %>%
-  slice_sample(n = min(800, n())) %>%
+  group_modify(~ slice_sample(.x, n = min(800L, nrow(.x)))) %>%
   ungroup()
 
 pa <- ggplot(samp, aes(x = avg_meth, y = sampen, color = location)) +

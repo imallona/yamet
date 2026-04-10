@@ -57,9 +57,10 @@ add_meth_correction <- function(sce, BPPARAM = BiocParallel::SerialParam()) {
   rowwise_residuals <- function(i) {
     df <- data.frame(sampen = SummarizedExperiment::assay(sce, "sampen")[i, ],
                      meth   = SummarizedExperiment::assay(sce, "meth")[i, ])
-    fit <- try(lm(sampen ~ meth + I(meth^2), data = df), silent = TRUE)
+    fit <- try(lm(sampen ~ meth + I(meth^2), data = df,
+                  na.action = na.exclude), silent = TRUE)
     if (inherits(fit, "try-error")) return(rep(NA_real_, ncol(sce)))
-    as.numeric(residuals(fit))
+    as.numeric(residuals(fit, type = "response"))
   }
   res_mat <- do.call(rbind, BiocParallel::bplapply(
     seq_len(nrow(sce)), rowwise_residuals, BPPARAM = BPPARAM))
