@@ -43,6 +43,8 @@ rule all:
         op.join(CRC, "results", "crc_embeddings_10000.html"),
         ## Ecker mouse brain
         op.join(ECKER_BASE, "results", "ecker.html"),
+        op.join(ECKER_BASE, "results", "ecker_windows_10000.html"),
+        op.join(ECKER_BASE, "results", "ecker_embeddings_10000.html"),
         ## Argelaguet gastrulation
         op.join(ARGELAGUET_BASE, "results", "argelaguet.html"),
         op.join(ARGELAGUET_BASE, "results", "argelaguet_windows_10000.html"),

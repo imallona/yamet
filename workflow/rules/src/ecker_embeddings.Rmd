@@ -1,0 +1,310 @@
+---
+title: "Ecker: cell embeddings from chr10 windows entropy"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: hide
+    code_download: true
+    number_sections: true
+    df_print: default
+    theme: lumen
+---
+
+```{r logging_early, include = FALSE}
+log <- file(snakemake@log$log, open = "wt")
+sink(log)
+sink(log, type = "message")
+```
+
+```{r setup}
+suppressPackageStartupMessages({
+  library(readr)
+  library(ggplot2)
+  library(dplyr)
+  library(tidyr)
+  library(BiocParallel)
+  library(uwot)
+  library(irlba)
+  library(matrixStats)
+  library(SingleCellExperiment)
+  library(SummarizedExperiment)
+  library(scater)
+  library(cluster)
+  library(viridis)
+  library(viridisLite)
+  library(cowplot)
+  library(ggrastr)
+})
+
+source("src/ggtheme.R")
+source("src/embedding_utils.R")
+
+param <- SerialParam()
+
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = TRUE,
+  warning = TRUE,
+  cache = FALSE,
+  fig.path = "ecker_embeddings_plots/"
+)
+```
+
+```{r save_snmk_debug, include = FALSE}
+saveRDS(snakemake, file = "snmk_ecker_embeddings.rds", compress = "xz")
+```
+
+```{r constants}
+N_HVW <- 1000
+N_PCS <- 10
+
+assay_map <- c(
+  "sampen"           = "S",
+  "sampen_corrected" = "adjS",
+  "adjS"             = "adjS_yamet",
+  "meth"             = "methylation"
+)
+```
+
+# Load data
+
+```{r load_sce}
+sce <- readRDS(snakemake@params$corrected_sce)
+
+## ensure clean factor columns
+colData(sce)$cell_class  <- factor(colData(sce)$CellClass)
+colData(sce)$major_type  <- factor(colData(sce)$MajorType)
+colData(sce)$sub_region  <- factor(colData(sce)$SubRegion)
+
+cc_lvls <- sort(unique(as.character(colData(sce)$cell_class)))
+cc_pal  <- setNames(turbo(length(cc_lvls), begin = 0.05, end = 0.95), cc_lvls)
+
+cat("Cells:", ncol(sce), "\n")
+cat("Windows:", nrow(sce), "\n")
+cat("Assays:", paste(assayNames(sce), collapse = ", "), "\n")
+cat("Cell classes:\n")
+print(table(colData(sce)$cell_class, useNA = "ifany"))
+```
+
+# Shared helpers
+
+```{r helpers}
+hvw_pca_umap <- function(mat) {
+  run_embedding(mat, n_hvf = N_HVW, n_pcs = N_PCS,
+                n_neighbors = 15L, min_dist = 0.3, seed = 42L)
+}
+
+plot_umap_cellclass <- function(coords, sce_obj, title_prefix) {
+  df <- data.frame(
+    umap1      = coords[, 1], umap2 = coords[, 2],
+    cell_class = colData(sce_obj)$cell_class
+  )
+  ggplot(df, aes(x = umap1, y = umap2, color = cell_class)) +
+    geom_point_rast(size = 0.3, alpha = 0.5, raster.dpi = 300) +
+    scale_color_manual(values = cc_pal) +
+    labs(title = paste(title_prefix, "- cell class"),
+         x = "UMAP 1", y = "UMAP 2") +
+    guides(color = guide_legend(override.aes = list(size = 2, alpha = 1), ncol = 2)) +
+    theme_ng()
+}
+
+plot_umap_majortype <- function(coords, sce_obj, title_prefix) {
+  mt_lvls <- sort(unique(as.character(colData(sce_obj)$major_type)))
+  mt_pal  <- setNames(turbo(length(mt_lvls), begin = 0.05, end = 0.95), mt_lvls)
+  df <- data.frame(
+    umap1      = coords[, 1], umap2 = coords[, 2],
+    major_type = colData(sce_obj)$major_type
+  )
+  ggplot(df, aes(x = umap1, y = umap2, color = major_type)) +
+    geom_point_rast(size = 0.3, alpha = 0.5, raster.dpi = 300) +
+    scale_color_manual(values = mt_pal) +
+    labs(title = paste(title_prefix, "- major type"),
+         x = "UMAP 1", y = "UMAP 2") +
+    guides(color = guide_legend(override.aes = list(size = 2, alpha = 1), ncol = 2)) +
+    theme_ng()
+}
+```
+
+# Per-window embeddings (HVW -> PCA -> UMAP)
+
+HVW selection and NA handling: see `embedding_utils.R`.
+Top `r N_HVW` most variable windows retained per assay before PCA and UMAP.
+
+```{r win_hvw_pca_umap}
+win_embeds <- lapply(names(assay_map), function(akey) {
+  if (!akey %in% assayNames(sce)) return(NULL)
+  hvw_pca_umap(as.matrix(assay(sce, akey)))
+})
+names(win_embeds) <- assay_map
+
+failed <- names(which(sapply(win_embeds, is.null)))
+if (length(failed) > 0)
+  warning("run_embedding returned NULL for: ", paste(failed, collapse = ", "))
+
+cat("\nHVF selection summary:\n")
+for (nm in names(win_embeds)) {
+  em <- win_embeds[[nm]]
+  if (is.null(em)) {
+    cat(nm, ": NULL\n")
+  } else {
+    cat(nm, ": HVF =", length(em$hvf_idx),
+        "| cells =", sum(em$kept_cols), "/", ncol(sce), "\n")
+  }
+}
+
+saveRDS(
+  list(col_data   = as.data.frame(colData(sce)),
+       sce_dim    = dim(sce),
+       assay_names = assayNames(sce),
+       win_embeds = win_embeds,
+       assay_map  = assay_map),
+  "ecker_umap_cell_adjS.rds", compress = "xz"
+)
+```
+
+## By cell class {.tabset .tabset-pills}
+
+```{r win_cc_S, fig.width = ng_fig_size(2, 1, panel_mm = 60)$w, fig.height = ng_fig_size(2, 1, panel_mm = 60)$h}
+### S
+if (!is.null(win_embeds[["S"]])) {
+  p1 <- plot_umap_cellclass(win_embeds[["S"]]$umap,
+                            sce[, win_embeds[["S"]]$kept_cols], "S")
+  p2 <- plot_umap_majortype(win_embeds[["S"]]$umap,
+                            sce[, win_embeds[["S"]]$kept_cols], "S")
+  print(plot_grid(p1, p2, nrow = 1))
+}
+```
+
+```{r win_cc_adjS, fig.width = ng_fig_size(2, 1, panel_mm = 60)$w, fig.height = ng_fig_size(2, 1, panel_mm = 60)$h}
+### adjS
+if (!is.null(win_embeds[["adjS"]])) {
+  p1 <- plot_umap_cellclass(win_embeds[["adjS"]]$umap,
+                            sce[, win_embeds[["adjS"]]$kept_cols], "adjS")
+  p2 <- plot_umap_majortype(win_embeds[["adjS"]]$umap,
+                            sce[, win_embeds[["adjS"]]$kept_cols], "adjS")
+  print(plot_grid(p1, p2, nrow = 1))
+}
+```
+
+```{r win_cc_meth, fig.width = ng_fig_size(2, 1, panel_mm = 60)$w, fig.height = ng_fig_size(2, 1, panel_mm = 60)$h}
+### methylation
+if (!is.null(win_embeds[["methylation"]])) {
+  p1 <- plot_umap_cellclass(win_embeds[["methylation"]]$umap,
+                            sce[, win_embeds[["methylation"]]$kept_cols], "methylation")
+  p2 <- plot_umap_majortype(win_embeds[["methylation"]]$umap,
+                            sce[, win_embeds[["methylation"]]$kept_cols], "methylation")
+  print(plot_grid(p1, p2, nrow = 1))
+}
+```
+
+## Four-panel comparison (cell class)
+
+```{r win_panel_cc, fig.width = ng_fig_size(4, 1, panel_mm = 55)$w, fig.height = ng_fig_size(4, 1, panel_mm = 55)$h}
+ok_embeds <- Filter(Negate(is.null), win_embeds)
+df_panel <- bind_rows(lapply(names(ok_embeds), function(lbl) {
+  em <- ok_embeds[[lbl]]
+  data.frame(umap1      = em$umap[, 1], umap2 = em$umap[, 2],
+             cell_class = colData(sce[, em$kept_cols])$cell_class,
+             assay      = lbl)
+}))
+df_panel$assay <- factor(df_panel$assay, levels = assay_map)
+
+ggplot(df_panel, aes(x = umap1, y = umap2, color = cell_class)) +
+  geom_point_rast(size = 0.2, alpha = 0.5, raster.dpi = 300) +
+  scale_color_manual(values = cc_pal) +
+  facet_wrap(~ assay, nrow = 1) +
+  labs(x = "UMAP 1", y = "UMAP 2",
+       title = "Per-window embeddings (HVW -> PCA -> UMAP)") +
+  guides(color = guide_legend(override.aes = list(size = 2, alpha = 1), ncol = 2)) +
+  theme_ng()
+```
+
+## Variance explained
+
+```{r win_varexp, fig.width = ng_fig_size(4, 1)$w, fig.height = ng_fig_size(2, 1)$h}
+ve_win <- bind_rows(lapply(names(assay_map), function(akey) {
+  lbl <- assay_map[[akey]]
+  if (is.null(win_embeds[[lbl]]) || !akey %in% assayNames(sce)) return(NULL)
+  mat <- as.matrix(assay(sce, akey))
+  hvw_mat <- mat[win_embeds[[lbl]]$hvf_idx, , drop = FALSE]
+  rownames(hvw_mat) <- NULL
+  tmp_cd  <- data.frame(cell_class = colData(sce)$cell_class,
+                        sub_region = colData(sce)$sub_region)
+  tmp_sce <- SingleCellExperiment(assays = list(x = hvw_mat), colData = tmp_cd)
+  ve <- getVarianceExplained(tmp_sce, exprs_values = "x",
+                             variables = c("cell_class", "sub_region"))
+  data.frame(assay      = lbl,
+             cell_class = median(ve[, "cell_class"], na.rm = TRUE),
+             sub_region = median(ve[, "sub_region"], na.rm = TRUE))
+}))
+
+ve_long <- pivot_longer(ve_win, c("cell_class", "sub_region"),
+                        names_to = "variable", values_to = "median_ve")
+ve_long$assay <- factor(ve_long$assay, levels = assay_map)
+
+ggplot(ve_long, aes(x = assay, y = median_ve, fill = variable)) +
+  geom_col(position = position_dodge(width = 0.8)) +
+  scale_fill_manual(values = c("cell_class" = "#0072B2", "sub_region" = "#E69F00")) +
+  labs(x = NULL, y = "median % variance explained",
+       title = "Variance explained (per-window HVW)") +
+  theme_ng()
+```
+
+## Silhouette scores
+
+```{r win_sil, fig.width = ng_fig_size(2, 1)$w, fig.height = ng_fig_size(1, 1)$h}
+sil_win <- data.frame(
+  assay = names(ok_embeds),
+  silhouette_cell_class = sapply(names(ok_embeds), function(lbl)
+    sil_score(ok_embeds[[lbl]]$umap,
+              colData(sce[, ok_embeds[[lbl]]$kept_cols])$cell_class)),
+  silhouette_sub_region = sapply(names(ok_embeds), function(lbl)
+    sil_score(ok_embeds[[lbl]]$umap,
+              colData(sce[, ok_embeds[[lbl]]$kept_cols])$sub_region))
+)
+
+sil_long <- pivot_longer(sil_win, c("silhouette_cell_class", "silhouette_sub_region"),
+                         names_to = "grouping", values_to = "silhouette")
+sil_long$grouping <- sub("silhouette_", "", sil_long$grouping)
+sil_long$assay    <- factor(sil_long$assay, levels = assay_map)
+
+ggplot(sil_long, aes(x = assay, y = silhouette, fill = grouping)) +
+  geom_col(position = position_dodge(width = 0.8)) +
+  geom_hline(yintercept = 0, linetype = "dashed", colour = "grey40") +
+  scale_fill_manual(values = c("cell_class" = "#0072B2", "sub_region" = "#E69F00")) +
+  labs(x = NULL, y = "mean silhouette",
+       title = "Cluster separation by assay") +
+  theme_ng()
+```
+
+# Per-cell entropy summaries
+
+```{r cell_df}
+cell_df <- data.frame(
+  cell_class = colData(sce)$cell_class,
+  sub_region = colData(sce)$sub_region,
+  mean_S     = colMeans(assay(sce, "sampen"),           na.rm = TRUE),
+  mean_adjS  = colMeans(assay(sce, "sampen_corrected"), na.rm = TRUE),
+  mean_meth  = colMeans(assay(sce, "meth"),             na.rm = TRUE)
+)
+```
+
+```{r violins, fig.width = ng_fig_size(4, 1)$w, fig.height = ng_fig_size(4, 2)$h}
+cell_long <- pivot_longer(cell_df, c("mean_S", "mean_adjS", "mean_meth"),
+                          names_to = "metric", values_to = "value")
+
+ggplot(cell_long, aes(x = cell_class, y = value, fill = cell_class)) +
+  geom_violin(trim = FALSE, scale = "width", alpha = 0.7) +
+  geom_boxplot(width = 0.1, outlier.size = 0.3, alpha = 0.6) +
+  scale_fill_manual(values = cc_pal) +
+  facet_grid(metric ~ ., scales = "free_y") +
+  labs(x = "cell class", y = "per-cell mean") +
+  theme_ng() +
+  theme(legend.position = "none")
+```
+
+```{r session}
+sessionInfo()
+```

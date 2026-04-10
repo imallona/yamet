@@ -16,7 +16,8 @@ rule render_fig_ecker:
     conda:
         op.join("..", "envs", "r.yml")
     input:
-        op.join(ECKER_BASE, "results", "ecker.html")
+        op.join(ECKER_BASE, "results", "ecker.html"),
+        op.join(ECKER_BASE, "results", "ecker_embeddings_10000.html"),
     output:
         op.join(ECKER_BASE, "results", "fig_ecker.html")
     params:

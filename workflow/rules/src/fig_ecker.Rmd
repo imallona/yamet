@@ -40,6 +40,7 @@ if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE)
 meta         <- readRDS("ecker_groups_meta.rds")
 ent          <- readRDS("ecker_entropy.rds")
 umap_overlay <- readRDS("ecker_paper_umap_overlay.rds")
+win_umap     <- readRDS("ecker_umap_cell_adjS.rds")
 ```
 
 ```{r paper-umap-data}
@@ -123,6 +124,26 @@ pf <- ggplot(r2_by_ann, aes(x = reorder(annotation, r2), y = r2)) +
   theme_ng(base_size = 8)
 ```
 
+```{r panel-g}
+em_adjS <- win_umap$win_embeds[["adjS"]]
+if (!is.null(em_adjS)) {
+  wins_df <- data.frame(
+    umap1      = em_adjS$umap[, 1],
+    umap2      = em_adjS$umap[, 2],
+    cell_class = win_umap$col_data$cell_class[em_adjS$kept_cols]
+  )
+  pg <- ggplot(wins_df, aes(x = umap1, y = umap2, color = cell_class)) +
+    geom_point_rast(size = 0.15, alpha = 0.5, raster.dpi = 300) +
+    scale_color_manual(values = cc_pal) +
+    guides(color = guide_legend(override.aes = list(size = 2, alpha = 1))) +
+    labs(x = "UMAP 1", y = "UMAP 2", color = "cell class",
+         title = "chr10 windows adjS") +
+    theme_ng(base_size = 8)
+} else {
+  pg <- NULL
+}
+```
+
 ```{r heatmap}
 ht_wide <- grp %>%
   select(sub_type, annotation, cell_class, major_type, median_adjS) %>%
@@ -167,23 +188,21 @@ ht <- Heatmap(
 )
 ```
 
-```{r combined, fig.width = ng_fig_size(4, 2)$w, fig.height = ng_fig_size(4, 2)$h}
-row1 <- (pa | pb | pc | pd) +
-  plot_annotation(tag_levels = list(c("A", "B", "C", "D")),
+```{r combined, fig.width = ng_fig_size(4, 3, panel_mm = 45)$w, fig.height = ng_fig_size(4, 3, panel_mm = 45)$h}
+row2_panels <- if (!is.null(pg)) (pe | pf | pg) else (pe | pf)
+
+gg_fig <- (pa | pb | pc | pd) / row2_panels +
+  plot_layout(heights = c(1, 0.9)) +
+  plot_annotation(tag_levels = "A",
                   theme = theme(plot.tag = element_text(size = 8, face = "bold")))
 
-row2 <- (pe | pf) +
-  plot_annotation(tag_levels = list(c("E", "F")),
-                  theme = theme(plot.tag = element_text(size = 8, face = "bold")))
-
-gg_fig <- row1 / row2 + plot_layout(heights = c(1, 0.8))
 print(gg_fig)
 
 ggsave(
   file.path(out_dir, "fig_ecker_panels.pdf"),
   plot   = gg_fig,
-  width  = ng_fig_size(4, 2)$w,
-  height = ng_fig_size(4, 2)$h,
+  width  = ng_fig_size(4, 3, panel_mm = 45)$w,
+  height = ng_fig_size(4, 3, panel_mm = 45)$h,
   units  = "in",
   device = cairo_pdf
 )
