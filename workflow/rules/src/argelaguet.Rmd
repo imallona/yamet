@@ -807,6 +807,178 @@ make_heatmap(heat_df_adjh, "median_adjH", "median adjH",
              palette = c("navy", "white", "firebrick"))
 ```
 
+# Paper UMAP + our entropy overlay {.tabset .tabset-pills}
+
+All cells with MOFA-derived UMAP coordinates from the original Argelaguet et al.
+metaccrna analysis (`metaccrna/mofa/all_stages/umap_coordinates.txt`) placed at
+their published positions and colored by the entropy or methylation values
+computed here. H and adjH are group medians per (stage, lineage) broadcast onto
+each cell of the group; S and adjS are per-cell values from the `.out.gz`
+files. One panel per genomic annotation.
+
+```{r paper_umap_load}
+paper_umap <- read_csv(snakemake@params[["paper_umap_path"]],
+                       show_col_types = FALSE)
+colnames(paper_umap) <- c("sample", "umap1", "umap2")
+cat("Cells in MOFA UMAP file:", nrow(paper_umap), "\n")
+cat("Cells in argelaguet meta:", nrow(meta_cells), "\n")
+cat("Overlap:",
+    sum(meta_cells$sample %in% paper_umap$sample), "\n")
+```
+
+```{r paper_umap_data_grp}
+cells_overlay_grp <- meta_cells %>%
+  inner_join(paper_umap, by = "sample") %>%
+  left_join(
+    all_grp_meta %>% select(stage_san, lineage_san, annotation,
+                            median_adjH, median_meth, median_adjS, median_S),
+    by = c("stage_san", "lineage_san"),
+    relationship = "many-to-many"
+  ) %>%
+  filter(!is.na(annotation))
+
+saveRDS(cells_overlay_grp, "argelaguet_paper_umap_overlay.rds")
+cat("Rows in group-level overlay (cells x annotations):",
+    nrow(cells_overlay_grp), "\n")
+```
+
+## Group adjH per annotation
+
+```{r paper_umap_adjH, fig.width = 14, fig.height = 8}
+df_adjH <- cells_overlay_grp %>% filter(!is.na(median_adjH)) %>% droplevels()
+if (nrow(df_adjH) > 0) {
+  ggplot(df_adjH, aes(x = umap1, y = umap2, color = median_adjH)) +
+    geom_point(size = 0.4, alpha = 0.6) +
+    scale_color_viridis_c(option = "plasma", na.value = "grey80") +
+    facet_wrap(~ annotation, ncol = 4) +
+    labs(title = "Paper MOFA UMAP - color = group adjH",
+         x = "UMAP1 (Argelaguet MOFA)", y = "UMAP2 (Argelaguet MOFA)",
+         color = "median adjH") +
+    theme_ng() +
+    theme(axis.text = element_blank(), axis.ticks = element_blank())
+} else {
+  message("No adjH overlay data available")
+}
+```
+
+## Group avg methylation per annotation
+
+```{r paper_umap_meth, fig.width = 14, fig.height = 8}
+df_meth <- cells_overlay_grp %>% filter(!is.na(median_meth)) %>% droplevels()
+if (nrow(df_meth) > 0) {
+  ggplot(df_meth, aes(x = umap1, y = umap2, color = median_meth)) +
+    geom_point(size = 0.4, alpha = 0.6) +
+    scale_color_viridis_c(option = "viridis", na.value = "grey80") +
+    facet_wrap(~ annotation, ncol = 4) +
+    labs(title = "Paper MOFA UMAP - color = group avg. methylation",
+         x = "UMAP1 (Argelaguet MOFA)", y = "UMAP2 (Argelaguet MOFA)",
+         color = "median meth") +
+    theme_ng() +
+    theme(axis.text = element_blank(), axis.ticks = element_blank())
+} else {
+  message("No methylation overlay data available")
+}
+```
+
+## Per-cell adjS and S per annotation
+
+Unlike H and adjH (group medians broadcast to all cells in a group), S and adjS
+are per-cell values. The `.out.gz` files carry a `file` column with the
+harmonized cell path; the basename minus `.gz` is the `id_met` cell identifier
+which is also the MOFA UMAP sample key.
+
+```{r paper_umap_per_cell_load}
+read_short_with_file_arg <- function(fp) {
+  fn <- basename(fp)
+  dt <- read_tsv(fp, na = "-1", show_col_types = FALSE)
+  dt <- dt[, c("file", "sampen", "sampen_norm", "avg_meth")]
+  dt$annotation <- get_annotation(fn)
+  dt
+}
+
+cells_sampen_paper <- do.call(
+  rbind,
+  bplapply(short_paths, read_short_with_file_arg, BPPARAM = param)
+) %>%
+  mutate(id_met = sub("\\.gz$", "", basename(file))) %>%
+  inner_join(paper_umap, by = c("id_met" = "sample"))
+
+cells_sampen_paper <- harmonize_levels(cells_sampen_paper)
+
+cat("Per-cell rows joined to paper UMAP:",
+    nrow(cells_sampen_paper), "\n")
+cat("Unique cells with paper UMAP coords:",
+    length(unique(cells_sampen_paper$id_met)), "\n")
+```
+
+```{r paper_umap_adjS, fig.width = 14, fig.height = 8}
+df_adjS_cells <- cells_sampen_paper %>%
+  filter(!is.na(sampen_norm)) %>%
+  droplevels()
+if (nrow(df_adjS_cells) > 0) {
+  ggplot(df_adjS_cells, aes(x = umap1, y = umap2, color = sampen_norm)) +
+    geom_point(size = 0.4, alpha = 0.6) +
+    scale_color_viridis_c(option = "plasma", na.value = "grey80") +
+    facet_wrap(~ annotation, ncol = 4) +
+    labs(title = "Paper MOFA UMAP - per-cell adjS",
+         x = "UMAP1 (Argelaguet MOFA)", y = "UMAP2 (Argelaguet MOFA)",
+         color = "adjS") +
+    theme_ng() +
+    theme(axis.text = element_blank(), axis.ticks = element_blank())
+} else {
+  message("No per-cell adjS overlay data available")
+}
+```
+
+```{r paper_umap_S, fig.width = 14, fig.height = 8}
+df_S_cells <- cells_sampen_paper %>%
+  filter(!is.na(sampen)) %>%
+  droplevels()
+if (nrow(df_S_cells) > 0) {
+  ggplot(df_S_cells, aes(x = umap1, y = umap2, color = sampen)) +
+    geom_point(size = 0.4, alpha = 0.6) +
+    scale_color_viridis_c(option = "magma", na.value = "grey80") +
+    facet_wrap(~ annotation, ncol = 4) +
+    labs(title = "Paper MOFA UMAP - per-cell S",
+         x = "UMAP1 (Argelaguet MOFA)", y = "UMAP2 (Argelaguet MOFA)",
+         color = "S") +
+    theme_ng() +
+    theme(axis.text = element_blank(), axis.ticks = element_blank())
+} else {
+  message("No per-cell S overlay data available")
+}
+```
+
+## Lineage class reference
+
+```{r paper_umap_lineage_class, fig.width = 6, fig.height = 5}
+ref_df <- meta_cells %>% inner_join(paper_umap, by = "sample")
+ggplot(ref_df, aes(x = umap1, y = umap2, color = lineage10x_2)) +
+  geom_point(size = 0.5, alpha = 0.6) +
+  scale_color_viridis_d(option = "turbo", begin = 0.05, end = 0.95,
+                        na.value = "grey80") +
+  labs(title = "Paper MOFA UMAP - lineage class reference",
+       x = "UMAP1 (Argelaguet MOFA)", y = "UMAP2 (Argelaguet MOFA)",
+       color = "lineage class") +
+  guides(color = guide_legend(override.aes = list(size = 3))) +
+  theme_ng() +
+  theme(axis.text = element_blank(), axis.ticks = element_blank())
+```
+
+## Stage reference
+
+```{r paper_umap_stage, fig.width = 6, fig.height = 5}
+ggplot(ref_df, aes(x = umap1, y = umap2, color = stage)) +
+  geom_point(size = 0.5, alpha = 0.6) +
+  scale_color_viridis_d(option = "viridis") +
+  labs(title = "Paper MOFA UMAP - stage reference",
+       x = "UMAP1 (Argelaguet MOFA)", y = "UMAP2 (Argelaguet MOFA)",
+       color = "stage") +
+  guides(color = guide_legend(override.aes = list(size = 3))) +
+  theme_ng() +
+  theme(axis.text = element_blank(), axis.ticks = element_blank())
+```
+
 # Cell-level UMAP {.tabset .tabset-pills}
 
 ```{r umap_helpers}

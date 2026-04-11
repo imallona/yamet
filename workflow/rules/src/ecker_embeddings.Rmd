@@ -68,6 +68,28 @@ assay_map <- c(
 )
 ```
 
+## Cell selection and NA-aware embedding
+
+The cells embedded here are not a uniformly random subsample. For each
+(SubRegion, SubType) annotation we keep up to a fixed number of cells, picking
+the highest-coverage cells (file size on disk is monotonic in CpG count) and
+distributing the slots round-robin across plates. Stratifying by plate first
+keeps a single high-coverage plate from dominating an annotation. The visible
+cost is that any residual plate effect (cell cycle, batch) is preserved rather
+than averaged out across plates; the alternative of random sampling produced
+embeddings collapsed to a handful of cells per group because of how few windows
+were complete.
+
+scBS-seq methylation and per-cell entropy values have a meaningful zero
+(unmethylated CpG, zero local entropy) which is distinct from missing coverage.
+Imputing NAs to zero would bias both the variance signal and the embedding
+geometry, so the pipeline keeps NAs as NAs throughout: HVF selection scores
+features by variance times coverage fraction, and when too few windows have
+complete coverage the PCA step uses NIPALS (`pcaMethods`) which iterates over
+the observed entries without filling in missing values. Cells are dropped only
+when their per-cell NA fraction is above the QC threshold; once they pass that
+filter they are never dropped to make a feature block dense.
+
 # Load data
 
 ```{r load_sce}

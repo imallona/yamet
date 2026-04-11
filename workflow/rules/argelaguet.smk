@@ -15,8 +15,7 @@ ARGELAGUET_BASE          = "argelaguet"
 ARGELAGUET_HARMONIZED    = op.join(ARGELAGUET_BASE, "harmonized")
 ARGELAGUET_OUTPUT        = op.join(ARGELAGUET_BASE, "output")
 ARGELAGUET_WINDOWS_OUTPUT = op.join(ARGELAGUET_BASE, "windows_output")
-ARGELAGUET_MAX_CELLS     = 20
-ARGELAGUET_DOWNSAMPLE_SEED = 42
+ARGELAGUET_MAX_CELLS = 20
 
 ## Set True to restrict to chr10 for fast testing; False for full genome.
 ARGELAGUET_CHR10_ONLY    = False
@@ -149,7 +148,18 @@ checkpoint harmonize_argelaguet_cells:
 
 
 def get_argelaguet_harmonized_files(stage, lineage):
-    import random
+    """Pick up to ARGELAGUET_MAX_CELLS cells per (stage, lineage) group,
+    selecting the highest-coverage cells stratified by plate.
+
+    Coverage is approximated by the harmonized file size on disk: each
+    file is one line per observed CpG so size is monotonic in coverage.
+    Stratifying by plate before taking the top cells reduces the risk
+    that a single high-coverage plate dominates the embedding. Within a
+    plate, cells are ranked by file size and the largest are taken.
+    Across plates, ARGELAGUET_MAX_CELLS slots are distributed as evenly
+    as possible (round-robin top-up). Cells with empty plate label are
+    grouped under a single "_unknown" pseudo-plate.
+    """
     checkpoints.harmonize_argelaguet_cells.get()
     meta = pd.read_csv(
         op.join(ARGELAGUET_BASE, "meta.tsv.gz"), sep="\t", compression="gzip"
@@ -158,16 +168,40 @@ def get_argelaguet_harmonized_files(stage, lineage):
     for col, val in zip(ARGELAGUET_STRATIFY_BY, [stage, lineage]):
         if col in meta.columns:
             mask &= meta[col].astype(str).apply(_arg_sanitize) == val
-    cell_ids = meta[mask]["id_met"].dropna().tolist()
-    cells = [
-        op.join(ARGELAGUET_HARMONIZED, f"{c}.gz")
-        for c in cell_ids
-        if op.exists(op.join(ARGELAGUET_HARMONIZED, f"{c}.gz"))
-    ]
-    if len(cells) > ARGELAGUET_MAX_CELLS:
-        rng = random.Random(ARGELAGUET_DOWNSAMPLE_SEED)
-        cells = rng.sample(cells, ARGELAGUET_MAX_CELLS)
-    return cells
+
+    sub = meta[mask].dropna(subset=["id_met"]).copy()
+    sub["_path"] = sub["id_met"].apply(
+        lambda c: op.join(ARGELAGUET_HARMONIZED, f"{c}.gz")
+    )
+    sub = sub[sub["_path"].apply(op.exists)]
+    if sub.empty:
+        return []
+
+    sub["_size"] = sub["_path"].apply(op.getsize)
+    plate_col = "plate" if "plate" in sub.columns else None
+    if plate_col is None:
+        sub["_plate"] = "_unknown"
+    else:
+        sub["_plate"] = sub[plate_col].fillna("_unknown").astype(str)
+
+    if len(sub) <= ARGELAGUET_MAX_CELLS:
+        return sub.sort_values("_size", ascending=False)["_path"].tolist()
+
+    plate_groups = {
+        p: g.sort_values("_size", ascending=False)["_path"].tolist()
+        for p, g in sub.groupby("_plate")
+    }
+    plate_order = sorted(plate_groups.keys())
+
+    picked = []
+    while len(picked) < ARGELAGUET_MAX_CELLS and any(plate_groups.values()):
+        for p in plate_order:
+            if not plate_groups[p]:
+                continue
+            picked.append(plate_groups[p].pop(0))
+            if len(picked) == ARGELAGUET_MAX_CELLS:
+                break
+    return picked
 
 
 _ARG_BED_CHR_GREP = "|".join(f"^{c}\t" for c in _ARG_BED_CHRS)
@@ -297,6 +331,13 @@ rule render_argelaguet_report:
         output_path=ARGELAGUET_OUTPUT,
         chr10_only=ARGELAGUET_CHR10_ONLY,
         meta_path=op.join(ARGELAGUET_BASE, "meta.tsv.gz"),
+        ## bundled in the scnmt_gastrulation tarball, materialised by the
+        ## download_argelaguet rule via the downloaded.flag chain. Kept in
+        ## params (not input) to avoid declaring it as a missing artifact.
+        paper_umap_path=op.join(
+            ARGELAGUET_BASE, "metaccrna", "mofa", "all_stages",
+            "umap_coordinates.txt",
+        ),
     threads:
         round(workflow.cores / 2)
     output:
