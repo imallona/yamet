@@ -40,7 +40,7 @@ run_embedding <- function(mat,
                           min_dist = 0.3,
                           seed = 42L,
                           max_na_frac = 0.3,
-                          min_complete_hvf = 10L,
+                          min_complete_hvf = 100L,
                           max_cell_na_frac = 0.5) {
   if (is.null(mat) || ncol(mat) < 4L) return(NULL)
 
@@ -136,6 +136,11 @@ run_embedding <- function(mat,
       message("run_embedding: NIPALS produced non-finite scores; returning NULL")
       return(NULL)
     }
+  } else if (nrow(scaled) <= 2L * n_pcs_use) {
+    ## Few features relative to requested PCs: use base prcomp to avoid the
+    ## irlba "too large a percentage of total singular values" warning.
+    pca_scores <- prcomp(t(scaled), center = FALSE, scale. = FALSE,
+                         rank. = n_pcs_use)$x
   } else {
     pca_scores <- irlba::prcomp_irlba(t(scaled), n = n_pcs_use,
                                        center = FALSE, scale. = FALSE)$x
@@ -180,7 +185,7 @@ run_umap_scores <- function(scores, seed = 42L, n_neighbors = 15L, min_dist = 0.
 run_umap_wide <- function(wide_df, meta_cols,
                           n_hvf = 1000L, n_pcs = 50L,
                           n_neighbors = 15L, seed = 42L,
-                          max_na_frac = 0.3, min_complete_hvf = 10L,
+                          max_na_frac = 0.3, min_complete_hvf = 100L,
                           max_cell_na_frac = 0.5) {
   if (is.null(wide_df) || nrow(wide_df) < 4L) return(NULL)
   meta <- wide_df %>% dplyr::select(dplyr::all_of(meta_cols))
