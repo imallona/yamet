@@ -30,13 +30,14 @@ suppressPackageStartupMessages({
   library(matrixStats)
   library(SingleCellExperiment)
   library(SummarizedExperiment)
-  library(scater)
+
   library(cluster)
   library(viridis)
   library(cowplot)
 })
 
 source("src/ggtheme.R")
+source("src/palettes.R")
 source("src/embedding_utils.R")
 
 param <- SerialParam()
@@ -55,9 +56,6 @@ saveRDS(snakemake, file = "snmk_argelaguet_embeddings.rds", compress = "xz")
 ```
 
 ```{r constants}
-stage_pal <- c("E4.5" = "#440154", "E5.5" = "#31688e",
-               "E6.5" = "#35b779", "E7.5" = "#fde725")
-
 N_HVW <- 1000
 N_PCS <- 10
 
@@ -123,22 +121,20 @@ plot_umap_stage <- function(coords, sce_obj, title_prefix) {
   )
   ggplot(df, aes(x = umap1, y = umap2, color = stage)) +
     geom_point(size = 0.6, alpha = 0.7) +
-    scale_color_manual(values = stage_pal) +
+    scale_color_manual(values = argelaguet_stage_pal) +
     labs(title = paste(title_prefix, "- stage"), x = "UMAP 1", y = "UMAP 2") +
     guides(color = guide_legend(override.aes = list(size = 2.5, alpha = 1))) +
     theme_ng()
 }
 
 plot_umap_lineage <- function(coords, sce_obj, title_prefix) {
-  lv <- sort(unique(as.character(colData(sce_obj)$lineage)))
-  pal <- setNames(turbo(length(lv), begin = 0.05, end = 0.95), lv)
   df <- data.frame(
     umap1   = coords[, 1], umap2 = coords[, 2],
     lineage = colData(sce_obj)$lineage
   )
   ggplot(df, aes(x = umap1, y = umap2, color = lineage)) +
     geom_point(size = 0.6, alpha = 0.7) +
-    scale_color_manual(values = pal) +
+    scale_color_manual(values = argelaguet_lineage_pal) +
     labs(title = paste(title_prefix, "- lineage"), x = "UMAP 1", y = "UMAP 2") +
     guides(color = guide_legend(override.aes = list(size = 2.5, alpha = 1),
                                 ncol = 2)) +
@@ -252,7 +248,7 @@ df_panel$assay <- factor(df_panel$assay, levels = assay_map)
 
 ggplot(df_panel, aes(x = umap1, y = umap2, color = stage)) +
   geom_point(size = 0.4, alpha = 0.6) +
-  scale_color_manual(values = stage_pal) +
+  scale_color_manual(values = argelaguet_stage_pal) +
   facet_wrap(~ assay, nrow = 1) +
   labs(x = "UMAP 1", y = "UMAP 2",
        title = "Per-window embeddings (HVW -> PCA -> UMAP)") +
@@ -263,13 +259,9 @@ ggplot(df_panel, aes(x = umap1, y = umap2, color = stage)) +
 ## Four-panel comparison (lineage)
 
 ```{r win_panel_lineage, fig.width = ng_fig_size(4, 1, panel_mm = 55, legend_mm = 55)$w, fig.height = ng_fig_size(4, 1, panel_mm = 55, legend_mm = 55)$h}
-lineage_lvls <- sort(unique(as.character(df_panel$lineage)))
-lineage_pal <- setNames(turbo(length(lineage_lvls), begin = 0.05, end = 0.95),
-                        lineage_lvls)
-
 ggplot(df_panel, aes(x = umap1, y = umap2, color = lineage)) +
   geom_point(size = 0.4, alpha = 0.6) +
-  scale_color_manual(values = lineage_pal) +
+  scale_color_manual(values = argelaguet_lineage_pal) +
   facet_wrap(~ assay, nrow = 1) +
   labs(x = "UMAP 1", y = "UMAP 2",
        title = "Per-window embeddings (HVW -> PCA -> UMAP)") +
@@ -284,16 +276,12 @@ ggplot(df_panel, aes(x = umap1, y = umap2, color = lineage)) +
 ve_win <- bind_rows(lapply(names(assay_map), function(akey) {
   lbl <- assay_map[[akey]]
   if (is.null(win_embeds[[lbl]]) || !akey %in% assayNames(sce)) return(NULL)
-  mat <- as.matrix(assay(sce, akey))
-  hvw_mat <- mat[win_embeds[[lbl]]$hvf_idx, , drop = FALSE]
-  rownames(hvw_mat) <- NULL
-  tmp_cd  <- data.frame(stage = colData(sce)$stage, lineage = colData(sce)$lineage)
-  tmp_sce <- SingleCellExperiment(assays = list(x = hvw_mat), colData = tmp_cd)
-  ve <- getVarianceExplained(tmp_sce, exprs_values = "x",
-                             variables = c("stage", "lineage"))
-  data.frame(assay = lbl,
-             stage   = median(ve[, "stage"],   na.rm = TRUE),
-             lineage = median(ve[, "lineage"], na.rm = TRUE))
+  kept <- win_embeds[[lbl]]$kept_cols
+  hvw_mat <- as.matrix(assay(sce, akey))[win_embeds[[lbl]]$hvf_idx, kept, drop = FALSE]
+  data.frame(
+    assay   = lbl,
+    stage   = median(row_variance_explained(hvw_mat, colData(sce[, kept])$stage),   na.rm = TRUE),
+    lineage = median(row_variance_explained(hvw_mat, colData(sce[, kept])$lineage), na.rm = TRUE))
 }))
 
 ve_long <- pivot_longer(ve_win, c("stage", "lineage"),
@@ -354,7 +342,7 @@ cell_long <- pivot_longer(cell_df, c("mean_S", "mean_adjS", "mean_meth"),
 ggplot(cell_long, aes(x = stage, y = value, fill = stage)) +
   geom_violin(trim = FALSE, scale = "width", alpha = 0.7) +
   geom_boxplot(width = 0.1, outlier.size = 0.3, alpha = 0.6) +
-  scale_fill_manual(values = stage_pal) +
+  scale_fill_manual(values = argelaguet_stage_pal) +
   facet_grid(metric ~ ., scales = "free_y") +
   labs(x = "stage", y = "per-cell mean") +
   theme_ng() +

@@ -21,6 +21,7 @@ suppressPackageStartupMessages({
 })
 
 source("rules/src/ggtheme.R")
+source("rules/src/palettes.R")
 
 knitr::opts_chunk$set(
   echo    = TRUE,
@@ -35,8 +36,6 @@ sink(log_con, type = "message")
 out_dir <- snakemake@params$out_dir
 if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE)
 
-loc_pal <- c(NC = "#1b9e77", PT = "#d95f02", LN = "#7570b3",
-             ML = "#e7298a", MP = "#66a61e", MO = "#e6ab02")
 ```
 
 ```{r load}
@@ -53,7 +52,7 @@ samp <- ent$adjsampens %>%
 
 pa <- ggplot(samp, aes(x = avg_meth, y = sampen, color = location)) +
   geom_point_rast(size = 0.3, alpha = 0.4, raster.dpi = 300) +
-  scale_color_manual(values = loc_pal) +
+  scale_color_manual(values = crc_location_pal) +
   guides(color = guide_legend(override.aes = list(size = 2, alpha = 1))) +
   labs(x = "avg. methylation", y = "adjS", color = "location") +
   theme_ng(base_size = 8)
@@ -71,7 +70,7 @@ pb <- ggplot(box_df, aes(x = annotation, y = median_adjS,
                           color = location, group = location)) +
   geom_line(linewidth = 0.4, alpha = 0.8) +
   geom_point(size = 0.8) +
-  scale_color_manual(values = loc_pal) +
+  scale_color_manual(values = crc_location_pal) +
   labs(x = NULL, y = "median adjS", color = "location") +
   theme_ng(base_size = 8) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
@@ -89,7 +88,7 @@ pc <- ggplot(meth_df, aes(x = annotation, y = median_meth,
                            color = location, group = location)) +
   geom_line(linewidth = 0.4, alpha = 0.8) +
   geom_point(size = 0.8) +
-  scale_color_manual(values = loc_pal) +
+  scale_color_manual(values = crc_location_pal) +
   labs(x = NULL, y = "median avg. methylation", color = "location") +
   theme_ng(base_size = 8) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
@@ -109,7 +108,7 @@ umap_df <- data.frame(
 
 pd <- ggplot(umap_df, aes(x = UMAP1, y = UMAP2, color = location)) +
   geom_point_rast(size = 0.4, alpha = 0.6, raster.dpi = 300) +
-  scale_color_manual(values = loc_pal) +
+  scale_color_manual(values = crc_location_pal) +
   guides(color = guide_legend(override.aes = list(size = 2, alpha = 1))) +
   labs(x = "UMAP 1", y = "UMAP 2", color = "location",
        title = "adjS window embedding") +
@@ -146,7 +145,7 @@ ht <- Heatmap(
   column_names_gp   = gpar(fontsize = 8),
   right_annotation  = rowAnnotation(
     location = wide$location,
-    col      = list(location = loc_pal[as.character(sort(unique(wide$location)))]),
+    col      = list(location = crc_location_pal[as.character(sort(unique(wide$location)))]),
     annotation_legend_param = list(location = list(title = "location"))
   ),
   column_title = "median adjS per sample and annotation"

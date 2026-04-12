@@ -1,5 +1,5 @@
 ---
-title: "Ecker: single-cell chr10 windows SCE"
+title: "Ecker: single-cell genomic windows SCE"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output:
   html_document:
@@ -29,6 +29,7 @@ suppressPackageStartupMessages({
 })
 
 source("src/ggtheme.R")
+source("src/palettes.R")
 source("src/windows_sce_utils.R")
 
 param <- MulticoreParam(workers = snakemake@threads)
@@ -138,12 +139,9 @@ ggplot(cell_df, aes(x = cell_class, y = mean_corrected, fill = cell_class)) +
 ```
 
 ```{r meth_vs_sampen, fig.width = ng_fig_size(4, 1)$w, fig.height = ng_fig_size(4, 1)$h}
-cc_lvls <- sort(unique(cell_df$cell_class))
-cc_pal  <- setNames(viridisLite::turbo(length(cc_lvls), begin = 0.05, end = 0.95), cc_lvls)
-
 ggplot(cell_df, aes(x = mean_meth, y = mean_sampen, color = cell_class)) +
   geom_point(size = 0.4, alpha = 0.5) +
-  scale_color_manual(values = cc_pal) +
+  scale_color_manual(values = ecker_cell_class_pal) +
   guides(color = guide_legend(override.aes = list(size = 2, alpha = 1), ncol = 2)) +
   theme_ng(base_size = 8) +
   labs(x = "mean methylation", y = "mean S",

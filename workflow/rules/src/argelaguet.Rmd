@@ -35,6 +35,8 @@ suppressPackageStartupMessages({
 })
 
 source("src/ggtheme.R")
+source("src/palettes.R")
+source("src/driver_utils.R")
 source("src/embedding_utils.R")
 param <- MulticoreParam(workers = snakemake@threads)
 ```
@@ -179,8 +181,7 @@ cat("cell_class NA:", sum(is.na(sampens$lineage_class)), "/", nrow(sampens), "\n
 ggplot(sampens %>% filter(!is.na(lineage_class)),
        aes(x = avg_meth, y = sampen, color = lineage_class)) +
   geom_point(size = 0.3, alpha = 0.15) +
-  scale_color_viridis_d(option = "turbo", begin = 0.05, end = 0.95,
-                         na.value = "grey70") +
+  scale_color_manual(values = argelaguet_lineage_class_pal, na.value = "grey70") +
   facet_grid(annotation ~ stage) +
   labs(x = "average methylation", y = "sample entropy (S)",
        color = "lineage class") +
@@ -194,7 +195,7 @@ ggplot(sampens %>% filter(!is.na(lineage_class)),
 ggplot(sampens %>% filter(!is.na(lineage_class)),
        aes(x = lineage_class, y = sampen, fill = lineage_class)) +
   geom_violin(alpha = 0.5, draw_quantiles = 0.5) +
-  scale_fill_viridis_d(option = "turbo", begin = 0.05, end = 0.95) +
+  scale_fill_manual(values = argelaguet_lineage_class_pal) +
   facet_grid(annotation ~ stage, scales = "free_y") +
   labs(y = "sample entropy (S)") +
   theme_ng() +
@@ -231,8 +232,7 @@ adjsampens <- adjsampens %>%
 ggplot(adjsampens %>% filter(!is.na(lineage_class)),
        aes(x = avg_meth, y = sampen, color = lineage_class)) +
   geom_point(size = 0.3, alpha = 0.15) +
-  scale_color_viridis_d(option = "turbo", begin = 0.05, end = 0.95,
-                         na.value = "grey70") +
+  scale_color_manual(values = argelaguet_lineage_class_pal, na.value = "grey70") +
   facet_grid(annotation ~ stage) +
   labs(x = "average methylation", y = "adj. sample entropy (adjS)",
        color = "lineage class") +
@@ -246,7 +246,7 @@ ggplot(adjsampens %>% filter(!is.na(lineage_class)),
 ggplot(adjsampens %>% filter(!is.na(lineage_class)),
        aes(x = sampen, y = lineage, fill = lineage_class)) +
   geom_density_ridges(alpha = 0.6, scale = 0.85) +
-  scale_fill_viridis_d(option = "turbo", begin = 0.05, end = 0.95) +
+  scale_fill_manual(values = argelaguet_lineage_class_pal) +
   facet_grid(annotation ~ stage, scales = "free") +
   labs(x = "adj. sample entropy (adjS)") +
   theme_ng() +
@@ -289,8 +289,7 @@ shannons <- shannons %>%
 ggplot(shannons %>% filter(!is.na(lineage_class)),
        aes(x = median_avg_meth, y = median_shannon, color = lineage_class)) +
   geom_point(size = 1.5, alpha = 0.8) +
-  scale_color_viridis_d(option = "turbo", begin = 0.05, end = 0.95,
-                         na.value = "grey70") +
+  scale_color_manual(values = argelaguet_lineage_class_pal, na.value = "grey70") +
   facet_grid(annotation ~ stage) +
   labs(x = "median avg. methylation", y = "median Shannon entropy (H)",
        color = "lineage class") +
@@ -334,8 +333,7 @@ adjshannons <- adjshannons %>%
 ggplot(adjshannons %>% filter(!is.na(lineage_class)),
        aes(x = median_avg_meth, y = median_shannon, color = lineage_class)) +
   geom_point(size = 1.5, alpha = 0.8) +
-  scale_color_viridis_d(option = "turbo", begin = 0.05, end = 0.95,
-                         na.value = "grey70") +
+  scale_color_manual(values = argelaguet_lineage_class_pal, na.value = "grey70") +
   facet_grid(annotation ~ stage) +
   labs(x = "median avg. methylation", y = "median adj. Shannon entropy (adjH)",
        color = "lineage class") +
@@ -397,7 +395,7 @@ df_cmp <- all_grp_meta %>% filter(!is.na(lineage_class))
 if (nrow(df_cmp) > 0) {
   ggplot(df_cmp, aes(x = median_adjH, y = median_adjS, color = annotation)) +
     geom_point(size = 1.5, alpha = 0.8) +
-    scale_color_viridis_d(option = "turbo", begin = 0.05, end = 0.95) +
+    scale_color_manual(values = argelaguet_annotation_pal) +
     facet_grid(. ~ lineage_class) +
     labs(x = "median adjH", y = "median adjS", color = "annotation") +
     guides(color = guide_legend(override.aes = list(size = 3))) +
@@ -411,7 +409,7 @@ if (nrow(df_cmp) > 0) {
 if (nrow(df_cmp) > 0) {
   ggplot(df_cmp, aes(x = median_H, y = median_S, color = annotation)) +
     geom_point(size = 1.5, alpha = 0.8) +
-    scale_color_viridis_d(option = "turbo", begin = 0.05, end = 0.95) +
+    scale_color_manual(values = argelaguet_annotation_pal) +
     facet_grid(. ~ lineage_class) +
     labs(x = "median H", y = "median S", color = "annotation") +
     guides(color = guide_legend(override.aes = list(size = 3))) +
@@ -441,7 +439,7 @@ ggplot(tc, aes(x = stage, y = median_adjS,
                color = lineage_class, group = interaction(lineage_san, annotation))) +
   geom_line(alpha = 0.5, linewidth = 0.4) +
   geom_point(size = 1.2, alpha = 0.8) +
-  scale_color_viridis_d(option = "turbo", begin = 0.05, end = 0.95) +
+  scale_color_manual(values = argelaguet_lineage_class_pal) +
   facet_wrap(~ annotation, ncol = 3, scales = "free_y") +
   labs(x = "developmental stage", y = "median adjS",
        color = "lineage class") +
@@ -457,7 +455,7 @@ ggplot(tc, aes(x = stage, y = median_adjH,
                color = lineage_class, group = interaction(lineage_san, annotation))) +
   geom_line(alpha = 0.5, linewidth = 0.4) +
   geom_point(size = 1.2, alpha = 0.8) +
-  scale_color_viridis_d(option = "turbo", begin = 0.05, end = 0.95) +
+  scale_color_manual(values = argelaguet_lineage_class_pal) +
   facet_wrap(~ annotation, ncol = 3, scales = "free_y") +
   labs(x = "developmental stage", y = "median adjH",
        color = "lineage class") +
@@ -473,7 +471,7 @@ ggplot(tc, aes(x = stage, y = median_meth,
                color = lineage_class, group = interaction(lineage_san, annotation))) +
   geom_line(alpha = 0.5, linewidth = 0.4) +
   geom_point(size = 1.2, alpha = 0.8) +
-  scale_color_viridis_d(option = "turbo", begin = 0.05, end = 0.95) +
+  scale_color_manual(values = argelaguet_lineage_class_pal) +
   facet_wrap(~ annotation, ncol = 3, scales = "free_y") +
   labs(x = "developmental stage", y = "median avg. methylation",
        color = "lineage class") +
@@ -516,8 +514,8 @@ ggplot(ep_df, aes(x = stage, y = median_adjS,
                    group = interaction(lineage_san, annotation))) +
   geom_line(alpha = 0.4, linewidth = 0.4) +
   geom_point(size = 1.5, alpha = 0.85) +
-  scale_color_viridis_d(option = "turbo", begin = 0.05, end = 0.95) +
-  scale_shape_manual(values = c("enhancer" = 16, "promoter" = 17)) +
+  scale_color_manual(values = argelaguet_lineage_class_pal) +
+  scale_shape_manual(values = mark_type_shapes) +
   facet_grid(mark_type ~ lineage_class, scales = "free_y") +
   labs(x = "developmental stage", y = "median adjS",
        color = "lineage class", shape = "mark type") +
@@ -536,8 +534,8 @@ ggplot(ep_df, aes(x = stage, y = median_adjH,
                    group = interaction(lineage_san, annotation))) +
   geom_line(alpha = 0.4, linewidth = 0.4) +
   geom_point(size = 1.5, alpha = 0.85) +
-  scale_color_viridis_d(option = "turbo", begin = 0.05, end = 0.95) +
-  scale_shape_manual(values = c("enhancer" = 16, "promoter" = 17)) +
+  scale_color_manual(values = argelaguet_lineage_class_pal) +
+  scale_shape_manual(values = mark_type_shapes) +
   facet_grid(mark_type ~ lineage_class, scales = "free_y") +
   labs(x = "developmental stage", y = "median adjH",
        color = "lineage class", shape = "mark type") +
@@ -568,7 +566,7 @@ if (all(c("adjS_enh", "adjS_prom") %in% names(ep_wide))) {
     geom_abline(slope = 1, intercept = 0, linetype = "dashed",
                 color = "grey60", linewidth = 0.4) +
     geom_point(size = 2, alpha = 0.8) +
-    scale_color_viridis_d(option = "turbo", begin = 0.05, end = 0.95) +
+    scale_color_manual(values = argelaguet_lineage_class_pal) +
     scale_shape_manual(values = seq_along(levels(ep_wide$stage))) +
     labs(x = "median adjS at promoters", y = "median adjS at E7.5 enhancers (union)",
          color = "lineage class", shape = "stage") +
@@ -609,7 +607,7 @@ if (any(!is.na(var_lineage$adjH_sd))) {
                            color = annotation, label = annotation)) +
     geom_point(size = 3) +
     geom_text_repel(size = 3) +
-    scale_color_viridis_d(option = "turbo", begin = 0.05, end = 0.95) +
+    scale_color_manual(values = argelaguet_annotation_pal) +
     facet_grid(. ~ lineage_class) +
     labs(x = "SD of adjH across groups",
          y = "SD of adjS across groups") +
@@ -617,111 +615,23 @@ if (any(!is.na(var_lineage$adjH_sd))) {
 }
 ```
 
-# Driver categorization {.tabset .tabset-pills}
+# Driver categorization
 
-Whether entropy variation is driven within cells (adjS) or across cells (adjH),
-based on variance across all (stage, lineage) groups. Upper-left points are within-cell
-driven; lower-right are across-cell driven. The epiCHAOS paper found epiblast to have
-the highest epigenetic heterogeneity; annotations that separate lineages cleanly
-should appear lower-right here.
+For each annotation, we compute the SD of group-level median adjH (across-cell
+heterogeneity) and median adjS (within-cell heterogeneity) across all
+(stage, lineage) groups. If one SD is at least 1.5x the other, that entropy
+component dominates. Annotations where both SDs fall below the 30th percentile
+are labelled "neither".
 
-```{r drivers_sd, fig.width = ng_fig_size(3, 3)$w, fig.height = ng_fig_size(3, 3)$h}
-var_all <- all_grp_meta %>%
-  group_by(annotation) %>%
-  summarise(
-    adjS_sd    = sd(median_adjS, na.rm = TRUE),
-    adjH_sd    = sd(median_adjH, na.rm = TRUE),
-    adjS_range = safe_range(median_adjS),
-    adjH_range = safe_range(median_adjH),
-    .groups = "drop"
-  )
+```{r drivers, fig.width = ng_fig_size(3, 3)$w, fig.height = ng_fig_size(3, 3)$h}
+driver_df <- categorize_drivers(all_grp_meta, "lineage_class")
 
-if (any(!is.na(var_all$adjH_sd))) {
-  shannon_sd_thr <- quantile(var_all$adjH_sd, 0.3, na.rm = TRUE)
-  sampen_sd_thr  <- quantile(var_all$adjS_sd, 0.3, na.rm = TRUE)
+cat("Driver table:\n")
+print(table(driver_df$driver))
 
-  var_all <- var_all %>%
-    mutate(
-      driver = case_when(
-        is.na(adjH_sd) | is.na(adjS_sd)                    ~ NA_character_,
-        adjH_sd < shannon_sd_thr & adjS_sd < sampen_sd_thr ~ "not changing enough",
-        adjH_sd >= adjS_sd * 1.5                            ~ "across-cell driven",
-        adjS_sd >= adjH_sd * 1.5                            ~ "within-cell driven",
-        TRUE                                                 ~ "both"
-      )
-    )
-
-  cat("Driver table (SD-based):\n")
-  print(table(var_all$driver, useNA = "always"))
-
-  ggplot(var_all, aes(x = adjH_sd, y = adjS_sd,
-                       color = driver, shape = driver, label = annotation)) +
-    geom_point(size = 3) +
-    geom_text_repel() +
-    scale_color_viridis_d(option = "turbo", begin = 0.05, end = 0.95,
-                           na.value = "grey60") +
-    labs(x = "SD of adjH across all groups",
-         y = "SD of adjS across all groups") +
-    theme_ng()
-}
-```
-
-## R-squared by lineage class
-
-Variance in group-level adjH and adjS explained by lineage class (R2). Upper-left =
-within-cell driven; lower-right = across-cell (lineage-driven).
-
-```{r drivers_r2, fig.width = ng_fig_size(3, 3)$w, fig.height = ng_fig_size(3, 3)$h}
-safe_r2 <- function(y, grp) {
-  tryCatch({
-    r <- summary(lm(y ~ grp))$r.squared
-    if (is.nan(r) || is.na(r)) 0 else r
-  }, error = function(e) NA_real_)
-}
-
-r2_by_ann <- all_grp_meta %>%
-  filter(!is.na(lineage_class)) %>%
-  group_by(annotation) %>%
-  summarise(
-    r2_adjH = safe_r2(median_adjH, lineage_class),
-    r2_adjS = safe_r2(median_adjS, lineage_class),
-    .groups = "drop"
-  )
-
-if (any(!is.na(r2_by_ann$r2_adjH))) {
-  r2_thr <- 0.3
-  r2_by_ann <- r2_by_ann %>%
-    mutate(
-      driver_r2 = case_when(
-        is.na(r2_adjH) | is.na(r2_adjS)              ~ NA_character_,
-        r2_adjH < r2_thr & r2_adjS < r2_thr          ~ "not explained by lineage",
-        r2_adjH >= r2_adjS * 1.5 & r2_adjH >= r2_thr ~ "across-cell driven",
-        r2_adjS >= r2_adjH * 1.5 & r2_adjS >= r2_thr ~ "within-cell driven",
-        TRUE                                           ~ "both"
-      )
-    )
-
-  cat("Driver table (R2-based):\n")
-  print(table(r2_by_ann$driver_r2, useNA = "always"))
-
-  ggplot(r2_by_ann, aes(x = r2_adjH, y = r2_adjS,
-                         color = driver_r2, shape = driver_r2,
-                         label = annotation)) +
-    geom_vline(xintercept = r2_thr, linetype = "dashed",
-               color = "grey60") +
-    geom_hline(yintercept = r2_thr, linetype = "dashed",
-               color = "grey60") +
-    geom_point(size = 3) +
-    geom_text_repel(size = 3) +
-    scale_color_viridis_d(option = "turbo", begin = 0.05, end = 0.95,
-                           na.value = "grey60") +
-    scale_x_continuous(limits = c(0, 1)) +
-    scale_y_continuous(limits = c(0, 1)) +
-    labs(x = "R2 of adjH explained by lineage class",
-         y = "R2 of adjS explained by lineage class",
-         color = "driver", shape = "driver") +
-    theme_ng()
-}
+plot_driver_scatter(driver_df,
+                    x_label = "SD of adjH across lineage class groups",
+                    y_label = "SD of adjS across lineage class groups")
 ```
 
 # Heatmaps {.tabset .tabset-pills}
@@ -755,14 +665,9 @@ make_heatmap <- function(df, value_col, title,
     return(invisible(NULL))
   }
 
-  lc_levels <- sort(unique(wide$lineage_class))
-  lc_pal    <- setNames(viridisLite::turbo(length(lc_levels),
-                                            begin = 0.05, end = 0.95),
-                         lc_levels)
-
   row_ann <- rowAnnotation(
     lineage_class = wide$lineage_class,
-    col = list(lineage_class = lc_pal),
+    col = list(lineage_class = argelaguet_lineage_class_pal),
     annotation_legend_param = list(
       lineage_class = list(title = "lineage class")
     )

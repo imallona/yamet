@@ -21,6 +21,7 @@ suppressPackageStartupMessages({
 })
 
 source("rules/src/ggtheme.R")
+source("rules/src/palettes.R")
 
 knitr::opts_chunk$set(
   echo    = TRUE,
@@ -35,8 +36,6 @@ sink(log_con, type = "message")
 out_dir <- snakemake@params$out_dir
 if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE)
 
-stage_pal <- c("E4.5" = "#440154", "E5.5" = "#31688e",
-               "E6.5" = "#35b779", "E7.5" = "#fde725")
 ```
 
 ```{r load}
@@ -46,14 +45,18 @@ grp_meta       <- readRDS("argelaguet_groups_meta.rds")
 cell_umap_adjS <- readRDS("argelaguet_umap_cell_adjS.rds")
 ```
 
+## Panel A: Cell-level UMAP colored by developmental stage
+
 ```{r panel-a}
 pa <- ggplot(cell_umap_adjS, aes(x = UMAP1, y = UMAP2, color = stage)) +
   geom_point_rast(size = 0.8, alpha = 0.7, raster.dpi = 300) +
-  scale_color_manual(values = stage_pal) +
+  scale_color_manual(values = argelaguet_stage_pal) +
   guides(color = guide_legend(override.aes = list(size = 2, alpha = 1))) +
   labs(x = "UMAP 1", y = "UMAP 2", color = "stage") +
   theme_ng(base_size = 8)
 ```
+
+## Panel B: Median adjS per annotation across developmental stages
 
 ```{r panel-b}
 tc_adjS <- ent$adjsampens %>%
@@ -65,19 +68,18 @@ tc_adjS <- ent$adjsampens %>%
     .groups = "drop"
   )
 
-ann_lvls_b <- sort(unique(tc_adjS$annotation))
-ann_pal_b  <- setNames(turbo(length(ann_lvls_b), begin = 0.05, end = 0.95), ann_lvls_b)
-
 pb <- ggplot(tc_adjS, aes(x = stage, y = median_adjS, color = annotation, group = annotation)) +
   geom_line(linewidth = 0.5) +
   geom_ribbon(aes(ymin = lo, ymax = hi, fill = annotation), alpha = 0.1, color = NA) +
-  scale_color_manual(values = ann_pal_b) +
-  scale_fill_manual(values = ann_pal_b) +
+  scale_color_manual(values = argelaguet_annotation_pal) +
+  scale_fill_manual(values = argelaguet_annotation_pal) +
   labs(x = "stage", y = "median adjS", color = "annotation", fill = "annotation") +
   theme_ng(base_size = 8) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1),
         legend.key.size = unit(0.3, "cm"))
 ```
+
+## Panel C: Median adjH per annotation across developmental stages
 
 ```{r panel-c}
 tc_adjH <- ent$adjshannons %>%
@@ -89,19 +91,18 @@ tc_adjH <- ent$adjshannons %>%
     .groups = "drop"
   )
 
-ann_lvls_c <- sort(unique(tc_adjH$annotation))
-ann_pal_c  <- setNames(turbo(length(ann_lvls_c), begin = 0.05, end = 0.95), ann_lvls_c)
-
 pc <- ggplot(tc_adjH, aes(x = stage, y = median_adjH, color = annotation, group = annotation)) +
   geom_line(linewidth = 0.5) +
   geom_ribbon(aes(ymin = lo, ymax = hi, fill = annotation), alpha = 0.1, color = NA) +
-  scale_color_manual(values = ann_pal_c) +
-  scale_fill_manual(values = ann_pal_c) +
+  scale_color_manual(values = argelaguet_annotation_pal) +
+  scale_fill_manual(values = argelaguet_annotation_pal) +
   labs(x = "stage", y = "median adjH", color = "annotation", fill = "annotation") +
   theme_ng(base_size = 8) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1),
         legend.key.size = unit(0.3, "cm"))
 ```
+
+## Panel D: Per-cell adjS at enhancers vs promoters
 
 ```{r panel-d}
 enh_prom <- cell_matrices$cells_adjS_wide %>%
@@ -110,11 +111,13 @@ enh_prom <- cell_matrices$cells_adjS_wide %>%
 
 pd <- ggplot(enh_prom, aes(x = prom, y = enh, color = stage)) +
   geom_point_rast(size = 0.5, alpha = 0.5, raster.dpi = 300) +
-  scale_color_manual(values = stage_pal) +
+  scale_color_manual(values = argelaguet_stage_pal) +
   guides(color = guide_legend(override.aes = list(size = 2, alpha = 1))) +
   labs(x = "adjS promoters", y = "adjS enhancers", color = "stage") +
   theme_ng(base_size = 8)
 ```
+
+## Panel E: adjS variability (IQR) per lineage
 
 ```{r panel-e}
 var_lin <- ent$adjsampens %>%
@@ -129,6 +132,8 @@ pe <- ggplot(var_lin, aes(x = lineage, y = iqr)) +
   labs(x = NULL, y = "IQR adjS") +
   theme_ng(base_size = 8)
 ```
+
+## Heatmap: Median adjS per lineage and annotation
 
 ```{r heatmap}
 heat_df <- grp_meta$all_grp_meta %>%
@@ -146,8 +151,7 @@ brk <- c(min(mat, na.rm = TRUE),
           mean(range(mat, na.rm = TRUE)),
           max(mat, na.rm = TRUE))
 
-lc_lvls <- sort(unique(wide$lineage_class))
-lc_pal  <- setNames(turbo(length(lc_lvls), begin = 0.05, end = 0.95), lc_lvls)
+lc_pal <- argelaguet_lineage_class_pal[sort(unique(wide$lineage_class))]
 
 ht <- Heatmap(
   mat,
@@ -169,6 +173,15 @@ ht <- Heatmap(
   column_title = "median adjS per lineage and annotation"
 )
 ```
+
+## Combined figure
+
+- A: Cell-level UMAP (adjS across annotations) colored by developmental stage.
+- B: Median adjS per annotation across stages (line plot with IQR ribbon).
+- C: Median adjH per annotation across stages (line plot with IQR ribbon).
+- D: Per-cell adjS at enhancers (E7.5 union) vs promoters.
+- E: adjS variability (IQR) per lineage.
+- Heatmap (separate): median adjS per lineage and annotation, split by lineage class.
 
 ```{r combined, fig.width = ng_fig_size(4, 2, panel_mm = 50)$w, fig.height = ng_fig_size(4, 2, panel_mm = 50)$h}
 legend_theme <- theme(

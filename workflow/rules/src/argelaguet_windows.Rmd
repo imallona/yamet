@@ -29,6 +29,7 @@ suppressPackageStartupMessages({
 })
 
 source("src/ggtheme.R")
+source("src/palettes.R")
 source("src/windows_sce_utils.R")
 
 param <- MulticoreParam(workers = snakemake@threads)

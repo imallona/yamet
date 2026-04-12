@@ -46,6 +46,8 @@ suppressPackageStartupMessages({
 })
 
 source("src/ggtheme.R")
+source("src/palettes.R")
+source("src/driver_utils.R")
 source('src/diff_testing.R')
 
 param <- MulticoreParam(workers = snakemake@threads)
@@ -939,12 +941,16 @@ r2_drivers_win <- purrr::compact(lapply(ann_cols_win, function(a) {
 
 r2_drivers_win <- r2_drivers_win %>%
   filter(!is.na(r2_adjH) | !is.na(r2_adjS)) %>%
-  mutate(driver = case_when(
-    r2_adjH >= 0.3 & r2_adjS <  0.3 ~ "adjH-driven",
-    r2_adjS >= 0.3 & r2_adjH <  0.3 ~ "adjS-driven",
-    r2_adjH >= 0.3 & r2_adjS >= 0.3 ~ "both",
-    TRUE                             ~ "neither"
-  ))
+  mutate(
+    r2_adjH = ifelse(is.na(r2_adjH), 0, r2_adjH),
+    r2_adjS = ifelse(is.na(r2_adjS), 0, r2_adjS),
+    driver = case_when(
+      r2_adjH >= 0.3 & r2_adjS <  0.3 ~ "across-cell driven",
+      r2_adjS >= 0.3 & r2_adjH <  0.3 ~ "within-cell driven",
+      r2_adjH >= 0.3 & r2_adjS >= 0.3 ~ "both",
+      TRUE                             ~ "neither"
+    )
+  )
 
 saveRDS(list(adj_shannons_long = adj_shannons_long,
              adj_sampens_long  = adj_sampens_long,
@@ -966,6 +972,8 @@ ggplot(r2_drivers_win,
              colour = "grey60") +
   geom_point(size = 2) +
   ggrepel::geom_text_repel(size = 2, max.overlaps = 20) +
+  scale_color_manual(values = driver_pal) +
+  scale_shape_manual(values = driver_shapes) +
   scale_x_continuous(limits = c(0, 1)) +
   scale_y_continuous(limits = c(0, 1)) +
   labs(x = "R2: adjH ~ location", y = "R2: adjS ~ location") +
@@ -988,6 +996,7 @@ hm_win <- inner_join(
 
 ggplot(hm_win, aes(x = adjH, y = adjS, color = location, label = location)) +
   geom_point(size = 3) +
+  scale_color_manual(values = crc_location_pal) +
   ggrepel::geom_text_repel(size = 3) +
   labs(x = "median adjH", y = "median adjS",
        title = "Global adjH vs adjS per biopsy location") +

@@ -17,6 +17,7 @@ suppressPackageStartupMessages({
 })
 
 source("rules/src/ggtheme.R")
+source("rules/src/palettes.R")
 
 knitr::opts_chunk$set(
   echo    = TRUE,
@@ -31,8 +32,6 @@ sink(log_con, type = "message")
 out_dir <- snakemake@params$out_dir
 if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE)
 
-loc_pal <- c(NC = "#1b9e77", PT = "#d95f02", LN = "#7570b3",
-             ML = "#e7298a", MP = "#66a61e", MO = "#e6ab02")
 ```
 
 ```{r load}

@@ -1,5 +1,5 @@
 ---
-title: "Ecker: cell embeddings from chr10 windows entropy"
+title: "Ecker: cell embeddings from genomic windows entropy"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output:
   html_document:
@@ -30,7 +30,7 @@ suppressPackageStartupMessages({
   library(matrixStats)
   library(SingleCellExperiment)
   library(SummarizedExperiment)
-  library(scater)
+
   library(cluster)
   library(viridis)
   library(viridisLite)
@@ -39,6 +39,7 @@ suppressPackageStartupMessages({
 })
 
 source("src/ggtheme.R")
+source("src/palettes.R")
 source("src/embedding_utils.R")
 
 param <- SerialParam()
@@ -101,7 +102,6 @@ colData(sce)$major_type  <- factor(colData(sce)$MajorType)
 colData(sce)$sub_region  <- factor(colData(sce)$SubRegion)
 
 cc_lvls <- sort(unique(as.character(colData(sce)$cell_class)))
-cc_pal  <- setNames(turbo(length(cc_lvls), begin = 0.05, end = 0.95), cc_lvls)
 
 cat("Cells:", ncol(sce), "\n")
 cat("Windows:", nrow(sce), "\n")
@@ -125,7 +125,7 @@ plot_umap_cellclass <- function(coords, sce_obj, title_prefix) {
   )
   ggplot(df, aes(x = umap1, y = umap2, color = cell_class)) +
     geom_point_rast(size = 0.3, alpha = 0.5, raster.dpi = 300) +
-    scale_color_manual(values = cc_pal) +
+    scale_color_manual(values = ecker_cell_class_pal) +
     labs(title = paste(title_prefix, "- cell class"),
          x = "UMAP 1", y = "UMAP 2") +
     guides(color = guide_legend(override.aes = list(size = 2, alpha = 1), ncol = 2)) +
@@ -133,15 +133,13 @@ plot_umap_cellclass <- function(coords, sce_obj, title_prefix) {
 }
 
 plot_umap_majortype <- function(coords, sce_obj, title_prefix) {
-  mt_lvls <- sort(unique(as.character(colData(sce_obj)$major_type)))
-  mt_pal  <- setNames(turbo(length(mt_lvls), begin = 0.05, end = 0.95), mt_lvls)
   df <- data.frame(
     umap1      = coords[, 1], umap2 = coords[, 2],
     major_type = colData(sce_obj)$major_type
   )
   ggplot(df, aes(x = umap1, y = umap2, color = major_type)) +
     geom_point_rast(size = 0.3, alpha = 0.5, raster.dpi = 300) +
-    scale_color_manual(values = mt_pal) +
+    scale_color_manual(values = ecker_major_type_pal) +
     labs(title = paste(title_prefix, "- major type"),
          x = "UMAP 1", y = "UMAP 2") +
     guides(color = guide_legend(override.aes = list(size = 2, alpha = 1), ncol = 2)) +
@@ -235,7 +233,7 @@ df_panel$assay <- factor(df_panel$assay, levels = assay_map)
 
 ggplot(df_panel, aes(x = umap1, y = umap2, color = cell_class)) +
   geom_point_rast(size = 0.2, alpha = 0.5, raster.dpi = 300) +
-  scale_color_manual(values = cc_pal) +
+  scale_color_manual(values = ecker_cell_class_pal) +
   facet_wrap(~ assay, nrow = 1) +
   labs(x = "UMAP 1", y = "UMAP 2",
        title = "Per-window embeddings (HVW -> PCA -> UMAP)") +
@@ -249,17 +247,12 @@ ggplot(df_panel, aes(x = umap1, y = umap2, color = cell_class)) +
 ve_win <- bind_rows(lapply(names(assay_map), function(akey) {
   lbl <- assay_map[[akey]]
   if (is.null(win_embeds[[lbl]]) || !akey %in% assayNames(sce)) return(NULL)
-  mat <- as.matrix(assay(sce, akey))
-  hvw_mat <- mat[win_embeds[[lbl]]$hvf_idx, , drop = FALSE]
-  rownames(hvw_mat) <- NULL
-  tmp_cd  <- data.frame(cell_class = colData(sce)$cell_class,
-                        sub_region = colData(sce)$sub_region)
-  tmp_sce <- SingleCellExperiment(assays = list(x = hvw_mat), colData = tmp_cd)
-  ve <- getVarianceExplained(tmp_sce, exprs_values = "x",
-                             variables = c("cell_class", "sub_region"))
-  data.frame(assay      = lbl,
-             cell_class = median(ve[, "cell_class"], na.rm = TRUE),
-             sub_region = median(ve[, "sub_region"], na.rm = TRUE))
+  kept <- win_embeds[[lbl]]$kept_cols
+  hvw_mat <- as.matrix(assay(sce, akey))[win_embeds[[lbl]]$hvf_idx, kept, drop = FALSE]
+  data.frame(
+    assay      = lbl,
+    cell_class = median(row_variance_explained(hvw_mat, colData(sce[, kept])$cell_class), na.rm = TRUE),
+    sub_region = median(row_variance_explained(hvw_mat, colData(sce[, kept])$sub_region), na.rm = TRUE))
 }))
 
 ve_long <- pivot_longer(ve_win, c("cell_class", "sub_region"),
@@ -320,7 +313,7 @@ cell_long <- pivot_longer(cell_df, c("mean_S", "mean_adjS", "mean_meth"),
 ggplot(cell_long, aes(x = cell_class, y = value, fill = cell_class)) +
   geom_violin(trim = FALSE, scale = "width", alpha = 0.7) +
   geom_boxplot(width = 0.1, outlier.size = 0.3, alpha = 0.6) +
-  scale_fill_manual(values = cc_pal) +
+  scale_fill_manual(values = ecker_cell_class_pal) +
   facet_grid(metric ~ ., scales = "free_y") +
   labs(x = "cell class", y = "per-cell mean") +
   theme_ng() +

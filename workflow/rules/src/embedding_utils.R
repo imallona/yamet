@@ -219,6 +219,23 @@ regress_out_meth <- function(score_mat, meth_mat) {
   resid_mat
 }
 
+## NA-aware per-feature variance explained by a grouping variable.
+## mat: features x cells, groups: factor/character of length ncol(mat).
+## Returns a named numeric vector (one R-squared per feature).
+row_variance_explained <- function(mat, groups) {
+  groups <- as.factor(groups)
+  vapply(seq_len(nrow(mat)), function(i) {
+    y <- mat[i, ]
+    ok <- !is.na(y)
+    if (sum(ok) < 3L || length(unique(groups[ok])) < 2L) return(NA_real_)
+    ss_tot <- sum((y[ok] - mean(y[ok]))^2)
+    if (ss_tot == 0) return(NA_real_)
+    gm <- tapply(y[ok], groups[ok], mean)
+    ss_between <- sum((gm[as.character(groups[ok])] - mean(y[ok]))^2)
+    ss_between / ss_tot * 100
+  }, numeric(1))
+}
+
 ## Mean silhouette width for cluster labels on a coordinate matrix.
 ## Returns NA when fewer than 2 unique labels are present.
 sil_score <- function(coords, labels) {

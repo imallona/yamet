@@ -21,6 +21,7 @@ suppressPackageStartupMessages({
 })
 
 source("rules/src/ggtheme.R")
+source("rules/src/palettes.R")
 
 knitr::opts_chunk$set(
   echo    = TRUE,
@@ -54,17 +55,18 @@ umap_cells <- umap_overlay %>%
   distinct(sub_type, umap1, umap2, .keep_all = TRUE)
 ```
 
-```{r panel-a}
-cc_lvls <- sort(unique(umap_cells$cell_class))
-cc_pal  <- setNames(turbo(length(cc_lvls), begin = 0.05, end = 0.95), cc_lvls)
+## Panel A: Paper UMAP colored by cell class
 
+```{r panel-a}
 pa <- ggplot(umap_cells, aes(x = umap1, y = umap2, color = cell_class)) +
   geom_point_rast(size = 0.15, alpha = 0.5, raster.dpi = 300) +
-  scale_color_manual(values = cc_pal) +
+  scale_color_manual(values = ecker_cell_class_pal) +
   guides(color = guide_legend(override.aes = list(size = 2, alpha = 1))) +
   labs(x = "UMAP 1", y = "UMAP 2", color = "cell class") +
   theme_ng(base_size = 8)
 ```
+
+## Panel B: Paper UMAP colored by adjS
 
 ```{r panel-b}
 pb <- ggplot(umap_cells, aes(x = umap1, y = umap2, color = median_adjS)) +
@@ -74,6 +76,8 @@ pb <- ggplot(umap_cells, aes(x = umap1, y = umap2, color = median_adjS)) +
   theme_ng(base_size = 8)
 ```
 
+## Panel C: Paper UMAP colored by adjH
+
 ```{r panel-c}
 pc <- ggplot(umap_cells, aes(x = umap1, y = umap2, color = median_adjH)) +
   geom_point_rast(size = 0.15, alpha = 0.5, raster.dpi = 300) +
@@ -82,6 +86,8 @@ pc <- ggplot(umap_cells, aes(x = umap1, y = umap2, color = median_adjH)) +
   theme_ng(base_size = 8)
 ```
 
+## Panel D: Paper UMAP colored by average methylation
+
 ```{r panel-d}
 pd <- ggplot(umap_cells, aes(x = umap1, y = umap2, color = median_meth)) +
   geom_point_rast(size = 0.15, alpha = 0.5, raster.dpi = 300) +
@@ -89,6 +95,8 @@ pd <- ggplot(umap_cells, aes(x = umap1, y = umap2, color = median_meth)) +
   labs(x = "UMAP 1", y = "UMAP 2", color = "avg. meth.") +
   theme_ng(base_size = 8)
 ```
+
+## Panel E: adjS variability (IQR) per cell class
 
 ```{r panel-e}
 var_class <- ent$adjsampens %>%
@@ -99,13 +107,13 @@ var_class <- ent$adjsampens %>%
 
 pe <- ggplot(var_class, aes(x = cell_class, y = iqr, fill = cell_class)) +
   geom_col(show.legend = FALSE) +
-  scale_fill_manual(values = setNames(
-    turbo(nrow(var_class), begin = 0.05, end = 0.95),
-    levels(var_class$cell_class))) +
+  scale_fill_manual(values = ecker_cell_class_pal) +
   labs(x = "cell class", y = "IQR adjS") +
   theme_ng(base_size = 8) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 ```
+
+## Panel F: R-squared of adjS explained by cell class, per annotation
 
 ```{r panel-f}
 grp <- meta$all_grp_meta
@@ -124,6 +132,8 @@ pf <- ggplot(r2_by_ann, aes(x = reorder(annotation, r2), y = r2)) +
   theme_ng(base_size = 8)
 ```
 
+## Panel G: Window-level UMAP (adjS, genomic windows)
+
 ```{r panel-g}
 em_adjS <- win_umap$win_embeds[["adjS"]]
 if (!is.null(em_adjS)) {
@@ -134,15 +144,17 @@ if (!is.null(em_adjS)) {
   )
   pg <- ggplot(wins_df, aes(x = umap1, y = umap2, color = cell_class)) +
     geom_point_rast(size = 0.15, alpha = 0.5, raster.dpi = 300) +
-    scale_color_manual(values = cc_pal) +
+    scale_color_manual(values = ecker_cell_class_pal) +
     guides(color = guide_legend(override.aes = list(size = 2, alpha = 1))) +
     labs(x = "UMAP 1", y = "UMAP 2", color = "cell class",
-         title = "chr10 windows adjS") +
+         title = "genomic windows adjS") +
     theme_ng(base_size = 8)
 } else {
   pg <- NULL
 }
 ```
+
+## Heatmap: Median adjS per cell type and annotation
 
 ```{r heatmap}
 ht_wide <- grp %>%
@@ -154,11 +166,8 @@ ht_wide <- grp %>%
 mat <- ht_wide %>% select(-sub_type, -cell_class, -major_type) %>% as.matrix()
 rownames(mat) <- ht_wide$sub_type
 
-cc_ht_lvls <- sort(unique(ht_wide$cell_class))
-cc_ht_pal  <- setNames(turbo(length(cc_ht_lvls), begin = 0.05, end = 0.95), cc_ht_lvls)
-
-mt_lvls <- sort(unique(ht_wide$major_type))
-mt_pal  <- setNames(turbo(length(mt_lvls), begin = 0.05, end = 0.95), mt_lvls)
+cc_ht_pal <- ecker_cell_class_pal[sort(unique(ht_wide$cell_class))]
+mt_pal <- ecker_major_type_pal[sort(unique(ht_wide$major_type))]
 
 brk <- c(min(mat, na.rm = TRUE),
           mean(range(mat, na.rm = TRUE)),
@@ -187,6 +196,17 @@ ht <- Heatmap(
   column_title = "median adjS per cell type and annotation"
 )
 ```
+
+## Combined figure
+
+- A: Paper UMAP colored by cell class.
+- B: Paper UMAP colored by adjS (within-cell entropy).
+- C: Paper UMAP colored by adjH (across-cell entropy).
+- D: Paper UMAP colored by average methylation.
+- E: adjS variability (IQR) per cell class.
+- F: R-squared of adjS explained by cell class, per annotation.
+- G: Window-level UMAP from genomic windows adjS.
+- Heatmap (separate): median adjS per cell type and annotation.
 
 ```{r combined, fig.width = ng_fig_size(4, 3, panel_mm = 45)$w, fig.height = ng_fig_size(4, 3, panel_mm = 45)$h}
 row2_panels <- if (!is.null(pg)) (pe | pf | pg) else (pe | pf)

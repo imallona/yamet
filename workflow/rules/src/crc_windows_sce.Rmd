@@ -52,6 +52,7 @@ suppressPackageStartupMessages({
 
 ```{r}
 source("src/ggtheme.R")
+source("src/palettes.R")
 source('src/diff_testing.R')
 
 param <- MulticoreParam(workers = snakemake@threads)
