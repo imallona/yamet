@@ -53,8 +53,15 @@ SAMPLE_TITLE_PREFIX = "scTrioSeq2Rna_"
 ##              complement (CCCATGTACTCTGCGTTGATACCACTGCTT) on 3' ends.
 ##   tang       Both mates start with the polylinker cassette in three
 ##              observed orientations (XhoI-AscI-BamHI, BamHI-AscI-SalI,
-##              BamHI-AscI-XhoI), followed by polyT from oligo-dT capture.
-##              Short inserts read through to polyA and to TruSeq P7/P5.
+##              BamHI-AscI-XhoI). The typical library has ATAT flanks on
+##              both sides (28 nt total) but the trailing ATAT can be
+##              corrupted or truncated, so 24 nt variants without the
+##              trailer are also listed and cutadapt picks the best
+##              match per read. A fourth empirical variant with GTCGAG
+##              (SalI half-site with a trailing G instead of C) is seen
+##              at ~0.4% and included. The cassette is followed by polyT
+##              from oligo-dT capture; short inserts read through to
+##              polyA and to TruSeq P7/P5.
 TRIM_CUTADAPT_ARGS = {
     "smartseq2": [
         "-g", "AAGCAGTGGTATCAACGCAGAGTACATGGGAAGCAGTGGTATCAACGCAGAGTACATGGG",
@@ -69,9 +76,17 @@ TRIM_CUTADAPT_ARGS = {
         "-A", "TCAGACGTGTGCTCTTCCGATCT",
     ],
     "tang": [
+        "-g", "ATATCTCGAGGGCGCGCCGGATCCATAT",
+        "-g", "ATATGGATCCGGCGCGCCGTCGACATAT",
+        "-g", "ATATGGATCCGGCGCGCCCTCGAGATAT",
+        "-g", "ATATGGATCCGGCGCGCCGTCGAGATAT",
         "-g", "ATATCTCGAGGGCGCGCCGGATCC",
         "-g", "ATATGGATCCGGCGCGCCGTCGAC",
         "-g", "ATATGGATCCGGCGCGCCCTCGAG",
+        "-G", "ATATCTCGAGGGCGCGCCGGATCCATAT",
+        "-G", "ATATGGATCCGGCGCGCCGTCGACATAT",
+        "-G", "ATATGGATCCGGCGCGCCCTCGAGATAT",
+        "-G", "ATATGGATCCGGCGCGCCGTCGAGATAT",
         "-G", "ATATCTCGAGGGCGCGCCGGATCC",
         "-G", "ATATGGATCCGGCGCGCCGTCGAC",
         "-G", "ATATGGATCCGGCGCGCCCTCGAG",
