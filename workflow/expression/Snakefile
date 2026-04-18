@@ -1,0 +1,492 @@
+#!/usr/bin/env snakemake -s
+"""
+RNA-seq processing for the Bian 2018 scTrio-seq2 CRC paper (GSE97693).
+
+Cells: GEO sample titles matching SAMPLE_TITLE_PREFIX (scTrioSeq2Rna_*), joined
+to SRA runinfo (PRJNA382695) on GSM to recover SRR. Protocol assignment lives
+in rule parse_sctrioseq2_rna_cells.
+
+Default target: raw FastQC + MultiQC on N_CELLS cells.
+`quantify` target: trim, post-trim FastQC, salmon quant on GRCh38/GENCODE v47,
+mapping-rate QC gate (MIN_MAPPING_RATE), MultiQC.
+
+Run:
+  source ~/miniconda3/bin/activate ; conda activate snakemake
+  snakemake -s workflow/expression/Snakefile --use-conda --cores 10
+  snakemake -s workflow/expression/Snakefile --use-conda --cores 10 quantify
+
+Izaskun Mallona, GPLv3
+"""
+
+import os.path as op
+
+EXPR = op.join("data", "rna")
+EXPR_META = op.join(EXPR, "meta")
+EXPR_RAW = op.join(EXPR, "raw")
+EXPR_TRIMMED = op.join(EXPR, "trimmed")
+EXPR_QC_RAW = op.join(EXPR, "qc", "raw")
+EXPR_QC_TRIMMED = op.join(EXPR, "qc", "trimmed")
+EXPR_MULTIQC_RAW = op.join(EXPR, "qc", "multiqc_raw")
+EXPR_MULTIQC_FULL = op.join(EXPR, "qc", "multiqc_full")
+EXPR_REF = op.join(EXPR, "ref", "gencode_v47")
+EXPR_QUANT = op.join(EXPR, "quant")
+
+N_CELLS = 10
+
+MIN_MAPPING_RATE = 60.0
+SAMPLE_TITLE_PREFIX = "scTrioSeq2Rna_"
+
+## Tang 2009 pre-amp primer / Smart-seq TSO shared 5' anchor. Provisional;
+## enable the cutadapt step only if raw FastQC shows 5' contamination.
+TANG_PRIMER = "AAGCAGTGGTATCAACGCAGAGT"
+
+GENCODE_BASE = "https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_47"
+GENCODE_TX_URL = f"{GENCODE_BASE}/gencode.v47.transcripts.fa.gz"
+GENCODE_GENOME_URL = f"{GENCODE_BASE}/GRCh38.primary_assembly.genome.fa.gz"
+GENCODE_GTF_URL = f"{GENCODE_BASE}/gencode.v47.primary_assembly.annotation.gtf.gz"
+
+GSE_MATRIX_URL = (
+    "https://ftp.ncbi.nlm.nih.gov/geo/series/GSE97nnn/GSE97693/matrix/"
+    "GSE97693_series_matrix.txt.gz"
+)
+
+ENV_RNA = op.join("..", "envs", "rnaseq.yml")
+
+
+rule all:
+    input:
+        op.join(EXPR_MULTIQC_RAW, "multiqc_report.html"),
+
+
+rule quantify:
+    input:
+        op.join(EXPR_QUANT, "mapping_rate_ok.flag"),
+        op.join(EXPR_MULTIQC_FULL, "multiqc_report.html"),
+
+
+rule download_series_matrix:
+    conda:
+        ENV_RNA
+    output:
+        matrix=op.join(EXPR_META, "GSE97693_series_matrix.txt.gz"),
+    params:
+        url=GSE_MATRIX_URL,
+        out_dir=EXPR_META,
+    log:
+        op.join("logs", "series_matrix.log"),
+    shell:
+        """
+        exec &> {log}
+        mkdir -p {params.out_dir}
+        wget --quiet --output-document {output.matrix} {params.url}
+        """
+
+
+rule download_rna_runinfo:
+    conda:
+        ENV_RNA
+    output:
+        runinfo=op.join(EXPR_META, "rna_runinfo.csv"),
+    log:
+        op.join("logs", "rna_runinfo.log"),
+    shell:
+        """
+        exec &> {log}
+        mkdir -p {EXPR_META}
+        esearch -db sra -query PRJNA382695 | \
+            efetch -format runinfo > {output.runinfo}
+        head -1 {output.runinfo}
+        wc -l {output.runinfo}
+        """
+
+
+rule parse_sctrioseq2_rna_cells:
+    """Single point where cells are assigned to the protocol: keep titles
+    starting with SAMPLE_TITLE_PREFIX, join to runinfo on GSM."""
+    conda:
+        ENV_RNA
+    input:
+        matrix=op.join(EXPR_META, "GSE97693_series_matrix.txt.gz"),
+        runinfo=op.join(EXPR_META, "rna_runinfo.csv"),
+    output:
+        cells=op.join(EXPR_META, "sctrioseq2_rna_cells.tsv"),
+    params:
+        prefix=SAMPLE_TITLE_PREFIX,
+    log:
+        op.join("logs", "parse_cells.log"),
+    shell:
+        r"""
+        exec &> {log}
+
+        tmp_titles=$(mktemp)
+        zcat {input.matrix} | awk -F'\t' -v prefix='{params.prefix}' '
+            /^!Sample_title/ {{
+                for (i=2; i<=NF; i++) {{ titles[i] = $i; gsub(/"/, "", titles[i]); }}
+            }}
+            /^!Sample_geo_accession/ {{
+                for (i=2; i<=NF; i++) {{
+                    g = $i; gsub(/"/, "", g);
+                    if (index(titles[i], prefix) == 1) print g "\t" titles[i];
+                }}
+            }}
+        ' > "$tmp_titles"
+        wc -l "$tmp_titles"
+
+        awk -F',' 'NR > 1 && $13 == "RNA-Seq" {{ print $30 "\t" $1 }}' {input.runinfo} \
+            | sort -k1,1 > "$tmp_titles".runinfo
+        sort -k1,1 "$tmp_titles" > "$tmp_titles".sorted
+
+        join -t $'\t' -1 1 -2 1 "$tmp_titles".sorted "$tmp_titles".runinfo | \
+            awk -F'\t' 'BEGIN {{ OFS="\t"; print "srr", "gsm", "title" }}
+                        {{ print $3, $1, $2 }}' | \
+            (head -1; tail -n +2 | sort -k3,3) > {output.cells}
+        head {output.cells}
+        wc -l {output.cells}
+        rm -f "$tmp_titles" "$tmp_titles".runinfo "$tmp_titles".sorted
+        """
+
+
+SUBSET_SEED = 42
+
+
+checkpoint select_rna_subset:
+    """Reproducible random pick: seeded awk shuffle, take N_CELLS."""
+    input:
+        cells=op.join(EXPR_META, "sctrioseq2_rna_cells.tsv"),
+    output:
+        subset=op.join(EXPR_META, "sctrioseq2_rna_cells_subset.tsv"),
+    params:
+        n=N_CELLS,
+        seed=SUBSET_SEED,
+    log:
+        op.join("logs", "select_subset.log"),
+    shell:
+        r"""
+        exec &> {log}
+        tmp=$(mktemp)
+        tail -n +2 {input.cells} | \
+            awk -v s={params.seed} 'BEGIN{{srand(s)}} {{printf "%.12f\t%s\n", rand(), $0}}' | \
+            sort -k1,1n > "$tmp"
+        {{
+          head -1 {input.cells}
+          head -n {params.n} "$tmp" | cut -f2-
+        }} > {output.subset}
+        rm -f "$tmp"
+        cat {output.subset}
+        """
+
+
+def subset_accessions():
+    ckpt = checkpoints.select_rna_subset.get()
+    accs = []
+    with open(ckpt.output.subset) as fh:
+        fh.readline()
+        for line in fh:
+            parts = line.rstrip("\n").split("\t")
+            if parts and parts[0]:
+                accs.append(parts[0])
+    return accs
+
+
+def subset_fastqc_raw_targets(wildcards):
+    return [
+        op.join(EXPR_QC_RAW, f"{srr}_{mate}_fastqc.html")
+        for srr in subset_accessions()
+        for mate in ("1", "2")
+    ]
+
+
+def subset_fastqc_trimmed_targets(wildcards):
+    return [
+        op.join(EXPR_QC_TRIMMED, f"{srr}_{mate}.trim_fastqc.html")
+        for srr in subset_accessions()
+        for mate in ("1", "2")
+    ]
+
+
+def subset_salmon_quants(wildcards):
+    return [op.join(EXPR_QUANT, srr, "quant.sf") for srr in subset_accessions()]
+
+
+rule fasterq_dump:
+    conda:
+        ENV_RNA
+    output:
+        r1=op.join(EXPR_RAW, "{srr}_1.fastq.gz"),
+        r2=op.join(EXPR_RAW, "{srr}_2.fastq.gz"),
+    params:
+        raw=EXPR_RAW,
+        tmp=op.join(EXPR_RAW, "tmp_{srr}"),
+    threads: 4
+    log:
+        op.join("logs", "fasterq_dump_{srr}.log"),
+    shell:
+        """
+        exec &> {log}
+        mkdir -p {params.raw} {params.tmp}
+
+        prefetch --output-directory {params.tmp} {wildcards.srr}
+        fasterq-dump \
+            --split-files \
+            --threads {threads} \
+            --temp {params.tmp} \
+            --outdir {params.raw} \
+            {params.tmp}/{wildcards.srr}
+
+        pigz -f -p {threads} {params.raw}/{wildcards.srr}_1.fastq
+        pigz -f -p {threads} {params.raw}/{wildcards.srr}_2.fastq
+        rm -rf {params.tmp}
+        """
+
+
+rule fastqc_raw:
+    conda:
+        ENV_RNA
+    input:
+        op.join(EXPR_RAW, "{srr}_{mate}.fastq.gz"),
+    output:
+        html=op.join(EXPR_QC_RAW, "{srr}_{mate}_fastqc.html"),
+        zip=op.join(EXPR_QC_RAW, "{srr}_{mate}_fastqc.zip"),
+    params:
+        out=EXPR_QC_RAW,
+    threads: 2
+    log:
+        op.join("logs", "fastqc_raw_{srr}_{mate}.log"),
+    shell:
+        """
+        exec &> {log}
+        mkdir -p {params.out}
+        fastqc --threads {threads} --outdir {params.out} {input}
+        """
+
+
+rule multiqc_raw:
+    conda:
+        ENV_RNA
+    input:
+        raw=subset_fastqc_raw_targets,
+    output:
+        html=op.join(EXPR_MULTIQC_RAW, "multiqc_report.html"),
+    params:
+        out=EXPR_MULTIQC_RAW,
+        scan=EXPR_QC_RAW,
+    log:
+        op.join("logs", "multiqc_raw.log"),
+    shell:
+        """
+        exec &> {log}
+        mkdir -p {params.out}
+        multiqc --force --outdir {params.out} --filename multiqc_report.html {params.scan}
+        """
+
+
+rule trim_adapters_and_primers:
+    """trim_galore for Illumina adapters + low-qual, cutadapt for Tang primer /
+    TSO 5' anchor on both mates. Min length 20 after trimming."""
+    conda:
+        ENV_RNA
+    input:
+        r1=op.join(EXPR_RAW, "{srr}_1.fastq.gz"),
+        r2=op.join(EXPR_RAW, "{srr}_2.fastq.gz"),
+    output:
+        r1_trim=op.join(EXPR_TRIMMED, "{srr}_1.trim.fastq.gz"),
+        r2_trim=op.join(EXPR_TRIMMED, "{srr}_2.trim.fastq.gz"),
+        cutadapt_log=op.join(EXPR_TRIMMED, "{srr}_cutadapt.log"),
+    params:
+        out=EXPR_TRIMMED,
+        primer=TANG_PRIMER,
+    threads: 4
+    log:
+        op.join("logs", "trim_{srr}.log"),
+    shell:
+        """
+        exec &> {log}
+        mkdir -p {params.out}
+
+        trim_galore --paired --cores {threads} --output_dir {params.out} \
+            {input.r1} {input.r2}
+
+        tg_r1={params.out}/{wildcards.srr}_1_val_1.fq.gz
+        tg_r2={params.out}/{wildcards.srr}_2_val_2.fq.gz
+
+        cutadapt \
+            -g {params.primer} -G {params.primer} \
+            --minimum-length 20 \
+            -j {threads} \
+            -o {output.r1_trim} -p {output.r2_trim} \
+            $tg_r1 $tg_r2 > {output.cutadapt_log}
+
+        rm -f $tg_r1 $tg_r2
+        """
+
+
+rule fastqc_trimmed:
+    conda:
+        ENV_RNA
+    input:
+        op.join(EXPR_TRIMMED, "{srr}_{mate}.trim.fastq.gz"),
+    output:
+        html=op.join(EXPR_QC_TRIMMED, "{srr}_{mate}.trim_fastqc.html"),
+        zip=op.join(EXPR_QC_TRIMMED, "{srr}_{mate}.trim_fastqc.zip"),
+    params:
+        out=EXPR_QC_TRIMMED,
+    threads: 2
+    log:
+        op.join("logs", "fastqc_trim_{srr}_{mate}.log"),
+    shell:
+        """
+        exec &> {log}
+        mkdir -p {params.out}
+        fastqc --threads {threads} --outdir {params.out} {input}
+        """
+
+
+rule download_gencode_references:
+    conda:
+        ENV_RNA
+    output:
+        transcripts=op.join(EXPR_REF, "gencode.v47.transcripts.fa.gz"),
+        genome=op.join(EXPR_REF, "GRCh38.primary_assembly.genome.fa.gz"),
+        gtf=op.join(EXPR_REF, "gencode.v47.primary_assembly.annotation.gtf.gz"),
+    params:
+        out_dir=EXPR_REF,
+        tx_url=GENCODE_TX_URL,
+        genome_url=GENCODE_GENOME_URL,
+        gtf_url=GENCODE_GTF_URL,
+    log:
+        op.join("logs", "gencode_download.log"),
+    shell:
+        """
+        exec &> {log}
+        mkdir -p {params.out_dir}
+        wget --quiet --output-document {output.transcripts} {params.tx_url}
+        wget --quiet --output-document {output.genome} {params.genome_url}
+        wget --quiet --output-document {output.gtf} {params.gtf_url}
+        """
+
+
+rule build_salmon_index:
+    """Decoy-aware index: transcripts + genome as gentrome, genome seq names as decoys."""
+    conda:
+        ENV_RNA
+    input:
+        transcripts=op.join(EXPR_REF, "gencode.v47.transcripts.fa.gz"),
+        genome=op.join(EXPR_REF, "GRCh38.primary_assembly.genome.fa.gz"),
+    output:
+        idx_flag=op.join(EXPR_REF, "salmon_index", "info.json"),
+        decoys=op.join(EXPR_REF, "decoys.txt"),
+        gentrome=temp(op.join(EXPR_REF, "gentrome.fa.gz")),
+    params:
+        idx=op.join(EXPR_REF, "salmon_index"),
+    threads: 8
+    log:
+        op.join("logs", "salmon_index.log"),
+    shell:
+        """
+        exec &> {log}
+        zcat {input.genome} | grep '^>' | sed 's/^>//; s/ .*$//' > {output.decoys}
+        cat {input.transcripts} {input.genome} > {output.gentrome}
+        salmon index \
+            --threads {threads} \
+            --transcripts {output.gentrome} \
+            --decoys {output.decoys} \
+            --index {params.idx} \
+            -k 31 \
+            --gencode
+        """
+
+
+rule salmon_quant:
+    conda:
+        ENV_RNA
+    input:
+        idx_flag=op.join(EXPR_REF, "salmon_index", "info.json"),
+        r1=op.join(EXPR_TRIMMED, "{srr}_1.trim.fastq.gz"),
+        r2=op.join(EXPR_TRIMMED, "{srr}_2.trim.fastq.gz"),
+    output:
+        quant=op.join(EXPR_QUANT, "{srr}", "quant.sf"),
+        lib_log=op.join(EXPR_QUANT, "{srr}", "logs", "salmon_quant.log"),
+    params:
+        idx=op.join(EXPR_REF, "salmon_index"),
+        out_dir=op.join(EXPR_QUANT, "{srr}"),
+    threads: 8
+    log:
+        op.join("logs", "salmon_quant_{srr}.log"),
+    shell:
+        """
+        exec &> {log}
+        salmon quant \
+            --index {params.idx} \
+            --libType A \
+            --validateMappings --gcBias --seqBias \
+            --threads {threads} \
+            -1 {input.r1} -2 {input.r2} \
+            --output {params.out_dir}
+        """
+
+
+rule check_mapping_rate:
+    """Fail if any prototype cell has salmon percent_mapped below MIN_MAPPING_RATE."""
+    conda:
+        ENV_RNA
+    input:
+        quants=subset_salmon_quants,
+    output:
+        summary=op.join(EXPR_QUANT, "mapping_rate_summary.tsv"),
+        flag=op.join(EXPR_QUANT, "mapping_rate_ok.flag"),
+    params:
+        threshold=MIN_MAPPING_RATE,
+    log:
+        op.join("logs", "check_mapping_rate.log"),
+    shell:
+        r"""
+        exec &> {log}
+        python3 - "{output.summary}" "{output.flag}" {params.threshold} {input.quants} <<'PY'
+        import json, os, sys
+        summary_path, flag_path, threshold = sys.argv[1], sys.argv[2], float(sys.argv[3])
+        quants = sys.argv[4:]
+        rows, failed = [], []
+        for quant_sf in quants:
+            srr = os.path.basename(os.path.dirname(quant_sf))
+            meta = os.path.join(os.path.dirname(quant_sf), "aux_info", "meta_info.json")
+            with open(meta) as fh:
+                info = json.load(fh)
+            pct = float(info.get("percent_mapped", 0.0))
+            rows.append((srr, pct))
+            if pct < threshold:
+                failed.append((srr, pct))
+        with open(summary_path, "w") as fh:
+            fh.write("srr\tpercent_mapped\tpass\n")
+            for srr, pct in rows:
+                fh.write(f"{srr}\t{pct:.3f}\t{'yes' if pct >= threshold else 'no'}\n")
+        for srr, pct in rows:
+            print(f"{srr}\t{pct:.3f}")
+        if failed:
+            msg = "; ".join(f"{s}={p:.2f}%" for s, p in failed)
+            sys.exit(f"mapping rate below {threshold}% for: {msg}")
+        with open(flag_path, "w") as fh:
+            fh.write(f"all cells >= {threshold}%\n")
+        PY
+        """
+
+
+rule multiqc_full:
+    conda:
+        ENV_RNA
+    input:
+        raw=subset_fastqc_raw_targets,
+        trimmed=subset_fastqc_trimmed_targets,
+        quants=subset_salmon_quants,
+    output:
+        html=op.join(EXPR_MULTIQC_FULL, "multiqc_report.html"),
+    params:
+        out=EXPR_MULTIQC_FULL,
+        scan=EXPR,
+    log:
+        op.join("logs", "multiqc_full.log"),
+    shell:
+        """
+        exec &> {log}
+        mkdir -p {params.out}
+        multiqc --force --outdir {params.out} --filename multiqc_report.html {params.scan}
+        """

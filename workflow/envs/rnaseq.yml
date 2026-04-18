@@ -1,0 +1,16 @@
+name: rnaseq
+channels:
+  - conda-forge
+  - bioconda
+channel_priority: strict
+dependencies:
+  - sra-tools
+  - entrez-direct
+  - fastqc
+  - trim-galore
+  - cutadapt
+  - multiqc
+  - salmon
+  - pigz
+  - wget
+  - gawk
