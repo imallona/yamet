@@ -33,23 +33,55 @@ EXPR_QUANT = op.join(EXPR, "quant")
 
 N_CELLS = 10
 
-MIN_MAPPING_RATE = 60.0
+## Bian 2018 report a ~20% transcriptome-mapping floor per cell; anything
+## below that is a library-prep failure, not a trimming issue.
+MIN_MAPPING_RATE = 20.0
 SAMPLE_TITLE_PREFIX = "scTrioSeq2Rna_"
 
-## Protocol-specific cutadapt args, applied after trim_galore. The split is
-## empirical from raw FastQC: newer GSMs use Clontech SMARTer / Smart-seq2
-## (heavy 5' TSO on R1), older GSMs use a Tang 2009 oligo-dT + restriction
-## polylinker cassette (heavy poly-A/T and linker contamination).
+## Protocol-specific cutadapt adapters. Most motifs are 5' contaminants
+## (TSO, CDS primer, ISPCR anchor, polylinker cassette, oligo-dT polyT) so
+## they are passed via -g/-G: cutadapt keeps the 3' side = cDNA whether the
+## match is at the very start or a few bases in. Read-through artifacts on
+## the 3' end (TSO reverse complement, polyA, Illumina Single-End PCR
+## primer) stay as -a/-A. TruSeq P7/P5 read-through remains as -b/-B because
+## the full and truncated variants can land at many positions.
+##   smartseq2  R1 5' dominated by SMARTer II A TSO
+##              (AAGCAGTGGTATCAACGCAGAGTACATGGG), often in tandem. R2 5'
+##              carries the ISPCR anchor (AAGCAGTGGTATCAACGCAGAGT) shared by
+##              TSO and CDS primer, followed by polyT from the oligo-dT30VN
+##              tail. Short inserts read through to the TSO reverse
+##              complement (CCCATGTACTCTGCGTTGATACCACTGCTT) on 3' ends.
+##   tang       Both mates start with the polylinker cassette in three
+##              observed orientations (XhoI-AscI-BamHI, BamHI-AscI-SalI,
+##              BamHI-AscI-XhoI), followed by polyT from oligo-dT capture.
+##              Short inserts read through to polyA and to TruSeq P7/P5.
 TRIM_CUTADAPT_ARGS = {
     "smartseq2": [
+        "-g", "AAGCAGTGGTATCAACGCAGAGTACATGGGAAGCAGTGGTATCAACGCAGAGTACATGGG",
         "-g", "AAGCAGTGGTATCAACGCAGAGTACATGGG",
-        "-G", "CCCATGTACTCTGCGTTGATACCACTGCTT",
+        "-g", "AAGCAGTGGTATCAACGCAGAGCACACGTCTGAACTCCAGTCAC",
+        "-G", "AAGCAGTGGTATCAACGCAGAGCACACGTCTGAACTCCAGTCAC",
+        "-G", "AAGCAGTGGTATCAACGCAGAGT",
+        "-G", "T{20}",
+        "-a", "CCCATGTACTCTGCGTTGATACCACTGCTT",
+        "-A", "CCCATGTACTCTGCGTTGATACCACTGCTT",
+        "-a", "TCAGACGTGTGCTCTTCCGATCT",
+        "-A", "TCAGACGTGTGCTCTTCCGATCT",
     ],
     "tang": [
-        "-g", "GGATCCGGCGCGCCGTCGAC",
-        "-G", "GGATCCGGCGCGCCGTCGAC",
+        "-g", "ATATCTCGAGGGCGCGCCGGATCC",
+        "-g", "ATATGGATCCGGCGCGCCGTCGAC",
+        "-g", "ATATGGATCCGGCGCGCCCTCGAG",
+        "-G", "ATATCTCGAGGGCGCGCCGGATCC",
+        "-G", "ATATGGATCCGGCGCGCCGTCGAC",
+        "-G", "ATATGGATCCGGCGCGCCCTCGAG",
+        "-g", "T{20}",
+        "-G", "T{20}",
         "-a", "A{20}",
         "-A", "A{20}",
+        "-b", "AGATCGGAAGAGCACACGTCTGAACTCCAGTCACGAGCGCATCTCGTATGCCGTCTT",
+        "-B", "AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGTAGATCTCGGTGGTCGCCGTATCATT",
+        "-b", "ACACGTCTGAACTCCAGTCACGAGCGCATCTCGTATGCCGTCTTCTGCTT",
     ],
 }
 
@@ -80,6 +112,13 @@ rule quantify:
     input:
         op.join(EXPR_QUANT, "mapping_rate_ok.flag"),
         op.join(EXPR_MULTIQC_FULL, "multiqc_report.html"),
+
+
+rule check_trim:
+    """Stop-point after trimming + post-trim FastQC. Inspect the HTMLs to
+    confirm adapter/primer cleanup before running salmon."""
+    input:
+        lambda wildcards: subset_fastqc_trimmed_targets(wildcards),
 
 
 rule download_series_matrix:
@@ -331,10 +370,9 @@ rule multiqc_raw:
 
 rule trim_adapters_and_primers:
     """Single-pass cutadapt per cell. Protocol-specific 5'/3' adapters from
-    TRIM_CUTADAPT_ARGS are combined with the Illumina TruSeq read-through
-    adapter on both mates, Q>=20 quality trimming, and a 20nt length floor.
-    trim_galore is intentionally not used: cutadapt covers all the steps and
-    scales linearly with workflow.cores."""
+    TRIM_CUTADAPT_ARGS are combined with the short TruSeq read-through stub
+    on both mates, Q>=20 trimming on both ends, --overlap 5 for partial
+    matches, -e 0.2 error tolerance, and a 25nt length floor."""
     conda:
         ENV_RNA
     input:
@@ -357,10 +395,12 @@ rule trim_adapters_and_primers:
         mkdir -p {params.out}
 
         cutadapt \
-            -a AGATCGGAAGAGC -A AGATCGGAAGAGC \
+            -b AGATCGGAAGAGC -B AGATCGGAAGAGC \
             {params.protocol_args} \
-            -q 20 \
-            --minimum-length 20 \
+            -q 20,20 \
+            -e 0.2 \
+            --overlap 5 \
+            --minimum-length 25 \
             -j {threads} \
             -o {output.r1_trim} -p {output.r2_trim} \
             {input.r1} {input.r2} > {output.report}
