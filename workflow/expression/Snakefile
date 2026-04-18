@@ -208,7 +208,11 @@ def subset_salmon_quants(wildcards):
     return [op.join(EXPR_QUANT, srr, "quant.sf") for srr in subset_accessions()]
 
 
-rule fasterq_dump:
+rule download_fastqs:
+    """Fetch paired-end FASTQs from the ENA FTP mirror. ENA already serves
+    them gzipped and indexed, so no sra-tools is needed (sra-tools 3.4.1
+    segfaults here). The ENA filereport API returns the canonical FTP URLs
+    per run."""
     conda:
         ENV_RNA
     output:
@@ -216,26 +220,33 @@ rule fasterq_dump:
         r2=op.join(EXPR_RAW, "{srr}_2.fastq.gz"),
     params:
         raw=EXPR_RAW,
-        tmp=op.join(EXPR_RAW, "tmp_{srr}"),
-    threads: 4
+    threads: 2
     log:
-        op.join("logs", "fasterq_dump_{srr}.log"),
+        op.join("logs", "download_fastqs_{srr}.log"),
     shell:
-        """
+        r"""
         exec &> {log}
-        mkdir -p {params.raw} {params.tmp}
+        mkdir -p {params.raw}
 
-        prefetch --output-directory {params.tmp} {wildcards.srr}
-        fasterq-dump \
-            --split-files \
-            --threads {threads} \
-            --temp {params.tmp} \
-            --outdir {params.raw} \
-            {params.tmp}/{wildcards.srr}
+        urls=$(curl -sSf "https://www.ebi.ac.uk/ena/portal/api/filereport?accession={wildcards.srr}&result=read_run&fields=fastq_ftp&format=tsv" \
+               | awk -F'\t' 'NR==2 {{print $2}}')
+        echo "ENA fastq_ftp: $urls"
+        if [ -z "$urls" ]; then
+            echo "No fastq_ftp returned for {wildcards.srr}" >&2
+            exit 1
+        fi
 
-        pigz -f -p {threads} {params.raw}/{wildcards.srr}_1.fastq
-        pigz -f -p {threads} {params.raw}/{wildcards.srr}_2.fastq
-        rm -rf {params.tmp}
+        url_r1=$(echo "$urls" | awk -F';' '{{print $1}}')
+        url_r2=$(echo "$urls" | awk -F';' '{{print $2}}')
+        if [ -z "$url_r1" ] || [ -z "$url_r2" ]; then
+            echo "Expected paired fastqs for {wildcards.srr}, got: $urls" >&2
+            exit 1
+        fi
+
+        wget --quiet --tries=3 --timeout=60 \
+             --output-document {output.r1} "https://$url_r1"
+        wget --quiet --tries=3 --timeout=60 \
+             --output-document {output.r2} "https://$url_r2"
         """
 
 

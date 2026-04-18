@@ -4,13 +4,12 @@ channels:
   - bioconda
 channel_priority: strict
 dependencies:
-  - sra-tools
   - entrez-direct
+  - curl
   - fastqc
   - trim-galore
   - cutadapt
   - multiqc
   - salmon
-  - pigz
   - wget
   - gawk
