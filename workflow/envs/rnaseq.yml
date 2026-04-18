@@ -7,7 +7,6 @@ dependencies:
   - entrez-direct
   - curl
   - fastqc
-  - trim-galore
   - cutadapt
   - multiqc
   - salmon

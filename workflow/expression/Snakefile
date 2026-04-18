@@ -36,9 +36,27 @@ N_CELLS = 10
 MIN_MAPPING_RATE = 60.0
 SAMPLE_TITLE_PREFIX = "scTrioSeq2Rna_"
 
-## Tang 2009 pre-amp primer / Smart-seq TSO shared 5' anchor. Provisional;
-## enable the cutadapt step only if raw FastQC shows 5' contamination.
-TANG_PRIMER = "AAGCAGTGGTATCAACGCAGAGT"
+## Protocol-specific cutadapt args, applied after trim_galore. The split is
+## empirical from raw FastQC: newer GSMs use Clontech SMARTer / Smart-seq2
+## (heavy 5' TSO on R1), older GSMs use a Tang 2009 oligo-dT + restriction
+## polylinker cassette (heavy poly-A/T and linker contamination).
+TRIM_CUTADAPT_ARGS = {
+    "smartseq2": [
+        "-g", "AAGCAGTGGTATCAACGCAGAGTACATGGG",
+        "-G", "CCCATGTACTCTGCGTTGATACCACTGCTT",
+    ],
+    "tang": [
+        "-g", "GGATCCGGCGCGCCGTCGAC",
+        "-G", "GGATCCGGCGCGCCGTCGAC",
+        "-a", "A{20}",
+        "-A", "A{20}",
+    ],
+}
+
+## GSM numeric threshold separating Tang (earlier submission) from Smart-seq2
+## (later submission). Threshold chosen from the observed batches:
+## GSM2697xxx (Tang) and GSM3241xxx (Smart-seq2).
+PROTOCOL_GSM_THRESHOLD = 3000000
 
 GENCODE_BASE = "https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_47"
 GENCODE_TX_URL = f"{GENCODE_BASE}/gencode.v47.transcripts.fa.gz"
@@ -137,8 +155,11 @@ rule parse_sctrioseq2_rna_cells:
         sort -k1,1 "$tmp_titles" > "$tmp_titles".sorted
 
         join -t $'\t' -1 1 -2 1 "$tmp_titles".sorted "$tmp_titles".runinfo | \
-            awk -F'\t' 'BEGIN {{ OFS="\t"; print "srr", "gsm", "title" }}
-                        {{ print $3, $1, $2 }}' | \
+            awk -F'\t' -v thresh={PROTOCOL_GSM_THRESHOLD} \
+                'BEGIN {{ OFS="\t"; print "srr", "gsm", "title", "protocol" }}
+                 {{ gsm_num = $1; sub(/^GSM/, "", gsm_num);
+                    proto = (gsm_num + 0 >= thresh) ? "smartseq2" : "tang";
+                    print $3, $1, $2, proto }}' | \
             (head -1; tail -n +2 | sort -k3,3) > {output.cells}
         head {output.cells}
         wc -l {output.cells}
@@ -206,6 +227,23 @@ def subset_fastqc_trimmed_targets(wildcards):
 
 def subset_salmon_quants(wildcards):
     return [op.join(EXPR_QUANT, srr, "quant.sf") for srr in subset_accessions()]
+
+
+def protocol_for_srr(srr):
+    ckpt = checkpoints.select_rna_subset.get()
+    with open(ckpt.output.subset) as fh:
+        header = fh.readline().rstrip("\n").split("\t")
+        srr_i = header.index("srr")
+        proto_i = header.index("protocol")
+        for line in fh:
+            parts = line.rstrip("\n").split("\t")
+            if parts and parts[srr_i] == srr:
+                return parts[proto_i]
+    raise ValueError(f"srr {srr} not present in subset file")
+
+
+def trim_cutadapt_args(wildcards):
+    return " ".join(TRIM_CUTADAPT_ARGS[protocol_for_srr(wildcards.srr)])
 
 
 rule download_fastqs:
@@ -292,21 +330,25 @@ rule multiqc_raw:
 
 
 rule trim_adapters_and_primers:
-    """trim_galore for Illumina adapters + low-qual, cutadapt for Tang primer /
-    TSO 5' anchor on both mates. Min length 20 after trimming."""
+    """Single-pass cutadapt per cell. Protocol-specific 5'/3' adapters from
+    TRIM_CUTADAPT_ARGS are combined with the Illumina TruSeq read-through
+    adapter on both mates, Q>=20 quality trimming, and a 20nt length floor.
+    trim_galore is intentionally not used: cutadapt covers all the steps and
+    scales linearly with workflow.cores."""
     conda:
         ENV_RNA
     input:
         r1=op.join(EXPR_RAW, "{srr}_1.fastq.gz"),
         r2=op.join(EXPR_RAW, "{srr}_2.fastq.gz"),
+        subset=op.join(EXPR_META, "sctrioseq2_rna_cells_subset.tsv"),
     output:
         r1_trim=op.join(EXPR_TRIMMED, "{srr}_1.trim.fastq.gz"),
         r2_trim=op.join(EXPR_TRIMMED, "{srr}_2.trim.fastq.gz"),
-        cutadapt_log=op.join(EXPR_TRIMMED, "{srr}_cutadapt.log"),
+        report=op.join(EXPR_TRIMMED, "{srr}_cutadapt.log"),
     params:
         out=EXPR_TRIMMED,
-        primer=TANG_PRIMER,
-    threads: 4
+        protocol_args=trim_cutadapt_args,
+    threads: workflow.cores
     log:
         op.join("logs", "trim_{srr}.log"),
     shell:
@@ -314,20 +356,14 @@ rule trim_adapters_and_primers:
         exec &> {log}
         mkdir -p {params.out}
 
-        trim_galore --paired --cores {threads} --output_dir {params.out} \
-            {input.r1} {input.r2}
-
-        tg_r1={params.out}/{wildcards.srr}_1_val_1.fq.gz
-        tg_r2={params.out}/{wildcards.srr}_2_val_2.fq.gz
-
         cutadapt \
-            -g {params.primer} -G {params.primer} \
+            -a AGATCGGAAGAGC -A AGATCGGAAGAGC \
+            {params.protocol_args} \
+            -q 20 \
             --minimum-length 20 \
             -j {threads} \
             -o {output.r1_trim} -p {output.r2_trim} \
-            $tg_r1 $tg_r2 > {output.cutadapt_log}
-
-        rm -f $tg_r1 $tg_r2
+            {input.r1} {input.r2} > {output.report}
         """
 
 
