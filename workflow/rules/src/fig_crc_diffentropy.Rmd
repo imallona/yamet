@@ -54,6 +54,7 @@ summarize_contrast <- function(df, alpha = 0.05) {
 summary_table <- bind_rows(lapply(names(de_nc), function(nm) {
   cbind(contrast = nm, summarize_contrast(de_nc[[nm]]$coefs_df))
 }))
+write.csv(summary_table, "crc_diffentropy_counts.csv", row.names = FALSE)
 ```
 
 ```{r panel-a}
@@ -111,6 +112,8 @@ prop_df <- bind_rows(lapply(names(de_nc), function(nm) {
 })) %>%
   filter(!is.na(proportion)) %>%
   mutate(contrast_dir = paste0(contrast, "\n(", direction, ")"))
+
+write.csv(prop_df, "crc_diffentropy_annotation_overlap.csv", row.names = FALSE)
 ```
 
 ```{r panel-b}
@@ -148,6 +151,18 @@ comp_df <- bind_rows(lapply(key_anns, function(ann) {
                overlap = "other",       annotation = gsub("_bin$", "", ann))
   )
 }))
+
+comp_summary <- comp_df %>%
+  group_by(annotation, location, overlap) %>%
+  summarise(
+    median_adjS = median(adjS, na.rm = TRUE),
+    q25         = quantile(adjS, 0.25, na.rm = TRUE),
+    q75         = quantile(adjS, 0.75, na.rm = TRUE),
+    n_cells     = sum(!is.na(adjS)),
+    .groups     = "drop"
+  )
+write.csv(comp_summary, "crc_diffentropy_cell_adjS_by_overlap.csv",
+          row.names = FALSE)
 
 pc <- ggplot(comp_df, aes(x = location, y = adjS, fill = overlap)) +
   geom_boxplot(outlier.size = 0.2, lwd = 0.3) +

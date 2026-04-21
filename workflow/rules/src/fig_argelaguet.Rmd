@@ -16,12 +16,14 @@ suppressPackageStartupMessages({
   library(ComplexHeatmap)
   library(circlize)
   library(ggrastr)
+  library(ggrepel)
   library(viridisLite)
   library(grid)
 })
 
 source("rules/src/ggtheme.R")
 source("rules/src/palettes.R")
+source("rules/src/driver_utils.R")
 
 knitr::opts_chunk$set(
   echo    = TRUE,
@@ -67,6 +69,7 @@ tc_adjS <- ent$adjsampens %>%
     hi  = quantile(sampen, 0.75, na.rm = TRUE),
     .groups = "drop"
   )
+write.csv(tc_adjS, "argelaguet_fig_adjS_by_stage_annotation.csv", row.names = FALSE)
 
 pb <- ggplot(tc_adjS, aes(x = stage, y = median_adjS, color = annotation, group = annotation)) +
   geom_line(linewidth = 0.5) +
@@ -90,6 +93,7 @@ tc_adjH <- ent$adjshannons %>%
     hi  = quantile(median_shannon, 0.75, na.rm = TRUE),
     .groups = "drop"
   )
+write.csv(tc_adjH, "argelaguet_fig_adjH_by_stage_annotation.csv", row.names = FALSE)
 
 pc <- ggplot(tc_adjH, aes(x = stage, y = median_adjH, color = annotation, group = annotation)) +
   geom_line(linewidth = 0.5) +
@@ -125,12 +129,31 @@ var_lin <- ent$adjsampens %>%
   summarise(iqr = IQR(sampen, na.rm = TRUE), .groups = "drop") %>%
   arrange(desc(iqr)) %>%
   mutate(lineage = factor(lineage, levels = lineage))
+write.csv(var_lin, "argelaguet_fig_adjS_iqr_by_lineage.csv", row.names = FALSE)
 
 pe <- ggplot(var_lin, aes(x = lineage, y = iqr)) +
   geom_col(fill = "#35b779") +
   coord_flip() +
   labs(x = NULL, y = "IQR adjS") +
   theme_ng(base_size = 8)
+```
+
+## Panel F: Driver categorization (adjH vs adjS across lineage class)
+
+For each annotation, SDs of group-level median adjH and adjS are computed
+across lineage classes and categorized (see driver_utils.R).
+
+```{r panel-f-driver}
+driver_df_arg <- categorize_drivers(grp_meta$all_grp_meta, "lineage_class")
+write.csv(driver_df_arg, "argelaguet_driver_sd_range.csv", row.names = FALSE)
+
+pf <- plot_driver_scatter(driver_df_arg,
+                          x_label = "SD of adjH across lineage classes",
+                          y_label = "SD of adjS across lineage classes") +
+  theme_ng(base_size = 8) +
+  theme(legend.key.size = unit(2, "mm"),
+        legend.text     = element_text(size = 6),
+        legend.title    = element_text(size = 7))
 ```
 
 ## Heatmap: Median adjS per lineage and annotation
@@ -181,6 +204,7 @@ ht <- Heatmap(
 - C: Median adjH per annotation across stages (line plot with IQR ribbon).
 - D: Per-cell adjS at enhancers (E7.5 union) vs promoters.
 - E: adjS variability (IQR) per lineage.
+- F: Driver categorization (SD adjH vs SD adjS across lineage classes).
 - Heatmap (separate): median adjS per lineage and annotation, split by lineage class.
 
 ```{r combined, fig.width = ng_fig_size(4, 2, panel_mm = 50)$w, fig.height = ng_fig_size(4, 2, panel_mm = 50)$h}
@@ -199,7 +223,7 @@ pe <- pe + theme(axis.text.y = element_text(size = 6))
 fig_w <- ng_fig_size(4, 2, panel_mm = 50)$w
 fig_h <- ng_fig_size(4, 2, panel_mm = 50)$h
 
-gg_fig <- (pa | pb | pc) / (pd | pe) +
+gg_fig <- (pa | pb | pc) / (pd | pe | pf) +
   plot_layout(heights = c(1, 0.9)) +
   plot_annotation(tag_levels = "A",
                   theme = theme(plot.tag = element_text(size = 8, face = "bold")))

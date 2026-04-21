@@ -51,8 +51,9 @@ rule render_fig_crc:
     conda:
         op.join("..", "envs", "r.yml")
     input:
-        op.join(CRC, "results", "crc.html"),
-        op.join(CRC, "results", "crc_embeddings_10000.html"),
+        crc_html = op.join(CRC, "results", "crc.html"),
+        emb_html = op.join(CRC, "results", "crc_embeddings_10000.html"),
+        de = op.join(CRC, "results", "de_list_10000.rds"),
     output:
         op.join(CRC, "results", "fig_crc.html")
     params:

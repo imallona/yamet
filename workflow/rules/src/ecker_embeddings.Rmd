@@ -259,12 +259,93 @@ ve_long <- pivot_longer(ve_win, c("cell_class", "sub_region"),
                         names_to = "variable", values_to = "median_ve")
 ve_long$assay <- factor(ve_long$assay, levels = assay_map)
 
+write.csv(ve_long, "ecker_win_varexp.csv", row.names = FALSE)
+
 ggplot(ve_long, aes(x = assay, y = median_ve, fill = variable)) +
   geom_col(position = position_dodge(width = 0.8)) +
   scale_fill_manual(values = c("cell_class" = "#0072B2", "sub_region" = "#E69F00")) +
   labs(x = NULL, y = "median % variance explained",
        title = "Variance explained (per-window HVW)") +
   theme_ng()
+```
+
+## Embedding diagnostics
+
+Why does per-window variance explained stay low? Candidates are high NA
+fractions per window, few HVFs surviving QC, cells dropped by the sparse
+fallback, and per-HVF variance being low in absolute terms. The diagnostic
+below logs these quantities per assay to `ecker_embedding_diagnostics.csv`
+and a compact text summary.
+
+```{r embedding_diagnostic}
+diag_rows <- list()
+
+na_stats <- function(mat) {
+  na_frac_row <- rowMeans(is.na(mat))
+  na_frac_col <- colMeans(is.na(mat))
+  list(
+    row_na_median = median(na_frac_row, na.rm = TRUE),
+    row_na_p90    = quantile(na_frac_row, 0.9, na.rm = TRUE),
+    col_na_median = median(na_frac_col, na.rm = TRUE),
+    col_na_p90    = quantile(na_frac_col, 0.9, na.rm = TRUE),
+    n_complete_rows = sum(na_frac_row == 0, na.rm = TRUE)
+  )
+}
+
+for (akey in names(assay_map)) {
+  lbl <- assay_map[[akey]]
+  if (!akey %in% assayNames(sce)) next
+  em  <- win_embeds[[lbl]]
+  if (is.null(em)) next
+
+  mat  <- as.matrix(assay(sce, akey))
+  ns   <- na_stats(mat)
+
+  hvf_mat <- mat[em$hvf_idx, em$kept_cols, drop = FALSE]
+  hvf_row_var <- matrixStats::rowVars(hvf_mat, na.rm = TRUE)
+
+  diag_rows[[lbl]] <- data.frame(
+    assay                  = lbl,
+    stage                  = em$stage,
+    n_cells_total          = ncol(sce),
+    n_cells_used           = sum(em$kept_cols),
+    cells_dropped_fraction = 1 - sum(em$kept_cols) / ncol(sce),
+    n_windows_total        = nrow(sce),
+    n_complete_rows        = ns$n_complete_rows,
+    row_na_median          = ns$row_na_median,
+    row_na_p90             = as.numeric(ns$row_na_p90),
+    col_na_median          = ns$col_na_median,
+    col_na_p90             = as.numeric(ns$col_na_p90),
+    n_hvf                  = length(em$hvf_idx),
+    hvf_var_median         = median(hvf_row_var, na.rm = TRUE),
+    hvf_var_q25            = quantile(hvf_row_var, 0.25, na.rm = TRUE),
+    hvf_var_q75            = quantile(hvf_row_var, 0.75, na.rm = TRUE),
+    stringsAsFactors       = FALSE
+  )
+}
+
+diag_df <- bind_rows(diag_rows)
+write.csv(diag_df, "ecker_embedding_diagnostics.csv", row.names = FALSE)
+
+diag_lines <- c(
+  "Ecker embedding diagnostic summary",
+  paste0("Total cells in SCE: ", ncol(sce)),
+  paste0("Total windows in SCE: ", nrow(sce)),
+  ""
+)
+for (lbl in diag_df$assay) {
+  r <- diag_df[diag_df$assay == lbl, ]
+  diag_lines <- c(diag_lines, sprintf(
+    "[%s] stage=%s | cells used=%d/%d (%.1f%% dropped) | HVF=%d | complete windows=%d | row NA median=%.3f | HVF row variance median=%.4f",
+    lbl, r$stage,
+    r$n_cells_used, r$n_cells_total,
+    100 * r$cells_dropped_fraction,
+    r$n_hvf, r$n_complete_rows, r$row_na_median, r$hvf_var_median
+  ))
+}
+writeLines(diag_lines, "ecker_embedding_diagnostics.txt")
+
+cat(paste(diag_lines, collapse = "\n"), "\n")
 ```
 
 ## Silhouette scores

@@ -16,12 +16,14 @@ suppressPackageStartupMessages({
   library(ComplexHeatmap)
   library(circlize)
   library(ggrastr)
+  library(ggrepel)
   library(viridisLite)
   library(grid)
 })
 
 source("rules/src/ggtheme.R")
 source("rules/src/palettes.R")
+source("rules/src/driver_utils.R")
 
 knitr::opts_chunk$set(
   echo    = TRUE,
@@ -42,6 +44,24 @@ meta         <- readRDS("ecker_groups_meta.rds")
 ent          <- readRDS("ecker_entropy.rds")
 umap_overlay <- readRDS("ecker_paper_umap_overlay.rds")
 win_umap     <- readRDS("ecker_umap_windows_adjS.rds")
+```
+
+```{r embedding_diagnostics_report}
+diag_path <- "ecker_embedding_diagnostics.csv"
+if (file.exists(diag_path)) {
+  ecker_diag <- read.csv(diag_path, stringsAsFactors = FALSE)
+  cat("Ecker embedding diagnostics (from ecker_embeddings.Rmd):\n")
+  print(ecker_diag)
+} else {
+  cat("ecker_embedding_diagnostics.csv not found; run ecker_embeddings before ",
+      "interpreting low variance-explained values.\n", sep = "")
+}
+
+ve_path <- "ecker_win_varexp.csv"
+if (file.exists(ve_path)) {
+  cat("\nEcker per-window variance explained by cell_class and sub_region:\n")
+  print(read.csv(ve_path, stringsAsFactors = FALSE))
+}
 ```
 
 ```{r paper-umap-data}
@@ -104,6 +124,7 @@ var_class <- ent$adjsampens %>%
   summarise(iqr = IQR(sampen, na.rm = TRUE), .groups = "drop") %>%
   arrange(desc(iqr)) %>%
   mutate(cell_class = factor(cell_class, levels = cell_class))
+write.csv(var_class, "ecker_fig_adjS_iqr_by_cell_class.csv", row.names = FALSE)
 
 pe <- ggplot(var_class, aes(x = cell_class, y = iqr, fill = cell_class)) +
   geom_col(show.legend = FALSE) +
@@ -124,12 +145,32 @@ r2_by_ann <- grp %>%
     r2 = summary(lm(median_adjS ~ cell_class, data = cur_data()))$r.squared,
     .groups = "drop"
   )
+write.csv(r2_by_ann, "ecker_fig_adjS_r2_by_cell_class.csv", row.names = FALSE)
 
 pf <- ggplot(r2_by_ann, aes(x = reorder(annotation, r2), y = r2)) +
   geom_col(fill = "#0072B2") +
   coord_flip() +
   labs(x = NULL, y = expression(R^2 ~ "(adjS ~ cell class)")) +
   theme_ng(base_size = 8)
+```
+
+## Panel H: Driver categorization (adjH vs adjS across cell class)
+
+For each annotation, SDs of group-level median adjH and adjS are computed
+across cell classes and categorized (see driver_utils.R). Both the summary
+table and derived driver labels are written to CSV for reuse.
+
+```{r panel-h-driver}
+driver_df_ecker <- categorize_drivers(grp, "cell_class")
+write.csv(driver_df_ecker, "ecker_driver_sd_range.csv", row.names = FALSE)
+
+ph <- plot_driver_scatter(driver_df_ecker,
+                          x_label = "SD of adjH across cell classes",
+                          y_label = "SD of adjS across cell classes") +
+  theme_ng(base_size = 8) +
+  theme(legend.key.size = unit(2, "mm"),
+        legend.text     = element_text(size = 6),
+        legend.title    = element_text(size = 7))
 ```
 
 ## Panel G: Window-level UMAP (adjS, genomic windows)
@@ -206,10 +247,11 @@ ht <- Heatmap(
 - E: adjS variability (IQR) per cell class.
 - F: R-squared of adjS explained by cell class, per annotation.
 - G: Window-level UMAP from genomic windows adjS.
+- H: Driver categorization (SD adjH vs SD adjS across cell classes).
 - Heatmap (separate): median adjS per cell type and annotation.
 
 ```{r combined, fig.width = ng_fig_size(4, 3, panel_mm = 45)$w, fig.height = ng_fig_size(4, 3, panel_mm = 45)$h}
-row2_panels <- if (!is.null(pg)) (pe | pf | pg) else (pe | pf)
+row2_panels <- if (!is.null(pg)) (pe | pf | pg | ph) else (pe | pf | ph)
 
 gg_fig <- (pa | pb | pc | pd) / row2_panels +
   plot_layout(heights = c(1, 0.9)) +

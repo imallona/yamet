@@ -327,6 +327,8 @@ ggplot(ve_win_long, aes(x = assay, y = median_ve, fill = variable)) +
   labs(x = NULL, y = "median % variance explained",
        title = "Variance explained (per-window HVW)") +
   theme_ng()
+
+write.csv(ve_win_long, "crc_win_varexp.csv", row.names = FALSE)
 ```
 
 ## Silhouette scores
@@ -609,6 +611,7 @@ cell_df <- data.frame(
   mean_adjS = colMeans(assay(windows_sce, "sampen_corrected"), na.rm = TRUE),
   mean_meth = colMeans(assay(windows_sce, "meth"),             na.rm = TRUE)
 )
+write.csv(cell_df, "crc_per_cell_summary.csv", row.names = FALSE)
 ```
 
 ```{r violins, fig.width = ng_fig_size(6, 1)$w, fig.height = ng_fig_size(6, 3)$h}
