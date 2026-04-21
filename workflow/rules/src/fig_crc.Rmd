@@ -271,6 +271,7 @@ ht_sample <- Heatmap(
   top_annotation  = ha_top,
   row_split       = row_cat,
   cluster_rows    = TRUE,
+  cluster_row_slices = FALSE,
   cluster_columns = TRUE,
   show_row_names    = TRUE,
   show_column_names = TRUE,
@@ -440,49 +441,46 @@ width of F and H).
 
 ```{r fc-panel-a-v2}
 pA_v2 <- ggplot() +
-  annotate("text", x = 0, y = 9.0, label = "Analysis design",
-           hjust = 0, size = 2.6, fontface = "bold") +
-  annotate("text", x = 0, y = 7.5,
-           label = sprintf("%d patients, %d biopsies",
+  annotate("text", x = 0, y = 9.3, label = "Colon\ncancer",
+           hjust = 0, vjust = 1, size = 2.4, fontface = "bold",
+           lineheight = 0.9) +
+  annotate("text", x = 0, y = 7.2,
+           label = sprintf("%d patients,\n%d biopsies",
                            length(patients_A), length(biopsies_A)),
-           hjust = 0, size = 2.1) +
-  annotate("text", x = 0, y = 6.0,
-           label = "unit = cells from one (patient, biopsy)",
-           hjust = 0, size = 2.1) +
-  annotate("text", x = 0, y = 4.5,
-           label = "1 adjS per region, 1 adjH per unit",
-           hjust = 0, size = 2.1) +
-  annotate("text", x = 0, y = 3.0,
-           label = sprintf("windows: %s tiles",
-                           format(nrow(embeds$row_data), big.mark = ",")),
-           hjust = 0, size = 2.1) +
-  annotate("text", x = 0, y = 1.5,
-           label = sprintf("features: %d annotations",
-                           length(unique(ent$adjsampens$annotation))),
-           hjust = 0, size = 2.1) +
-  coord_cartesian(xlim = c(0, 10), ylim = c(0, 10), clip = "off") +
+           hjust = 0, vjust = 1, size = 2.0, lineheight = 0.9) +
+  annotate("text", x = 0, y = 5.3,
+           label = "unit = cells\nfrom one\n(patient, biopsy)",
+           hjust = 0, vjust = 1, size = 2.0, lineheight = 0.9) +
+  annotate("text", x = 0, y = 2.6,
+           label = "1 adjS per\nregion,\n1 adjH per\nunit",
+           hjust = 0, vjust = 1, size = 2.0, lineheight = 0.9) +
+  coord_cartesian(xlim = c(0, 5), ylim = c(0, 10), clip = "off") +
   theme_void() +
-  theme(plot.margin = margin(2, 2, 2, 2, "mm"))
+  theme(plot.margin = margin(2, 1, 2, 1, "mm"))
 ```
 
 ```{r fc-panel-b-v2}
 mk_compact_umap <- function(df, color_col, pal, title_lab) {
   ggplot(df, aes(UMAP1, UMAP2, color = .data[[color_col]])) +
-    geom_point_rast(size = 0.15, alpha = 0.5, raster.dpi = 300) +
+    geom_point_rast(size = 0.2, alpha = 0.5, raster.dpi = 300) +
     scale_color_manual(values = pal) +
     facet_wrap(~ metric, nrow = 1) +
-    guides(color = guide_legend(override.aes = list(size = 1, alpha = 1),
-                                nrow = 2, byrow = TRUE)) +
+    guides(color = guide_legend(override.aes = list(size = 1.2, alpha = 1),
+                                nrow = 1)) +
     labs(x = "UMAP 1", y = "UMAP 2", color = title_lab) +
     theme_ng(base_size = 7) +
-    theme(legend.position   = "bottom",
-          legend.key.size   = unit(1.2, "mm"),
-          legend.text       = element_text(size = 5.5),
-          legend.title      = element_text(size = 6.5),
-          legend.margin     = margin(0, 0, 0, 0),
-          legend.box.margin = margin(-3, 0, 0, 0),
-          strip.text        = element_text(size = 6.5),
-          plot.margin       = margin(1, 1, 0, 1, "mm"))
+    theme(legend.position     = "bottom",
+          legend.key.size     = unit(1.2, "mm"),
+          legend.text         = element_text(size = 5.5),
+          legend.title        = element_text(size = 6.5),
+          legend.margin       = margin(0, 0, 0, 0),
+          legend.box.margin   = margin(-6, 0, -2, 0),
+          legend.box.spacing  = unit(0.5, "mm"),
+          legend.spacing.y    = unit(0, "mm"),
+          strip.text          = element_text(size = 6.5,
+                                             margin = margin(1, 0, 1, 0)),
+          panel.spacing       = unit(0.8, "mm"),
+          plot.margin         = margin(0, 0, 0, 0, "mm"))
 }
 
 p_loc_v2 <- mk_compact_umap(umap_df_B, "location",
@@ -490,7 +488,8 @@ p_loc_v2 <- mk_compact_umap(umap_df_B, "location",
 p_pat_v2 <- mk_compact_umap(umap_df_B, "patient",
                             crc_patient_pal,  "patient")
 
-pB_v2 <- wrap_elements(p_loc_v2 / p_pat_v2)
+pB_v2 <- wrap_elements(full = (p_loc_v2 / p_pat_v2) +
+                         plot_layout(heights = c(1, 1)))
 ```
 
 ```{r fc-panel-c-v2}
@@ -499,11 +498,13 @@ pC_v2 <- ggplot(ve_win_long, aes(x = assay, y = median_ve, fill = variable)) +
   scale_fill_manual(values = c("location" = "#0072B2", "patient" = "#E69F00")) +
   labs(x = "assay", y = "median % var. explained", fill = NULL) +
   theme_ng(base_size = 7) +
-  theme(legend.key.size   = unit(1.5, "mm"),
-        legend.position   = "top",
-        legend.text       = element_text(size = 6),
-        legend.margin     = margin(0, 0, 0, 0),
-        legend.box.margin = margin(0, 0, -2, 0))
+  theme(legend.key.size    = unit(1.5, "mm"),
+        legend.position    = "top",
+        legend.text        = element_text(size = 6),
+        legend.margin      = margin(0, 0, 0, 0),
+        legend.box.margin  = margin(0, 0, -4, 0),
+        legend.box.spacing = unit(0.5, "mm"),
+        plot.margin        = margin(0, 0, 0, 0, "mm"))
 ```
 
 ```{r fc-panel-d-v2}
@@ -524,6 +525,7 @@ ht_sample_v2 <- Heatmap(
   ),
   row_split       = row_cat,
   cluster_rows    = TRUE,
+  cluster_row_slices = FALSE,
   cluster_columns = TRUE,
   show_row_names    = TRUE,
   show_column_names = TRUE,
@@ -554,16 +556,19 @@ pE_v2 <- ggplot(cell_df_all, aes(x = mean_meth, y = mean_adjS, color = location)
   labs(x = "cell mean methylation", y = "cell mean adjS") +
   guides(x = guide_x_nolap(),
          color = guide_legend(override.aes = list(size = 1.5, alpha = 1),
-                              nrow = 2, byrow = TRUE)) +
+                              nrow = 1)) +
   theme_ng(base_size = 7) +
-  theme(legend.position   = "bottom",
-        legend.key.size   = unit(1.5, "mm"),
-        legend.text       = element_text(size = 6),
-        legend.title      = element_text(size = 7),
-        legend.margin     = margin(0, 0, 0, 0),
-        legend.box.margin = margin(-3, 0, 0, 0),
-        strip.text        = element_text(size = 6),
-        plot.margin       = margin(1, 1, 1, 1, "mm"))
+  theme(legend.position    = "bottom",
+        legend.key.size    = unit(1.2, "mm"),
+        legend.text        = element_text(size = 6),
+        legend.title       = element_text(size = 7),
+        legend.margin      = margin(0, 0, 0, 0),
+        legend.box.margin  = margin(-6, 0, -2, 0),
+        legend.box.spacing = unit(0.5, "mm"),
+        strip.text         = element_text(size = 6,
+                                          margin = margin(1, 0, 1, 0)),
+        panel.spacing      = unit(0.8, "mm"),
+        plot.margin        = margin(0, 0, 0, 0, "mm"))
 ```
 
 ```{r fc-panel-f-v2}
@@ -577,11 +582,13 @@ pF_v2 <- ggplot(df_long_de, aes(x = contrast, y = count + 1, fill = direction)) 
                                downregulated = "#d95f02")) +
   labs(x = "contrast (vs NC)", y = "windows (log)", fill = NULL) +
   theme_ng(base_size = 7) +
-  theme(legend.position   = "top",
-        legend.key.size   = unit(1.8, "mm"),
-        legend.text       = element_text(size = 5.5),
-        legend.margin     = margin(0, 0, 0, 0),
-        legend.box.margin = margin(0, 0, -2, 0))
+  theme(legend.position    = "top",
+        legend.key.size    = unit(1.5, "mm"),
+        legend.text        = element_text(size = 5.5),
+        legend.margin      = margin(0, 0, 0, 0),
+        legend.box.margin  = margin(0, 0, -4, 0),
+        legend.box.spacing = unit(0.5, "mm"),
+        plot.margin        = margin(0, 0, 0, 0, "mm"))
 ```
 
 ```{r fc-panel-g-v2}
@@ -600,52 +607,57 @@ pG_v2 <- ggplot(prop_df_v2, aes(x = contrast_dir, y = annotation)) +
   labs(x = "contrast (vs NC)", y = NULL,
        color = "prop.") +
   theme_ng(base_size = 6.5) +
-  theme(aspect.ratio      = NULL,
-        legend.position   = "right",
-        legend.key.size   = unit(1.5, "mm"),
-        legend.text       = element_text(size = 5),
-        legend.title      = element_text(size = 6),
-        legend.margin     = margin(0, 0, 0, 0),
-        legend.box.margin = margin(0, 0, 0, -2),
-        axis.text.y       = element_text(size = 5.5),
-        plot.margin       = margin(1, 1, 1, 1, "mm"))
+  theme(aspect.ratio       = NULL,
+        legend.position    = "right",
+        legend.key.size    = unit(1.2, "mm"),
+        legend.text        = element_text(size = 5),
+        legend.title       = element_text(size = 6),
+        legend.margin      = margin(0, 0, 0, 0),
+        legend.box.margin  = margin(0, 0, 0, -4),
+        legend.box.spacing = unit(0.5, "mm"),
+        axis.text.y        = element_text(size = 5.5),
+        axis.text.x        = element_text(size = 5.5, angle = 45,
+                                          hjust = 1, vjust = 1),
+        plot.margin        = margin(0, 0, 0, 0, "mm"))
 ```
 
 ```{r fc-panel-h-v2}
 pH_v2 <- plot_driver_scatter(driver_df,
                              x_label = "SD adjH (locations)",
                              y_label = "SD adjS (locations)") +
-  guides(color = guide_legend(nrow = 2, byrow = TRUE,
-                              title.position = "top"),
-         shape = guide_legend(nrow = 2, byrow = TRUE,
-                              title.position = "top")) +
+  guides(color = guide_legend(nrow = 1, title.position = "left"),
+         shape = guide_legend(nrow = 1, title.position = "left")) +
   theme_ng(base_size = 7) +
-  theme(legend.position   = "bottom",
-        legend.key.size   = unit(1.5, "mm"),
-        legend.text       = element_text(size = 5.5),
-        legend.title      = element_text(size = 6.5),
-        legend.margin     = margin(0, 0, 0, 0),
-        legend.box.margin = margin(-3, 0, 0, 0))
+  theme(legend.position    = "bottom",
+        legend.key.size    = unit(1.2, "mm"),
+        legend.text        = element_text(size = 5.5),
+        legend.title       = element_text(size = 6.5),
+        legend.margin      = margin(0, 0, 0, 0),
+        legend.box.margin  = margin(-6, 0, -2, 0),
+        legend.box.spacing = unit(0.5, "mm"),
+        plot.margin        = margin(0, 0, 0, 0, "mm"))
 
 pH_v2$layers[[which(sapply(pH_v2$layers, function(l)
   inherits(l$geom, "GeomTextRepel")))]] <- NULL
 pH_v2 <- pH_v2 +
-  ggrepel::geom_text_repel(size = 1.9, max.overlaps = Inf,
+  ggrepel::geom_text_repel(size = 1.6, max.overlaps = Inf,
                            min.segment.length = 0,
-                           segment.size = 0.2, box.padding = 0.2)
+                           segment.size = 0.2, box.padding = 0.25,
+                           force = 3)
 ```
 
-```{r single-page-combined-v2, fig.width = 8.27, fig.height = 9.0}
-row1_v2 <- pA_v2 + pB_v2 + pC_v2 + plot_layout(widths = c(0.9, 2.8, 1.1))
+```{r single-page-combined-v2, fig.width = 8.27, fig.height = 8.5}
+row1_v2 <- pA_v2 + pB_v2 + pC_v2 + plot_layout(widths = c(0.5, 5.0, 1.1))
 row2_v2 <- pD_v2 + pE_v2 + plot_layout(widths = c(1, 1))
 row3_v2 <- pF_v2 + pG_v2 + pH_v2 + plot_layout(widths = c(2, 1, 2))
 
 compact_fig <- row1_v2 / row2_v2 / row3_v2 +
-  plot_layout(heights = c(1.5, 1.3, 1)) +
+  plot_layout(heights = c(2.3, 1.4, 1)) +
   plot_annotation(tag_levels = "A",
                   theme = theme(
                     plot.tag          = element_text(size = 9, face = "bold"),
-                    plot.tag.position = c(0.01, 0.99)
+                    plot.tag.position = c(0.01, 0.99),
+                    plot.margin       = margin(1, 1, 1, 1, "mm")
                   ))
 
 print(compact_fig)
@@ -654,7 +666,7 @@ ggsave(
   file.path(out_dir, "fig_crc_half_a4.pdf"),
   plot   = compact_fig,
   width  = 8.27,
-  height = 9.0,
+  height = 8.5,
   units  = "in",
   device = cairo_pdf
 )
