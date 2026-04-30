@@ -97,9 +97,10 @@ filter they are never dropped to make a feature block dense.
 sce <- readRDS(snakemake@params$corrected_sce)
 
 ## ensure clean factor columns
-colData(sce)$cell_class  <- factor(colData(sce)$CellClass)
-colData(sce)$major_type  <- factor(colData(sce)$MajorType)
-colData(sce)$sub_region  <- factor(colData(sce)$SubRegion)
+colData(sce)$cell_class <- factor(colData(sce)$CellClass)
+colData(sce)$major_type <- factor(colData(sce)$MajorType)
+colData(sce)$sub_region <- factor(colData(sce)$SubRegion)
+colData(sce)$sub_type <- factor(colData(sce)$SubType)
 
 cc_lvls <- sort(unique(as.character(colData(sce)$cell_class)))
 
@@ -184,6 +185,22 @@ saveRDS(
 )
 ```
 
+```{r per_cell_summary}
+adjS_assay <- if ("sampen_corrected" %in% assayNames(sce)) "sampen_corrected" else "adjS"
+meth_assay <- if ("meth" %in% assayNames(sce)) "meth" else "methylation"
+
+per_cell_summary <- data.frame(
+  cell_id    = colnames(sce),
+  cell_class = colData(sce)$cell_class,
+  major_type = colData(sce)$major_type,
+  sub_type   = colData(sce)$sub_type,
+  mean_meth  = colMeans(as.matrix(assay(sce, meth_assay)), na.rm = TRUE),
+  mean_adjS  = colMeans(as.matrix(assay(sce, adjS_assay)), na.rm = TRUE),
+  stringsAsFactors = FALSE
+)
+write.csv(per_cell_summary, "ecker_per_cell_summary.csv", row.names = FALSE)
+```
+
 ## By cell class {.tabset .tabset-pills}
 
 ```{r win_cc_S, fig.width = ng_fig_size(2, 1, panel_mm = 60)$w, fig.height = ng_fig_size(2, 1, panel_mm = 60)$h}
@@ -252,10 +269,10 @@ ve_win <- bind_rows(lapply(names(assay_map), function(akey) {
   data.frame(
     assay      = lbl,
     cell_class = median(row_variance_explained(hvw_mat, colData(sce[, kept])$cell_class), na.rm = TRUE),
-    sub_region = median(row_variance_explained(hvw_mat, colData(sce[, kept])$sub_region), na.rm = TRUE))
+    sub_type   = median(row_variance_explained(hvw_mat, colData(sce[, kept])$sub_type),   na.rm = TRUE))
 }))
 
-ve_long <- pivot_longer(ve_win, c("cell_class", "sub_region"),
+ve_long <- pivot_longer(ve_win, c("cell_class", "sub_type"),
                         names_to = "variable", values_to = "median_ve")
 ve_long$assay <- factor(ve_long$assay, levels = assay_map)
 

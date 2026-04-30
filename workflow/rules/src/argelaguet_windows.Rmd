@@ -93,13 +93,15 @@ cat("Final assays:", paste(assayNames(sce), collapse = ", "), "\n")
 
 ```{r cell_qc_df}
 cell_df <- data.frame(
-  stage   = colData(sce)$stage,
+  cell_id = colnames(sce),
+  stage = colData(sce)$stage,
   lineage = colData(sce)$lineage10x,
-  mean_sampen   = colMeans(assay(sce, "sampen"), na.rm = TRUE),
-  mean_adjS     = colMeans(assay(sce, "adjS"), na.rm = TRUE),
+  mean_sampen = colMeans(assay(sce, "sampen"), na.rm = TRUE),
+  mean_adjS = colMeans(assay(sce, "adjS"), na.rm = TRUE),
   mean_corrected = colMeans(assay(sce, "sampen_corrected"), na.rm = TRUE),
-  mean_meth     = colMeans(assay(sce, "meth"), na.rm = TRUE)
+  mean_meth = colMeans(assay(sce, "meth"), na.rm = TRUE)
 )
+write.csv(cell_df, "argelaguet_per_cell_summary.csv", row.names = FALSE)
 ```
 
 ```{r sampen_by_stage, fig.width = ng_fig_size(4, 1)$w, fig.height = ng_fig_size(4, 1)$h}

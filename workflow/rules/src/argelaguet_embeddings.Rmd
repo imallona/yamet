@@ -288,6 +288,8 @@ ve_long <- pivot_longer(ve_win, c("stage", "lineage"),
                         names_to = "variable", values_to = "median_ve")
 ve_long$assay <- factor(ve_long$assay, levels = assay_map)
 
+write.csv(ve_long, "argelaguet_win_varexp.csv", row.names = FALSE)
+
 ggplot(ve_long, aes(x = assay, y = median_ve, fill = variable)) +
   geom_col(position = position_dodge(width = 0.8)) +
   scale_fill_manual(values = c("stage" = "#0072B2", "lineage" = "#E69F00")) +

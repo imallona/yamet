@@ -440,23 +440,104 @@ row 2 = D,E (E reshaped with facet_wrap nrow=2); row 3 = F,G,H (G at ~50%
 width of F and H).
 
 ```{r fc-panel-a-v2}
+schema_patients <- intersect(names(crc_patient_pal),
+                             unique(embeds$col_data$patient))[1:4]
+schema_biopsies <- list(
+  c("NC", "PT"),
+  c("NC", "PT", "LN"),
+  c("PT", "ML"),
+  c("NC", "PT", "MP")
+)
+schema_cells <- do.call(rbind, Map(function(pat, locs) {
+  data.frame(patient = pat, location = locs, stringsAsFactors = FALSE)
+}, schema_patients, schema_biopsies))
+schema_cells$col <- seq_len(nrow(schema_cells))
+schema_cells$pat_color <- crc_patient_pal[schema_cells$patient]
+schema_cells$loc_color <- crc_location_pal[schema_cells$location]
+
+loc_text_color <- c(NC = "white", PT = "white", LN = "white",
+                    ML = "white", MP = "white", MO = "black")
+schema_cells$loc_text <- loc_text_color[schema_cells$location]
+
+schema_regions <- c("windows", "CpG isl.", "HMM", "SCNA")
+n_schema_regions <- length(schema_regions)
+n_schema_cols <- nrow(schema_cells)
+
+set.seed(2)
+schema_grid <- expand.grid(col = seq_len(n_schema_cols),
+                           row = seq_len(n_schema_regions))
+schema_grid$val <- runif(nrow(schema_grid), 0.1, 0.95)
+
+bar_loc <- n_schema_regions + 0.9
+bar_pat <- n_schema_regions + 1.55
+ellipsis_y <- 0
+pat_centers <- tapply(schema_cells$col, schema_cells$patient, mean)
+
 pA_v2 <- ggplot() +
-  annotate("text", x = 0, y = 9.3, label = "Colon\ncancer",
-           hjust = 0, vjust = 1, size = 2.4, fontface = "bold",
-           lineheight = 0.9) +
-  annotate("text", x = 0, y = 7.2,
-           label = sprintf("%d patients,\n%d biopsies",
-                           length(patients_A), length(biopsies_A)),
-           hjust = 0, vjust = 1, size = 2.0, lineheight = 0.9) +
-  annotate("text", x = 0, y = 5.3,
-           label = "unit = cells\nfrom one\n(patient, biopsy)",
-           hjust = 0, vjust = 1, size = 2.0, lineheight = 0.9) +
-  annotate("text", x = 0, y = 2.6,
-           label = "1 adjS per\nregion,\n1 adjH per\nunit",
-           hjust = 0, vjust = 1, size = 2.0, lineheight = 0.9) +
-  coord_cartesian(xlim = c(0, 5), ylim = c(0, 10), clip = "off") +
-  theme_void() +
-  theme(plot.margin = margin(2, 1, 2, 1, "mm"))
+  geom_tile(data = schema_grid,
+            aes(x = col, y = row, fill = val),
+            colour = "grey70", linewidth = 0.15) +
+  scale_fill_gradient(low = "#FFFFFF", high = "#444444",
+                      guide = "none", limits = c(0, 1)) +
+  geom_tile(data = schema_cells,
+            aes(x = col, y = bar_pat),
+            fill = schema_cells$pat_color,
+            height = 0.45, width = 0.95, inherit.aes = FALSE) +
+  geom_tile(data = schema_cells,
+            aes(x = col, y = bar_loc),
+            fill = schema_cells$loc_color,
+            height = 0.45, width = 0.95, inherit.aes = FALSE) +
+  annotate("text",
+           x = schema_cells$col, y = bar_loc,
+           label = schema_cells$location,
+           color = schema_cells$loc_text,
+           size = 1.4) +
+  annotate("text",
+           x = pat_centers, y = bar_pat + 0.5,
+           label = names(pat_centers),
+           size = 1.7) +
+  annotate("text",
+           x = -0.15, y = bar_pat,
+           label = "patient", hjust = 1, size = 1.7) +
+  annotate("text",
+           x = -0.15, y = bar_loc,
+           label = "location", hjust = 1, size = 1.7) +
+  annotate("text",
+           x = -0.15, y = seq_len(n_schema_regions),
+           label = rev(schema_regions),
+           hjust = 1, size = 1.7) +
+  annotate("text",
+           x = 1, y = ellipsis_y,
+           label = "(...)", hjust = 0, size = 2.0) +
+  annotate("text",
+           x = n_schema_cols + 0.6, y = bar_pat,
+           label = "(...)", hjust = 0, size = 2.0) +
+  annotate("text", x = (n_schema_cols + 1) / 2, y = bar_pat + 1.1,
+           label = "cells", size = 1.9) +
+  annotate("text", x = -3.0, y = (n_schema_regions + 1) / 2,
+           label = "regions", angle = 90, size = 1.9) +
+  annotate("segment",
+           x = n_schema_cols + 0.7, xend = n_schema_cols + 1.5,
+           y = (n_schema_regions + 1) / 2,
+           yend = (n_schema_regions + 1) / 2,
+           arrow = arrow(length = unit(1.2, "mm"), type = "closed"),
+           linewidth = 0.3) +
+  annotate("text",
+           x = n_schema_cols + 1.7, y = (n_schema_regions + 1) / 2,
+           label = "adjS", hjust = 0, size = 2.0) +
+  annotate("segment",
+           x = (n_schema_cols + 1) / 2, xend = (n_schema_cols + 1) / 2,
+           y = ellipsis_y - 0.4, yend = ellipsis_y - 1.05,
+           arrow = arrow(length = unit(1.2, "mm"), type = "closed"),
+           linewidth = 0.3) +
+  annotate("text",
+           x = (n_schema_cols + 1) / 2, y = ellipsis_y - 1.35,
+           label = "adjH", size = 2.0) +
+  coord_fixed(xlim = c(-3.4, n_schema_cols + 3.0),
+              ylim = c(ellipsis_y - 1.7, bar_pat + 1.4),
+              clip = "off") +
+  theme_void(base_family = "Helvetica") +
+  theme(plot.margin = margin(1, 1, 1, 1, "mm"))
 ```
 
 ```{r fc-panel-b-v2}
@@ -474,12 +555,12 @@ mk_compact_umap <- function(df, color_col, pal, title_lab) {
           legend.text         = element_text(size = 5.5),
           legend.title        = element_text(size = 6.5),
           legend.margin       = margin(0, 0, 0, 0),
-          legend.box.margin   = margin(-6, 0, -2, 0),
-          legend.box.spacing  = unit(0.5, "mm"),
+          legend.box.margin   = margin(-9, 0, -3, 0),
+          legend.box.spacing  = unit(0.2, "mm"),
           legend.spacing.y    = unit(0, "mm"),
           strip.text          = element_text(size = 6.5,
                                              margin = margin(1, 0, 1, 0)),
-          panel.spacing       = unit(0.8, "mm"),
+          panel.spacing       = unit(0.4, "mm"),
           plot.margin         = margin(0, 0, 0, 0, "mm"))
 }
 
@@ -647,7 +728,7 @@ pH_v2 <- pH_v2 +
 ```
 
 ```{r single-page-combined-v2, fig.width = 8.27, fig.height = 8.5}
-row1_v2 <- pA_v2 + pB_v2 + pC_v2 + plot_layout(widths = c(0.5, 5.0, 1.1))
+row1_v2 <- pA_v2 + pB_v2 + pC_v2 + plot_layout(widths = c(1.4, 4.4, 0.9))
 row2_v2 <- pD_v2 + pE_v2 + plot_layout(widths = c(1, 1))
 row3_v2 <- pF_v2 + pG_v2 + pH_v2 + plot_layout(widths = c(2, 1, 2))
 
