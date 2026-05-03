@@ -57,23 +57,16 @@ summary_table <- bind_rows(lapply(names(de_nc), function(nm) {
 write.csv(summary_table, "crc_diffentropy_counts.csv", row.names = FALSE)
 ```
 
-```{r panel-a}
-df_long <- pivot_longer(summary_table,
-                        c("upregulated", "downregulated"),
-                        names_to  = "direction",
-                        values_to = "count")
-
-pa <- ggplot(df_long, aes(x = contrast, y = count + 1, fill = direction)) +
-  geom_col(position = position_dodge(width = 0.8)) +
-  geom_text(aes(label = count, y = count + 1),
-            position = position_dodge(width = 0.8),
-            vjust = -0.3, size = 2.5) +
-  scale_y_log10() +
-  scale_fill_manual(values = c(upregulated = "#1b9e77", downregulated = "#d95f02")) +
-  labs(x = "contrast", y = "windows (log scale)",
-       title = "diff. entropy windows vs NC") +
-  theme_ng(base_size = 8) +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```{r panel-a-removed, eval=FALSE, include=FALSE}
+# Panel A (DE counts barplot) was removed on 2026-05-03 because it duplicates
+# Figure 4F of the manuscript, which is sourced from fig_crc.Rmd single-page
+# layout panel F. The underlying CSVs crc_de_counts.csv (single_page) and
+# crc_diffentropy_counts.csv (this Rmd) are byte-identical for the columns
+# read by both panels.
+# Keeping the chunk as eval=FALSE so the figure caption mapping in the
+# manuscript stays clear when reading the source.
+# To re-instate, add `pa <- ggplot(df_long, ...)` here and put back the
+# combined chunk that was removed in the same edit.
 ```
 
 ```{r prop-df}
@@ -175,25 +168,41 @@ pc <- ggplot(comp_df, aes(x = location, y = adjS, fill = overlap)) +
         strip.text  = element_text(size = 6))
 ```
 
-```{r combined, fig.width = ng_fig_size(3, 3)$w, fig.height = ng_fig_size(3, 3)$h}
-pa <- pa + theme(legend.key.size = unit(2, "mm"), legend.text = element_text(size = 6))
-pb <- pb + theme(legend.key.size = unit(2, "mm"), legend.text = element_text(size = 6))
+```{r single-panel-overlap, fig.width = ng_fig_size(2, 1.2)$w, fig.height = ng_fig_size(2, 1.2)$h}
+# Single-panel: annotation overlap proportions across contrasts and directions.
+# Replaces the legacy combined fig_crc_diffentropy.pdf panel B; manuscript Supp.
+# Figure sfig:crc_diffentropy_overlap_props points here.
+pb_solo <- pb +
+  theme(legend.key.size = unit(2, "mm"),
+        legend.text     = element_text(size = 6))
 
-fig_w <- ng_fig_size(3, 3)$w
-fig_h <- ng_fig_size(3, 3)$h
-
-gg_fig <- (pa | pb) / pc +
-  plot_layout(heights = c(1, 1.5)) +
-  plot_annotation(tag_levels = "A",
-                  theme = theme(plot.tag = element_text(size = 8, face = "bold")))
-
-print(gg_fig)
+print(pb_solo)
 
 ggsave(
-  file.path(out_dir, "fig_crc_diffentropy.pdf"),
-  plot   = gg_fig,
-  width  = fig_w,
-  height = fig_h,
+  file.path(out_dir, "fig_crc_diffentropy_overlap_props.pdf"),
+  plot   = pb_solo,
+  width  = ng_fig_size(2, 1.2)$w,
+  height = ng_fig_size(2, 1.2)$h,
+  units  = "in",
+  device = cairo_pdf
+)
+```
+
+```{r single-panel-cell-adjS, fig.width = ng_fig_size(2, 1.5)$w, fig.height = ng_fig_size(2, 1.5)$h}
+# Single-panel: per-cell mean adjS by biopsy location, faceted by overlap status.
+# Replaces the legacy combined fig_crc_diffentropy.pdf panel C; manuscript Supp.
+# Figure sfig:crc_diffentropy_cell_adjS points here.
+pc_solo <- pc +
+  theme(legend.key.size = unit(2, "mm"),
+        legend.text     = element_text(size = 6))
+
+print(pc_solo)
+
+ggsave(
+  file.path(out_dir, "fig_crc_diffentropy_cell_adjS.pdf"),
+  plot   = pc_solo,
+  width  = ng_fig_size(2, 1.5)$w,
+  height = ng_fig_size(2, 1.5)$h,
   units  = "in",
   device = cairo_pdf
 )

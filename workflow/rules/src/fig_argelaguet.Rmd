@@ -429,13 +429,37 @@ pM_v2 <- mk_driver_panel(driver_df_st,
                          "SD adjS (stages)")
 ```
 
-```{r fa-combined-v2, fig.width = 8.27, fig.height = 11.0}
+```{r fa-main-v2, fig.width = 8.27, fig.height = 8.0}
+# Main Fig 7 (manuscript, fig:argelaguet): panels A--I in three rows.
+# J--M (heatmap, IQR, drivers) moved to single-panel supplementary figures
+# per author preference (see fa-supp-* chunks below).
 row1_v2 <- pA_v2 + pB_v2 + pC_v2 + plot_layout(widths = c(1.4, 2.0, 2.0))
 row2_v2 <- pD_v2 + pE_v2 + pF_v2 + plot_layout(widths = c(1, 1, 1))
 row3_v2 <- pG_v2 + pH_v2 + pI_v2 + plot_layout(widths = c(1, 1.5, 1.5))
+
+main_fig <- row1_v2 / row2_v2 / row3_v2 +
+  plot_layout(heights = c(1.4, 1.0, 1.0)) +
+  plot_annotation(tag_levels = "A",
+                  theme = theme(
+                    plot.tag          = element_text(size = 9, face = "bold"),
+                    plot.tag.position = c(0.01, 0.99),
+                    plot.margin       = margin(1, 1, 1, 1, "mm")
+                  ))
+
+print(main_fig)
+
+ggsave(
+  file.path(out_dir, "fig_argelaguet_main.pdf"),
+  plot   = main_fig,
+  width  = 8.27,
+  height = 8.0,
+  units  = "in",
+  device = cairo_pdf
+)
+
+# Legacy A--M compact figure kept for reference; can be dropped later.
 row4_v2 <- pJ_v2 + pK_v2 + pL_v2 + pM_v2 +
   plot_layout(widths = c(1.5, 0.8, 1.0, 1.0))
-
 big_fig <- row1_v2 / row2_v2 / row3_v2 / row4_v2 +
   plot_layout(heights = c(1.4, 1.0, 1.0, 1.4)) +
   plot_annotation(tag_levels = "A",
@@ -444,14 +468,49 @@ big_fig <- row1_v2 / row2_v2 / row3_v2 / row4_v2 +
                     plot.tag.position = c(0.01, 0.99),
                     plot.margin       = margin(1, 1, 1, 1, "mm")
                   ))
-
-print(big_fig)
-
 ggsave(
   file.path(out_dir, "fig_argelaguet_compact.pdf"),
   plot   = big_fig,
   width  = 8.27,
   height = 11.0,
+  units  = "in",
+  device = cairo_pdf
+)
+```
+
+```{r fa-supp-iqr-lineage, fig.width = ng_fig_size(2, 1.2)$w, fig.height = ng_fig_size(2, 1.2)$h}
+# Supp single-panel: IQR adjS per lineage. Manuscript ref sfig:argelaguet_iqr_lineage.
+ggsave(
+  file.path(out_dir, "fig_argelaguet_iqr_lineage.pdf"),
+  plot   = pK_v2,
+  width  = ng_fig_size(2, 1.2)$w,
+  height = ng_fig_size(2, 1.2)$h,
+  units  = "in",
+  device = cairo_pdf
+)
+```
+
+```{r fa-supp-drivers-lineage, fig.width = ng_fig_size(2, 1.5)$w, fig.height = ng_fig_size(2, 1.5)$h}
+# Supp single-panel: driver categorization across lineage classes.
+# Manuscript ref sfig:argelaguet_drivers_lineage.
+ggsave(
+  file.path(out_dir, "fig_argelaguet_drivers_lineage.pdf"),
+  plot   = pL_v2,
+  width  = ng_fig_size(2, 1.5)$w,
+  height = ng_fig_size(2, 1.5)$h,
+  units  = "in",
+  device = cairo_pdf
+)
+```
+
+```{r fa-supp-drivers-stage, fig.width = ng_fig_size(2, 1.5)$w, fig.height = ng_fig_size(2, 1.5)$h}
+# Supp single-panel: driver categorization across stages.
+# Manuscript ref sfig:argelaguet_drivers_stage.
+ggsave(
+  file.path(out_dir, "fig_argelaguet_drivers_stage.pdf"),
+  plot   = pM_v2,
+  width  = ng_fig_size(2, 1.5)$w,
+  height = ng_fig_size(2, 1.5)$h,
   units  = "in",
   device = cairo_pdf
 )
