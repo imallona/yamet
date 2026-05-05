@@ -35,48 +35,38 @@ sink(log_con, type = "message")
 wc_scale <- scale_color_gradient(low = "grey90", high = "#000080")   # within-cell
 ac_scale <- scale_color_gradient(low = "grey90", high = "#800080")   # across-cell
 
-## ── Theme for this figure (labels ~10–11 pt for A4 output) ───────────────────
-fig_base <- 14   # base font size
+## ── Theme for this figure ────────────────────────────────────────────────────
+fig_base <- 9   # base font size; theme_ng handles all sizing
 
-## Square aspect ratio (panels A–D)
-fig_theme_sq <- theme(
-  axis.title      = element_text(size = fig_base + 1, face = "bold", color = "black"),
-  axis.text       = element_text(size = fig_base,       color = "black"),
-  legend.text     = element_text(size = fig_base - 1),
-  legend.title    = element_text(size = fig_base,       face = "bold"),
-  legend.key.size = unit(0.35, "cm")
-)
+panel_theme <- theme_ng(base_size = fig_base) +
+  theme(plot.title       = element_text(size = fig_base, face = "italic",
+                                         colour = "grey35", hjust = 0.98,
+                                         margin = margin(b = -8)),
+        legend.key.size  = unit(3, "mm"),
+        plot.margin      = margin(2, 2, 2, 2))
 
-## Free aspect ratio (panels E–H subplots)
-fig_theme_free <- fig_theme_sq + theme(aspect.ratio = 1)
+## scMET sub-panels: numeric μ/γ/ε titles, no per-panel y-label
+scmet_panel_theme <- theme_ng(base_size = fig_base) +
+  theme(plot.title       = element_text(hjust = 0.5, face = "plain",
+                                         size = fig_base),
+        legend.key.size  = unit(3, "mm"),
+        plot.margin      = margin(2, 2, 2, 2))
 
-## Smaller theme for performance sub-panels (G/H)
-perf_theme <- theme(
-  aspect.ratio    = NULL,
-  axis.title      = element_text(size = fig_base,     face = "bold", color = "black"),
-  axis.text       = element_text(size = fig_base - 1, color = "black"),
-  plot.title      = element_text(size = fig_base,     face = "bold", hjust = 0.5),
-  legend.text     = element_text(size = fig_base - 1),
-  legend.title    = element_text(size = fig_base - 1, face = "bold"),
-  legend.key.size = unit(0.3, "cm")
-)
+## Performance sub-panels (G/H): square aspect inherited from theme_ng,
+## centred title.
+perf_theme <- theme_ng(base_size = fig_base) +
+  theme(plot.title       = element_text(size = fig_base, hjust = 0.5,
+                                         face = "plain"),
+        legend.key.size  = unit(3, "mm"),
+        plot.margin      = margin(2, 2, 2, 2))
 
-## patchwork annotation theme
-pa_theme <- theme(
-  plot.title = element_text(size = fig_base + 1, face = "bold", hjust = 0.5)
-)
-
-## Helper: add "simul. X" label inside the upper-right corner of a plot
+## Legacy helpers retained for the Figure 2 (pairwise comparison) chunks below.
+fig_theme_sq <- theme_ng(base_size = fig_base) +
+  theme(legend.key.size = unit(3, "mm"))
 add_simul_label <- function(p, label) {
-  p + annotate(
-    "text",
-    x = Inf, y = Inf,
-    label    = label,
-    hjust    = 1.08, vjust = 1.6,
-    size     = 3.2,
-    fontface = "italic",
-    color    = "grey35"
-  )
+  p + annotate("text", x = Inf, y = Inf, label = label,
+               hjust = 1.1, vjust = 1.6, size = 2.8,
+               fontface = "italic", colour = "grey35")
 }
 ```
 
@@ -111,129 +101,91 @@ and adjusted Shannon entropy (adjH) in place of their unadjusted counterparts.
 
 ```{r adj-panels-ABCD}
 ## ── Row 1: scatter plots ──────────────────────────────────────────────────────
-
-A <- add_simul_label(
-  ggplot(all_long_wc_adj, aes(x = meth, y = adj_sampen, color = wc_vi)) +
-    geom_point(alpha = 0.3, size = 0.5) +
-    theme_ng(base_size = fig_base) + wc_scale + fig_theme_sq +
-    labs(x = "avg. methylation", y = "adj. sample entropy (adjS)", color = "wcVI"),
-  "simul. II"
-)
-
-B <- add_simul_label(
-  ggplot(all_long_wc_adj, aes(x = norm_shannon, y = adj_sampen, color = wc_vi)) +
-    geom_point(alpha = 0.7, size = 0.5) +
-    theme_ng(base_size = fig_base) + wc_scale + fig_theme_sq +
-    labs(x = "adj. Shannon entropy (adjH)", y = "adj. sample entropy (adjS)", color = "wcVI"),
-  "simul. II"
-)
-
-C <- add_simul_label(
-  ggplot(all_long_ac_adj, aes(x = meth, y = adj_sampen, color = bc_vi)) +
-    geom_point(alpha = 0.3, size = 0.5) +
-    theme_ng(base_size = fig_base) + ac_scale + fig_theme_sq +
-    labs(x = "avg. methylation", y = "adj. sample entropy (adjS)", color = "acVI"),
-  "simul. III"
-)
-
-D <- add_simul_label(
-  ggplot(all_long_ac_adj, aes(x = norm_shannon, y = adj_sampen, color = bc_vi)) +
-    geom_point(alpha = 0.7, size = 0.5) +
-    theme_ng(base_size = fig_base) + ac_scale + fig_theme_sq +
-    labs(x = "adj. Shannon entropy (adjH)", y = "adj. sample entropy (adjS)", color = "acVI"),
-  "simul. III"
-)
+A <- ggplot(all_long_wc_adj, aes(meth, adj_sampen, colour = wc_vi)) +
+  geom_point(alpha = 0.3, size = 0.4) + wc_scale + panel_theme +
+  labs(x = "avg. methylation", y = "adj. sample entropy (adjS)",
+       colour = "wcVI", title = "simul. II")
+B <- ggplot(all_long_wc_adj, aes(norm_shannon, adj_sampen, colour = wc_vi)) +
+  geom_point(alpha = 0.7, size = 0.4) + wc_scale + panel_theme +
+  labs(x = "adj. Shannon entropy (adjH)", y = "adj. sample entropy (adjS)",
+       colour = "wcVI", title = "simul. II")
+C <- ggplot(all_long_ac_adj, aes(meth, adj_sampen, colour = bc_vi)) +
+  geom_point(alpha = 0.3, size = 0.4) + ac_scale + panel_theme +
+  labs(x = "avg. methylation", y = "adj. sample entropy (adjS)",
+       colour = "acVI", title = "simul. III")
+D <- ggplot(all_long_ac_adj, aes(norm_shannon, adj_sampen, colour = bc_vi)) +
+  geom_point(alpha = 0.7, size = 0.4) + ac_scale + panel_theme +
+  labs(x = "adj. Shannon entropy (adjH)", y = "adj. sample entropy (adjS)",
+       colour = "acVI", title = "simul. III")
 ```
 
 ```{r adj-panels-EF}
-## ── Row 2: scMET panels (same metric – scMET output is independent of adjS/adjH)
+## ── Rows 2 and 3: scMET panels (one full-width row per simulation)
+## scMET μ/γ/ε as titles; "scMET score" only on the leftmost sub-panel y-axis;
+## legend at bottom so sub-panels are full-width within the row.
+mk_scmet <- function(df, vi_col, scale, vi_lab) {
+  mk <- function(yvar, sub) {
+    ggplot(df, aes(avg_meth, .data[[yvar]], colour = .data[[vi_col]])) +
+      geom_point(alpha = 0.7, size = 0.4) + scale + scmet_panel_theme +
+      labs(x = "avg. methylation", y = NULL, title = sub, colour = vi_lab)
+  }
+  m <- mk("scmet_mu",      expression(scMET ~ mu)) +
+    labs(y = "scMET score")
+  g <- mk("scmet_gamma",   expression(scMET ~ gamma))
+  e <- mk("scmet_epsilon", expression(scMET ~ epsilon))
+  wrap_plots(m, g, e, ncol = 3, guides = "collect") &
+    theme(legend.position = "bottom")
+}
 
-## E: within-cell (wcVI)
-e_mu <- ggplot(jnt_wc_adj, aes(x = avg_meth, y = scmet_mu, color = wc_vi)) +
-  geom_point(alpha = 0.7, size = 0.5) +
-  theme_ng(base_size = fig_base) + wc_scale + fig_theme_free +
-  labs(x = "avg. methylation", y = expression(scMET ~ mu), color = "wcVI")
-
-e_gamma <- ggplot(jnt_wc_adj, aes(x = avg_meth, y = scmet_gamma, color = wc_vi)) +
-  geom_point(alpha = 0.7, size = 0.5) +
-  theme_ng(base_size = fig_base) + wc_scale + fig_theme_free +
-  labs(x = "avg. methylation", y = expression(scMET ~ gamma), color = "wcVI")
-
-e_epsilon <- ggplot(jnt_wc_adj, aes(x = avg_meth, y = scmet_epsilon, color = wc_vi)) +
-  geom_point(alpha = 0.7, size = 0.5) +
-  theme_ng(base_size = fig_base) + wc_scale + fig_theme_free +
-  labs(x = "avg. methylation", y = expression(scMET ~ epsilon), color = "wcVI")
-
-E_group <- wrap_plots(e_mu, e_gamma, e_epsilon, ncol = 3, guides = "collect") +
-  plot_annotation(title = "simul. II", theme = pa_theme) &
-  theme(legend.position = "right")
-
-## F: across-cell (acVI)
-f_mu <- ggplot(jnt_ac_adj, aes(x = avg_meth, y = scmet_mu, color = bc_vi)) +
-  geom_point(alpha = 0.7, size = 0.5) +
-  theme_ng(base_size = fig_base) + ac_scale + fig_theme_free +
-  labs(x = "avg. methylation", y = expression(scMET ~ mu), color = "acVI")
-
-f_gamma <- ggplot(jnt_ac_adj, aes(x = avg_meth, y = scmet_gamma, color = bc_vi)) +
-  geom_point(alpha = 0.7, size = 0.5) +
-  theme_ng(base_size = fig_base) + ac_scale + fig_theme_free +
-  labs(x = "avg. methylation", y = expression(scMET ~ gamma), color = "acVI")
-
-f_epsilon <- ggplot(jnt_ac_adj, aes(x = avg_meth, y = scmet_epsilon, color = bc_vi)) +
-  geom_point(alpha = 0.7, size = 0.5) +
-  theme_ng(base_size = fig_base) + ac_scale + fig_theme_free +
-  labs(x = "avg. methylation", y = expression(scMET ~ epsilon), color = "acVI")
-
-F_group <- wrap_plots(f_mu, f_gamma, f_epsilon, ncol = 3, guides = "collect") +
-  plot_annotation(title = "simul. III", theme = pa_theme) &
-  theme(legend.position = "right")
+E_row <- mk_scmet(jnt_wc_adj, "wc_vi", wc_scale, "wcVI")
+F_row <- mk_scmet(jnt_ac_adj, "bc_vi", ac_scale, "acVI")
 ```
 
 ```{r adj-panels-GH}
-## ── Row 3: performance grids (adjS / adjH NMI) ────────────────────────────────
-
-make_perf_grid <- function(s_plots, n_plots) {
-  g_s_nmi <- s_plots$nmi     + perf_theme +
-    labs(title = "NMI",           x = "",        y = "performance")
-  g_s_cpu <- s_plots$seconds + perf_theme +
-    labs(title = "CPU time (s)",  x = "# cells", y = "")
-  g_s_mem <- s_plots$mem     + perf_theme +
-    labs(title = "memory (MB)",   x = "",        y = "")
-
-  g_n_nmi <- n_plots$nmi     + perf_theme +
-    labs(title = "NMI",           x = "",           y = "performance")
-  g_n_cpu <- n_plots$seconds + perf_theme +
-    labs(title = "CPU time (s)",  x = "# features", y = "")
-  g_n_mem <- n_plots$mem     + perf_theme +
-    labs(title = "memory (MB)",   x = "",           y = "")
-
-  wrap_plots(
-    g_s_nmi, g_s_cpu, g_s_mem,
-    g_n_nmi, g_n_cpu, g_n_mem,
-    ncol    = 3,
-    guides  = "collect"
-  ) & theme(legend.position = "bottom")
+## ── Row 4: performance grids (G simul. II, H simul. III)
+## Each is a 3×2 grid of square panels (NMI/CPU/memory × cells/features).
+mk_perf <- function(s_plots, n_plots) {
+  panels <- list(
+    s_plots$nmi     + perf_theme + labs(title = "NMI",          x = NULL,         y = "performance"),
+    s_plots$seconds + perf_theme + labs(title = "CPU time (s)", x = "# cells",    y = NULL),
+    s_plots$mem     + perf_theme + labs(title = "memory (MB)",  x = NULL,         y = NULL),
+    n_plots$nmi     + perf_theme + labs(title = NULL,           x = NULL,         y = "performance"),
+    n_plots$seconds + perf_theme + labs(title = NULL,           x = "# features", y = NULL),
+    n_plots$mem     + perf_theme + labs(title = NULL,           x = NULL,         y = NULL)
+  )
+  wrap_plots(panels, ncol = 3, guides = "collect") &
+    theme(legend.position = "bottom")
 }
 
-G_inner <- make_perf_grid(s_plots_wc_adj, n_plots_wc_adj)
-H_inner <- make_perf_grid(s_plots_ac_adj, n_plots_ac_adj)
-
-G_group <- G_inner + plot_annotation(title = "simul. II",  theme = pa_theme)
-H_group <- H_inner + plot_annotation(title = "simul. III", theme = pa_theme)
+G_inner <- mk_perf(s_plots_wc_adj, n_plots_wc_adj)
+H_inner <- mk_perf(s_plots_ac_adj, n_plots_ac_adj)
 ```
 
-```{r adj-combined, fig.width=15, fig.height=15}
+```{r adj-combined, fig.width=11.69, fig.height=14}
 ## ── Assemble adjS/adjH figure ─────────────────────────────────────────────────
-row1 <- (A | B | C | D)
-row2 <- wrap_plots(E_group, F_group, ncol = 2)
-row3 <- wrap_plots(G_group, H_group, ncol = 2)
+## Equal-area sub-panels in rows 2-4 (E sub-panels = F sub-panels = G/H sub-panels).
+## Layout: A B C D / E (50% width centred) / F (50% width centred) / G | H.
+A <- A + labs(tag = "A")
+B <- B + labs(tag = "B")
+C <- C + labs(tag = "C")
+D <- D + labs(tag = "D")
+E_row[[1]] <- E_row[[1]] + labs(tag = "E")
+F_row[[1]] <- F_row[[1]] + labs(tag = "F")
+G_inner[[1]] <- G_inner[[1]] + labs(tag = "G")
+H_inner[[1]] <- H_inner[[1]] + labs(tag = "H")
 
-fig_adj <- row1 / row2 / row3 +
-  plot_layout(heights = c(1.8, 0.7, 2)) +
-  plot_annotation(
-    tag_levels = list(c("A", "B", "C", "D", "E", "", "", "F", "", "", "G", "H")),
-    theme = theme(plot.tag = element_text(size = 14, face = "bold"))
-  )
+strip_legends <- function(p) p & theme(legend.position = "none")
+GH_row <- wrap_plots(G_inner, strip_legends(H_inner), ncol = 2)
+
+E_padded <- wrap_plots(plot_spacer(), E_row, plot_spacer(),
+                       ncol = 3, widths = c(0.25, 0.5, 0.25))
+F_padded <- wrap_plots(plot_spacer(), F_row, plot_spacer(),
+                       ncol = 3, widths = c(0.25, 0.5, 0.25))
+
+fig_adj <- (A | B | C | D) / E_padded / F_padded / GH_row +
+  plot_layout(heights = c(1.5, 1, 1, 2)) &
+  theme(plot.tag = element_text(size = fig_base + 3, face = "bold",
+                                hjust = 0, vjust = 1))
 
 print(fig_adj)
 ```
@@ -242,16 +194,16 @@ print(fig_adj)
 ggsave(
   filename = "simulations/output/figure_simulations_combined_adj.svg",
   plot     = fig_adj,
-  width    = 8.27,
-  height   = 11.69,
+  width    = 11.69,
+  height   = 14,
   units    = "in"
 )
 
 ggsave(
   filename = "simulations/output/figure_simulations_combined_adj.pdf",
   plot     = fig_adj,
-  width    = 8.27,
-  height   = 11.69,
+  width    = 11.69,
+  height   = 14,
   units    = "in"
 )
 ```
@@ -332,7 +284,7 @@ P3 <- add_simul_label(
     geom_point(alpha = 0.3, size = 0.5) +
     geom_hline(yintercept = 0, linetype = "dashed", color = "grey50") +
     theme_ng(base_size = fig_base) + wc_scale + fig_theme_sq +
-    labs(x = "avg. methylation", y = "S \u2212 adjS", color = "wcVI"),
+    labs(x = "avg. methylation", y = "S - adjS", color = "wcVI"),
   "simul. II"
 )
 
@@ -341,7 +293,7 @@ P4 <- add_simul_label(
     geom_point(alpha = 0.7, size = 0.5) +
     geom_hline(yintercept = 0, linetype = "dashed", color = "grey50") +
     theme_ng(base_size = fig_base) + wc_scale + fig_theme_sq +
-    labs(x = "avg. methylation", y = "H \u2212 adjH", color = "wcVI"),
+    labs(x = "avg. methylation", y = "H - adjH", color = "wcVI"),
   "simul. II"
 )
 ```
@@ -372,7 +324,7 @@ P7 <- add_simul_label(
     geom_point(alpha = 0.3, size = 0.5) +
     geom_hline(yintercept = 0, linetype = "dashed", color = "grey50") +
     theme_ng(base_size = fig_base) + ac_scale + fig_theme_sq +
-    labs(x = "avg. methylation", y = "S \u2212 adjS", color = "acVI"),
+    labs(x = "avg. methylation", y = "S - adjS", color = "acVI"),
   "simul. III"
 )
 
@@ -381,7 +333,7 @@ P8 <- add_simul_label(
     geom_point(alpha = 0.7, size = 0.5) +
     geom_hline(yintercept = 0, linetype = "dashed", color = "grey50") +
     theme_ng(base_size = fig_base) + ac_scale + fig_theme_sq +
-    labs(x = "avg. methylation", y = "H \u2212 adjH", color = "acVI"),
+    labs(x = "avg. methylation", y = "H - adjH", color = "acVI"),
   "simul. III"
 )
 ```
@@ -402,16 +354,16 @@ print(fig_cmp)
 ggsave(
   filename = "simulations/output/figure_simulations_comparison_adj_unadj.svg",
   plot     = fig_cmp,
-  width    = 16,
-  height   = 8,
+  width    = 12.8,
+  height   = 6.4,
   units    = "in"
 )
 
 ggsave(
   filename = "simulations/output/figure_simulations_comparison_adj_unadj.pdf",
   plot     = fig_cmp,
-  width    = 16,
-  height   = 8,
+  width    = 12.8,
+  height   = 6.4,
   units    = "in"
 )
 ```

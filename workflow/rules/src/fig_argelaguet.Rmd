@@ -240,21 +240,22 @@ pF_v2 <- ggplot(enh_prom, aes(x = prom, y = enh, color = stage)) +
 
 ```{r fa-panel-g-v2}
 if (!is.null(ve_long)) {
-  ve_long$assay <- factor(ve_long$assay, levels = unique(ve_long$assay))
-  pG_v2 <- ggplot(ve_long,
+  ve_filt <- ve_long[ve_long$assay != "adjS_yamet", , drop = FALSE]
+  ve_filt$assay <- factor(ve_filt$assay, levels = c("S", "adjS", "methylation"))
+  pG_v2 <- ggplot(ve_filt,
                   aes(x = assay, y = median_ve, fill = variable)) +
-    geom_col(position = position_dodge(width = 0.8)) +
+    geom_col(position = position_dodge(width = 0.8), width = 0.7) +
     scale_fill_manual(values = c("stage" = "#0072B2",
                                  "lineage" = "#E69F00")) +
     labs(x = "assay", y = "median % var. explained", fill = NULL) +
     theme_ng(base_size = 7) +
-    theme(legend.key.size    = unit(1.5, "mm"),
-          legend.position    = "top",
-          legend.text        = element_text(size = 6),
-          legend.margin      = margin(0, 0, 0, 0),
-          legend.box.margin  = margin(0, 0, -4, 0),
-          legend.box.spacing = unit(0.2, "mm"),
-          plot.margin        = margin(0, 0, 0, 0, "mm"))
+    theme(legend.position      = c(0.02, 0.98),
+          legend.justification = c(0, 1),
+          legend.background    = element_rect(fill = "white", colour = NA),
+          legend.key.size      = unit(1.8, "mm"),
+          legend.text          = element_text(size = 6),
+          legend.margin        = margin(0, 1, 0, 1),
+          plot.margin          = margin(0, 0, 0, 0, "mm"))
 } else {
   pG_v2 <- patchwork::plot_spacer() +
     labs(title = "argelaguet_win_varexp.csv missing")
@@ -262,6 +263,20 @@ if (!is.null(ve_long)) {
 ```
 
 ```{r fa-panel-h-v2}
+fam_lookup <- function(x) {
+  dplyr::case_when(
+    x %in% c("Genes", "Promoters")               ~ "genes / promoters",
+    x %in% c("LINEs", "SINEs")                   ~ "repeats",
+    grepl("ENCODE", x)                           ~ "ENCODE marks",
+    grepl("^Enh E7\\.5", x)                      ~ "E7.5 enhancers",
+    grepl("^H3K4me3 E7\\.5", x)                  ~ "E7.5 H3K4me3",
+    x %in% c("ESC DHS", "ESC p300")              ~ "ESC accessibility",
+    TRUE                                          ~ "other"
+  )
+}
+fam_levels <- c("genes / promoters", "repeats", "ENCODE marks",
+                "E7.5 enhancers", "E7.5 H3K4me3", "ESC accessibility")
+
 tc_adjS <- ent$adjsampens %>%
   group_by(stage, annotation) %>%
   summarise(
@@ -269,29 +284,31 @@ tc_adjS <- ent$adjsampens %>%
     lo = quantile(sampen, 0.25, na.rm = TRUE),
     hi = quantile(sampen, 0.75, na.rm = TRUE),
     .groups = "drop"
-  )
+  ) %>%
+  mutate(family = factor(fam_lookup(as.character(annotation)), levels = fam_levels))
 write.csv(tc_adjS, "argelaguet_fig_adjS_by_stage_annotation.csv", row.names = FALSE)
 
 pH_v2 <- ggplot(tc_adjS,
                 aes(x = stage, y = median_adjS,
                     color = annotation, group = annotation)) +
-  geom_line(linewidth = 0.4) +
   geom_ribbon(aes(ymin = lo, ymax = hi, fill = annotation),
-              alpha = 0.1, color = NA) +
+              alpha = 0.15, color = NA) +
+  geom_line(linewidth = 0.4) +
+  geom_point(size = 0.5) +
+  facet_wrap(~ family, ncol = 3, scales = "free_y") +
   scale_color_manual(values = argelaguet_annotation_pal) +
-  scale_fill_manual(values = argelaguet_annotation_pal) +
-  guides(color = guide_legend(ncol = 2, override.aes = list(linewidth = 1)),
-         fill  = "none") +
-  labs(x = "stage", y = "median adjS", color = "annotation") +
+  scale_fill_manual(values = argelaguet_annotation_pal, guide = "none") +
+  guides(color = guide_legend(ncol = 1, override.aes = list(linewidth = 1))) +
+  labs(x = "stage", y = "median adjS", color = "annotation",
+       caption = "shaded band: 25–75% quantile (IQR)") +
   theme_ng(base_size = 7) +
   theme(axis.text.x        = element_text(angle = 45, hjust = 1, size = 5.5),
+        strip.text         = element_text(size = 6.5),
         legend.position    = "right",
         legend.key.size    = unit(1.5, "mm"),
-        legend.text        = element_text(size = 5),
+        legend.text        = element_text(size = 5.2),
         legend.title       = element_text(size = 6),
-        legend.margin      = margin(0, 0, 0, 0),
-        legend.box.margin  = margin(0, 0, 0, -3),
-        legend.box.spacing = unit(0.2, "mm"),
+        plot.caption       = element_text(size = 5.5, hjust = 0, colour = "grey35"),
         plot.margin        = margin(0, 0, 0, 0, "mm"))
 ```
 
@@ -303,22 +320,28 @@ tc_adjH <- ent$adjshannons %>%
     lo = quantile(median_shannon, 0.25, na.rm = TRUE),
     hi = quantile(median_shannon, 0.75, na.rm = TRUE),
     .groups = "drop"
-  )
+  ) %>%
+  mutate(family = factor(fam_lookup(as.character(annotation)), levels = fam_levels))
 write.csv(tc_adjH, "argelaguet_fig_adjH_by_stage_annotation.csv", row.names = FALSE)
 
 pI_v2 <- ggplot(tc_adjH,
                 aes(x = stage, y = median_adjH,
                     color = annotation, group = annotation)) +
-  geom_line(linewidth = 0.4) +
   geom_ribbon(aes(ymin = lo, ymax = hi, fill = annotation),
-              alpha = 0.1, color = NA) +
+              alpha = 0.15, color = NA) +
+  geom_line(linewidth = 0.4) +
+  geom_point(size = 0.5) +
+  facet_wrap(~ family, ncol = 3, scales = "free_y") +
   scale_color_manual(values = argelaguet_annotation_pal) +
-  scale_fill_manual(values = argelaguet_annotation_pal) +
-  guides(color = "none", fill = "none") +
-  labs(x = "stage", y = "median adjH") +
+  scale_fill_manual(values = argelaguet_annotation_pal, guide = "none") +
+  guides(color = "none") +
+  labs(x = "stage", y = "median adjH",
+       caption = "shaded band: 25–75% quantile (IQR)") +
   theme_ng(base_size = 7) +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 5.5),
-        plot.margin = margin(0, 0, 0, 0, "mm"))
+  theme(axis.text.x  = element_text(angle = 45, hjust = 1, size = 5.5),
+        strip.text   = element_text(size = 6.5),
+        plot.caption = element_text(size = 5.5, hjust = 0, colour = "grey35"),
+        plot.margin  = margin(0, 0, 0, 0, "mm"))
 ```
 
 ```{r fa-panel-j-v2-data}
@@ -518,7 +541,7 @@ ggsave(
 
 # Standalone heatmap (full size, supplementary)
 
-```{r fa-heatmap-standalone, fig.width = 14, fig.height = 10}
+```{r fa-heatmap-standalone, fig.width = 11.2, fig.height = 8}
 ht_full <- Heatmap(
   mat,
   name              = "median adjS",
@@ -529,9 +552,12 @@ ht_full <- Heatmap(
   cluster_columns   = FALSE,
   show_row_names    = TRUE,
   show_column_names = TRUE,
-  row_names_gp      = gpar(fontsize = 5),
+  row_names_gp      = gpar(fontsize = 6),
   column_names_gp   = gpar(fontsize = 7),
   row_names_max_width = unit(4, "cm"),
+  row_title_rot     = 0,
+  row_title_gp      = gpar(fontsize = 7),
+  row_gap           = unit(1, "mm"),
   right_annotation  = rowAnnotation(
     lineage_class = wide$lineage_class,
     col = list(lineage_class = lc_pal),
@@ -541,7 +567,7 @@ ht_full <- Heatmap(
 )
 
 draw(ht_full)
-pdf(file.path(out_dir, "fig_argelaguet_heatmap.pdf"), width = 14, height = 10)
+pdf(file.path(out_dir, "fig_argelaguet_heatmap.pdf"), width = 11.2, height = 8)
 draw(ht_full)
 invisible(dev.off())
 ```

@@ -347,22 +347,23 @@ if (!is.null(cell_df)) {
 
 ```{r fe-panel-f-v2}
 if (!is.null(ve_long)) {
-  ve_long$assay <- factor(ve_long$assay,
-                          levels = unique(ve_long$assay))
-  pF_v2 <- ggplot(ve_long,
+  ve_filt <- ve_long[ve_long$assay != "adjS_yamet", , drop = FALSE]
+  ve_filt$assay <- factor(ve_filt$assay,
+                          levels = c("S", "adjS", "methylation"))
+  pF_v2 <- ggplot(ve_filt,
                   aes(x = assay, y = median_ve, fill = variable)) +
-    geom_col(position = position_dodge(width = 0.8)) +
+    geom_col(position = position_dodge(width = 0.8), width = 0.7) +
     scale_fill_manual(values = c("cell_class" = "#0072B2",
                                  "sub_type"   = "#E69F00")) +
     labs(x = "assay", y = "median % var. explained", fill = NULL) +
     theme_ng(base_size = 7) +
-    theme(legend.key.size    = unit(1.5, "mm"),
-          legend.position    = "top",
-          legend.text        = element_text(size = 6),
-          legend.margin      = margin(0, 0, 0, 0),
-          legend.box.margin  = margin(0, 0, -4, 0),
-          legend.box.spacing = unit(0.2, "mm"),
-          plot.margin        = margin(0, 0, 0, 0, "mm"))
+    theme(legend.position      = c(0.02, 0.98),
+          legend.justification = c(0, 1),
+          legend.background    = element_rect(fill = "white", colour = NA),
+          legend.key.size      = unit(1.8, "mm"),
+          legend.text          = element_text(size = 6),
+          legend.margin        = margin(0, 1, 0, 1),
+          plot.margin          = margin(0, 0, 0, 0, "mm"))
 } else {
   pF_v2 <- patchwork::plot_spacer() +
     labs(title = "ecker_win_varexp.csv missing")
@@ -422,7 +423,7 @@ row2_v2 <- pD_v2 + pE_v2 + plot_layout(widths = c(1, 1))
 row3_v2 <- pF_v2 + pG_v2 + pH_v2 + plot_layout(widths = c(1, 1, 1))
 
 compact_fig <- row1_v2 / row2_v2 / row3_v2 +
-  plot_layout(heights = c(2.3, 1.4, 1)) +
+  plot_layout(heights = c(2.0, 1.82, 1)) +
   plot_annotation(tag_levels = "A",
                   theme = theme(
                     plot.tag          = element_text(size = 9, face = "bold"),
@@ -436,7 +437,7 @@ ggsave(
   file.path(out_dir, "fig_ecker_half_a4.pdf"),
   plot   = compact_fig,
   width  = 8.27,
-  height = 8.5,
+  height = 9.5,
   units  = "in",
   device = cairo_pdf
 )

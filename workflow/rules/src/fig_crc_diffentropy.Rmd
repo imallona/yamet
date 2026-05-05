@@ -112,13 +112,19 @@ write.csv(prop_df, "crc_diffentropy_annotation_overlap.csv", row.names = FALSE)
 ```{r panel-b}
 pb <- ggplot(prop_df, aes(x = contrast_dir, y = annotation)) +
   geom_point(aes(size = proportion, color = proportion)) +
-  scale_size(range = c(0.5, 5)) +
-  scale_color_gradient(low = "grey80", high = "red") +
-  labs(x = "contrast", y = "annotation",
-       size = "proportion", color = "proportion",
+  scale_size(range = c(0.5, 4),
+             guide = guide_legend(title = "proportion of windows\noverlapping annotation")) +
+  scale_color_gradient(low = "grey80", high = "red",
+                       guide = "none") +
+  labs(x = "contrast (vs NC)", y = "annotation",
        title = "annotation overlap in diff. entropy windows") +
-  theme_ng(base_size = 8) +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  theme_ng(base_size = 7) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 6),
+        axis.text.y = element_text(size = 6.5),
+        plot.title  = element_text(size = 8, face = "plain"),
+        legend.key.size  = unit(3, "mm"),
+        legend.title     = element_text(size = 6.5),
+        legend.text      = element_text(size = 6))
 ```
 
 ```{r panel-c}
@@ -160,50 +166,45 @@ write.csv(comp_summary, "crc_diffentropy_cell_adjS_by_overlap.csv",
 pc <- ggplot(comp_df, aes(x = location, y = adjS, fill = overlap)) +
   geom_boxplot(outlier.size = 0.2, lwd = 0.3) +
   facet_wrap(~ annotation, ncol = 3, scales = "free_y") +
-  scale_fill_manual(values = c(overlapping = "#0072B2", other = "grey70")) +
-  labs(x = "location", y = "mean adjS per cell",
-       fill = "annotation overlap") +
+  scale_fill_manual(values = c(overlapping = "#0072B2", other = "grey70"),
+                    labels = c(overlapping = "windows overlapping the annotation",
+                               other       = "all other windows")) +
+  labs(x = "biopsy location", y = "mean adjS per cell",
+       fill = NULL,
+       title = "is the diff-entropy signal annotation-specific?",
+       subtitle = "per-cell adjS averaged across windows that overlap each annotation vs the rest") +
   theme_ng(base_size = 8) +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1),
-        strip.text  = element_text(size = 6))
+  theme(axis.text.x   = element_text(angle = 45, hjust = 1, size = 7),
+        strip.text    = element_text(size = 7),
+        plot.title    = element_text(size = 9, face = "plain"),
+        plot.subtitle = element_text(size = 7, colour = "grey35"),
+        legend.position = "bottom",
+        legend.text   = element_text(size = 7))
 ```
 
-```{r single-panel-overlap, fig.width = ng_fig_size(2, 1.2)$w, fig.height = ng_fig_size(2, 1.2)$h}
+```{r single-panel-overlap, fig.width = 6.1, fig.height = 2.6}
 # Single-panel: annotation overlap proportions across contrasts and directions.
-# Replaces the legacy combined fig_crc_diffentropy.pdf panel B; manuscript Supp.
-# Figure sfig:crc_diffentropy_overlap_props points here.
-pb_solo <- pb +
-  theme(legend.key.size = unit(2, "mm"),
-        legend.text     = element_text(size = 6))
-
+# +40% width / +20% height vs ng_fig_size(2, 1.2) — was too cramped.
+pb_solo <- pb
 print(pb_solo)
 
 ggsave(
   file.path(out_dir, "fig_crc_diffentropy_overlap_props.pdf"),
   plot   = pb_solo,
-  width  = ng_fig_size(2, 1.2)$w,
-  height = ng_fig_size(2, 1.2)$h,
-  units  = "in",
+  width  = 6.1, height = 2.6, units = "in",
   device = cairo_pdf
 )
 ```
 
-```{r single-panel-cell-adjS, fig.width = ng_fig_size(2, 1.5)$w, fig.height = ng_fig_size(2, 1.5)$h}
-# Single-panel: per-cell mean adjS by biopsy location, faceted by overlap status.
-# Replaces the legacy combined fig_crc_diffentropy.pdf panel C; manuscript Supp.
-# Figure sfig:crc_diffentropy_cell_adjS points here.
-pc_solo <- pc +
-  theme(legend.key.size = unit(2, "mm"),
-        legend.text     = element_text(size = 6))
-
+```{r single-panel-cell-adjS, fig.width = 6.1, fig.height = 3.3}
+# +40% width / +20% height vs ng_fig_size(2, 1.5) — was too cramped.
+pc_solo <- pc
 print(pc_solo)
 
 ggsave(
   file.path(out_dir, "fig_crc_diffentropy_cell_adjS.pdf"),
   plot   = pc_solo,
-  width  = ng_fig_size(2, 1.5)$w,
-  height = ng_fig_size(2, 1.5)$h,
-  units  = "in",
+  width  = 6.1, height = 3.3, units = "in",
   device = cairo_pdf
 )
 ```

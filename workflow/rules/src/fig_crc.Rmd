@@ -761,13 +761,13 @@ AABBBB
 AABBBB
 CCDDDD
 EEEEEE
-FFFHHH
-#GGGG#
+#FFHH#
+##GG##
 "
 
 single_page_fig <- pA + pB + pC + pD + pE + pF + pG + pH +
   plot_layout(design  = design,
-              heights = c(3.5, 3.5, 3.0, 2.0, 3.5, 3.0)) +
+              heights = c(3.5, 3.5, 3.0, 2.0, 3.0, 3.0)) +
   plot_annotation(tag_levels = "A",
                   theme = theme(plot.tag = element_text(size = 10,
                                                          face = "bold")))
