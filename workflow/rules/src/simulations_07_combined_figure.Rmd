@@ -42,6 +42,8 @@ panel_theme <- theme_ng(base_size = fig_base) +
                                          colour = "grey35", hjust = 0.98,
                                          margin = margin(b = -8)),
         legend.key.size  = unit(3, "mm"),
+        legend.text      = element_text(size = fig_base - 1),
+        legend.title     = element_text(size = fig_base),
         plot.margin      = margin(2, 2, 2, 2))
 
 scmet_panel_theme <- theme_ng(base_size = fig_base) +

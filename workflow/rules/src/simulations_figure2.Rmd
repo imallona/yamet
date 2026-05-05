@@ -154,7 +154,8 @@ panelD <- ggplot(yametDt, aes(x = avg_meth, y = sampen, color = transMat)) +
      theme_minimal() +
      labs(
       title = "Sample Entropy for different methylation patterns",
-      x = "methylation level", y = "sample entropy", color = "methylation pattern"
+      x = "avg. methylation", y = "sample entropy (S)",
+      color = "methylation pattern"
      ) +
     labs(tag="D") +
     theme_ng_discrete()+
@@ -167,7 +168,22 @@ panelD
 # Combine the figure
 
 ```{r, combine figure}
-fig2 <- (panelA / ((panelB / panelC)) & theme(plot.margin=margin(0, -30, 0, 0))) | panelD
-ggsave(file.path(outDir, "Figure2.pdf"), fig2, width = 20, height = 10, device = cairo_pdf)
-ggsave(file.path(outDir, "Figure2.svg"), fig2, width = 20, height = 10)
+## Pad panel D very lightly so it fills the right column.
+panelD_padded <- (plot_spacer() / panelD / plot_spacer()) +
+  plot_layout(heights = c(0.05, 10, 0.05))
+
+## Within the (B / C) group, give C 15% more height than B.
+bc_block <- panelB / panelC + plot_layout(heights = c(1, 1.15))
+
+## Left column: panel A gets the largest block; B and C below.
+left_col <- panelA / bc_block +
+  plot_layout(heights = c(1.4, 1.43)) &
+  theme(plot.margin = margin(0, -30, 0, 0))
+
+## Right column 15% wider than the left to give panel D more area.
+fig2 <- (left_col | panelD_padded) +
+  plot_layout(widths = c(1, 1.15)) &
+  theme(text = element_text(size = 9))
+ggsave(file.path(outDir, "Figure2.pdf"), fig2, width = 11.69, height = 6, device = cairo_pdf)
+ggsave(file.path(outDir, "Figure2.svg"), fig2, width = 11.69, height = 6)
 ```

@@ -61,9 +61,13 @@ plot_driver_scatter <- function(driver_df, x_label = "SD of adjH across groups",
                                color = driver, shape = driver,
                                label = annotation)) +
     ggplot2::geom_point(size = 3) +
-    ggrepel::geom_text_repel(size = 3, max.overlaps = 20) +
+    ggrepel::geom_text_repel(size = 3, max.overlaps = Inf,
+                             box.padding = 0.5, point.padding = 0.2,
+                             min.segment.length = 0, force = 2,
+                             segment.size = 0.2, segment.alpha = 0.5) +
     ggplot2::scale_color_manual(values = driver_pal) +
     ggplot2::scale_shape_manual(values = driver_shapes) +
     ggplot2::labs(x = x_label, y = y_label, color = "driver", shape = "driver") +
-    theme_ng()
+    theme_ng() +
+    ggplot2::theme(plot.margin = ggplot2::margin(3, 6, 3, 6, "mm"))
 }

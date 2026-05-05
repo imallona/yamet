@@ -176,8 +176,9 @@ mk_cell_umap <- function(color_col, pal, lab) {
           legend.text        = element_text(size = 5),
           legend.title       = element_text(size = 6),
           legend.margin      = margin(0, 0, 0, 0),
-          legend.box.margin  = margin(-6, 0, -2, 0),
-          legend.box.spacing = unit(0.2, "mm"),
+          legend.box.margin  = margin(2, 0, -2, 0),
+          legend.box.spacing = unit(1.5, "mm"),
+          axis.title.x       = element_text(margin = margin(t = 2, b = 0)),
           plot.margin        = margin(0, 1, 0, 1, "mm"))
 }
 
@@ -207,8 +208,9 @@ mk_meth_s_scatter <- function(color_col, pal, lab) {
           legend.text        = element_text(size = 5),
           legend.title       = element_text(size = 6),
           legend.margin      = margin(0, 0, 0, 0),
-          legend.box.margin  = margin(-6, 0, -2, 0),
-          legend.box.spacing = unit(0.2, "mm"),
+          legend.box.margin  = margin(2, 0, -2, 0),
+          legend.box.spacing = unit(1.5, "mm"),
+          axis.title.x       = element_text(margin = margin(t = 2, b = 0)),
           plot.margin        = margin(0, 1, 0, 1, "mm"))
 }
 
@@ -377,9 +379,8 @@ ht_compact <- Heatmap(
   show_column_names = TRUE,
   row_names_gp      = gpar(fontsize = 4.5),
   column_names_gp   = gpar(fontsize = 5),
-  row_title_gp      = gpar(fontsize = 6),
-  row_title_rot     = 0,
-  row_gap           = unit(0.6, "mm"),
+  row_title         = NULL,
+  row_gap           = unit(0.8, "mm"),
   right_annotation  = rowAnnotation(
     lineage_class = wide$lineage_class,
     col = list(lineage_class = lc_pal),
@@ -479,26 +480,6 @@ ggsave(
   units  = "in",
   device = cairo_pdf
 )
-
-# Legacy A--M compact figure kept for reference; can be dropped later.
-row4_v2 <- pJ_v2 + pK_v2 + pL_v2 + pM_v2 +
-  plot_layout(widths = c(1.5, 0.8, 1.0, 1.0))
-big_fig <- row1_v2 / row2_v2 / row3_v2 / row4_v2 +
-  plot_layout(heights = c(1.4, 1.0, 1.0, 1.4)) +
-  plot_annotation(tag_levels = "A",
-                  theme = theme(
-                    plot.tag          = element_text(size = 9, face = "bold"),
-                    plot.tag.position = c(0.01, 0.99),
-                    plot.margin       = margin(1, 1, 1, 1, "mm")
-                  ))
-ggsave(
-  file.path(out_dir, "fig_argelaguet_compact.pdf"),
-  plot   = big_fig,
-  width  = 8.27,
-  height = 11.0,
-  units  = "in",
-  device = cairo_pdf
-)
 ```
 
 ```{r fa-supp-iqr-lineage, fig.width = ng_fig_size(2, 1.2)$w, fig.height = ng_fig_size(2, 1.2)$h}
@@ -541,7 +522,7 @@ ggsave(
 
 # Standalone heatmap (full size, supplementary)
 
-```{r fa-heatmap-standalone, fig.width = 11.2, fig.height = 8}
+```{r fa-heatmap-standalone, fig.width = 9.0, fig.height = 6.4}
 ht_full <- Heatmap(
   mat,
   name              = "median adjS",
@@ -555,9 +536,8 @@ ht_full <- Heatmap(
   row_names_gp      = gpar(fontsize = 6),
   column_names_gp   = gpar(fontsize = 7),
   row_names_max_width = unit(4, "cm"),
-  row_title_rot     = 0,
-  row_title_gp      = gpar(fontsize = 7),
-  row_gap           = unit(1, "mm"),
+  row_title         = NULL,
+  row_gap           = unit(1.5, "mm"),
   right_annotation  = rowAnnotation(
     lineage_class = wide$lineage_class,
     col = list(lineage_class = lc_pal),
@@ -567,7 +547,7 @@ ht_full <- Heatmap(
 )
 
 draw(ht_full)
-pdf(file.path(out_dir, "fig_argelaguet_heatmap.pdf"), width = 11.2, height = 8)
+pdf(file.path(out_dir, "fig_argelaguet_heatmap.pdf"), width = 9.0, height = 6.4)
 draw(ht_full)
 invisible(dev.off())
 ```

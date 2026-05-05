@@ -1,0 +1,53 @@
+{% set name = "yamet" %}
+{% set version = "1.1.0" %}
+
+package:
+  name: {{ name|lower }}
+  version: {{ version }}
+
+source:
+  url: https://github.com/imallona/yamet/archive/refs/tags/v{{ version }}.tar.gz
+  sha256: 0000000000000000000000000000000000000000000000000000000000000000
+
+build:
+  number: 0
+  skip: true  # [win]
+  run_exports:
+    - {{ pin_subpackage(name, max_pin="x.x") }}
+
+requirements:
+  build:
+    - {{ compiler('cxx') }}
+    - cmake >=3.30
+    - make
+  host:
+    - libboost-devel >=1.83.0
+    - cli11 >=2.6.0
+
+test:
+  commands:
+    - yamet --help
+    - yamet --version
+
+about:
+  home: https://github.com/imallona/yamet
+  license: GPL-3.0-only
+  license_family: GPL3
+  license_file: LICENSE
+  summary: Yet Another Methylation Entropy Tool
+  description: |
+    yamet is a C++ command line tool for computing entropies from DNA methylation
+    data. It takes per-cell cytosine reports, a reference of all CpG positions,
+    and a BED file of genomic regions, then computes sample entropy (per cell,
+    per interval) and 2-mer Shannon entropy (across cells, per interval).
+    Missing positions are handled via the reference file.
+  dev_url: https://github.com/imallona/yamet
+  doc_url: https://github.com/imallona/yamet/blob/master/README.md
+
+extra:
+  recipe-maintainers:
+    - imallona
+    - atchox
+  authors:
+    - Izaskun Mallona <izaskun.mallona@gmail.com>
+    - Atreya Choudhury <achoudhury@ethz.ch>

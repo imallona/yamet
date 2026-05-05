@@ -200,8 +200,9 @@ mk_paper_umap <- function(color_col, pal, lab, viridis_opt = NULL) {
       guides(color = guide_legend(override.aes = list(size = 1.0, alpha = 1),
                                   ncol = 2))
   } else {
-    p <- p + scale_color_viridis_c(option = viridis_opt %||% "viridis") +
-      guides(color = guide_colorbar(barwidth = unit(8, "mm"),
+    p <- p + scale_color_viridis_c(option = viridis_opt %||% "viridis",
+                                   n.breaks = 3) +
+      guides(color = guide_colorbar(barwidth = unit(12, "mm"),
                                     barheight = unit(1.2, "mm")))
   }
   p
@@ -286,7 +287,7 @@ ht_compact <- Heatmap(
   cluster_rows      = TRUE,
   cluster_row_slices = FALSE,
   cluster_columns   = TRUE,
-  show_row_names    = TRUE,
+  show_row_names    = FALSE,
   show_column_names = TRUE,
   row_names_gp      = gpar(fontsize = 4),
   column_names_gp   = gpar(fontsize = 5),
@@ -337,7 +338,8 @@ if (!is.null(cell_df)) {
           legend.box.spacing = unit(0.2, "mm"),
           strip.text         = element_text(size = 5.5,
                                             margin = margin(1, 0, 1, 0)),
-          panel.spacing      = unit(0.4, "mm"),
+          panel.spacing.x    = unit(1.2, "mm"),
+          panel.spacing.y    = unit(0.6, "mm"),
           plot.margin        = margin(0, 0, 0, 0, "mm"))
 } else {
   pE_v2 <- patchwork::plot_spacer() +
@@ -357,13 +359,14 @@ if (!is.null(ve_long)) {
                                  "sub_type"   = "#E69F00")) +
     labs(x = "assay", y = "median % var. explained", fill = NULL) +
     theme_ng(base_size = 7) +
-    theme(legend.position      = c(0.02, 0.98),
-          legend.justification = c(0, 1),
+    theme(legend.position      = "top",
+          legend.justification = "left",
           legend.background    = element_rect(fill = "white", colour = NA),
           legend.key.size      = unit(1.8, "mm"),
           legend.text          = element_text(size = 6),
           legend.margin        = margin(0, 1, 0, 1),
-          plot.margin          = margin(0, 0, 0, 0, "mm"))
+          legend.box.margin    = margin(0, 0, -2, 0),
+          plot.margin          = margin(1, 0, 0, 0, "mm"))
 } else {
   pF_v2 <- patchwork::plot_spacer() +
     labs(title = "ecker_win_varexp.csv missing")

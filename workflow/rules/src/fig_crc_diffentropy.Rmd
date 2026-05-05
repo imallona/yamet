@@ -104,24 +104,28 @@ prop_df <- bind_rows(lapply(names(de_nc), function(nm) {
   }))
 })) %>%
   filter(!is.na(proportion)) %>%
-  mutate(contrast_dir = paste0(contrast, "\n(", direction, ")"))
+  mutate(direction = factor(direction, levels = c("up", "down")))
 
 write.csv(prop_df, "crc_diffentropy_annotation_overlap.csv", row.names = FALSE)
 ```
 
 ```{r panel-b}
-pb <- ggplot(prop_df, aes(x = contrast_dir, y = annotation)) +
+prop_legend <- "proportion of windows\noverlapping annotation"
+pb <- ggplot(prop_df, aes(x = contrast, y = annotation)) +
   geom_point(aes(size = proportion, color = proportion)) +
-  scale_size(range = c(0.5, 4),
-             guide = guide_legend(title = "proportion of windows\noverlapping annotation")) +
-  scale_color_gradient(low = "grey80", high = "red",
-                       guide = "none") +
+  facet_wrap(~ direction, nrow = 1) +
+  scale_size(range = c(0.5, 4),  name = prop_legend) +
+  scale_color_gradient(low = "grey80", high = "red", name = prop_legend) +
+  guides(size  = guide_legend(),
+         color = guide_legend()) +
   labs(x = "contrast (vs NC)", y = "annotation",
        title = "annotation overlap in diff. entropy windows") +
   theme_ng(base_size = 7) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 6),
         axis.text.y = element_text(size = 6.5),
-        plot.title  = element_text(size = 8, face = "plain"),
+        plot.title  = element_text(size = 8, face = "plain",
+                                   margin = margin(b = 4)),
+        strip.text  = element_text(size = 7),
         legend.key.size  = unit(3, "mm"),
         legend.title     = element_text(size = 6.5),
         legend.text      = element_text(size = 6))
@@ -143,11 +147,12 @@ comp_df <- bind_rows(lapply(key_anns, function(ann) {
   in_vals  <- colMeans(adjS_mat[in_idx,  , drop = FALSE], na.rm = TRUE)
   out_vals <- colMeans(adjS_mat[out_idx, , drop = FALSE], na.rm = TRUE)
 
+  short_ann <- sub("^([^_]+)_\\1$", "\\1", gsub("_bin$", "", ann))
   bind_rows(
     data.frame(location = col_df$location, adjS = in_vals,
-               overlap = "overlapping", annotation = gsub("_bin$", "", ann)),
+               overlap = "overlapping", annotation = short_ann),
     data.frame(location = col_df$location, adjS = out_vals,
-               overlap = "other",       annotation = gsub("_bin$", "", ann))
+               overlap = "other",       annotation = short_ann)
   )
 }))
 
@@ -174,7 +179,7 @@ pc <- ggplot(comp_df, aes(x = location, y = adjS, fill = overlap)) +
        title = "is the diff-entropy signal annotation-specific?",
        subtitle = "per-cell adjS averaged across windows that overlap each annotation vs the rest") +
   theme_ng(base_size = 8) +
-  theme(axis.text.x   = element_text(angle = 45, hjust = 1, size = 7),
+  theme(axis.text.x   = element_text(angle = 0, hjust = 0.5, size = 7),
         strip.text    = element_text(size = 7),
         plot.title    = element_text(size = 9, face = "plain"),
         plot.subtitle = element_text(size = 7, colour = "grey35"),
@@ -196,15 +201,14 @@ ggsave(
 )
 ```
 
-```{r single-panel-cell-adjS, fig.width = 6.1, fig.height = 3.3}
-# +40% width / +20% height vs ng_fig_size(2, 1.5) — was too cramped.
+```{r single-panel-cell-adjS, fig.width = 6.1, fig.height = 2.8}
 pc_solo <- pc
 print(pc_solo)
 
 ggsave(
   file.path(out_dir, "fig_crc_diffentropy_cell_adjS.pdf"),
   plot   = pc_solo,
-  width  = 6.1, height = 3.3, units = "in",
+  width  = 6.1, height = 2.8, units = "in",
   device = cairo_pdf
 )
 ```
