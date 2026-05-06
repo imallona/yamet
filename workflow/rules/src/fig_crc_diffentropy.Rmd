@@ -1,0 +1,214 @@
+---
+title: "CRC differential entropy figure"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  bookdown::html_document2:
+    code_folding: hide
+    number_sections: no
+---
+
+```{r setup}
+suppressPackageStartupMessages({
+  library(ggplot2)
+  library(patchwork)
+  library(dplyr)
+  library(tidyr)
+  library(SingleCellExperiment)
+})
+
+source("rules/src/ggtheme.R")
+source("rules/src/palettes.R")
+
+knitr::opts_chunk$set(
+  echo    = TRUE,
+  message = FALSE,
+  warning = FALSE
+)
+
+log_con <- file(snakemake@log[[1]], open = "wt")
+sink(log_con)
+sink(log_con, type = "message")
+
+out_dir <- snakemake@params$out_dir
+if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE)
+
+```
+
+```{r load}
+de     <- readRDS(snakemake@input$de)
+embeds <- readRDS("crc_embeddings_debug.rds")
+sce    <- readRDS(snakemake@params$corrected_sce)
+```
+
+```{r de-summaries}
+de_nc <- de[c("pt_vs_nc", "ln_vs_nc", "ml_vs_nc", "mp_vs_nc")]
+
+summarize_contrast <- function(df, alpha = 0.05) {
+  sig <- df[df$adj_p < alpha, ]
+  data.frame(
+    upregulated   = sum(sig$moderated_t >= 0, na.rm = TRUE),
+    downregulated = sum(sig$moderated_t < 0,  na.rm = TRUE)
+  )
+}
+
+summary_table <- bind_rows(lapply(names(de_nc), function(nm) {
+  cbind(contrast = nm, summarize_contrast(de_nc[[nm]]$coefs_df))
+}))
+write.csv(summary_table, "crc_diffentropy_counts.csv", row.names = FALSE)
+```
+
+```{r panel-a-removed, eval=FALSE, include=FALSE}
+# Panel A (DE counts barplot) was removed on 2026-05-03 because it duplicates
+# Figure 4F of the manuscript, which is sourced from fig_crc.Rmd single-page
+# layout panel F. The underlying CSVs crc_de_counts.csv (single_page) and
+# crc_diffentropy_counts.csv (this Rmd) are byte-identical for the columns
+# read by both panels.
+# Keeping the chunk as eval=FALSE so the figure caption mapping in the
+# manuscript stays clear when reading the source.
+# To re-instate, add `pa <- ggplot(df_long, ...)` here and put back the
+# combined chunk that was removed in the same edit.
+```
+
+```{r prop-df}
+rd <- embeds$row_data
+all_regions <- rownames(rd)
+
+annot_features <- c(
+  "pmds_pmd_bin", "hmds_pmd_bin",
+  "H3K27me3_chip_bin", "H3K9me3_chip_bin", "H3K4me3_chip_bin",
+  "laminb1_lad_bin", "genes_genes_bin",
+  "cpgIslandExt_cpgIslandExt_bin",
+  "crc01_gain_scna_scna_bin", "crc01_lost_scna_scna_bin"
+)
+
+prop_df <- bind_rows(lapply(names(de_nc), function(nm) {
+  cf   <- de_nc[[nm]]$coefs_df
+  up   <- cf$region[cf$moderated_t >= 0 & cf$adj_p < 0.05]
+  down <- cf$region[cf$moderated_t < 0  & cf$adj_p < 0.05]
+  is_up   <- all_regions %in% up
+  is_down <- all_regions %in% down
+
+  bind_rows(lapply(annot_features, function(ann) {
+    ann_vec <- rd[[ann]]
+    if (is.null(ann_vec)) return(NULL)
+    data.frame(
+      annotation = gsub("_bin$", "", ann),
+      contrast   = nm,
+      direction  = c("up",   "down"),
+      proportion = c(
+        if (sum(is_up)   > 0) sum(ann_vec[is_up]   == 1, na.rm = TRUE) / sum(is_up)   else NA_real_,
+        if (sum(is_down) > 0) sum(ann_vec[is_down] == 1, na.rm = TRUE) / sum(is_down) else NA_real_
+      ),
+      stringsAsFactors = FALSE
+    )
+  }))
+})) %>%
+  filter(!is.na(proportion)) %>%
+  mutate(direction = factor(direction, levels = c("up", "down")))
+
+write.csv(prop_df, "crc_diffentropy_annotation_overlap.csv", row.names = FALSE)
+```
+
+```{r panel-b}
+prop_legend <- "proportion of windows\noverlapping annotation"
+pb <- ggplot(prop_df, aes(x = contrast, y = annotation)) +
+  geom_point(aes(size = proportion, color = proportion)) +
+  facet_wrap(~ direction, nrow = 1) +
+  scale_size(range = c(0.5, 4),  name = prop_legend) +
+  scale_color_gradient(low = "grey80", high = "red", name = prop_legend) +
+  guides(size  = guide_legend(),
+         color = guide_legend()) +
+  labs(x = "contrast (vs NC)", y = "annotation",
+       title = "annotation overlap in diff. entropy windows") +
+  theme_ng(base_size = 7) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 6),
+        axis.text.y = element_text(size = 6.5),
+        plot.title  = element_text(size = 8, face = "plain",
+                                   margin = margin(b = 4)),
+        strip.text  = element_text(size = 7),
+        legend.key.size  = unit(3, "mm"),
+        legend.title     = element_text(size = 6.5),
+        legend.text      = element_text(size = 6))
+```
+
+```{r panel-c}
+key_anns <- c("pmds_pmd_bin", "hmds_pmd_bin", "H3K27me3_chip_bin",
+              "H3K9me3_chip_bin", "genes_genes_bin", "cpgIslandExt_cpgIslandExt_bin")
+
+rd_sce   <- as.data.frame(rowData(sce))
+adjS_mat <- assay(sce, "sampen_corrected")
+
+comp_df <- bind_rows(lapply(key_anns, function(ann) {
+  in_idx  <- which(rd_sce[[ann]] == 1)
+  out_idx <- which(rd_sce[[ann]] == 0)
+  if (length(in_idx) == 0) return(NULL)
+
+  col_df   <- as.data.frame(colData(sce))
+  in_vals  <- colMeans(adjS_mat[in_idx,  , drop = FALSE], na.rm = TRUE)
+  out_vals <- colMeans(adjS_mat[out_idx, , drop = FALSE], na.rm = TRUE)
+
+  short_ann <- sub("^([^_]+)_\\1$", "\\1", gsub("_bin$", "", ann))
+  bind_rows(
+    data.frame(location = col_df$location, adjS = in_vals,
+               overlap = "overlapping", annotation = short_ann),
+    data.frame(location = col_df$location, adjS = out_vals,
+               overlap = "other",       annotation = short_ann)
+  )
+}))
+
+comp_summary <- comp_df %>%
+  group_by(annotation, location, overlap) %>%
+  summarise(
+    median_adjS = median(adjS, na.rm = TRUE),
+    q25         = quantile(adjS, 0.25, na.rm = TRUE),
+    q75         = quantile(adjS, 0.75, na.rm = TRUE),
+    n_cells     = sum(!is.na(adjS)),
+    .groups     = "drop"
+  )
+write.csv(comp_summary, "crc_diffentropy_cell_adjS_by_overlap.csv",
+          row.names = FALSE)
+
+pc <- ggplot(comp_df, aes(x = location, y = adjS, fill = overlap)) +
+  geom_boxplot(outlier.size = 0.2, lwd = 0.3) +
+  facet_wrap(~ annotation, ncol = 3, scales = "free_y") +
+  scale_fill_manual(values = c(overlapping = "#0072B2", other = "grey70"),
+                    labels = c(overlapping = "windows overlapping the annotation",
+                               other       = "all other windows")) +
+  labs(x = "biopsy location", y = "mean adjS per cell",
+       fill = NULL,
+       title = "is the diff-entropy signal annotation-specific?",
+       subtitle = "per-cell adjS averaged across windows that overlap each annotation vs the rest") +
+  theme_ng(base_size = 8) +
+  theme(axis.text.x   = element_text(angle = 0, hjust = 0.5, size = 7),
+        strip.text    = element_text(size = 7),
+        plot.title    = element_text(size = 9, face = "plain"),
+        plot.subtitle = element_text(size = 7, colour = "grey35"),
+        legend.position = "bottom",
+        legend.text   = element_text(size = 7))
+```
+
+```{r single-panel-overlap, fig.width = 6.1, fig.height = 2.6}
+# Single-panel: annotation overlap proportions across contrasts and directions.
+# +40% width / +20% height vs ng_fig_size(2, 1.2) — was too cramped.
+pb_solo <- pb
+print(pb_solo)
+
+ggsave(
+  file.path(out_dir, "fig_crc_diffentropy_overlap_props.pdf"),
+  plot   = pb_solo,
+  width  = 6.1, height = 2.6, units = "in",
+  device = cairo_pdf
+)
+```
+
+```{r single-panel-cell-adjS, fig.width = 6.1, fig.height = 2.8}
+pc_solo <- pc
+print(pc_solo)
+
+ggsave(
+  file.path(out_dir, "fig_crc_diffentropy_cell_adjS.pdf"),
+  plot   = pc_solo,
+  width  = 6.1, height = 2.8, units = "in",
+  device = cairo_pdf
+)
+```

@@ -1,0 +1,356 @@
+---
+title: "Argelaguet: cell embeddings from genomic windows entropy"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: hide
+    code_download: true
+    number_sections: true
+    df_print: default
+    theme: lumen
+---
+
+```{r logging_early, include = FALSE}
+log <- file(snakemake@log$log, open = "wt")
+sink(log)
+sink(log, type = "message")
+```
+
+```{r setup}
+suppressPackageStartupMessages({
+  library(readr)
+  library(ggplot2)
+  library(dplyr)
+  library(tidyr)
+  library(BiocParallel)
+  library(uwot)
+  library(irlba)
+  library(matrixStats)
+  library(SingleCellExperiment)
+  library(SummarizedExperiment)
+
+  library(cluster)
+  library(viridis)
+  library(cowplot)
+})
+
+source("src/ggtheme.R")
+source("src/palettes.R")
+source("src/embedding_utils.R")
+
+param <- SerialParam()
+
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = TRUE,
+  warning = TRUE,
+  cache = FALSE,
+  fig.path = "argelaguet_embeddings_plots/"
+)
+```
+
+```{r save_snmk_debug, include = FALSE}
+saveRDS(snakemake, file = "snmk_argelaguet_embeddings.rds", compress = "xz")
+```
+
+```{r constants}
+N_HVW <- 1000
+N_PCS <- 10
+
+assay_map <- c(
+  "sampen"           = "S",
+  "sampen_corrected" = "adjS",
+  "adjS"             = "adjS_yamet",
+  "meth"             = "methylation"
+)
+```
+
+## Cell selection and NA-aware embedding
+
+The cells embedded here are not a uniformly random subsample. For each
+(stage, lineage) annotation we keep up to a fixed number of cells, picking the
+highest-coverage cells (file size on disk is monotonic in CpG count) and
+distributing the slots round-robin across plates. Stratifying by plate first
+keeps a single high-coverage plate from dominating an annotation. The visible
+cost is that any residual plate effect (cell cycle, batch) is preserved rather
+than averaged out across plates; the alternative of random sampling produced
+embeddings collapsed to a handful of cells per group because of how few windows
+were complete.
+
+scBS-seq methylation and per-cell entropy values have a meaningful zero
+(unmethylated CpG, zero local entropy) which is distinct from missing coverage.
+Imputing NAs to zero would bias both the variance signal and the embedding
+geometry, so the pipeline keeps NAs as NAs throughout: HVF selection scores
+features by variance times coverage fraction, and when too few windows have
+complete coverage the PCA step uses NIPALS (`pcaMethods`) which iterates over
+the observed entries without filling in missing values. Cells are dropped only
+when their per-cell NA fraction is above the QC threshold; once they pass that
+filter they are never dropped to make a feature block dense.
+
+# Load data
+
+```{r load_sce}
+sce <- readRDS(snakemake@params$corrected_sce)
+colData(sce)$stage   <- factor(colData(sce)$stage)
+## copy to a clean name used throughout; lineage10x is the original column
+colData(sce)$lineage <- factor(colData(sce)$lineage10x)
+
+cat("Cells:", ncol(sce), "\n")
+cat("Windows:", nrow(sce), "\n")
+cat("Assays:", paste(assayNames(sce), collapse = ", "), "\n")
+cat("Stages:\n")
+print(table(colData(sce)$stage, useNA = "ifany"))
+cat("Top lineages:\n")
+print(sort(table(colData(sce)$lineage, useNA = "ifany"), decreasing = TRUE))
+```
+
+# Shared helpers
+
+```{r helpers}
+hvw_pca_umap <- function(mat) {
+  run_embedding(mat, n_hvf = N_HVW, n_pcs = N_PCS,
+                n_neighbors = 15L, min_dist = 0.3, seed = 42L)
+}
+
+plot_umap_stage <- function(coords, sce_obj, title_prefix) {
+  df <- data.frame(
+    umap1 = coords[, 1], umap2 = coords[, 2],
+    stage = colData(sce_obj)$stage
+  )
+  ggplot(df, aes(x = umap1, y = umap2, color = stage)) +
+    geom_point(size = 0.6, alpha = 0.7) +
+    scale_color_manual(values = argelaguet_stage_pal) +
+    labs(title = paste(title_prefix, "- stage"), x = "UMAP 1", y = "UMAP 2") +
+    guides(color = guide_legend(override.aes = list(size = 2.5, alpha = 1))) +
+    theme_ng()
+}
+
+plot_umap_lineage <- function(coords, sce_obj, title_prefix) {
+  df <- data.frame(
+    umap1   = coords[, 1], umap2 = coords[, 2],
+    lineage = colData(sce_obj)$lineage
+  )
+  ggplot(df, aes(x = umap1, y = umap2, color = lineage)) +
+    geom_point(size = 0.6, alpha = 0.7) +
+    scale_color_manual(values = argelaguet_lineage_pal) +
+    labs(title = paste(title_prefix, "- lineage"), x = "UMAP 1", y = "UMAP 2") +
+    guides(color = guide_legend(override.aes = list(size = 2.5, alpha = 1),
+                                ncol = 2)) +
+    theme_ng()
+}
+```
+
+# Per-window embeddings (HVW -> PCA -> UMAP)
+
+HVW selection and NA handling: see `embedding_utils.R`.
+Top `r N_HVW` most variable windows retained per assay before PCA and UMAP.
+
+```{r win_hvw_pca_umap}
+win_embeds <- lapply(names(assay_map), function(akey) {
+  if (!akey %in% assayNames(sce)) return(NULL)
+  hvw_pca_umap(as.matrix(assay(sce, akey)))
+})
+names(win_embeds) <- assay_map
+
+failed <- names(which(sapply(win_embeds, is.null)))
+if (length(failed) > 0)
+  warning("run_embedding returned NULL for: ", paste(failed, collapse = ", "))
+
+cat("\nHVF selection summary:\n")
+for (nm in names(win_embeds)) {
+  em <- win_embeds[[nm]]
+  if (is.null(em)) {
+    cat(nm, ": NULL\n")
+  } else {
+    cat(nm, ": HVF =", length(em$hvf_idx),
+        "| cells =", sum(em$kept_cols), "/", ncol(sce), "\n")
+  }
+}
+
+saveRDS(
+  list(col_data = as.data.frame(colData(sce)),
+       sce_dim = dim(sce),
+       assay_names = assayNames(sce),
+       win_embeds = win_embeds,
+       assay_map = assay_map),
+  "argelaguet_umap_windows_adjS.rds", compress = "xz"
+)
+```
+
+## By stage {.tabset .tabset-pills}
+
+```{r win_stage_S, fig.width = ng_fig_size(1, 1, panel_mm = 60)$w, fig.height = ng_fig_size(1, 1, panel_mm = 60)$h}
+### S
+if (!is.null(win_embeds[["S"]])) {
+  print(plot_umap_stage(win_embeds[["S"]]$umap,
+                        sce[, win_embeds[["S"]]$kept_cols], "S (windows)"))
+}
+```
+
+```{r win_stage_adjS, fig.width = ng_fig_size(1, 1, panel_mm = 60)$w, fig.height = ng_fig_size(1, 1, panel_mm = 60)$h}
+### adjS
+if (!is.null(win_embeds[["adjS"]])) {
+  print(plot_umap_stage(win_embeds[["adjS"]]$umap,
+                        sce[, win_embeds[["adjS"]]$kept_cols], "adjS (windows)"))
+}
+```
+
+```{r win_stage_meth, fig.width = ng_fig_size(1, 1, panel_mm = 60)$w, fig.height = ng_fig_size(1, 1, panel_mm = 60)$h}
+### methylation
+if (!is.null(win_embeds[["methylation"]])) {
+  print(plot_umap_stage(win_embeds[["methylation"]]$umap,
+                        sce[, win_embeds[["methylation"]]$kept_cols],
+                        "methylation (windows)"))
+}
+```
+
+## By lineage {.tabset .tabset-pills}
+
+```{r win_lineage_S, fig.width = ng_fig_size(1, 1, panel_mm = 60, legend_mm = 55)$w, fig.height = ng_fig_size(1, 1, panel_mm = 60, legend_mm = 55)$h}
+### S
+if (!is.null(win_embeds[["S"]])) {
+  print(plot_umap_lineage(win_embeds[["S"]]$umap,
+                          sce[, win_embeds[["S"]]$kept_cols], "S (windows)"))
+}
+```
+
+```{r win_lineage_adjS, fig.width = ng_fig_size(1, 1, panel_mm = 60, legend_mm = 55)$w, fig.height = ng_fig_size(1, 1, panel_mm = 60, legend_mm = 55)$h}
+### adjS
+if (!is.null(win_embeds[["adjS"]])) {
+  print(plot_umap_lineage(win_embeds[["adjS"]]$umap,
+                          sce[, win_embeds[["adjS"]]$kept_cols], "adjS (windows)"))
+}
+```
+
+```{r win_lineage_meth, fig.width = ng_fig_size(1, 1, panel_mm = 60, legend_mm = 55)$w, fig.height = ng_fig_size(1, 1, panel_mm = 60, legend_mm = 55)$h}
+### methylation
+if (!is.null(win_embeds[["methylation"]])) {
+  print(plot_umap_lineage(win_embeds[["methylation"]]$umap,
+                          sce[, win_embeds[["methylation"]]$kept_cols],
+                          "methylation (windows)"))
+}
+```
+
+## Four-panel comparison (stage)
+
+```{r win_panel_stage, fig.width = ng_fig_size(4, 1, panel_mm = 55)$w, fig.height = ng_fig_size(4, 1, panel_mm = 55)$h}
+ok_embeds <- Filter(Negate(is.null), win_embeds)
+df_panel <- bind_rows(lapply(names(ok_embeds), function(lbl) {
+  em <- ok_embeds[[lbl]]
+  data.frame(umap1 = em$umap[, 1], umap2 = em$umap[, 2],
+             stage = colData(sce[, em$kept_cols])$stage,
+             lineage = colData(sce[, em$kept_cols])$lineage,
+             assay = lbl)
+}))
+df_panel$assay <- factor(df_panel$assay, levels = assay_map)
+
+ggplot(df_panel, aes(x = umap1, y = umap2, color = stage)) +
+  geom_point(size = 0.4, alpha = 0.6) +
+  scale_color_manual(values = argelaguet_stage_pal) +
+  facet_wrap(~ assay, nrow = 1) +
+  labs(x = "UMAP 1", y = "UMAP 2",
+       title = "Per-window embeddings (HVW -> PCA -> UMAP)") +
+  guides(color = guide_legend(override.aes = list(size = 2.5, alpha = 1))) +
+  theme_ng()
+```
+
+## Four-panel comparison (lineage)
+
+```{r win_panel_lineage, fig.width = ng_fig_size(4, 1, panel_mm = 55, legend_mm = 55)$w, fig.height = ng_fig_size(4, 1, panel_mm = 55, legend_mm = 55)$h}
+ggplot(df_panel, aes(x = umap1, y = umap2, color = lineage)) +
+  geom_point(size = 0.4, alpha = 0.6) +
+  scale_color_manual(values = argelaguet_lineage_pal) +
+  facet_wrap(~ assay, nrow = 1) +
+  labs(x = "UMAP 1", y = "UMAP 2",
+       title = "Per-window embeddings (HVW -> PCA -> UMAP)") +
+  guides(color = guide_legend(override.aes = list(size = 2.5, alpha = 1),
+                              ncol = 2)) +
+  theme_ng()
+```
+
+## Variance explained
+
+```{r win_varexp, fig.width = ng_fig_size(4, 1)$w, fig.height = ng_fig_size(2, 1)$h}
+ve_win <- bind_rows(lapply(names(assay_map), function(akey) {
+  lbl <- assay_map[[akey]]
+  if (is.null(win_embeds[[lbl]]) || !akey %in% assayNames(sce)) return(NULL)
+  kept <- win_embeds[[lbl]]$kept_cols
+  hvw_mat <- as.matrix(assay(sce, akey))[win_embeds[[lbl]]$hvf_idx, kept, drop = FALSE]
+  data.frame(
+    assay   = lbl,
+    stage   = median(row_variance_explained(hvw_mat, colData(sce[, kept])$stage),   na.rm = TRUE),
+    lineage = median(row_variance_explained(hvw_mat, colData(sce[, kept])$lineage), na.rm = TRUE))
+}))
+
+ve_long <- pivot_longer(ve_win, c("stage", "lineage"),
+                        names_to = "variable", values_to = "median_ve")
+ve_long$assay <- factor(ve_long$assay, levels = assay_map)
+
+write.csv(ve_long, "argelaguet_win_varexp.csv", row.names = FALSE)
+
+ggplot(ve_long, aes(x = assay, y = median_ve, fill = variable)) +
+  geom_col(position = position_dodge(width = 0.8)) +
+  scale_fill_manual(values = c("stage" = "#0072B2", "lineage" = "#E69F00")) +
+  labs(x = NULL, y = "median % variance explained",
+       title = "Variance explained (per-window HVW)") +
+  theme_ng()
+```
+
+## Silhouette scores (by stage)
+
+```{r win_sil, fig.width = ng_fig_size(2, 1)$w, fig.height = ng_fig_size(1, 1)$h}
+sil_win <- data.frame(
+  assay = names(ok_embeds),
+  silhouette_stage = sapply(names(ok_embeds), function(lbl)
+    sil_score(ok_embeds[[lbl]]$umap,
+              colData(sce[, ok_embeds[[lbl]]$kept_cols])$stage)),
+  silhouette_lineage = sapply(names(ok_embeds), function(lbl)
+    sil_score(ok_embeds[[lbl]]$umap,
+              colData(sce[, ok_embeds[[lbl]]$kept_cols])$lineage))
+)
+
+sil_long <- pivot_longer(sil_win, c("silhouette_stage", "silhouette_lineage"),
+                         names_to = "grouping", values_to = "silhouette")
+sil_long$grouping <- sub("silhouette_", "", sil_long$grouping)
+sil_long$assay    <- factor(sil_long$assay, levels = assay_map)
+
+ggplot(sil_long, aes(x = assay, y = silhouette, fill = grouping)) +
+  geom_col(position = position_dodge(width = 0.8)) +
+  geom_hline(yintercept = 0, linetype = "dashed", colour = "grey40") +
+  scale_fill_manual(values = c("stage" = "#0072B2", "lineage" = "#E69F00")) +
+  labs(x = NULL, y = "mean silhouette",
+       title = "Cluster separation by assay") +
+  theme_ng()
+```
+
+# Per-cell entropy summaries
+
+```{r cell_df}
+cell_df <- data.frame(
+  stage   = colData(sce)$stage,
+  lineage = colData(sce)$lineage,
+  mean_S    = colMeans(assay(sce, "sampen"),           na.rm = TRUE),
+  mean_adjS = colMeans(assay(sce, "sampen_corrected"), na.rm = TRUE),
+  mean_meth = colMeans(assay(sce, "meth"),             na.rm = TRUE)
+)
+```
+
+```{r violins, fig.width = ng_fig_size(4, 1)$w, fig.height = ng_fig_size(4, 2)$h}
+cell_long <- pivot_longer(cell_df, c("mean_S", "mean_adjS", "mean_meth"),
+                          names_to = "metric", values_to = "value")
+
+ggplot(cell_long, aes(x = stage, y = value, fill = stage)) +
+  geom_violin(trim = FALSE, scale = "width", alpha = 0.7) +
+  geom_boxplot(width = 0.1, outlier.size = 0.3, alpha = 0.6) +
+  scale_fill_manual(values = argelaguet_stage_pal) +
+  facet_grid(metric ~ ., scales = "free_y") +
+  labs(x = "stage", y = "per-cell mean") +
+  theme_ng() +
+  theme(legend.position = "none")
+```
+
+```{r session}
+sessionInfo()
+```

@@ -1,0 +1,159 @@
+---
+title: "Ecker: single-cell genomic windows SCE"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: hide
+    code_download: true
+    number_sections: true
+    df_print: default
+    theme: lumen
+---
+
+```{r logging_early, include = FALSE}
+log <- file(snakemake@log$log, open = "wt")
+sink(log)
+sink(log, type = "message")
+```
+
+```{r setup}
+suppressPackageStartupMessages({
+  library(readr)
+  library(dplyr)
+  library(ggplot2)
+  library(BiocParallel)
+  library(SingleCellExperiment)
+  library(SummarizedExperiment)
+})
+
+source("src/ggtheme.R")
+source("src/palettes.R")
+source("src/windows_sce_utils.R")
+
+param <- MulticoreParam(workers = snakemake@threads)
+
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = TRUE,
+  warning = TRUE,
+  cache = FALSE,
+  fig.path = "ecker_windows_plots/"
+)
+```
+
+```{r save_snmk_debug, include = FALSE}
+saveRDS(snakemake, file = "snmk_ecker_windows.rds", compress = "xz")
+```
+
+```{r load_meta}
+meta_raw <- read_tsv(snakemake@input[["meta"]], show_col_types = FALSE)
+meta_raw$cell_id <- sub("\\.gz$", "", basename(meta_raw$basename))
+rownames(meta_raw) <- meta_raw$cell_id
+
+cat("Cells in metadata:", nrow(meta_raw), "\n")
+cat("Cell classes:", length(unique(meta_raw$CellClass)), "\n")
+cat("Major types:", length(unique(meta_raw$MajorType)), "\n")
+cat("Sample metadata cell IDs (first 3):\n")
+print(head(rownames(meta_raw), 3))
+cat("Sample raw basename values (first 3):\n")
+print(head(meta_raw$basename, 3))
+```
+
+```{r cell_id_overlap_check}
+## Read raw column names from det file before building SCE, to diagnose ID mismatches.
+det_header <- readr::read_tsv(snakemake@input[["det"]], show_col_types = FALSE, n_max = 0)
+raw_col_names <- setdiff(colnames(det_header), c("chr", "start", "end"))
+derived_ids <- sub("\\.gz$", "", basename(raw_col_names))
+
+cat("Cells in windows yamet output:", length(raw_col_names), "\n")
+cat("Sample raw column names from det file (first 3):\n")
+print(head(raw_col_names, 3))
+cat("Sample derived cell IDs (first 3):\n")
+print(head(derived_ids, 3))
+
+n_overlap <- length(intersect(rownames(meta_raw), derived_ids))
+cat("Cell ID overlap (metadata vs yamet output):", n_overlap, "/",
+    length(derived_ids), "yamet cells found in metadata\n")
+```
+
+```{r build_sce}
+sce <- build_windows_sce(
+  assay_paths = list(
+    sampen = snakemake@input[["det"]],
+    adjS   = snakemake@input[["norm_det"]],
+    meth   = snakemake@input[["meth"]]
+  ),
+  col_data = meta_raw
+)
+
+cat("SCE dimensions:", nrow(sce), "windows x", ncol(sce), "cells\n")
+cat("Assays:", paste(assayNames(sce), collapse = ", "), "\n")
+cat("Cell classes in SCE:\n")
+print(table(colData(sce)$CellClass, useNA = "ifany"))
+
+saveRDS(sce, file = "sce_windows_ecker.rds", compress = "xz")
+```
+
+```{r filter_na}
+na_frac <- rowMeans(is.na(assay(sce, "sampen")))
+sce <- sce[na_frac < 0.3, ]
+cat("Windows after NA filter (< 30% missing cells):", nrow(sce), "\n")
+```
+
+```{r meth_correction}
+sce <- add_meth_correction(sce, BPPARAM = param)
+cat("Added sampen_corrected assay via per-window sampen ~ meth + I(meth^2)\n")
+cat("Final assays:", paste(assayNames(sce), collapse = ", "), "\n")
+```
+
+# QC
+
+```{r cell_qc_df}
+cell_df <- data.frame(
+  cell_class  = colData(sce)$CellClass,
+  major_type  = colData(sce)$MajorType,
+  mean_sampen    = colMeans(assay(sce, "sampen"), na.rm = TRUE),
+  mean_corrected = colMeans(assay(sce, "sampen_corrected"), na.rm = TRUE),
+  mean_meth      = colMeans(assay(sce, "meth"), na.rm = TRUE)
+)
+```
+
+```{r sampen_by_class, fig.width = ng_fig_size(4, 1)$w, fig.height = ng_fig_size(4, 1)$h}
+ggplot(cell_df, aes(x = cell_class, y = mean_sampen, fill = cell_class)) +
+  geom_violin(trim = FALSE, scale = "width") +
+  geom_boxplot(width = 0.1, outlier.size = 0.5, alpha = 0.5) +
+  theme_ng(base_size = 8) +
+  theme(legend.position = "none") +
+  labs(y = "mean S", title = "Per-cell mean S by cell class")
+```
+
+```{r adjS_by_class, fig.width = ng_fig_size(4, 1)$w, fig.height = ng_fig_size(4, 1)$h}
+ggplot(cell_df, aes(x = cell_class, y = mean_corrected, fill = cell_class)) +
+  geom_violin(trim = FALSE, scale = "width") +
+  geom_boxplot(width = 0.1, outlier.size = 0.5, alpha = 0.5) +
+  theme_ng(base_size = 8) +
+  theme(legend.position = "none") +
+  labs(y = "mean sampen_corrected", title = "Per-cell mean sampen_corrected by cell class")
+```
+
+```{r meth_vs_sampen, fig.width = ng_fig_size(4, 1)$w, fig.height = ng_fig_size(4, 1)$h}
+ggplot(cell_df, aes(x = mean_meth, y = mean_sampen, color = cell_class)) +
+  geom_point(size = 0.4, alpha = 0.5) +
+  scale_color_manual(values = ecker_cell_class_pal) +
+  guides(color = guide_legend(override.aes = list(size = 2, alpha = 1), ncol = 2)) +
+  theme_ng(base_size = 8) +
+  labs(x = "mean methylation", y = "mean S",
+       title = "Global S vs methylation per cell")
+```
+
+```{r save_corrected}
+saveRDS(sce, file = snakemake@params$corrected_sce, compress = "xz")
+cat("Saved corrected SCE to:", snakemake@params$corrected_sce, "\n")
+cat("Dimensions:", nrow(sce), "x", ncol(sce), "\n")
+```
+
+```{r session}
+sessionInfo()
+```

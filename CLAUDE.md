@@ -1,0 +1,9 @@
+- try snakemake executions by `source ~/miniconda3/bin/activate ; conda activate snakemake` first
+- logs are in barbara under `~/src/yamet/workflow/.snakemake/log`, as are most items (notice the `workflow` part in the dirname)
+- do not use unicode, ascii art, vertically aligned assign (e.g., = or <- ) symbols, bold facing, or tortured phrases; use plain english instead
+- be sparse with comments and use good variable naming
+- prioritize code correctness, maintenability and understandability: the code you are writing is for scientific papers
+- update documentation when algorithms/methods are changed
+- intersperse saving small RDS files in the reports for debugging purposes
+- never impute missing values in any report, especially not for cell embeddings; remove imputation if found and rewrite the affected code to handle NAs natively
+- computations are time intensive done in a remote server named `barbara` after pulling the last changes from github. This computer is a laptop used for coding. You can check the status of barbara's last snakemake execution by checking the last log in `barbara:/home/imallona/src/yamet/.snakemake/logs`. You can rsync RDS object on failure from `barbara` to locally in order to debug snakemake workflows

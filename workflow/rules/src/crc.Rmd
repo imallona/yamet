@@ -33,6 +33,8 @@ suppressPackageStartupMessages({
 })
 
 source("src/ggtheme.R")
+source("src/palettes.R")
+source("src/driver_utils.R")
 param <- MulticoreParam(workers = snakemake@threads)
 ```
 
@@ -1119,210 +1121,28 @@ ggplot(variation_loc,
 ```
 
 
-Clustering the behaviours/drivers, according to the sample entropy vs shannon entropy ratio (can we standardize this somehow)? or shall we quantilize in low, high etc? Or, rather, quantilize and categorize by the within-het or across-het prevalence
+# Driver categorization
 
+For each annotation, we compute the SD of group-level median adjH (across-cell
+heterogeneity) and median adjS (within-cell heterogeneity) across biopsy
+locations. If one SD is at least 1.5x the other, that entropy component
+dominates. Annotations where both SDs fall below the 30th percentile are
+labelled "neither".
 
-Categorizing the drivers - this is ongoing and not final
+```{r drivers, fig.width = 5, fig.height = 5}
+crc_grp_for_driver <- adj_df %>%
+  rename(median_adjH = median_shannon, median_adjS = sampen)
 
-```{r}
-## categorizing in shannon- or sample- driven
+driver_df <- categorize_drivers(crc_grp_for_driver, "location")
 
-variation <- variation %>%
-    mutate(
-        driver = case_when(
-            shannon_range >= sampen_range * 1.5 ~ "across cells heterogeneity-driven",
-            sampen_range  >= shannon_range * 1.5 ~ "within cells heterogeneity‑driven",
-            TRUE ~ "both"))
+cat("Driver table:\n")
+print(table(driver_df$driver))
 
-ggplot(variation, aes(x = shannon_range, y = sampen_range, color = driver, shape = driver, label = annotation)) +
-    geom_point(size = 3) +
-    ggrepel::geom_text_repel() +
-    labs(
-        x = "adjH range across biopsy sites",
-        y = "adjS range across biopsy sites",
-        ) +
-    theme_ng()
+saveRDS(driver_df, file = "crc_driver_sd_range.rds")
 
-
-```
-
-What about small changes? some of these don't change much in either adjS nor adjH, so we could label them accordingly. Why is this flaring for the SCNA things, if they were no changes?
-
-
-Caution this actually makes no sense
-
-```{r}
-## this actually makes no sense
-sds <- df %>%
-    group_by(annotation) %>%
-    summarise(
-        shannon_sd = sd(median_shannon, na.rm = TRUE),
-        sampen_sd  = sd(sampen, na.rm = TRUE)
-    )
-
-sds
-
-shannon_thr <- quantile(sds$shannon_sd, 0.3, na.rm = TRUE)
-sampen_thr  <- quantile(sds$sampen_sd, 0.3, na.rm = TRUE)
-
-sds <- sds %>%
-    mutate(
-        driver = case_when(
-            shannon_sd < shannon_thr & sampen_sd < sampen_thr ~ "not changing enough",
-            shannon_sd >= sampen_sd * 1.5 ~ "across cells heterogeneity-driven",
-            sampen_sd  >= shannon_sd * 1.5 ~ "within cells heterogeneity‑driven",
-            TRUE ~ "both"
-        )
-    )
-
-table(sds$driver)
-
-ggplot(sds,
-       aes(x = shannon_sd, y = sampen_sd,
-           color = driver, shape = driver, label = annotation)) +
-    geom_point(size = 3) +
-    ggrepel::geom_text_repel() +
-    labs(
-        x = "SD of adjH across biopsy sites",
-        y = "SD of adjS across biopsy sites"
-    ) +
-    theme_ng()
-
-
-```
-
-
-Hmm, this makes no sense, why the SCNA is there? would it make sense to plot the ranges instead?
-
-
-```{r}
-variation <- adj_df %>%
-    group_by(annotation) %>%
-    summarise(
-        shannon_range = max(median_shannon, na.rm = TRUE) - min(median_shannon, na.rm = TRUE),
-        sampen_range  = max(sampen, na.rm = TRUE) - min(sampen, na.rm = TRUE)
-    )
-
-shannon_thr <- quantile(variation$shannon_range, 0.5, na.rm = TRUE)
-sampen_thr  <- quantile(variation$sampen_range, 0.5, na.rm = TRUE)
-
-variation <- variation %>%
-    mutate(
-        driver = case_when(
-            shannon_range < shannon_thr & sampen_range < sampen_thr ~ "not changing enough",
-            shannon_range >= sampen_range * 1.5 ~ "across cells heterogeneity-driven",
-            sampen_range  >= shannon_range * 1.5 ~ "within cells heterogeneity‑driven",
-            TRUE ~ "both"
-        )
-    )
-
-table(variation$driver)
-ggplot(variation,
-       aes(x = shannon_range, y = sampen_range,
-           color = driver, shape = driver, label = annotation)) +
-    geom_point(size = 3) +
-    ggrepel::geom_text_repel() +
-    labs(
-        x = "adjH range across biopsy sites",
-        y = "adjS range across biopsy sites"
-    ) +
-    theme_ng()
-
-
-
-```
-
-
-```{r save_driver_objects}
-saveRDS(list(variation = variation, sds = sds),
-        file = "crc_driver_sd_range.rds")
-```
-
-This might make sense, or not, but again it does more sense to do only in PT vs NC, and each metastasis vs PT separately, todo
-
-
-# R2-based driver categorization {.tabset .tabset-pills}
-
-For each annotation, fit `lm(median ~ location)` separately for adjH and adjS (grouping
-per-cell adjS to group medians first). R2 quantifies how much of the variance in that
-metric is explained by tumour location. Annotations with high R2(adjH) are driven by
-across-cell heterogeneity; high R2(adjS) means within-cell heterogeneity tracks location.
-
-```{r r2_driver}
-adj_medians <- adj_df %>%
-  group_by(annotation, location) %>%
-  summarise(
-    median_adjH = median(median_shannon, na.rm = TRUE),
-    median_adjS = median(sampen, na.rm = TRUE),
-    .groups = "drop"
-  )
-
-r2_lm <- function(y, group) {
-  df <- data.frame(y = y, g = group)
-  df <- df[!is.na(df$y) & !is.na(df$g), ]
-  if (nrow(df) < 3 || length(unique(df$g)) < 2) return(NA_real_)
-  tryCatch(summary(lm(y ~ g, data = df))$r.squared, error = function(e) NA_real_)
-}
-
-r2_by_ann <- adj_medians %>%
-  group_by(annotation) %>%
-  summarise(
-    r2_adjH = r2_lm(median_adjH, location),
-    r2_adjS = r2_lm(median_adjS, location),
-    .groups = "drop"
-  ) %>%
-  mutate(
-    driver = case_when(
-      r2_adjH >= 0.3 & r2_adjS <  0.3 ~ "adjH-driven",
-      r2_adjS >= 0.3 & r2_adjH <  0.3 ~ "adjS-driven",
-      r2_adjH >= 0.3 & r2_adjS >= 0.3 ~ "both",
-      TRUE                             ~ "neither"
-    )
-  )
-
-saveRDS(list(adj_df = adj_df, adj_medians = adj_medians, r2_by_ann = r2_by_ann),
-        file = "crc_driver_r2.rds")
-
-r2_by_ann
-```
-
-## R2 scatter: adjH vs adjS {.tabset .tabset-pills}
-
-```{r r2_scatter, fig.width = 5, fig.height = 5}
-ggplot(r2_by_ann,
-       aes(x = r2_adjH, y = r2_adjS,
-           color = driver, shape = driver, label = annotation)) +
-  geom_vline(xintercept = 0.3, linetype = "dashed", linewidth = 0.3,
-             colour = "grey60") +
-  geom_hline(yintercept = 0.3, linetype = "dashed", linewidth = 0.3,
-             colour = "grey60") +
-  geom_point(size = 2) +
-  ggrepel::geom_text_repel(size = 2, max.overlaps = 20) +
-  scale_x_continuous(limits = c(0, 1)) +
-  scale_y_continuous(limits = c(0, 1)) +
-  labs(
-    x = "R2: adjH ~ location",
-    y = "R2: adjS ~ location",
-    color = "driver", shape = "driver"
-  ) +
-  theme_ng() +
-  theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
-```
-
-## R2 per annotation (bar)
-
-```{r r2_bar, fig.width = 10, fig.height = 4}
-r2_long <- tidyr::pivot_longer(r2_by_ann,
-                                cols = c(r2_adjH, r2_adjS),
-                                names_to = "metric", values_to = "r2")
-
-ggplot(r2_long, aes(x = annotation, y = r2, fill = metric)) +
-  geom_col(position = position_dodge(0.8), width = 0.7) +
-  geom_hline(yintercept = 0.3, linetype = "dashed", linewidth = 0.3,
-             colour = "grey40") +
-  scale_fill_manual(values = c(r2_adjH = "#0072B2", r2_adjS = "#D55E00")) +
-  labs(y = "R2 (variance explained by location)", fill = NULL) +
-  theme_ng()
+plot_driver_scatter(driver_df,
+                    x_label = "SD of adjH across biopsy locations",
+                    y_label = "SD of adjS across biopsy locations")
 ```
 
 

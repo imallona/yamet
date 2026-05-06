@@ -22,6 +22,8 @@ rule mm10_per_chr_ref:
 
 
 rule mm10_aggregate_ref:
+    conda:
+        op.join("..", "envs", "processing.yml")
     wildcard_constraints:
         meth_pat="[^.]+",
     input:
@@ -36,6 +38,8 @@ rule mm10_aggregate_ref:
 
 
 rule mm10_chr10_aggregate_ref:
+    conda:
+        op.join("..", "envs", "processing.yml")
     input:
         op.join(MM10_BASE, "10.{meth_pat}.ref"),
     output:
@@ -71,6 +75,8 @@ ENCODE_MAP = {
 
 
 rule get_mm10_encode:
+    conda:
+        op.join("..", "envs", "processing.yml")
     wildcard_constraints:
         ann="|".join(ENCODE_MAP.keys()),
     output:
@@ -81,6 +87,42 @@ rule get_mm10_encode:
         """
         curl -L https://www.encodeproject.org/files/{params.accessor}/@@download/{params.accessor}.bed.gz -o {output}
         """
+
+
+rule get_mm10_sizes:
+    conda:
+        op.join("..", "envs", "processing.yml")
+    output:
+        op.join(MM10_BASE, "mm10.sizes")
+    shell:
+        """
+        mysql --user=genome --host=genome-mysql.cse.ucsc.edu -N -s -e \
+          'SELECT chrom,size FROM mm10.chromInfo' |
+          sed 's/^chr//' |
+          grep -v '_' > {output}
+        """
+
+
+rule make_windows_mm10:
+    conda:
+        op.join("..", "envs", "processing.yml")
+    input:
+        sizes=op.join(MM10_BASE, "mm10.sizes"),
+    output:
+        op.join(MM10_BASE, "windows_{win_size}_nt.bed")
+    shell:
+        "bedtools makewindows -g {input.sizes} -w {wildcards.win_size} | sort -k1,1 -k2,2n > {output}"
+
+
+rule make_windows_mm10_chr10:
+    conda:
+        op.join("..", "envs", "processing.yml")
+    input:
+        op.join(MM10_BASE, "windows_{win_size}_nt.bed")
+    output:
+        op.join(MM10_BASE, "windows_{win_size}_nt.chr10.bed")
+    shell:
+        "grep '^10\t' {input} > {output}"
 
 
 rule decompress_mm10_annotation:

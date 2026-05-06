@@ -14,8 +14,8 @@ tarball (E7.5 H3K27ac enhancers from GSE125318, ESC marks from ENCODE).
 ARGELAGUET_BASE          = "argelaguet"
 ARGELAGUET_HARMONIZED    = op.join(ARGELAGUET_BASE, "harmonized")
 ARGELAGUET_OUTPUT        = op.join(ARGELAGUET_BASE, "output")
-ARGELAGUET_MAX_CELLS     = 20
-ARGELAGUET_DOWNSAMPLE_SEED = 42
+ARGELAGUET_WINDOWS_OUTPUT = op.join(ARGELAGUET_BASE, "windows_output")
+ARGELAGUET_MAX_CELLS = 20
 
 ## Set True to restrict to chr10 for fast testing; False for full genome.
 ARGELAGUET_CHR10_ONLY    = False
@@ -99,6 +99,8 @@ ARGELAGUET_GROUPS = get_argelaguet_groups()
 
 
 rule download_argelaguet:
+    conda:
+        op.join("..", "envs", "processing.yml")
     output:
         flag=touch(op.join(ARGELAGUET_BASE, "downloaded.flag")),
     params:
@@ -146,7 +148,18 @@ checkpoint harmonize_argelaguet_cells:
 
 
 def get_argelaguet_harmonized_files(stage, lineage):
-    import random
+    """Pick up to ARGELAGUET_MAX_CELLS cells per (stage, lineage) group,
+    selecting the highest-coverage cells stratified by plate.
+
+    Coverage is approximated by the harmonized file size on disk: each
+    file is one line per observed CpG so size is monotonic in coverage.
+    Stratifying by plate before taking the top cells reduces the risk
+    that a single high-coverage plate dominates the embedding. Within a
+    plate, cells are ranked by file size and the largest are taken.
+    Across plates, ARGELAGUET_MAX_CELLS slots are distributed as evenly
+    as possible (round-robin top-up). Cells with empty plate label are
+    grouped under a single "_unknown" pseudo-plate.
+    """
     checkpoints.harmonize_argelaguet_cells.get()
     meta = pd.read_csv(
         op.join(ARGELAGUET_BASE, "meta.tsv.gz"), sep="\t", compression="gzip"
@@ -155,16 +168,40 @@ def get_argelaguet_harmonized_files(stage, lineage):
     for col, val in zip(ARGELAGUET_STRATIFY_BY, [stage, lineage]):
         if col in meta.columns:
             mask &= meta[col].astype(str).apply(_arg_sanitize) == val
-    cell_ids = meta[mask]["id_met"].dropna().tolist()
-    cells = [
-        op.join(ARGELAGUET_HARMONIZED, f"{c}.gz")
-        for c in cell_ids
-        if op.exists(op.join(ARGELAGUET_HARMONIZED, f"{c}.gz"))
-    ]
-    if len(cells) > ARGELAGUET_MAX_CELLS:
-        rng = random.Random(ARGELAGUET_DOWNSAMPLE_SEED)
-        cells = rng.sample(cells, ARGELAGUET_MAX_CELLS)
-    return cells
+
+    sub = meta[mask].dropna(subset=["id_met"]).copy()
+    sub["_path"] = sub["id_met"].apply(
+        lambda c: op.join(ARGELAGUET_HARMONIZED, f"{c}.gz")
+    )
+    sub = sub[sub["_path"].apply(op.exists)]
+    if sub.empty:
+        return []
+
+    sub["_size"] = sub["_path"].apply(op.getsize)
+    plate_col = "plate" if "plate" in sub.columns else None
+    if plate_col is None:
+        sub["_plate"] = "_unknown"
+    else:
+        sub["_plate"] = sub[plate_col].fillna("_unknown").astype(str)
+
+    if len(sub) <= ARGELAGUET_MAX_CELLS:
+        return sub.sort_values("_size", ascending=False)["_path"].tolist()
+
+    plate_groups = {
+        p: g.sort_values("_size", ascending=False)["_path"].tolist()
+        for p, g in sub.groupby("_plate")
+    }
+    plate_order = sorted(plate_groups.keys())
+
+    picked = []
+    while len(picked) < ARGELAGUET_MAX_CELLS and any(plate_groups.values()):
+        for p in plate_order:
+            if not plate_groups[p]:
+                continue
+            picked.append(plate_groups[p].pop(0))
+            if len(picked) == ARGELAGUET_MAX_CELLS:
+                break
+    return picked
 
 
 _ARG_BED_CHR_GREP = "|".join(f"^{c}\t" for c in _ARG_BED_CHRS)
@@ -244,7 +281,7 @@ rule run_yamet_on_argelaguet_features:
         op.join("logs", "yamet_argelaguet_{annotation}_{stage}_{lineage}.log"),
     params:
         path=ARGELAGUET_OUTPUT,
-    threads: max(8, workflow.cores // 8)
+    threads: min(workflow.cores, 8)
     shell:
         """
         mkdir -p {params.path}
@@ -294,6 +331,13 @@ rule render_argelaguet_report:
         output_path=ARGELAGUET_OUTPUT,
         chr10_only=ARGELAGUET_CHR10_ONLY,
         meta_path=op.join(ARGELAGUET_BASE, "meta.tsv.gz"),
+        ## bundled in the scnmt_gastrulation tarball, materialised by the
+        ## download_argelaguet rule via the downloaded.flag chain. Kept in
+        ## params (not input) to avoid declaring it as a missing artifact.
+        paper_umap_path=op.join(
+            ARGELAGUET_BASE, "metaccrna", "mofa", "all_stages",
+            "umap_coordinates.txt",
+        ),
     threads:
         round(workflow.cores / 2)
     output:
@@ -302,3 +346,108 @@ rule render_argelaguet_report:
         log=op.join("logs", "render_argelaguet.log"),
     script:
         "src/argelaguet.Rmd"
+
+
+## Windows-based single-cell embeddings for Argelaguet gastrulation data.
+## All cells are run against chr10 10 kb windows (chr10 reference + windows).
+## This mirrors the CRC windows pipeline but uses stage/lineage as metadata.
+
+def get_all_argelaguet_harmonized_files(wildcards):
+    """Return harmonized cell files for ALL cells (no per-group cap)."""
+    checkpoints.harmonize_argelaguet_cells.get()
+    meta = pd.read_csv(
+        op.join(ARGELAGUET_BASE, "meta.tsv.gz"), sep="\t", compression="gzip"
+    )
+    cell_ids = meta["id_met"].dropna().tolist()
+    return [
+        op.join(ARGELAGUET_HARMONIZED, f"{c}.gz")
+        for c in cell_ids
+        if op.exists(op.join(ARGELAGUET_HARMONIZED, f"{c}.gz"))
+    ]
+
+
+rule run_yamet_on_argelaguet_windows:
+    conda:
+        op.join("..", "envs", "yamet.yml")
+    input:
+        cells=get_all_argelaguet_harmonized_files,
+        validation=ancient(op.join(ARGELAGUET_HARMONIZED, "coords_validated.flag")),
+        ref=op.join(MM10_BASE, "ref.CG.gz"),
+        windows=op.join(MM10_BASE, "windows_{win_size}_nt.bed"),
+    output:
+        det_tmp=temp(op.join(ARGELAGUET_WINDOWS_OUTPUT, "{win_size}_all.det.out")),
+        norm_det_tmp=temp(op.join(ARGELAGUET_WINDOWS_OUTPUT, "{win_size}_all.norm.det.out")),
+        meth_tmp=temp(op.join(ARGELAGUET_WINDOWS_OUTPUT, "{win_size}_all.meth.out")),
+        simple_tmp=temp(op.join(ARGELAGUET_WINDOWS_OUTPUT, "{win_size}_all.out")),
+        det=op.join(ARGELAGUET_WINDOWS_OUTPUT, "{win_size}_all.det.out.gz"),
+        norm_det=op.join(ARGELAGUET_WINDOWS_OUTPUT, "{win_size}_all.norm.det.out.gz"),
+        meth=op.join(ARGELAGUET_WINDOWS_OUTPUT, "{win_size}_all.meth.out.gz"),
+        simple=op.join(ARGELAGUET_WINDOWS_OUTPUT, "{win_size}_all.out.gz"),
+    params:
+        path=ARGELAGUET_WINDOWS_OUTPUT,
+        prefix=lambda wildcards: op.join(ARGELAGUET_WINDOWS_OUTPUT, f"{wildcards.win_size}_all"),
+    log:
+        op.join("logs", "yamet_argelaguet_windows_{win_size}.log"),
+    threads: workflow.cores
+    shell:
+        """
+        mkdir -p {params.path}
+        yamet \
+         --cell {input.cells} \
+         --reference {input.ref} \
+         --intervals {input.windows} \
+         --cores {threads} \
+         --no-print-sampens \
+         --out {params.prefix}.out \
+         --det-out {params.prefix}.det.out \
+         --meth-out {params.prefix}.meth.out \
+         --norm-det-out {params.prefix}.norm.det.out &> {log}
+        gzip --keep -f \
+          {params.prefix}.out \
+          {params.prefix}.det.out \
+          {params.prefix}.meth.out \
+          {params.prefix}.norm.det.out &>> {log}
+        """
+
+
+rule render_argelaguet_windows_report:
+    conda:
+        op.join("..", "envs", "r.yml")
+    input:
+        det=op.join(ARGELAGUET_WINDOWS_OUTPUT, "{win_size}_all.det.out.gz"),
+        norm_det=op.join(ARGELAGUET_WINDOWS_OUTPUT, "{win_size}_all.norm.det.out.gz"),
+        meth=op.join(ARGELAGUET_WINDOWS_OUTPUT, "{win_size}_all.meth.out.gz"),
+        meta=op.join(ARGELAGUET_BASE, "meta.tsv.gz"),
+    output:
+        op.join(ARGELAGUET_BASE, "results", "argelaguet_windows_{win_size}.html"),
+    params:
+        corrected_sce=op.join(
+            ARGELAGUET_BASE, "results", "sce_windows_argelaguet_{win_size}_corrected.rds"
+        ),
+    threads:
+        workflow.cores
+    log:
+        log=op.join("logs", "render_argelaguet_windows_{win_size}.log"),
+    script:
+        "src/argelaguet_windows.Rmd"
+
+
+rule render_argelaguet_embeddings_report:
+    conda:
+        op.join("..", "envs", "r.yml")
+    input:
+        windows_html=op.join(
+            ARGELAGUET_BASE, "results", "argelaguet_windows_{win_size}.html"
+        ),
+    output:
+        op.join(ARGELAGUET_BASE, "results", "argelaguet_embeddings_{win_size}.html"),
+    params:
+        corrected_sce=op.join(
+            ARGELAGUET_BASE, "results", "sce_windows_argelaguet_{win_size}_corrected.rds"
+        ),
+    threads:
+        workflow.cores
+    log:
+        log=op.join("logs", "render_argelaguet_embeddings_{win_size}.log"),
+    script:
+        "src/argelaguet_embeddings.Rmd"

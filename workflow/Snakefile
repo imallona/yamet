@@ -24,6 +24,8 @@ include: op.join("rules", "simulations.smk")
 include: op.join("rules", "archive.smk")
 ## coordinate validations (reference vs harmonized yamet inputs)
 include: op.join("rules", "validate.smk")
+## manuscript figure assembly
+include: op.join("rules", "figures.smk")
 
 
 shell.prefix("set -o pipefail; export PATH=$HOME/.local/yamet/bin:$PATH;")
@@ -41,11 +43,20 @@ rule all:
         op.join(CRC, "results", "crc_embeddings_10000.html"),
         ## Ecker mouse brain
         op.join(ECKER_BASE, "results", "ecker.html"),
+        op.join(ECKER_BASE, "results", "ecker_windows_10000.html"),
+        op.join(ECKER_BASE, "results", "ecker_embeddings_10000.html"),
         ## Argelaguet gastrulation
         op.join(ARGELAGUET_BASE, "results", "argelaguet.html"),
+        op.join(ARGELAGUET_BASE, "results", "argelaguet_windows_500000.html"),
+        op.join(ARGELAGUET_BASE, "results", "argelaguet_embeddings_500000.html"),
         ## simulations
         op.join(SIM_RESULTS, "simulation_figure2.html"),
         op.join(SIM_RESULTS, "simulation_08_combined_figure_adj.html"),
+        ## manuscript figure assembly
+        op.join(ECKER_BASE, "results", "fig_ecker.html"),
+        op.join(ARGELAGUET_BASE, "results", "fig_argelaguet.html"),
+        op.join(CRC, "results", "fig_crc.html"),
+        op.join(CRC, "results", "fig_crc_diffentropy.html"),
 
 rule install_yamet:
     """

@@ -13,13 +13,13 @@ this is mm10
 ECKER_BASE = "ecker"
 ECKER_HARMONIZED = op.join(ECKER_BASE, "harmonized")
 ECKER_OUTPUT = op.join(ECKER_BASE, "output")
+ECKER_WINDOWS_OUTPUT = op.join(ECKER_BASE, "windows_output")
 
 ## maximum cells per (major_region, cell_class) group passed to yamet
 ECKER_MAX_CELLS = 20
-ECKER_DOWNSAMPLE_SEED = 42
 
 ## set to True to restrict to chr10 for speed; False for full genome
-ECKER_CHR10_ONLY = True
+ECKER_CHR10_ONLY = False
 
 ## chromosomes to retain in annotation BED files for Ecker runs
 _ECKER_BED_CHRS = ["10"] if ECKER_CHR10_ONLY else CHRS
@@ -65,6 +65,8 @@ ECKER_GROUPS = get_ecker_groups()
 
 
 rule download_nemo_ecker_metadata:
+    conda:
+        "../envs/processing.yml"
     output:
         meta=temp(op.join(ECKER_BASE, "nemo_meta.tsv.gz")),
     params:
@@ -101,6 +103,8 @@ rule harmonize_ecker_metadata:
 
 
 rule ecker_urls:
+    conda:
+        "../envs/processing.yml"
     input:
         op.join(ECKER_BASE, "meta.tsv.gz"),
     output:
@@ -148,7 +152,18 @@ checkpoint harmonize_ecker_cells:
 
 
 def get_ecker_harmonized_files(sub_region, sub_type):
-    import random
+    """Pick up to ECKER_MAX_CELLS cells per (sub_region, sub_type) group,
+    selecting the highest-coverage cells stratified by Plate.
+
+    Coverage is approximated by the harmonized file size on disk: each
+    harmonized file is one line per observed CpG so size is monotonic in
+    coverage. Stratifying by plate before taking the top cells reduces the
+    risk that a single high-coverage plate dominates the embedding.
+    Within a plate, cells are ranked by file size and the largest are
+    taken. Across plates, ECKER_MAX_CELLS slots are distributed as evenly
+    as possible (round-robin top-up). Plates with empty plate label are
+    grouped under a single "_unknown" pseudo-plate.
+    """
     checkpoints.harmonize_ecker_cells.get()
     meta = pd.read_csv(
         op.join(ECKER_BASE, "meta.tsv.gz"), sep="\t", compression="gzip"
@@ -157,16 +172,40 @@ def get_ecker_harmonized_files(sub_region, sub_type):
     for col, val in zip(ECKER_STRATIFY_BY, [sub_region, sub_type]):
         if col in meta.columns:
             mask &= meta[col].astype(str).apply(_sanitize) == val
-    cell_basenames = meta[mask]["basename"].dropna().tolist()
-    cells = [
-        op.join(ECKER_HARMONIZED, c)
-        for c in cell_basenames
-        if op.exists(op.join(ECKER_HARMONIZED, c))
-    ]
-    if len(cells) > ECKER_MAX_CELLS:
-        rng = random.Random(ECKER_DOWNSAMPLE_SEED)
-        cells = rng.sample(cells, ECKER_MAX_CELLS)
-    return cells
+
+    sub = meta[mask].dropna(subset=["basename"]).copy()
+    sub["_path"] = sub["basename"].apply(
+        lambda b: op.join(ECKER_HARMONIZED, b)
+    )
+    sub = sub[sub["_path"].apply(op.exists)]
+    if sub.empty:
+        return []
+
+    sub["_size"] = sub["_path"].apply(op.getsize)
+    plate_col = "Plate" if "Plate" in sub.columns else None
+    if plate_col is None:
+        sub["_plate"] = "_unknown"
+    else:
+        sub["_plate"] = sub[plate_col].fillna("_unknown").astype(str)
+
+    if len(sub) <= ECKER_MAX_CELLS:
+        return sub.sort_values("_size", ascending=False)["_path"].tolist()
+
+    plate_groups = {
+        p: g.sort_values("_size", ascending=False)["_path"].tolist()
+        for p, g in sub.groupby("_plate")
+    }
+    plate_order = sorted(plate_groups.keys())
+
+    picked = []
+    while len(picked) < ECKER_MAX_CELLS and any(plate_groups.values()):
+        for p in plate_order:
+            if not plate_groups[p]:
+                continue
+            picked.append(plate_groups[p].pop(0))
+            if len(picked) == ECKER_MAX_CELLS:
+                break
+    return picked
 
 
 _ECKER_BED_CHR_GREP = "|".join(f"^{c}\t" for c in _ECKER_BED_CHRS)
@@ -206,7 +245,7 @@ rule run_yamet_on_ecker_features:
         op.join("logs", "yamet_ecker_{annotation}_{sub_region}_{sub_type}.log"),
     params:
         path=ECKER_OUTPUT,
-    threads: max(8, workflow.cores // 8)
+    threads: min(workflow.cores, 8)
     shell:
         """
         mkdir -p {params.path}
@@ -242,6 +281,110 @@ def list_ecker_yamet_outputs(wildcards):
                 if get_ecker_harmonized_files(sub_region, sub_type):
                     res.append(f"{ann}_{sub_region}_{sub_type}.det.out.gz")
     return [op.join(ECKER_OUTPUT, item) for item in res]
+
+
+def get_ecker_downsampled_cells(wildcards):
+    """Return the union of per-group downsampled cells (same as feature runs)."""
+    checkpoints.harmonize_ecker_cells.get()
+    meta = pd.read_csv(
+        op.join(ECKER_BASE, "meta.tsv.gz"), sep="\t", compression="gzip"
+    )
+    available = [c for c in ECKER_STRATIFY_BY if c in meta.columns]
+    combos = [
+        tuple(_sanitize(v) for v in row)
+        for _, row in meta[available].dropna().drop_duplicates().iterrows()
+    ]
+    cells = []
+    for sub_region, sub_type in combos:
+        cells.extend(get_ecker_harmonized_files(sub_region, sub_type))
+    return cells
+
+
+rule run_yamet_on_ecker_windows:
+    conda:
+        op.join("..", "envs", "yamet.yml")
+    input:
+        cells=get_ecker_downsampled_cells,
+        validation=ancient(op.join(ECKER_HARMONIZED, "coords_validated.flag")),
+        ref=op.join(MM10_BASE, "ref.CG.gz"),
+        windows=op.join(MM10_BASE, "windows_{win_size}_nt.bed"),
+    output:
+        det_tmp=temp(op.join(ECKER_WINDOWS_OUTPUT, "{win_size}_all.det.out")),
+        norm_det_tmp=temp(op.join(ECKER_WINDOWS_OUTPUT, "{win_size}_all.norm.det.out")),
+        meth_tmp=temp(op.join(ECKER_WINDOWS_OUTPUT, "{win_size}_all.meth.out")),
+        simple_tmp=temp(op.join(ECKER_WINDOWS_OUTPUT, "{win_size}_all.out")),
+        det=op.join(ECKER_WINDOWS_OUTPUT, "{win_size}_all.det.out.gz"),
+        norm_det=op.join(ECKER_WINDOWS_OUTPUT, "{win_size}_all.norm.det.out.gz"),
+        meth=op.join(ECKER_WINDOWS_OUTPUT, "{win_size}_all.meth.out.gz"),
+        simple=op.join(ECKER_WINDOWS_OUTPUT, "{win_size}_all.out.gz"),
+    params:
+        path=ECKER_WINDOWS_OUTPUT,
+        prefix=lambda wildcards: op.join(ECKER_WINDOWS_OUTPUT, f"{wildcards.win_size}_all"),
+    log:
+        op.join("logs", "yamet_ecker_windows_{win_size}.log"),
+    threads: workflow.cores
+    shell:
+        """
+        mkdir -p {params.path}
+        yamet \
+         --cell {input.cells} \
+         --reference {input.ref} \
+         --intervals {input.windows} \
+         --cores {threads} \
+         --no-print-sampens \
+         --out {params.prefix}.out \
+         --det-out {params.prefix}.det.out \
+         --meth-out {params.prefix}.meth.out \
+         --norm-det-out {params.prefix}.norm.det.out &> {log}
+        gzip --keep -f \
+          {params.prefix}.out \
+          {params.prefix}.det.out \
+          {params.prefix}.meth.out \
+          {params.prefix}.norm.det.out &>> {log}
+        """
+
+
+rule render_ecker_windows_report:
+    conda:
+        op.join("..", "envs", "r.yml")
+    input:
+        det=op.join(ECKER_WINDOWS_OUTPUT, "{win_size}_all.det.out.gz"),
+        norm_det=op.join(ECKER_WINDOWS_OUTPUT, "{win_size}_all.norm.det.out.gz"),
+        meth=op.join(ECKER_WINDOWS_OUTPUT, "{win_size}_all.meth.out.gz"),
+        meta=op.join(ECKER_BASE, "meta.tsv.gz"),
+    output:
+        op.join(ECKER_BASE, "results", "ecker_windows_{win_size}.html"),
+    params:
+        corrected_sce=op.join(
+            ECKER_BASE, "results", "sce_windows_ecker_{win_size}_corrected.rds"
+        ),
+    threads:
+        workflow.cores
+    log:
+        log=op.join("logs", "render_ecker_windows_{win_size}.log"),
+    script:
+        "src/ecker_windows.Rmd"
+
+
+rule render_ecker_embeddings_report:
+    conda:
+        op.join("..", "envs", "r.yml")
+    input:
+        windows_html=op.join(
+            ECKER_BASE, "results", "ecker_windows_{win_size}.html"
+        ),
+    output:
+        op.join(ECKER_BASE, "results", "ecker_embeddings_{win_size}.html"),
+    params:
+        corrected_sce=op.join(
+            ECKER_BASE, "results", "sce_windows_ecker_{win_size}_corrected.rds"
+        ),
+    threads:
+        workflow.cores
+    log:
+        log=op.join("logs", "render_ecker_embeddings_{win_size}.log"),
+    script:
+        "src/ecker_embeddings.Rmd"
 
 
 rule render_ecker_report:

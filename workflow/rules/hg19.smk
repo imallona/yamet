@@ -135,6 +135,8 @@ CHIP_MAP = {
 
 
 rule get_encode_chip_data_hg19:
+    conda:
+        op.join("..", "envs", "processing.yml")
     wildcard_constraints:
         chip="|".join(CHIP_MAP.keys()),
     output:

@@ -16,6 +16,8 @@ SNAPSHOT_DIR = config.get("snapshot_dir", "snapshots")
 
 rule archive_ecker_outputs:
     """Zip all ecker yamet outputs (the bare minimum to re-run the report)."""
+    conda:
+        op.join("..", "envs", "processing.yml")
     input:
         list_ecker_yamet_outputs,
     output:
@@ -29,6 +31,8 @@ rule archive_ecker_outputs:
 
 rule archive_crc_outputs:
     """Zip all CRC yamet outputs (the bare minimum to re-run the report)."""
+    conda:
+        op.join("..", "envs", "processing.yml")
     input:
         list_relevant_yamet_outputs(),
     output:
@@ -42,6 +46,8 @@ rule archive_crc_outputs:
 
 rule archive_argelaguet_outputs:
     """Zip argelaguet yamet outputs and metadata for quick report rendering from intermediate results from zenodo."""
+    conda:
+        op.join("..", "envs", "processing.yml")
     input:
         list_argelaguet_yamet_outputs,
         meta=op.join(ARGELAGUET_BASE, "meta.tsv.gz"),
@@ -56,6 +62,8 @@ rule archive_argelaguet_outputs:
 
 rule archive_simulation_outputs:
     """Zip simulation intermediate outputs for quick report rendering from intermediate results from zenodo."""
+    conda:
+        op.join("..", "envs", "processing.yml")
     input:
         op.join(SIM_RESULTS, "simulation_figure2.html"),
         op.join(SIM_RESULTS, "simulation_08_combined_figure_adj.html"),

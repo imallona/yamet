@@ -1,0 +1,575 @@
+---
+title: "Ecker entropy figure"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  bookdown::html_document2:
+    code_folding: hide
+    number_sections: no
+---
+
+```{r setup}
+suppressPackageStartupMessages({
+  library(ggplot2)
+  library(patchwork)
+  library(dplyr)
+  library(tidyr)
+  library(ComplexHeatmap)
+  library(circlize)
+  library(ggrastr)
+  library(ggrepel)
+  library(viridisLite)
+  library(grid)
+})
+
+source("rules/src/ggtheme.R")
+source("rules/src/palettes.R")
+source("rules/src/driver_utils.R")
+
+knitr::opts_chunk$set(
+  echo    = TRUE,
+  message = FALSE,
+  warning = FALSE
+)
+
+log_con <- file(snakemake@log[[1]], open = "wt")
+sink(log_con)
+sink(log_con, type = "message")
+
+out_dir <- snakemake@params$out_dir
+if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE)
+```
+
+```{r load}
+meta         <- readRDS("ecker_groups_meta.rds")
+ent          <- readRDS("ecker_entropy.rds")
+umap_overlay <- readRDS("ecker_paper_umap_overlay.rds")
+win_umap     <- readRDS("ecker_umap_windows_adjS.rds")
+
+ve_long <- if (file.exists("ecker_win_varexp.csv"))
+             read.csv("ecker_win_varexp.csv", stringsAsFactors = FALSE) else NULL
+cell_df <- if (file.exists("ecker_per_cell_summary.csv"))
+             read.csv("ecker_per_cell_summary.csv", stringsAsFactors = FALSE) else NULL
+```
+
+```{r embedding_diagnostics_report}
+diag_path <- "ecker_embedding_diagnostics.csv"
+if (file.exists(diag_path)) {
+  cat("Ecker embedding diagnostics (from ecker_embeddings.Rmd):\n")
+  print(read.csv(diag_path, stringsAsFactors = FALSE))
+}
+if (!is.null(ve_long)) {
+  cat("\nPer-window variance explained by cell_class and sub_type:\n")
+  print(ve_long)
+}
+```
+
+```{r paper-umap-data}
+umap_cells <- umap_overlay %>%
+  filter(annotation == "Genes") %>%
+  select(sub_type,
+         cell_class = cell_class.x,
+         major_type = major_type.x,
+         umap1, umap2,
+         median_adjS, median_adjH, median_meth) %>%
+  distinct(sub_type, umap1, umap2, .keep_all = TRUE)
+```
+
+# Half-A4 compact figure (primary)
+
+A) sampling and feature schema;
+B) paper UMAP coloured by cell class, adjS, adjH, methylation;
+C) our windows-based UMAP coloured by cell class for adjS and methylation;
+D) median adjS heatmap per cell type and annotation;
+E) per-cell mean methylation vs mean adjS;
+F) median variance explained per assay by cell_class and sub_type;
+G) R-squared of adjS by cell_class per annotation;
+H) driver categorization (SD adjH vs SD adjS across cell classes).
+
+```{r fe-panel-a-v2}
+schema_classes <- c("Exc", "Inh", "NonN")
+schema_layout <- list(
+  Exc  = c("CT-L6", "IT-L23", "PT-L5"),
+  Inh  = c("MGE-Sst", "CGE-Vip"),
+  NonN = c("ASC", "OPC")
+)
+schema_classes <- intersect(schema_classes, names(ecker_cell_class_pal))
+schema_layout  <- schema_layout[schema_classes]
+schema_layout  <- lapply(seq_along(schema_layout), function(i) {
+  cls <- schema_classes[i]
+  mts <- intersect(schema_layout[[i]], names(ecker_major_type_pal))
+  if (length(mts) == 0) {
+    keep <- meta$all_grp_meta %>%
+      filter(cell_class == cls) %>%
+      pull(major_type) %>% unique()
+    mts <- intersect(keep, names(ecker_major_type_pal))[1:2]
+  }
+  data.frame(cell_class = cls, major_type = mts, stringsAsFactors = FALSE)
+})
+schema_cells <- do.call(rbind, schema_layout)
+schema_cells$col       <- seq_len(nrow(schema_cells))
+schema_cells$cls_color <- ecker_cell_class_pal[schema_cells$cell_class]
+schema_cells$mt_color  <- ecker_major_type_pal[schema_cells$major_type]
+
+schema_regions <- c("windows", "CpG isl.", "HMM", "marks")
+n_schema_regions <- length(schema_regions)
+n_schema_cols <- nrow(schema_cells)
+
+set.seed(2)
+schema_grid <- expand.grid(col = seq_len(n_schema_cols),
+                           row = seq_len(n_schema_regions))
+schema_grid$val <- runif(nrow(schema_grid), 0.1, 0.95)
+
+bar_mt  <- n_schema_regions + 0.9
+bar_cls <- n_schema_regions + 1.55
+ellipsis_y <- 0
+cls_centers <- tapply(schema_cells$col, schema_cells$cell_class, mean)
+
+pA_v2 <- ggplot() +
+  geom_tile(data = schema_grid,
+            aes(x = col, y = row, fill = val),
+            colour = "grey70", linewidth = 0.15) +
+  scale_fill_gradient(low = "#FFFFFF", high = "#444444",
+                      guide = "none", limits = c(0, 1)) +
+  geom_tile(data = schema_cells,
+            aes(x = col, y = bar_cls),
+            fill = schema_cells$cls_color,
+            height = 0.45, width = 0.95, inherit.aes = FALSE) +
+  geom_tile(data = schema_cells,
+            aes(x = col, y = bar_mt),
+            fill = schema_cells$mt_color,
+            height = 0.45, width = 0.95, inherit.aes = FALSE) +
+  annotate("text",
+           x = cls_centers, y = bar_cls + 0.5,
+           label = names(cls_centers),
+           size = 1.7) +
+  annotate("text", x = -0.15, y = bar_cls,
+           label = "cell class", hjust = 1, size = 1.7) +
+  annotate("text", x = -0.15, y = bar_mt,
+           label = "major type", hjust = 1, size = 1.7) +
+  annotate("text", x = -0.15, y = seq_len(n_schema_regions),
+           label = rev(schema_regions),
+           hjust = 1, size = 1.7) +
+  annotate("text", x = 1, y = ellipsis_y,
+           label = "(...)", hjust = 0, size = 2.0) +
+  annotate("text", x = n_schema_cols + 0.6, y = bar_cls,
+           label = "(...)", hjust = 0, size = 2.0) +
+  annotate("text", x = (n_schema_cols + 1) / 2, y = bar_cls + 1.1,
+           label = "cells", size = 1.9) +
+  annotate("text", x = -3.0, y = (n_schema_regions + 1) / 2,
+           label = "regions", angle = 90, size = 1.9) +
+  annotate("segment",
+           x = n_schema_cols + 0.7, xend = n_schema_cols + 1.5,
+           y = (n_schema_regions + 1) / 2,
+           yend = (n_schema_regions + 1) / 2,
+           arrow = arrow(length = unit(1.2, "mm"), type = "closed"),
+           linewidth = 0.3) +
+  annotate("text", x = n_schema_cols + 1.7,
+           y = (n_schema_regions + 1) / 2,
+           label = "adjS", hjust = 0, size = 2.0) +
+  annotate("segment",
+           x = (n_schema_cols + 1) / 2,
+           xend = (n_schema_cols + 1) / 2,
+           y = ellipsis_y - 0.4, yend = ellipsis_y - 1.05,
+           arrow = arrow(length = unit(1.2, "mm"), type = "closed"),
+           linewidth = 0.3) +
+  annotate("text", x = (n_schema_cols + 1) / 2, y = ellipsis_y - 1.35,
+           label = "adjH", size = 2.0) +
+  coord_fixed(xlim = c(-3.4, n_schema_cols + 3.0),
+              ylim = c(ellipsis_y - 1.7, bar_cls + 1.4),
+              clip = "off") +
+  theme_void(base_family = "Helvetica") +
+  theme(plot.margin = margin(1, 1, 1, 1, "mm"))
+```
+
+```{r fe-panel-b-v2}
+mk_paper_umap <- function(color_col, pal, lab, viridis_opt = NULL) {
+  p <- ggplot(umap_cells, aes(x = umap1, y = umap2)) +
+    geom_point_rast(aes(color = .data[[color_col]]),
+                    size = 0.18, alpha = 0.6, raster.dpi = 300) +
+    labs(x = "UMAP 1", y = "UMAP 2", color = lab) +
+    theme_ng(base_size = 7) +
+    theme(legend.key.size    = unit(1.2, "mm"),
+          legend.text        = element_text(size = 5.5),
+          legend.title       = element_text(size = 6.5),
+          legend.margin      = margin(0, 0, 0, 0),
+          legend.box.margin  = margin(-3, 0, -2, 0),
+          legend.box.spacing = unit(0.2, "mm"),
+          plot.margin        = margin(0, 1, 0, 1, "mm"))
+  if (!is.null(pal)) {
+    p <- p + scale_color_manual(values = pal) +
+      guides(color = guide_legend(override.aes = list(size = 1.0, alpha = 1),
+                                  ncol = 2))
+  } else {
+    p <- p + scale_color_viridis_c(option = viridis_opt %||% "viridis",
+                                   n.breaks = 3) +
+      guides(color = guide_colorbar(barwidth = unit(12, "mm"),
+                                    barheight = unit(1.2, "mm")))
+  }
+  p
+}
+
+`%||%` <- function(a, b) if (is.null(a)) b else a
+
+p_b_class <- mk_paper_umap("cell_class", ecker_cell_class_pal, "cell class")
+p_b_adjS  <- mk_paper_umap("median_adjS", NULL, "adjS",  viridis_opt = "viridis")
+p_b_adjH  <- mk_paper_umap("median_adjH", NULL, "adjH",  viridis_opt = "plasma")
+p_b_meth  <- mk_paper_umap("median_meth", NULL, "meth.", viridis_opt = "mako")
+
+pB_v2 <- wrap_elements(full = (p_b_class + p_b_adjS) /
+                                (p_b_adjH + p_b_meth) +
+                                plot_layout(heights = c(1, 1)))
+```
+
+```{r fe-panel-c-v2}
+mk_our_umap <- function(em, label) {
+  if (is.null(em)) return(NULL)
+  df <- data.frame(
+    UMAP1      = em$umap[, 1],
+    UMAP2      = em$umap[, 2],
+    cell_class = win_umap$col_data$cell_class[em$kept_cols],
+    assay      = label,
+    stringsAsFactors = FALSE
+  )
+  ggplot(df, aes(UMAP1, UMAP2, color = cell_class)) +
+    geom_point_rast(size = 0.18, alpha = 0.6, raster.dpi = 300) +
+    scale_color_manual(values = ecker_cell_class_pal) +
+    guides(color = guide_legend(override.aes = list(size = 1.0, alpha = 1),
+                                ncol = 2)) +
+    labs(x = "UMAP 1", y = "UMAP 2", color = "cell class",
+         subtitle = paste0("ours: ", label)) +
+    theme_ng(base_size = 7) +
+    theme(plot.subtitle      = element_text(size = 6.5, hjust = 0.5,
+                                             margin = margin(0, 0, 1, 0)),
+          legend.position    = "bottom",
+          legend.key.size    = unit(1.2, "mm"),
+          legend.text        = element_text(size = 5.5),
+          legend.title       = element_text(size = 6.5),
+          legend.margin      = margin(0, 0, 0, 0),
+          legend.box.margin  = margin(-6, 0, -2, 0),
+          legend.box.spacing = unit(0.2, "mm"),
+          plot.margin        = margin(0, 1, 0, 1, "mm"))
+}
+
+p_c_adjS <- mk_our_umap(win_umap$win_embeds$adjS,        "adjS")
+p_c_meth <- mk_our_umap(win_umap$win_embeds$methylation, "meth.")
+pC_v2 <- wrap_elements(full = (p_c_adjS + p_c_meth) +
+                                plot_layout(guides = "collect") &
+                              theme(legend.position = "bottom"))
+```
+
+```{r fe-panel-d-v2-data}
+grp <- meta$all_grp_meta
+
+ht_wide <- grp %>%
+  select(sub_type, annotation, cell_class, major_type, median_adjS) %>%
+  group_by(sub_type, annotation, cell_class, major_type) %>%
+  summarise(median_adjS = median(median_adjS, na.rm = TRUE), .groups = "drop") %>%
+  pivot_wider(names_from = annotation, values_from = median_adjS)
+
+mat <- ht_wide %>% select(-sub_type, -cell_class, -major_type) %>% as.matrix()
+rownames(mat) <- ht_wide$sub_type
+
+cc_ht_pal <- ecker_cell_class_pal[sort(unique(ht_wide$cell_class))]
+mt_pal    <- ecker_major_type_pal[sort(unique(ht_wide$major_type))]
+
+brk <- c(min(mat, na.rm = TRUE),
+         mean(range(mat, na.rm = TRUE)),
+         max(mat, na.rm = TRUE))
+col_fun_d <- colorRamp2(brk, c("navy", "white", "firebrick"))
+```
+
+```{r fe-panel-d-v2}
+ht_compact <- Heatmap(
+  mat,
+  name              = "median\nadjS",
+  col               = col_fun_d,
+  row_split         = ht_wide$cell_class,
+  cluster_rows      = TRUE,
+  cluster_row_slices = FALSE,
+  cluster_columns   = TRUE,
+  show_row_names    = FALSE,
+  show_column_names = TRUE,
+  row_names_gp      = gpar(fontsize = 4),
+  column_names_gp   = gpar(fontsize = 5),
+  row_title_gp      = gpar(fontsize = 6),
+  row_title_rot     = 0,
+  row_gap           = unit(0.6, "mm"),
+  right_annotation  = rowAnnotation(
+    cell_class = ht_wide$cell_class,
+    major_type = ht_wide$major_type,
+    col        = list(cell_class = cc_ht_pal, major_type = mt_pal),
+    simple_anno_size = unit(1.8, "mm"),
+    annotation_name_gp = gpar(fontsize = 5),
+    show_legend = FALSE
+  ),
+  heatmap_legend_param = list(
+    title_gp    = gpar(fontsize = 6),
+    labels_gp   = gpar(fontsize = 5),
+    grid_height = unit(2, "mm"),
+    grid_width  = unit(2, "mm")
+  )
+)
+
+pD_v2 <- wrap_elements(full = grid::grid.grabExpr(draw(ht_compact)))
+```
+
+```{r fe-panel-e-v2}
+if (!is.null(cell_df)) {
+  cell_df$cell_class <- factor(cell_df$cell_class,
+                               levels = names(ecker_cell_class_pal))
+  pE_v2 <- ggplot(cell_df,
+                  aes(x = mean_meth, y = mean_adjS, color = cell_class)) +
+    geom_point(size = 0.25, alpha = 0.6) +
+    geom_smooth(aes(group = cell_class), method = "lm", se = FALSE,
+                linewidth = 0.35) +
+    scale_color_manual(values = ecker_cell_class_pal) +
+    facet_wrap(~ major_type, nrow = 3) +
+    labs(x = "cell mean methylation", y = "cell mean adjS") +
+    guides(x = guide_x_nolap(),
+           color = guide_legend(override.aes = list(size = 1.5, alpha = 1),
+                                nrow = 1)) +
+    theme_ng(base_size = 7) +
+    theme(legend.position    = "bottom",
+          legend.key.size    = unit(1.2, "mm"),
+          legend.text        = element_text(size = 6),
+          legend.title       = element_text(size = 7),
+          legend.margin      = margin(0, 0, 0, 0),
+          legend.box.margin  = margin(-6, 0, -2, 0),
+          legend.box.spacing = unit(0.2, "mm"),
+          strip.text         = element_text(size = 5.5,
+                                            margin = margin(1, 0, 1, 0)),
+          panel.spacing.x    = unit(1.2, "mm"),
+          panel.spacing.y    = unit(0.6, "mm"),
+          plot.margin        = margin(0, 0, 0, 0, "mm"))
+} else {
+  pE_v2 <- patchwork::plot_spacer() +
+    labs(title = "ecker_per_cell_summary.csv missing")
+}
+```
+
+```{r fe-panel-f-v2}
+if (!is.null(ve_long)) {
+  ve_filt <- ve_long[ve_long$assay != "adjS_yamet", , drop = FALSE]
+  ve_filt$assay <- factor(ve_filt$assay,
+                          levels = c("S", "adjS", "methylation"))
+  pF_v2 <- ggplot(ve_filt,
+                  aes(x = assay, y = median_ve, fill = variable)) +
+    geom_col(position = position_dodge(width = 0.8), width = 0.7) +
+    scale_fill_manual(values = c("cell_class" = "#0072B2",
+                                 "sub_type"   = "#E69F00")) +
+    labs(x = "assay", y = "median % var. explained", fill = NULL) +
+    theme_ng(base_size = 7) +
+    theme(legend.position      = "top",
+          legend.justification = "left",
+          legend.background    = element_rect(fill = "white", colour = NA),
+          legend.key.size      = unit(1.8, "mm"),
+          legend.text          = element_text(size = 6),
+          legend.margin        = margin(0, 1, 0, 1),
+          legend.box.margin    = margin(0, 0, -2, 0),
+          plot.margin          = margin(1, 0, 0, 0, "mm"))
+} else {
+  pF_v2 <- patchwork::plot_spacer() +
+    labs(title = "ecker_win_varexp.csv missing")
+}
+```
+
+```{r fe-panel-g-v2}
+r2_by_ann <- grp %>%
+  group_by(annotation) %>%
+  summarise(
+    r2 = summary(lm(median_adjS ~ cell_class, data = cur_data()))$r.squared,
+    .groups = "drop"
+  )
+write.csv(r2_by_ann, "ecker_fig_adjS_r2_by_cell_class.csv", row.names = FALSE)
+
+pG_v2 <- ggplot(r2_by_ann, aes(x = reorder(annotation, r2), y = r2)) +
+  geom_col(fill = "#0072B2") +
+  coord_flip() +
+  labs(x = NULL, y = "R^2 (adjS by cell class)") +
+  theme_ng(base_size = 7) +
+  theme(axis.text.y = element_text(size = 5.5),
+        plot.margin = margin(0, 0, 0, 0, "mm"))
+```
+
+```{r fe-panel-h-v2}
+driver_df_ecker <- categorize_drivers(grp, "cell_class")
+write.csv(driver_df_ecker, "ecker_driver_sd_range.csv", row.names = FALSE)
+
+pH_v2 <- plot_driver_scatter(driver_df_ecker,
+                             x_label = "SD adjH (cell classes)",
+                             y_label = "SD adjS (cell classes)") +
+  guides(color = guide_legend(nrow = 1, title.position = "left"),
+         shape = guide_legend(nrow = 1, title.position = "left")) +
+  theme_ng(base_size = 7) +
+  theme(legend.position    = "bottom",
+        legend.key.size    = unit(1.2, "mm"),
+        legend.text        = element_text(size = 5.5),
+        legend.title       = element_text(size = 6.5),
+        legend.margin      = margin(0, 0, 0, 0),
+        legend.box.margin  = margin(-6, 0, -2, 0),
+        legend.box.spacing = unit(0.2, "mm"),
+        plot.margin        = margin(0, 0, 0, 0, "mm"))
+
+pH_v2$layers[[which(sapply(pH_v2$layers, function(l)
+  inherits(l$geom, "GeomTextRepel")))]] <- NULL
+pH_v2 <- pH_v2 +
+  ggrepel::geom_text_repel(size = 1.6, max.overlaps = Inf,
+                           min.segment.length = 0,
+                           segment.size = 0.2, box.padding = 0.25,
+                           force = 3)
+```
+
+```{r fe-combined-v2, fig.width = 8.27, fig.height = 8.5}
+row1_v2 <- pA_v2 + pB_v2 + pC_v2 +
+  plot_layout(widths = c(1.4, 3.6, 2.4))
+row2_v2 <- pD_v2 + pE_v2 + plot_layout(widths = c(1, 1))
+row3_v2 <- pF_v2 + pG_v2 + pH_v2 + plot_layout(widths = c(1, 1, 1))
+
+compact_fig <- row1_v2 / row2_v2 / row3_v2 +
+  plot_layout(heights = c(2.0, 1.82, 1)) +
+  plot_annotation(tag_levels = "A",
+                  theme = theme(
+                    plot.tag          = element_text(size = 9, face = "bold"),
+                    plot.tag.position = c(0.01, 0.99),
+                    plot.margin       = margin(1, 1, 1, 1, "mm")
+                  ))
+
+print(compact_fig)
+
+ggsave(
+  file.path(out_dir, "fig_ecker_half_a4.pdf"),
+  plot   = compact_fig,
+  width  = 8.27,
+  height = 9.5,
+  units  = "in",
+  device = cairo_pdf
+)
+```
+
+# Standalone heatmap (full size)
+
+The compact heatmap in panel D fits roughly half a page. The standalone
+file below renders the same matrix at a larger size for supplementary use.
+
+```{r fe-heatmap-standalone, fig.width = 10, fig.height = 10}
+ht_full <- Heatmap(
+  mat,
+  name              = "median adjS",
+  col               = col_fun_d,
+  row_split         = ht_wide$cell_class,
+  cluster_rows      = TRUE,
+  cluster_row_slices = FALSE,
+  cluster_columns   = FALSE,
+  show_row_names    = TRUE,
+  show_column_names = TRUE,
+  row_names_gp      = gpar(fontsize = 6),
+  column_names_gp   = gpar(fontsize = 7),
+  right_annotation  = rowAnnotation(
+    cell_class = ht_wide$cell_class,
+    major_type = ht_wide$major_type,
+    col        = list(cell_class = cc_ht_pal, major_type = mt_pal),
+    annotation_legend_param = list(
+      cell_class = list(title = "cell class"),
+      major_type = list(title = "major type", ncol = 2)
+    )
+  ),
+  column_title = "median adjS per cell type and annotation"
+)
+
+draw(ht_full)
+pdf(file.path(out_dir, "fig_ecker_heatmap.pdf"), width = 10, height = 10)
+draw(ht_full)
+invisible(dev.off())
+```
+
+# Legacy panels (kept for reference)
+
+```{r fe-legacy-panels, fig.width = ng_fig_size(4, 3, panel_mm = 45)$w, fig.height = ng_fig_size(4, 3, panel_mm = 45)$h}
+pa <- ggplot(umap_cells, aes(x = umap1, y = umap2, color = cell_class)) +
+  geom_point_rast(size = 0.15, alpha = 0.5, raster.dpi = 300) +
+  scale_color_manual(values = ecker_cell_class_pal) +
+  guides(color = guide_legend(override.aes = list(size = 2, alpha = 1))) +
+  labs(x = "UMAP 1", y = "UMAP 2", color = "cell class") +
+  theme_ng(base_size = 8)
+
+pb <- ggplot(umap_cells, aes(x = umap1, y = umap2, color = median_adjS)) +
+  geom_point_rast(size = 0.15, alpha = 0.5, raster.dpi = 300) +
+  scale_color_viridis_c(option = "viridis") +
+  labs(x = "UMAP 1", y = "UMAP 2", color = "adjS") +
+  theme_ng(base_size = 8)
+
+pc <- ggplot(umap_cells, aes(x = umap1, y = umap2, color = median_adjH)) +
+  geom_point_rast(size = 0.15, alpha = 0.5, raster.dpi = 300) +
+  scale_color_viridis_c(option = "plasma") +
+  labs(x = "UMAP 1", y = "UMAP 2", color = "adjH") +
+  theme_ng(base_size = 8)
+
+pd <- ggplot(umap_cells, aes(x = umap1, y = umap2, color = median_meth)) +
+  geom_point_rast(size = 0.15, alpha = 0.5, raster.dpi = 300) +
+  scale_color_distiller(palette = "RdBu", direction = -1) +
+  labs(x = "UMAP 1", y = "UMAP 2", color = "avg. meth.") +
+  theme_ng(base_size = 8)
+
+var_class <- ent$adjsampens %>%
+  group_by(cell_class) %>%
+  summarise(iqr = IQR(sampen, na.rm = TRUE), .groups = "drop") %>%
+  arrange(desc(iqr)) %>%
+  mutate(cell_class = factor(cell_class, levels = cell_class))
+write.csv(var_class, "ecker_fig_adjS_iqr_by_cell_class.csv", row.names = FALSE)
+
+pe <- ggplot(var_class, aes(x = cell_class, y = iqr, fill = cell_class)) +
+  geom_col(show.legend = FALSE) +
+  scale_fill_manual(values = ecker_cell_class_pal) +
+  labs(x = "cell class", y = "IQR adjS") +
+  theme_ng(base_size = 8) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+pf <- ggplot(r2_by_ann, aes(x = reorder(annotation, r2), y = r2)) +
+  geom_col(fill = "#0072B2") +
+  coord_flip() +
+  labs(x = NULL, y = "R^2 (adjS by cell class)") +
+  theme_ng(base_size = 8)
+
+ph <- plot_driver_scatter(driver_df_ecker,
+                          x_label = "SD adjH across cell classes",
+                          y_label = "SD adjS across cell classes") +
+  theme_ng(base_size = 8) +
+  theme(legend.key.size = unit(2, "mm"),
+        legend.text     = element_text(size = 6),
+        legend.title    = element_text(size = 7))
+
+em_adjS_legacy <- win_umap$win_embeds[["adjS"]]
+if (!is.null(em_adjS_legacy)) {
+  wins_df <- data.frame(
+    umap1      = em_adjS_legacy$umap[, 1],
+    umap2      = em_adjS_legacy$umap[, 2],
+    cell_class = win_umap$col_data$cell_class[em_adjS_legacy$kept_cols]
+  )
+  pg <- ggplot(wins_df, aes(x = umap1, y = umap2, color = cell_class)) +
+    geom_point_rast(size = 0.15, alpha = 0.5, raster.dpi = 300) +
+    scale_color_manual(values = ecker_cell_class_pal) +
+    guides(color = guide_legend(override.aes = list(size = 2, alpha = 1))) +
+    labs(x = "UMAP 1", y = "UMAP 2", color = "cell class",
+         title = "windows-based adjS UMAP (cells)") +
+    theme_ng(base_size = 8)
+} else {
+  pg <- NULL
+}
+
+row2_legacy <- if (!is.null(pg)) (pe | pf | pg | ph) else (pe | pf | ph)
+gg_fig <- (pa | pb | pc | pd) / row2_legacy +
+  plot_layout(heights = c(1, 0.9)) +
+  plot_annotation(tag_levels = "A",
+                  theme = theme(plot.tag = element_text(size = 8, face = "bold")))
+
+print(gg_fig)
+
+ggsave(
+  file.path(out_dir, "fig_ecker_panels.pdf"),
+  plot   = gg_fig,
+  width  = ng_fig_size(4, 3, panel_mm = 45)$w,
+  height = ng_fig_size(4, 3, panel_mm = 45)$h,
+  units  = "in",
+  device = cairo_pdf
+)
+```

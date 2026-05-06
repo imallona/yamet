@@ -1,0 +1,114 @@
+name: Conda package
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version tag to build (e.g. v1.1.0)"
+        required: false
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+  pull_request:
+    paths:
+      - "conda-recipe/**"
+      - ".github/workflows/conda.yml"
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: ["ubuntu-24.04", "macos-15"]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash -el {0}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up conda
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          miniforge-version: latest
+          channels: conda-forge,bioconda
+          channel-priority: strict
+
+      - name: Install conda-build
+        run: conda install -n base -y conda-build
+
+      - name: Resolve version
+        id: version
+        run: |
+          is_tag="false"
+          if [[ -n "${{ inputs.version }}" ]]; then
+            tag="${{ inputs.version }}"
+            is_tag="true"
+          elif [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            tag="${{ github.ref_name }}"
+            is_tag="true"
+          else
+            tag="0.0.0+$(echo "${{ github.sha }}" | cut -c1-7)"
+          fi
+          version="${tag#v}"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "is_tag=${is_tag}" >> "$GITHUB_OUTPUT"
+
+      - name: Pin recipe to release tarball
+        if: steps.version.outputs.is_tag == 'true'
+        run: |
+          version="${{ steps.version.outputs.version }}"
+          url="https://github.com/imallona/yamet/archive/refs/tags/v${version}.tar.gz"
+          sha=$(curl -fsSL "$url" | sha256sum | awk '{print $1}')
+          echo "Source SHA256: $sha"
+          sed -i.bak -E "s/^(\{% set version = )\".*\"( %\})/\1\"${version}\"\2/" conda-recipe/meta.yaml
+          sed -i.bak -E "s/^( *sha256: ).*/\1${sha}/" conda-recipe/meta.yaml
+          rm -f conda-recipe/meta.yaml.bak
+
+      - name: Pin recipe to local source
+        if: steps.version.outputs.is_tag != 'true'
+        run: |
+          version="${{ steps.version.outputs.version }}"
+          src_path="$(pwd)"
+          sed -i.bak -E "s/^(\{% set version = )\".*\"( %\})/\1\"${version}\"\2/" conda-recipe/meta.yaml
+          python3 - "$src_path" <<'PY'
+          import pathlib, re, sys
+          p = pathlib.Path("conda-recipe/meta.yaml")
+          text = p.read_text()
+          text = re.sub(
+              r"source:\n(?:  [^\n]*\n)+",
+              f"source:\n  path: {sys.argv[1]}\n",
+              text, count=1
+          )
+          p.write_text(text)
+          PY
+          rm -f conda-recipe/meta.yaml.bak
+          echo "--- patched recipe ---"
+          cat conda-recipe/meta.yaml
+
+      - name: Build package
+        run: |
+          conda build \
+            --output-folder build-conda \
+            -c conda-forge -c bioconda \
+            conda-recipe
+
+      - name: Collect artifacts
+        run: |
+          mkdir -p dist
+          find build-conda -type f \( -name "*.conda" -o -name "*.tar.bz2" \) -exec cp {} dist/ \;
+          ls -la dist
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: yamet-conda-${{ matrix.os }}-${{ steps.version.outputs.version }}
+          path: dist/*
+
+      - name: Attach to GitHub release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*

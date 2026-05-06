@@ -3,31 +3,36 @@
 ##
 ## Convention for run_embedding / run_pca_mat: mat is features x cells.
 ## Convention for run_umap_wide / regress_out_meth: cells x features (wide df).
-## Requires dplyr, uwot, matrixStats, cluster.
+## Requires dplyr, uwot, matrixStats, cluster, pcaMethods.
 
-## HVF selection, feature scaling, PCA (via randomized SVD), UMAP.
+## HVF selection, feature scaling, PCA, UMAP. NA-aware throughout.
 ##
-## NA handling strategy (two stages):
+## scBS-seq methylation and entropy values have a meaningful zero (unmethylated,
+## or zero local entropy) which is distinct from missing coverage (NA). Standard
+## scRNA-seq pipelines treat zero as missing, which is wrong here, so HVF /
+## PCA / UMAP must keep NAs distinct from zeros and never impute.
 ##
-## Stage 1 (preferred): restrict HVF candidates to features with complete
-## coverage across all cells (0 NAs). This keeps all cells and avoids
-## imputation. NAs arise from missing sequencing coverage, not from the
-## biological zero (unmethylated / zero entropy), which is a valid value.
-## HVF score = var * coverage_frac; for 0-NA features coverage_frac = 1 so
-## this reduces to plain variance.
-## Stage 1 is used when at least min_complete_hvf complete features exist.
+## Two-stage strategy:
 ##
-## Stage 2 (sparse fallback for feature sets like gene bodies):
-## when too few complete features are available, HVFs are selected from the
-## broader pool (features with <= max_na_frac missing cells) using
-## coverage-weighted variance (score = var * coverage_frac), which penalises
-## features that appear highly variable only because of sparse coverage.
-## Cells missing at any selected HVF are then dropped rather than imputed.
-## kept_cols records which cells were retained.
+## Stage 1 (preferred): when at least min_complete_hvf features have complete
+## coverage across all post-QC cells, HVF candidates are restricted to those
+## features and ranked by plain variance. PCA is randomized SVD via irlba on
+## the row-scaled matrix. All post-QC cells are kept.
 ##
-## Returns list(umap, pca, hvf_idx, kept_cols) or NULL.
-## kept_cols is always returned: all TRUE in stage 1, subset in stage 2
-## or after cell-level QC.
+## Stage 2 (sparse fallback): when too few complete features exist, HVFs are
+## drawn from the broader pool of features with at most max_na_frac missing
+## cells, ranked by coverage-weighted variance (score = var * coverage_frac)
+## to penalise features whose apparent variance comes from sparse coverage.
+## NAs in the selected HVF block are NOT imputed and cells are NOT dropped.
+## PCA is NIPALS via pcaMethods, which handles missing values natively by
+## iteratively regressing each component on the available entries (no
+## explicit fill of missing values). UMAP runs on the resulting NIPALS
+## scores, which are finite for every cell.
+##
+## Cells are only filtered by max_cell_na_frac (cell QC). Whichever stage is
+## taken, kept_cols reports the original column positions surviving QC.
+##
+## Returns list(umap, pca, hvf_idx, kept_cols, stage) or NULL.
 run_embedding <- function(mat,
                           n_hvf = 1000L,
                           n_pcs = 50L,
@@ -35,7 +40,7 @@ run_embedding <- function(mat,
                           min_dist = 0.3,
                           seed = 42L,
                           max_na_frac = 0.3,
-                          min_complete_hvf = 10L,
+                          min_complete_hvf = 100L,
                           max_cell_na_frac = 0.5) {
   if (is.null(mat) || ncol(mat) < 4L) return(NULL)
 
@@ -61,17 +66,21 @@ run_embedding <- function(mat,
   vars_c <- matrixStats::rowVars(complete_mat, useNames = FALSE, na.rm = FALSE)
   n_complete <- sum(!is.na(vars_c) & vars_c > 0)
 
+  use_nipals <- FALSE
   if (n_complete >= as.integer(min_complete_hvf)) {
+    stage <- "stage1_complete"
     rank_c <- order(vars_c, decreasing = TRUE)[seq_len(min(as.integer(n_hvf), n_complete))]
     hvf_idx <- which(complete_rows)[rank_c]
     sub_mat <- mat[hvf_idx, , drop = FALSE]
-    kept_in_qc <- rep(TRUE, ncol(mat))
     message("run_embedding: stage 1 (complete features), HVF = ", length(hvf_idx),
             ", cells = ", ncol(mat))
   } else {
+    stage <- "stage2_nipals"
+    use_nipals <- TRUE
     message("run_embedding: only ", n_complete, " complete features",
             " (< min_complete_hvf = ", min_complete_hvf, ");",
-            " sparse fallback (max_na_frac = ", max_na_frac, ")")
+            " sparse fallback with NIPALS PCA (max_na_frac = ",
+            max_na_frac, ")")
     pool_rows <- rowMeans(is.na(mat)) <= max_na_frac
     pool <- mat[pool_rows, , drop = FALSE]
     vars_p <- matrixStats::rowVars(pool, useNames = FALSE, na.rm = TRUE)
@@ -85,40 +94,65 @@ run_embedding <- function(mat,
     rank_p <- order(score_p, decreasing = TRUE)[seq_len(n_keep)]
     hvf_idx <- which(pool_rows)[rank_p]
     sub_mat <- mat[hvf_idx, , drop = FALSE]
-    kept_in_qc <- colSums(is.na(sub_mat)) == 0L
-    sub_mat <- sub_mat[, kept_in_qc, drop = FALSE]
-    if (ncol(sub_mat) < 4L) {
-      message("run_embedding: too few cells after NA removal in sparse fallback; returning NULL")
-      return(NULL)
-    }
     message("run_embedding: sparse fallback, HVF = ", length(hvf_idx),
-            ", cells retained = ", sum(kept_in_qc), " / ", ncol(mat))
+            ", cells = ", ncol(mat),
+            " (NAs retained for NIPALS PCA, no cell dropping)")
   }
 
-  ## Map retained cells back to original column indices.
-  kept_cols <- kept_qc
-  kept_cols[kept_qc] <- kept_in_qc
-
-  scaled <- t(scale(t(sub_mat)))
-  bad <- apply(scaled, 1, function(x) all(is.na(x) | is.nan(x)))
-  scaled <- scaled[!bad, , drop = FALSE]
-  if (nrow(scaled) == 0L) return(NULL)
+  ## Row-wise centering and scaling. na.rm preserves NAs in stage 2 so NIPALS
+  ## sees the missingness pattern, while in stage 1 the rows have no NAs.
+  row_mean <- matrixStats::rowMeans2(sub_mat, na.rm = TRUE)
+  row_sd <- matrixStats::rowSds(sub_mat, na.rm = TRUE)
+  bad_row <- !is.finite(row_sd) | row_sd == 0
+  if (any(bad_row)) {
+    sub_mat <- sub_mat[!bad_row, , drop = FALSE]
+    hvf_idx <- hvf_idx[!bad_row]
+    row_mean <- row_mean[!bad_row]
+    row_sd <- row_sd[!bad_row]
+  }
+  if (nrow(sub_mat) < 2L) {
+    message("run_embedding: no usable HVFs after row scaling; returning NULL")
+    return(NULL)
+  }
+  scaled <- (sub_mat - row_mean) / row_sd
 
   n_pcs_use <- min(as.integer(n_pcs), nrow(scaled) - 1L, ncol(scaled) - 1L)
   if (n_pcs_use < 2L) {
     message("run_embedding: too few PCs available (", n_pcs_use, "); returning NULL")
     return(NULL)
   }
+
   set.seed(seed)
-  pca_scores <- irlba::prcomp_irlba(t(scaled), n = n_pcs_use,
-                                     center = FALSE, scale. = FALSE)$x
+  if (use_nipals) {
+    ## pcaMethods::pca with method = "nipals" handles missing values via
+    ## iterative regression on observed entries; no imputation step replaces
+    ## NAs with point estimates before factorisation. Input expected as
+    ## samples (cells) x variables (features).
+    pc_obj <- pcaMethods::pca(t(scaled), method = "nipals",
+                              nPcs = n_pcs_use, scale = "none",
+                              center = FALSE, seed = seed)
+    pca_scores <- pcaMethods::scores(pc_obj)
+    if (any(!is.finite(pca_scores))) {
+      message("run_embedding: NIPALS produced non-finite scores; returning NULL")
+      return(NULL)
+    }
+  } else if (nrow(scaled) <= 2L * n_pcs_use) {
+    ## Few features relative to requested PCs: use base prcomp to avoid the
+    ## irlba "too large a percentage of total singular values" warning.
+    pca_scores <- prcomp(t(scaled), center = FALSE, scale. = FALSE,
+                         rank. = n_pcs_use)$x
+  } else {
+    pca_scores <- irlba::prcomp_irlba(t(scaled), n = n_pcs_use,
+                                       center = FALSE, scale. = FALSE)$x
+  }
 
   nn <- min(as.integer(n_neighbors), nrow(pca_scores) - 1L)
   set.seed(seed)
   coords <- uwot::umap(pca_scores, n_neighbors = nn, min_dist = min_dist,
                        n_epochs = 500, verbose = FALSE)
 
-  list(umap = coords, pca = pca_scores, hvf_idx = hvf_idx, kept_cols = kept_cols)
+  list(umap = coords, pca = pca_scores, hvf_idx = hvf_idx,
+       kept_cols = kept_qc, stage = stage)
 }
 
 ## PCA on a features x cells matrix. Returns cells x PCs score matrix or NULL.
@@ -146,12 +180,12 @@ run_umap_scores <- function(scores, seed = 42L, n_neighbors = 15L, min_dist = 0.
 
 ## Wide data.frame wrapper: splits meta columns, transposes to features x cells,
 ## runs run_embedding(), returns data.frame of meta + UMAP1 + UMAP2.
-## In the sparse fallback, rows lacking HVF coverage are dropped; callers
-## should note that the output may have fewer rows than the input.
+## Cells failing the max_cell_na_frac QC are dropped; in both the complete-feature
+## branch and the NIPALS sparse fallback no further cells are removed.
 run_umap_wide <- function(wide_df, meta_cols,
                           n_hvf = 1000L, n_pcs = 50L,
                           n_neighbors = 15L, seed = 42L,
-                          max_na_frac = 0.3, min_complete_hvf = 10L,
+                          max_na_frac = 0.3, min_complete_hvf = 100L,
                           max_cell_na_frac = 0.5) {
   if (is.null(wide_df) || nrow(wide_df) < 4L) return(NULL)
   meta <- wide_df %>% dplyr::select(dplyr::all_of(meta_cols))
@@ -183,6 +217,23 @@ regress_out_meth <- function(score_mat, meth_mat) {
   }, numeric(nrow(score_mat)))
   colnames(resid_mat) <- shared
   resid_mat
+}
+
+## NA-aware per-feature variance explained by a grouping variable.
+## mat: features x cells, groups: factor/character of length ncol(mat).
+## Returns a named numeric vector (one R-squared per feature).
+row_variance_explained <- function(mat, groups) {
+  groups <- as.factor(groups)
+  vapply(seq_len(nrow(mat)), function(i) {
+    y <- mat[i, ]
+    ok <- !is.na(y)
+    if (sum(ok) < 3L || length(unique(groups[ok])) < 2L) return(NA_real_)
+    ss_tot <- sum((y[ok] - mean(y[ok]))^2)
+    if (ss_tot == 0) return(NA_real_)
+    gm <- tapply(y[ok], groups[ok], mean)
+    ss_between <- sum((gm[as.character(groups[ok])] - mean(y[ok]))^2)
+    ss_between / ss_tot * 100
+  }, numeric(1))
 }
 
 ## Mean silhouette width for cluster labels on a coordinate matrix.

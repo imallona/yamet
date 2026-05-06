@@ -1,0 +1,144 @@
+---
+title: "Argelaguet: single-cell genomic windows SCE"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: hide
+    code_download: true
+    number_sections: true
+    df_print: default
+    theme: lumen
+---
+
+```{r logging_early, include = FALSE}
+log <- file(snakemake@log$log, open = "wt")
+sink(log)
+sink(log, type = "message")
+```
+
+```{r setup}
+suppressPackageStartupMessages({
+  library(readr)
+  library(dplyr)
+  library(ggplot2)
+  library(BiocParallel)
+  library(SingleCellExperiment)
+  library(SummarizedExperiment)
+})
+
+source("src/ggtheme.R")
+source("src/palettes.R")
+source("src/windows_sce_utils.R")
+
+param <- MulticoreParam(workers = snakemake@threads)
+
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = TRUE,
+  warning = TRUE,
+  cache = FALSE,
+  fig.path = "argelaguet_windows_plots/"
+)
+```
+
+```{r save_snmk_debug, include = FALSE}
+saveRDS(snakemake, file = "snmk_argelaguet_windows.rds", compress = "xz")
+```
+
+```{r load_meta}
+meta_raw <- read_tsv(snakemake@input[["meta"]], show_col_types = FALSE)
+meta_raw$cell_id <- sub("\\.gz$", "", basename(meta_raw$id_met))
+rownames(meta_raw) <- meta_raw$cell_id
+
+cat("Cells in metadata:", nrow(meta_raw), "\n")
+cat("Stages:", paste(sort(unique(meta_raw$stage)), collapse = ", "), "\n")
+cat("Lineages:", length(unique(meta_raw$lineage10x)), "\n")
+```
+
+```{r build_sce}
+sce <- build_windows_sce(
+  assay_paths = list(
+    sampen = snakemake@input[["det"]],
+    adjS   = snakemake@input[["norm_det"]],
+    meth   = snakemake@input[["meth"]]
+  ),
+  col_data = meta_raw
+)
+
+cat("SCE dimensions:", nrow(sce), "windows x", ncol(sce), "cells\n")
+cat("Assays:", paste(assayNames(sce), collapse = ", "), "\n")
+cat("Stages in SCE:\n")
+print(table(colData(sce)$stage, useNA = "ifany"))
+cat("Lineages in SCE:\n")
+print(table(colData(sce)$lineage10x, useNA = "ifany"))
+
+saveRDS(sce, file = "sce_windows_argelaguet.rds", compress = "xz")
+```
+
+```{r filter_na}
+na_frac <- rowMeans(is.na(assay(sce, "sampen")))
+sce <- sce[na_frac < 0.3, ]
+cat("Windows after NA filter (< 30% missing cells):", nrow(sce), "\n")
+```
+
+```{r meth_correction}
+sce <- add_meth_correction(sce, BPPARAM = param)
+cat("Added sampen_corrected assay via per-window sampen ~ meth + I(meth^2)\n")
+cat("Final assays:", paste(assayNames(sce), collapse = ", "), "\n")
+```
+
+# QC
+
+```{r cell_qc_df}
+cell_df <- data.frame(
+  cell_id = colnames(sce),
+  stage = colData(sce)$stage,
+  lineage = colData(sce)$lineage10x,
+  mean_sampen = colMeans(assay(sce, "sampen"), na.rm = TRUE),
+  mean_adjS = colMeans(assay(sce, "adjS"), na.rm = TRUE),
+  mean_corrected = colMeans(assay(sce, "sampen_corrected"), na.rm = TRUE),
+  mean_meth = colMeans(assay(sce, "meth"), na.rm = TRUE)
+)
+write.csv(cell_df, "argelaguet_per_cell_summary.csv", row.names = FALSE)
+```
+
+```{r sampen_by_stage, fig.width = ng_fig_size(4, 1)$w, fig.height = ng_fig_size(4, 1)$h}
+ggplot(cell_df, aes(x = stage, y = mean_sampen, fill = stage)) +
+  geom_violin(trim = FALSE, scale = "width") +
+  geom_boxplot(width = 0.1, outlier.size = 0.5, alpha = 0.5) +
+  theme_ng(base_size = 8) +
+  theme(legend.position = "none") +
+  labs(y = "mean S", title = "Per-cell mean S by stage")
+```
+
+```{r adjS_by_stage, fig.width = ng_fig_size(4, 1)$w, fig.height = ng_fig_size(4, 1)$h}
+ggplot(cell_df, aes(x = stage, y = mean_corrected, fill = stage)) +
+  geom_violin(trim = FALSE, scale = "width") +
+  geom_boxplot(width = 0.1, outlier.size = 0.5, alpha = 0.5) +
+  theme_ng(base_size = 8) +
+  theme(legend.position = "none") +
+  labs(y = "mean sampen_corrected", title = "Per-cell mean sampen_corrected by stage")
+```
+
+```{r meth_vs_sampen, fig.width = ng_fig_size(4, 1)$w, fig.height = ng_fig_size(4, 1)$h}
+ggplot(cell_df, aes(x = mean_meth, y = mean_sampen, color = stage)) +
+  geom_point(size = 0.5, alpha = 0.6) +
+  scale_color_manual(values = c("E4.5" = "#440154", "E5.5" = "#31688e",
+                                "E6.5" = "#35b779", "E7.5" = "#fde725")) +
+  guides(color = guide_legend(override.aes = list(size = 2, alpha = 1))) +
+  theme_ng(base_size = 8) +
+  labs(x = "mean methylation", y = "mean S",
+       title = "Global S vs methylation per cell")
+```
+
+```{r save_corrected}
+saveRDS(sce, file = snakemake@params$corrected_sce, compress = "xz")
+cat("Saved corrected SCE to:", snakemake@params$corrected_sce, "\n")
+cat("Dimensions:", nrow(sce), "x", ncol(sce), "\n")
+```
+
+```{r session}
+sessionInfo()
+```
