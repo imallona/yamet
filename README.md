@@ -1,15 +1,18 @@
-# yamet: Yet Another Methylation Entropy Tool
+# We have moved!
 
-`yamet` is a C++ command line tool for computing entropies from DNA methylation data.
+`yamet` was superseded by [`amet`](https://github.com/imallona/amet) on May 18th 2026.
 
-It takes per-cell cytosine reports, a reference file of all CpG positions, and a BED file of genomic regions, then computes sample entropy (per cell, per interval) and 2-mer Shannon entropy (across cells, per interval). Missing positions are handled via the reference file.
+This project is not longer maintained.
+
+
+# Aim
+`yamet` was a C++ command line tool for computing entropies from DNA methylation data.
+
+It took per-cell cytosine reports, a reference file of all CpG positions, and a BED file of genomic regions, then computed sample entropy (per cell, per interval) and 2-mer Shannon entropy (across cells, per interval). Missing positions were handled via the reference file.
 
 See also:
 - https://github.com/emsonder/MethQuant
 - https://github.com/emsonder/MethQuant-analysis
-
-> [!NOTE]
-> `yamet` is under active development.
 
 ## Installation
 
